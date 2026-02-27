@@ -33,6 +33,55 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {/* User Progress Panel */}
+      <Card className="bg-surface-dark border-border-subtle overflow-hidden relative group">
+        <div className="absolute inset-0 bg-accent-blue/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+        <CardContent className="p-6 flex flex-col md:flex-row items-center gap-8 relative z-10">
+          {/* Level Hexagon */}
+          <div className="relative shrink-0">
+            <div className="size-20 bg-surface border-2 border-accent-blue/30 rounded-2xl rotate-45 flex items-center justify-center relative overflow-hidden group-hover:border-accent-blue transition-colors">
+              <div className="absolute inset-0 bg-accent-blue/10 animate-pulse" />
+              <div className="-rotate-45 flex flex-col items-center">
+                <span className="text-3xl font-bold text-white tracking-tighter">14</span>
+                <span className="text-[8px] font-mono font-bold text-accent-blue uppercase tracking-[0.2em] -mt-1">LEVEL</span>
+              </div>
+            </div>
+            <div className="absolute -bottom-2 -right-2 px-2 py-0.5 bg-accent-blue text-white text-[9px] font-mono font-black italic rounded flex items-center gap-1 shadow-lg shadow-accent-blue/20">
+              S-CLASS
+            </div>
+          </div>
+
+          {/* XP Progress */}
+          <div className="flex-1 w-full space-y-4">
+            <div className="flex items-end justify-between">
+              <div className="space-y-1">
+                <h3 className="text-xs font-mono font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
+                  <Terminal className="size-3 text-accent-blue" />
+                  Experience Protocol
+                </h3>
+                <p className="text-lg font-bold text-white tracking-tight">
+                  2,400 <span className="text-text-muted text-sm font-medium">/ 3,000 XP</span>
+                </p>
+              </div>
+              <div className="text-right space-y-1">
+                <p className="text-[10px] font-mono text-accent-blue font-bold tracking-widest">NEXT: LVL 15</p>
+                <Badge variant="outline" className="border-accent-blue/20 bg-accent-blue/5 text-accent-blue text-[9px] px-2 py-0">
+                  +12.4% THIS WEEK
+                </Badge>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Progress value={80} className="h-2 bg-surface border border-border-subtle" />
+              <div className="flex justify-between font-mono text-[9px] text-text-muted/60 tracking-wider">
+                <span>BUFFER_STATUS: STABLE</span>
+                <span className="animate-pulse">{"///"} SYNCHRONIZING_CORE</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Seccion: Modulos Activos */}
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">

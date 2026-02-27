@@ -62,6 +62,14 @@ export default async function DashboardLayout({
             <Flame className="size-3 fill-orange-500" />
             <span className="font-bold">14 DAYS UPTIME</span>
           </Badge>
+
+          <div className="flex items-center gap-1 bg-card border border-border/50 rounded-lg p-1 pr-3 hover:border-primary/50 transition-all cursor-default group">
+            <div className="size-8 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold group-hover:bg-primary group-hover:text-white transition-all">
+              14
+            </div>
+            <span className="text-[9px] font-bold text-muted-foreground group-hover:text-white transition-colors">LVL</span>
+          </div>
+
           <Button variant="outline" size="icon" className="size-10 rounded-lg bg-card border-border/50 text-muted-foreground hover:text-white hover:border-primary/50 transition-all">
             <User className="size-5" />
           </Button>
