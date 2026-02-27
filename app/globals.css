@@ -13,6 +13,9 @@
   --color-accent-green: #23C55E;
   --color-accent-amber: #F59E0B;
   --color-accent-red: #EF4444;
+  --color-primary: #0070F3;
+  --color-surface-dark: #111111;
+  --color-border-muted: #333333;
 
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -31,7 +34,8 @@
     @apply font-sans;
   }
 
-  code, pre {
+  code,
+  pre {
     @apply font-mono;
   }
 }
@@ -47,5 +51,10 @@
 
   .industrial-input {
     @apply bg-background border border-border-subtle rounded-md px-3 py-2 focus:border-accent-blue outline-none text-sm transition-colors;
+  }
+
+  .bg-radial-grid {
+    background-image: radial-gradient(circle at 2px 2px, #fff 1px, transparent 0);
+    background-size: 40px 40px;
   }
 }

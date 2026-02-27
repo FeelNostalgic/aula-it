@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test("debe mostrar la página de login", async ({ page }) => {
   await page.goto("/login");
-  await expect(page.locator("h3")).toContainText("AULA IT");
+  await expect(page.locator("h1")).toContainText("Aula IT");
 });
 
 test("debe permitir ingresar credenciales", async ({ page }) => {
