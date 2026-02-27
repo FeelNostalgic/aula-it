@@ -27,7 +27,7 @@ export async function login(prevState: any, formData: FormData) {
 
 export async function loginWithGoogle() {
   const supabase = await createClient();
-  
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
@@ -42,4 +42,26 @@ export async function loginWithGoogle() {
   if (data.url) {
     redirect(data.url);
   }
+}
+
+export async function signup(prevState: any, formData: FormData) {
+  const supabase = await createClient();
+
+  const email = formData.get("email") as string;
+  const password = formData.get("password") as string;
+
+  if (!email || !password) {
+    return { error: "Email and password are required" };
+  }
+
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  redirect("/dashboard");
 }

@@ -7,6 +7,7 @@ import { Button } from "@/app/_components/button";
 import { Input } from "@/app/_components/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/app/_components/card";
 import { login, loginWithGoogle } from "./actions";
+import Link from "next/link";
 
 function LoginButton() {
   const { pending } = useFormStatus();
@@ -81,7 +82,13 @@ export default function LoginPage() {
           </div>
         </CardContent>
 
-        <CardFooter className="justify-center">
+        <CardFooter className="flex flex-col gap-4">
+          <Link
+            href="/register"
+            className="text-[10px] font-mono text-text-muted hover:text-accent-blue transition-colors uppercase tracking-tight"
+          >
+            DON'T HAVE AN ACCOUNT? SIGN UP
+          </Link>
           <p className="text-[10px] font-mono text-text-muted uppercase tracking-tight">
             FORGOT PASSWORD? CONTACT THE SYSADMIN.
           </p>
