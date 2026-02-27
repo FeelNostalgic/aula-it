@@ -4,22 +4,24 @@
   --font-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-  --color-background: #0A0A0A;
-  --color-surface: #171717;
-  --color-border-subtle: #333333;
+  --color-background: #0f0f0f;
+  --color-surface: #121212;
+  --color-surface-dark: #191919;
+  --color-border-subtle: #464646;
   --color-text-primary: #EDEDED;
-  --color-text-muted: #888888;
+  --color-text-muted: #737373;
   --color-accent-blue: #0070F3;
-  --color-accent-green: #23C55E;
+  --color-accent-green: #10B981;
   --color-accent-amber: #F59E0B;
   --color-accent-red: #EF4444;
+  --color-accent-orange: #F97316;
+  --color-accent-purple: #A855F7;
   --color-primary: #0070F3;
-  --color-surface-dark: #111111;
-  --color-border-muted: #333333;
 
+  --radius-xs: 2px;
   --radius-sm: 4px;
   --radius-md: 6px;
-  --radius-lg: 8px;
+  --radius-lg: 12px;
 }
 
 @layer base {

@@ -1,7 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { Zap } from "lucide-react";
-import { Button } from "@/app/_components/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/app/_components/card";
+import { Search, MoreVertical, Terminal, Database, Globe, Command } from "lucide-react";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -11,77 +9,125 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
 
   return (
-    <div className="p-8 space-y-8">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-3xl font-sans font-bold tracking-tight uppercase">
-            WELCOME_BACK, {user?.email?.split('@')[0]}
-          </h1>
-          <p className="text-sm font-mono text-text-muted mt-1 tracking-tighter uppercase">
-            SMR / ASIR / DAW / DAM TRACKING INTERFACE
-          </p>
+    <div className="flex flex-col gap-10">
+      {/* Command Search Bar */}
+      <div className="relative group">
+        <div className="absolute inset-y-0 left-4 flex items-center text-accent-blue font-mono text-sm pointer-events-none">
+          {">"}
         </div>
-        <Button variant="primary" size="lg" className="rounded-full h-12 w-12 p-0 shadow-[0_0_20px_rgba(0,112,243,0.3)]">
-          <Zap className="w-6 h-6" />
-        </Button>
+        <input
+          type="text"
+          placeholder="Search projects or run a command..."
+          className="w-full bg-background border border-border-subtle rounded-xl h-[52px] pl-10 pr-16 text-sm font-sans text-white focus:ring-1 focus:ring-accent-blue focus:border-accent-blue/50 outline-none transition-all placeholder:text-text-muted/60"
+        />
+        <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
+          <div className="px-2 py-1 rounded bg-surface border border-border-subtle flex items-center gap-1">
+            <Command className="size-2.5 text-text-muted" />
+            <span className="text-[10px] font-mono text-text-muted font-bold">K</span>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader>
-            <CardDescription>AVERAGE_GRADE</CardDescription>
-            <CardTitle className="text-4xl text-accent-green font-mono">8.95</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-[10px] font-mono text-text-muted uppercase">+0.4 FROM LAST SEMESTER</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>CREDITS_COMPLETED</CardDescription>
-            <CardTitle className="text-4xl font-mono">124 / 240</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-[10px] font-mono text-text-muted uppercase">51.6% TOTAL PROGRESS</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>ACTIVE_CERTIFICATIONS</CardDescription>
-            <CardTitle className="text-4xl text-accent-blue font-mono">04</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-[10px] font-mono text-text-muted uppercase">3 RENEWALS PENDING</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Seccion: Modulos Activos */}
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold">Módulos Activos</h2>
+          <button className="text-[10px] font-mono font-bold text-accent-blue hover:underline tracking-widest uppercase flex items-center gap-2">
+            VIEW ALL <span className="text-sm">→</span>
+          </button>
+        </div>
 
-      <Card>
-        <CardHeader className="border-b border-border-subtle -mx-6 px-6 pb-4">
-          <CardTitle className="tracking-tighter">CURRENT_MODULES_STATUS</CardTitle>
-          <CardDescription>ACTIVE ACADEMIC DEPLOYMENTS</CardDescription>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="space-y-4">
-            {[
-              { name: "NETWORK_ARCHITECTURE", grade: 9.2, status: "stable", accent: "bg-accent-green" },
-              { name: "DATABASE_MANAGEMENT", grade: 8.5, status: "active", accent: "bg-accent-blue" },
-              { name: "SYSTEM_SECURITY", grade: 7.8, status: "warning", accent: "bg-accent-amber" },
-            ].map((module) => (
-              <div key={module.name} className="flex items-center justify-between p-4 border border-border-subtle bg-background rounded-md group hover:border-accent-blue/50 transition-colors cursor-default">
-                <div className="flex items-center gap-4">
-                  <div className={`w-1.5 h-1.5 rounded-full ${module.accent}`} />
-                  <span className="font-mono text-sm group-hover:text-accent-blue transition-colors tracking-tight">{module.name}</span>
+        <div className="flex flex-col gap-4">
+          {/* Module 1 */}
+          <div className="p-6 rounded-xl bg-surface-dark border border-border-subtle hover:border-border-subtle/80 transition-all cursor-default group shadow-sm">
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <div className="size-11 rounded-lg bg-surface border border-border-subtle flex items-center justify-center text-text-muted group-hover:text-white transition-colors">
+                  <span className="material-symbols-outlined text-[24px]">rebase_edit</span>
                 </div>
-                <div className="flex items-center gap-8 font-mono text-sm">
-                  <span className="text-text-muted uppercase tracking-tighter hidden sm:inline">STATUS: {module.status}</span>
-                  <span className="font-bold tabular-nums">GRADE_{module.grade}</span>
+                <div className="flex flex-col gap-1">
+                  <h3 className="font-bold text-base">Sistemas Operativos</h3>
+                  <p className="text-[10px] font-mono text-text-muted uppercase tracking-tighter">Último acceso: Hoy</p>
                 </div>
               </div>
-            ))}
+              <div className="px-3 py-1 rounded-full bg-accent-green/10 border border-accent-green/20 text-[10px] font-mono text-accent-green font-bold uppercase tracking-widest">
+                Completado
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-[10px] font-mono text-text-muted mb-4 uppercase tracking-tighter">
+              <span className="material-symbols-outlined text-[14px]">view_agenda</span>
+              Tema actual: Gestión de Procesos
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between text-[10px] font-mono font-bold">
+                <span className="text-accent-blue">85%</span>
+              </div>
+              <div className="h-1.5 w-full bg-border-subtle rounded-full overflow-hidden">
+                <div className="h-full bg-accent-blue rounded-full" style={{ width: '85%' }} />
+              </div>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Module 2 */}
+          <div className="p-6 rounded-xl bg-surface-dark border border-border-subtle hover:border-border-subtle/80 transition-all cursor-default group shadow-sm">
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <div className="size-11 rounded-lg bg-surface border border-border-subtle flex items-center justify-center text-text-muted group-hover:text-white transition-colors">
+                  <span className="material-symbols-outlined text-[24px]">hub</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <h3 className="font-bold text-base">Redes de Datos</h3>
+                  <p className="text-[10px] font-mono text-text-muted uppercase tracking-tighter">Último acceso: Ayer</p>
+                </div>
+              </div>
+              <div className="px-3 py-1 rounded-full bg-accent-orange/10 border border-accent-orange/20 text-[10px] font-mono text-accent-orange font-bold uppercase tracking-widest">
+                En curso
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-[10px] font-mono text-text-muted mb-4 uppercase tracking-tighter">
+              <span className="material-symbols-outlined text-[14px]">view_agenda</span>
+              Tema actual: Modelo OSI
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between text-[10px] font-mono font-bold">
+                <span className="text-accent-orange">48%</span>
+              </div>
+              <div className="h-1.5 w-full bg-border-subtle rounded-full overflow-hidden">
+                <div className="h-full bg-accent-orange rounded-full" style={{ width: '48%' }} />
+              </div>
+            </div>
+          </div>
+
+          {/* Module 3 */}
+          <div className="p-6 rounded-xl bg-surface-dark border border-border-subtle opacity-60 hover:opacity-100 transition-all cursor-default group border-dashed shadow-sm">
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <div className="size-11 rounded-lg bg-surface border border-border-subtle flex items-center justify-center text-text-muted group-hover:text-white transition-colors">
+                  <span className="material-symbols-outlined text-[24px]">database</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <h3 className="font-bold text-base text-text-muted group-hover:text-white">Bases de Datos</h3>
+                  <p className="text-[10px] font-mono text-text-muted uppercase tracking-tighter">Último acceso: --</p>
+                </div>
+              </div>
+              <div className="px-3 py-1 rounded-full bg-border-subtle/30 border border-border-subtle/50 text-[10px] font-mono text-text-muted font-bold uppercase tracking-widest">
+                Pendiente
+              </div>
+            </div>
+
+            <div className="flex items-center gap-10">
+              <div className="h-2 w-32 bg-border-subtle rounded-full" />
+              <div className="h-2 w-32 bg-border-subtle rounded-full" />
+            </div>
+
+            <div className="mt-8 h-1 w-full bg-border-subtle rounded-full" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
