@@ -55,6 +55,7 @@ IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the correspon
 | React Composition Patterns | `~/.agent/skills/vercel-composition-patterns/SKILL.md` |
 | Web Design Guidelines, UX review | `~/.agent/skills/web-design-guidelines/SKILL.md` |
 | Frontend Design, UI/UX design | `~/.agent/skills/frontend-design/SKILL.md` |
+| Shadcn UI Components | `~/.agent/skills/josechifflet/SKILL.md` |
 
 ### How to use skills
 1. Detect context from user request or current file being edited
