@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  --color-background: #0A0A0A;
+  --color-surface: #171717;
+  --color-border-subtle: #333333;
+  --color-text-primary: #EDEDED;
+  --color-text-muted: #888888;
+  --color-accent-blue: #0070F3;
+  --color-accent-green: #23C55E;
+  --color-accent-amber: #F59E0B;
+  --color-accent-red: #EF4444;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+}
+
+@layer base {
+  :root {
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply font-sans;
+  }
+
+  code, pre {
+    @apply font-mono;
+  }
+}
+
+@layer components {
+  .industrial-card {
+    @apply bg-surface border border-border-subtle rounded-lg p-6;
+  }
+
+  .industrial-button {
+    @apply bg-surface border border-border-subtle rounded-md px-4 py-2 hover:bg-border-subtle transition-colors text-sm font-mono;
+  }
+
+  .industrial-input {
+    @apply bg-background border border-border-subtle rounded-md px-3 py-2 focus:border-accent-blue outline-none text-sm transition-colors;
+  }
+}
