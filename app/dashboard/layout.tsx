@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function DashboardLayout({
   children,
@@ -52,7 +53,7 @@ export default async function DashboardLayout({
             </div>
             <div className="flex items-center gap-2 font-mono text-xs font-medium">
               <span className="text-muted-foreground">root /</span>
-              <span className="text-white">Aula IT</span>
+              <span className="text-foreground">Aula IT</span>
             </div>
           </div>
         </div>
@@ -64,13 +65,15 @@ export default async function DashboardLayout({
           </Badge>
 
           <div className="flex items-center gap-1 bg-card border border-border/50 rounded-lg p-1 pr-3 hover:border-primary/50 transition-all cursor-default group">
-            <div className="size-8 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold group-hover:bg-primary group-hover:text-white transition-all">
+            <div className="size-8 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold transition-all">
               14
             </div>
-            <span className="text-[9px] font-bold text-muted-foreground group-hover:text-white transition-colors">LVL</span>
+            <span className="text-[9px] font-bold text-muted-foreground transition-colors">LVL</span>
           </div>
 
-          <Button variant="outline" size="icon" className="size-10 rounded-lg bg-card border-border/50 text-muted-foreground hover:text-white hover:border-primary/50 transition-all">
+          <ThemeToggle />
+
+          <Button variant="outline" size="icon" className="size-10 rounded-lg bg-card border-border/50 text-muted-foreground hover:bg-accent hover:text-foreground transition-all">
             <User className="size-5" />
           </Button>
         </div>
@@ -85,25 +88,25 @@ export default async function DashboardLayout({
             </div>
             <nav className="flex flex-col gap-1">
               <Link href="/dashboard" passHref>
-                <Button variant="secondary" className="w-full justify-start gap-3 px-3 h-10 bg-card border border-border/50 text-white shadow-sm">
+                <Button variant="secondary" className="w-full justify-start gap-3 px-3 h-10 bg-card border border-border/50 text-foreground shadow-sm">
                   <Home className="size-4" />
                   <span className="font-medium">Inicio</span>
                 </Button>
               </Link>
               <Link href="#" passHref>
-                <Button variant="ghost" className="w-full justify-start gap-3 px-3 h-10 text-muted-foreground hover:text-white hover:bg-card/50">
+                <Button variant="ghost" className="w-full justify-start gap-3 px-3 h-10 text-muted-foreground hover:text-foreground hover:bg-card/50">
                   <BookOpen className="size-4" />
                   <span className="font-medium">Mis Cursos</span>
                 </Button>
               </Link>
               <Link href="#" passHref>
-                <Button variant="ghost" className="w-full justify-start gap-3 px-3 h-10 text-muted-foreground hover:text-white hover:bg-card/50">
+                <Button variant="ghost" className="w-full justify-start gap-3 px-3 h-10 text-muted-foreground hover:text-foreground hover:bg-card/50">
                   <BarChart2 className="size-4" />
                   <span className="font-medium">Progreso</span>
                 </Button>
               </Link>
               <Link href="#" passHref>
-                <Button variant="ghost" className="w-full justify-start gap-3 px-3 h-10 text-muted-foreground hover:text-white hover:bg-card/50">
+                <Button variant="ghost" className="w-full justify-start gap-3 px-3 h-10 text-muted-foreground hover:text-foreground hover:bg-card/50">
                   <HelpCircle className="size-4" />
                   <span className="font-medium">Recursos</span>
                 </Button>
@@ -113,12 +116,12 @@ export default async function DashboardLayout({
 
           <div className="mt-auto p-6 flex flex-col gap-6">
             <Separator className="bg-border/30" />
-            <Button variant="ghost" className="w-full justify-start gap-3 px-3 h-10 text-muted-foreground hover:text-white group">
+            <Button variant="ghost" className="w-full justify-start gap-3 px-3 h-10 text-muted-foreground hover:text-foreground group">
               <Settings className="size-4 group-hover:rotate-45 transition-transform" />
               <span className="text-sm font-medium">Ajustes</span>
             </Button>
             <div className="px-3">
-              <div className="font-mono text-[9px] text-muted-foreground tracking-widest uppercase opacity-30">
+              <div className="font-mono text-[9px] text-muted-foreground/60 tracking-widest uppercase">
                 system_v2.4.0 (stable)
               </div>
             </div>
@@ -137,7 +140,7 @@ export default async function DashboardLayout({
               <History className="size-4 text-primary" />
               <h3 className="font-bold text-sm tracking-tight">Activity Log</h3>
             </div>
-            <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-white">
+            <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
               <MoreHorizontal className="size-4" />
             </Button>
           </div>
@@ -153,7 +156,7 @@ export default async function DashboardLayout({
                   <Card className="mt-2 bg-card/30 border-border/30">
                     <CardContent className="p-3">
                       <p className="text-[10px] font-mono text-muted-foreground leading-relaxed">
-                        [EXEC] COMPLETED QUIZ 101: <span className="text-white">92% SCORE</span>
+                        [EXEC] COMPLETED QUIZ 101: <span className="text-primary font-bold">92% SCORE</span>
                       </p>
                     </CardContent>
                   </Card>
@@ -165,7 +168,7 @@ export default async function DashboardLayout({
                 <div className="absolute -left-[31px] top-1 size-[9px] rounded-full bg-green-500 ring-4 ring-background" />
                 <div className="flex flex-col gap-1">
                   <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">2h ago</span>
-                  <h4 className="text-xs font-bold text-white">Assignment Uploaded</h4>
+                  <h4 className="text-xs font-bold">Assignment Uploaded</h4>
                   <Card className="mt-2 bg-card/30 border-border/30">
                     <CardContent className="p-3">
                       <p className="text-[10px] font-mono text-muted-foreground leading-relaxed">
@@ -181,8 +184,8 @@ export default async function DashboardLayout({
                 <div className="absolute -left-[31px] top-1 size-[9px] rounded-full bg-orange-500 ring-4 ring-background" />
                 <div className="flex flex-col gap-1">
                   <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">5h ago</span>
-                  <h4 className="text-xs font-bold text-white">Exam Reminder</h4>
-                  <Card className="mt-2 bg-card/30 border-border/30 border-orange-500/20 bg-orange-500/5">
+                  <h4 className="text-xs font-bold">Exam Reminder</h4>
+                  <Card className="mt-2 bg-card/30 border-border/30">
                     <CardContent className="p-3">
                       <p className="text-[10px] font-mono text-orange-500/80 leading-relaxed uppercase">
                         [WARN] HOMEWORK OVERDUE: CSS GRID LAYOUT
@@ -197,11 +200,11 @@ export default async function DashboardLayout({
                 <div className="absolute -left-[31px] top-1 size-[9px] rounded-full bg-purple-500 ring-4 ring-background" />
                 <div className="flex flex-col gap-1">
                   <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">1d ago</span>
-                  <h4 className="text-xs font-bold text-white">Achievement</h4>
-                  <Card className="mt-2 bg-card/30 border-border/30 border-purple-500/20">
+                  <h4 className="text-xs font-bold">Achievement</h4>
+                  <Card className="mt-2 bg-card/30 border-border/30">
                     <CardContent className="p-3 flex items-center gap-2">
                       <Trophy className="size-4 text-purple-500" />
-                      <p className="text-[10px] font-mono text-white leading-relaxed uppercase">
+                      <p className="text-[10px] font-mono text-foreground leading-relaxed uppercase">
                         UNLOCKED: GIT MASTER
                       </p>
                     </CardContent>

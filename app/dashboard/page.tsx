@@ -23,7 +23,7 @@ export default async function DashboardPage() {
         <Input
           type="text"
           placeholder="Search projects or run a command..."
-          className="w-full bg-background border-border-subtle rounded-xl h-[52px] pl-10 pr-16 text-sm font-sans text-white focus-visible:ring-1 focus-visible:ring-accent-blue focus-visible:border-accent-blue/50 transition-all placeholder:text-text-muted/60"
+          className="w-full bg-background border-border-subtle rounded-xl h-[52px] pl-10 pr-16 text-sm font-sans text-foreground focus-visible:ring-1 focus-visible:ring-accent-blue focus-visible:border-accent-blue/50 transition-all placeholder:text-text-muted/60"
         />
         <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
           <div className="px-2 py-1 rounded bg-surface border border-border-subtle flex items-center gap-1">
@@ -42,11 +42,11 @@ export default async function DashboardPage() {
             <div className="size-20 bg-surface border-2 border-accent-blue/30 rounded-2xl rotate-45 flex items-center justify-center relative overflow-hidden group-hover:border-accent-blue transition-colors">
               <div className="absolute inset-0 bg-accent-blue/10 animate-pulse" />
               <div className="-rotate-45 flex flex-col items-center">
-                <span className="text-3xl font-bold text-white tracking-tighter">14</span>
+                <span className="text-3xl font-bold text-foreground tracking-tighter">14</span>
                 <span className="text-[8px] font-mono font-bold text-accent-blue uppercase tracking-[0.2em] -mt-1">LEVEL</span>
               </div>
             </div>
-            <div className="absolute -bottom-2 -right-2 px-2 py-0.5 bg-accent-blue text-white text-[9px] font-mono font-black italic rounded flex items-center gap-1 shadow-lg shadow-accent-blue/20">
+            <div className="absolute -bottom-2 -right-2 px-2 py-0.5 bg-accent-blue text-primary-foreground text-[9px] font-mono font-black italic rounded flex items-center gap-1 shadow-lg shadow-accent-blue/20">
               S-CLASS
             </div>
           </div>
@@ -57,9 +57,9 @@ export default async function DashboardPage() {
               <div className="space-y-1">
                 <h3 className="text-xs font-mono font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
                   <Terminal className="size-3 text-accent-blue" />
-                  Experience Protocol
+                  Experience
                 </h3>
-                <p className="text-lg font-bold text-white tracking-tight">
+                <p className="text-lg font-bold text-foreground tracking-tight">
                   2,400 <span className="text-text-muted text-sm font-medium">/ 3,000 XP</span>
                 </p>
               </div>
@@ -96,7 +96,7 @@ export default async function DashboardPage() {
           <Card className="bg-surface-dark border-border-subtle hover:border-border-subtle/80 transition-all cursor-default group shadow-sm overflow-hidden">
             <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6">
               <div className="flex items-center gap-4">
-                <div className="size-11 rounded-lg bg-surface border border-border-subtle flex items-center justify-center text-text-muted group-hover:text-white transition-colors">
+                <div className="size-11 rounded-lg bg-surface border border-border-subtle flex items-center justify-center text-text-muted group-hover:text-foreground transition-colors">
                   <span className="material-symbols-outlined text-[24px]">rebase_edit</span>
                 </div>
                 <div className="flex flex-col gap-1">
@@ -127,11 +127,11 @@ export default async function DashboardPage() {
           <Card className="bg-surface-dark border-border-subtle hover:border-border-subtle/80 transition-all cursor-default group shadow-sm overflow-hidden">
             <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6">
               <div className="flex items-center gap-4">
-                <div className="size-11 rounded-lg bg-surface border border-border-subtle flex items-center justify-center text-text-muted group-hover:text-white transition-colors">
+                <div className="size-11 rounded-lg bg-surface border border-border-subtle flex items-center justify-center text-text-muted group-hover:text-foreground transition-colors">
                   <span className="material-symbols-outlined text-[24px]">hub</span>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <CardTitle className="text-base font-bold">Redes de Datos</CardTitle>
+                  <CardTitle className="text-base font-bold">Redes Locales</CardTitle>
                   <CardDescription className="text-[10px] font-mono text-text-muted uppercase tracking-tighter">Último acceso: Ayer</CardDescription>
                 </div>
               </div>
@@ -163,11 +163,11 @@ export default async function DashboardPage() {
           <Card className="bg-surface-dark border-border-subtle opacity-60 hover:opacity-100 transition-all cursor-default group border-dashed shadow-sm overflow-hidden">
             <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6">
               <div className="flex items-center gap-4">
-                <div className="size-11 rounded-lg bg-surface border border-border-subtle flex items-center justify-center text-text-muted group-hover:text-white transition-colors">
+                <div className="size-11 rounded-lg bg-surface border border-border-subtle flex items-center justify-center text-text-muted group-hover:text-foreground transition-colors">
                   <span className="material-symbols-outlined text-[24px]">database</span>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <CardTitle className="text-base font-bold text-text-muted group-hover:text-white transition-colors">Bases de Datos</CardTitle>
+                  <CardTitle className="text-base font-bold text-foreground group-hover:text-primary transition-colors">Bases de Datos</CardTitle>
                   <CardDescription className="text-[10px] font-mono text-text-muted uppercase tracking-tighter">Último acceso: --</CardDescription>
                 </div>
               </div>

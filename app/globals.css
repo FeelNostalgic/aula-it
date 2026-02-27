@@ -3,41 +3,87 @@
 
 @custom-variant dark (&:is(.dark *));
 
+:root {
+  --background: #FFFFFF;
+  --foreground: #171717;
+  --card: #F9F9F9;
+  --card-foreground: #171717;
+  --popover: #FFFFFF;
+  --popover-foreground: #171717;
+  --primary: #0070F3;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F0F0F0;
+  --secondary-foreground: #171717;
+  --muted: #F0F0F0;
+  --muted-foreground: #666666;
+  --accent: #F0F0F0;
+  --accent-foreground: #171717;
+  --destructive: #EF4444;
+  --border: #E5E5E5;
+  --input: #E5E5E5;
+  --ring: #0070F3;
+  --chart-1: #0070F3;
+  --chart-2: #10B981;
+  --chart-3: #F59E0B;
+  --chart-4: #F97316;
+  --chart-5: #A855F7;
+  --sidebar: #F9F9F9;
+  --sidebar-foreground: #171717;
+  --sidebar-primary: #0070F3;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F0F0F0;
+  --sidebar-accent-foreground: #171717;
+  --sidebar-border: #E5E5E5;
+  --sidebar-ring: #0070F3;
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: #0f0f0f;
+  --foreground: #EDEDED;
+  --card: #121212;
+  --card-foreground: #EDEDED;
+  --popover: #121212;
+  --popover-foreground: #EDEDED;
+  --primary: #0070F3;
+  --primary-foreground: #FFFFFF;
+  --secondary: #191919;
+  --secondary-foreground: #EDEDED;
+  --muted: #191919;
+  --muted-foreground: #737373;
+  --accent: #191919;
+  --accent-foreground: #EDEDED;
+  --destructive: #EF4444;
+  --border: #464646;
+  --input: #464646;
+  --ring: #0070F3;
+  --chart-1: #0070F3;
+  --chart-2: #10B981;
+  --chart-3: #F59E0B;
+  --chart-4: #F97316;
+  --chart-5: #A855F7;
+  --sidebar: #121212;
+  --sidebar-foreground: #EDEDED;
+  --sidebar-primary: #0070F3;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #191919;
+  --sidebar-accent-foreground: #EDEDED;
+  --sidebar-border: #464646;
+  --sidebar-ring: #0070F3;
+}
+
 @theme {
   --font-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-  /* Industrial Theme Variables */
-  --color-background: #0f0f0f;
-  --color-surface: #121212;
-  --color-surface-dark: #191919;
-  --color-border-subtle: #464646;
-  --color-text-primary: #EDEDED;
-  --color-text-muted: #737373;
-  --color-accent-blue: #0070F3;
-  --color-accent-green: #10B981;
-  --color-accent-amber: #F59E0B;
-  --color-accent-red: #EF4444;
-  --color-accent-orange: #F97316;
-  --color-accent-purple: #A855F7;
-  --color-primary: #0070F3;
-
-  --radius-xs: 2px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 12px;
-
-  /* shadcn/ui Mappings */
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
-
+  /* Theme Variables Mapping */
+  --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -62,77 +108,28 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-}
 
-@layer base {
-  :root {
-    --background: #0f0f0f;
-    --foreground: #EDEDED;
-    --card: #121212;
-    --card-foreground: #EDEDED;
-    --popover: #121212;
-    --popover-foreground: #EDEDED;
-    --primary: #0070F3;
-    --primary-foreground: #FFFFFF;
-    --secondary: #191919;
-    --secondary-foreground: #EDEDED;
-    --muted: #191919;
-    --muted-foreground: #737373;
-    --accent: #191919;
-    --accent-foreground: #EDEDED;
-    --destructive: #EF4444;
-    --border: #464646;
-    --input: #464646;
-    --ring: #0070F3;
-    --chart-1: #0070F3;
-    --chart-2: #10B981;
-    --chart-3: #F59E0B;
-    --chart-4: #EF4444;
-    --chart-5: #A855F7;
-    --sidebar: #121212;
-    --sidebar-foreground: #EDEDED;
-    --sidebar-primary: #0070F3;
-    --sidebar-primary-foreground: #FFFFFF;
-    --sidebar-accent: #191919;
-    --sidebar-accent-foreground: #EDEDED;
-    --sidebar-border: #464646;
-    --sidebar-ring: #0070F3;
-    --radius: 0.625rem;
-  }
+  /* Industrial Legacy Variables */
+  --color-surface: var(--card);
+  --color-surface-dark: var(--secondary);
+  --color-border-subtle: var(--border);
+  --color-text-primary: var(--foreground);
+  --color-text-muted: var(--muted-foreground);
+  --color-accent-blue: var(--primary);
+  --color-accent-green: var(--chart-2);
+  --color-accent-amber: var(--chart-3);
+  --color-accent-red: var(--destructive);
+  --color-accent-orange: var(--chart-4);
+  --color-accent-purple: var(--chart-5);
 
-  .dark {
-    --background: #0f0f0f;
-    --foreground: #EDEDED;
-    --card: #121212;
-    --card-foreground: #EDEDED;
-    --popover: #121212;
-    --popover-foreground: #EDEDED;
-    --primary: #0070F3;
-    --primary-foreground: #FFFFFF;
-    --secondary: #191919;
-    --secondary-foreground: #EDEDED;
-    --muted: #191919;
-    --muted-foreground: #737373;
-    --accent: #191919;
-    --accent-foreground: #EDEDED;
-    --destructive: #EF4444;
-    --border: #464646;
-    --input: #464646;
-    --ring: #0070F3;
-    --chart-1: #0070F3;
-    --chart-2: #10B981;
-    --chart-3: #F59E0B;
-    --chart-4: #EF4444;
-    --chart-5: #A855F7;
-    --sidebar: #121212;
-    --sidebar-foreground: #EDEDED;
-    --sidebar-primary: #0070F3;
-    --sidebar-primary-foreground: #FFFFFF;
-    --sidebar-accent: #191919;
-    --sidebar-accent-foreground: #EDEDED;
-    --sidebar-border: #464646;
-    --sidebar-ring: #0070F3;
-  }
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 12px;
+  --radius-xl: calc(var(--radius, 0.625rem) + 4px);
+  --radius-2xl: calc(var(--radius, 0.625rem) + 8px);
+  --radius-3xl: calc(var(--radius, 0.625rem) + 12px);
+  --radius-4xl: calc(var(--radius, 0.625rem) + 16px);
 }
 
 @layer base {
