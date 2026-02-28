@@ -66,8 +66,9 @@ export async function signup(prevState: any, formData: FormData) {
     options: {
       data: {
         full_name: name,
-      }
-    }
+        role: "student",
+      },
+    },
   });
 
   if (error) {
