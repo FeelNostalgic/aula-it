@@ -133,12 +133,12 @@ test.describe("Module Detail", () => {
             // Switch to Alumnos
             await moduleDetailPage.clickTab("alumnos");
             await expect(moduleDetailPage.tabAlumnos).toHaveAttribute("data-state", "active");
-            await expect(page.getByRole("heading", { name: /Gesti.n de Alumnos/i })).toBeVisible();
+            await expect(page.getByPlaceholder(/Buscar por nombre/i)).toBeVisible();
 
             // Switch to Configuracion
             await moduleDetailPage.clickTab("configuracion");
             await expect(moduleDetailPage.tabConfiguracion).toHaveAttribute("data-state", "active");
-            await expect(page.getByRole("heading", { name: /Configuraci.n del M.dulo/i })).toBeVisible();
+            await expect(page.getByRole("heading", { name: /Informaci.n General/i })).toBeVisible();
 
             // Switch back to Dashboard
             await moduleDetailPage.clickTab("dashboard");

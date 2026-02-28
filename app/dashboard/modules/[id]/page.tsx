@@ -48,10 +48,26 @@ export default async function ModulePage({ params }: ModulePageProps) {
         .eq("module_id", id)
         .order("order_index", { ascending: true });
 
+    // Fetch enrolled students
+    const { data: enrollments } = await supabase
+        .from("module_enrollments")
+        .select(`
+            student_id,
+            profiles (
+                id,
+                full_name
+            )
+        `)
+        .eq("module_id", id);
+
+    // Clean up the nested response
+    const enrolledStudents = enrollments?.map(e => e.profiles) || [];
+
     return (
         <ModuleDetailView
             module={module}
             initialUnits={units || []}
+            initialStudents={enrolledStudents as any[]}
         />
     );
 }

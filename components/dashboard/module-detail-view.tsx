@@ -22,6 +22,8 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CreateUnitDialog } from "./create-unit-dialog";
 import { useBreadcrumb } from "./breadcrumb-context";
+import { ModuleStudentsTab } from "./module-students-tab";
+import { ModuleSettingsTab } from "./module-settings-tab";
 
 const ICON_MAP: Record<string, any> = {
     BookOpen,
@@ -50,12 +52,18 @@ type Unit = {
     created_at: string;
 };
 
+type Student = {
+    id: string;
+    full_name: string | null;
+};
+
 interface ModuleDetailViewProps {
     module: Module;
     initialUnits: Unit[];
+    initialStudents: Student[];
 }
 
-export function ModuleDetailView({ module, initialUnits }: ModuleDetailViewProps) {
+export function ModuleDetailView({ module, initialUnits, initialStudents }: ModuleDetailViewProps) {
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const ModuleIcon = ICON_MAP[module.icon] || BookOpen;
     const { setSegments } = useBreadcrumb();
@@ -167,7 +175,8 @@ export function ModuleDetailView({ module, initialUnits }: ModuleDetailViewProps
                             : "flex flex-col gap-4"
                         }>
                             {initialUnits.map((unit) => {
-                                const progress = Math.floor(Math.random() * 40) + 60; // Mock progress 60-100%
+                                const hash = unit.id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                                const progress = (hash % 5) * 10 + 60; // Mock progress 60-100%
 
                                 if (viewMode === "list") {
                                     return (
@@ -304,30 +313,14 @@ export function ModuleDetailView({ module, initialUnits }: ModuleDetailViewProps
                     )}
                 </TabsContent>
 
-                {/* Alumnos Tab (Placeholder) */}
+                {/* Alumnos Tab */}
                 <TabsContent value="alumnos" className="mt-6">
-                    <Card className="bg-surface-dark border-border-subtle border-dashed p-12 text-center flex flex-col items-center gap-4">
-                        <div className="size-12 rounded-full bg-accent-blue/10 flex items-center justify-center">
-                            <GraduationCap className="size-6 text-accent-blue" />
-                        </div>
-                        <div className="space-y-1">
-                            <h3 className="font-bold text-foreground">Gestión de Alumnos</h3>
-                            <p className="text-xs text-text-muted">La gestión de alumnos estará disponible próximamente.</p>
-                        </div>
-                    </Card>
+                    <ModuleStudentsTab moduleId={module.id} students={initialStudents} />
                 </TabsContent>
 
-                {/* Configuración Tab (Placeholder) */}
+                {/* Configuración Tab */}
                 <TabsContent value="configuracion" className="mt-6">
-                    <Card className="bg-surface-dark border-border-subtle border-dashed p-12 text-center flex flex-col items-center gap-4">
-                        <div className="size-12 rounded-full bg-accent-blue/10 flex items-center justify-center">
-                            <Settings className="size-6 text-accent-blue" />
-                        </div>
-                        <div className="space-y-1">
-                            <h3 className="font-bold text-foreground">Configuración del Módulo</h3>
-                            <p className="text-xs text-text-muted">Aquí podrás cambiar el nombre, descripción, icono y visibilidad del módulo.</p>
-                        </div>
-                    </Card>
+                    <ModuleSettingsTab module={module} />
                 </TabsContent>
             </Tabs>
         </div>
