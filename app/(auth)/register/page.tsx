@@ -26,7 +26,7 @@ function RegisterButton() {
             ) : (
                 <UserPlus className="mr-2 h-4 w-4" />
             )}
-            <span>{pending ? "CREATING ACCOUNT..." : "CREATE ACCOUNT"}</span>
+            <span>{pending ? "CREANDO CUENTA..." : "CREAR CUENTA"}</span>
         </Button>
     );
 }
@@ -66,9 +66,9 @@ export default function RegisterPage() {
                 {/* Register Card */}
                 <Card className="border-border/50 bg-card shadow-2xl overflow-hidden">
                     <CardHeader className="space-y-1 pb-6 text-center">
-                        <CardTitle className="text-xl font-mono tracking-wider uppercase text-white">New Enrollment</CardTitle>
+                        <CardTitle className="text-xl font-mono tracking-wider uppercase text-white">Nueva Inscripción</CardTitle>
                         <CardDescription className="text-xs uppercase tracking-widest font-mono text-muted-foreground">
-                            Create System Identity
+                            Crear Identidad del Sistema
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-6">
@@ -76,14 +76,14 @@ export default function RegisterPage() {
                             {/* Field: Name */}
                             <div className="grid gap-2">
                                 <Label htmlFor="name" className="text-xs font-mono font-medium text-muted-foreground uppercase tracking-wider">
-                                    Name
+                                    Nombre
                                 </Label>
                                 <Input
                                     id="name"
                                     name="name"
                                     type="text"
                                     required
-                                    placeholder="John Doe"
+                                    placeholder="Juan Pérez"
                                     className="h-12 bg-background/50 border-border/50 focus-visible:ring-primary font-sans"
                                 />
                             </div>
@@ -98,7 +98,7 @@ export default function RegisterPage() {
                                     name="email"
                                     type="email"
                                     required
-                                    placeholder="name@example.com"
+                                    placeholder="usuario@ejemplo.com"
                                     className="h-12 bg-background/50 border-border/50 focus-visible:ring-primary font-sans"
                                 />
                             </div>
@@ -106,7 +106,7 @@ export default function RegisterPage() {
                             {/* Field: Password */}
                             <div className="grid gap-2">
                                 <Label htmlFor="password" className="text-xs font-mono font-medium text-muted-foreground uppercase tracking-wider">
-                                    Password
+                                    Contraseña
                                 </Label>
                                 <div className="relative">
                                     <Input
@@ -150,7 +150,7 @@ export default function RegisterPage() {
                             className="text-[11px] text-muted-foreground hover:text-primary transition-colors uppercase font-mono tracking-tight flex items-center justify-center gap-2"
                         >
                             <ArrowLeft className="h-3 w-3" />
-                            ALREADY HAVE AN ACCOUNT? LOG IN
+                            ¿YA TIENES CUENTA? INICIA SESIÓN
                         </Link>
                     </CardFooter>
                 </Card>
@@ -159,7 +159,7 @@ export default function RegisterPage() {
                 <div className="text-center">
                     <Button variant="outline" size="sm" className="h-9 px-4 rounded-full bg-border-subtle/20 border-border/20 text-muted-foreground hover:text-white hover:bg-border/30 transition-all font-medium text-xs">
                         <ShieldCheck className="mr-2 h-4 w-4" />
-                        Request system access
+                        Solicitar acceso al sistema
                     </Button>
                 </div>
             </main>

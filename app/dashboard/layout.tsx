@@ -2,29 +2,16 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
-  Home,
-  BookOpen,
-  BarChart2,
-  HelpCircle,
   Settings,
   LogOut,
   Flame,
-  Search,
   MoreHorizontal,
-  GraduationCap,
-  Terminal,
-  User,
-  Activity,
-  CheckCircle2,
-  AlertCircle,
-  Trophy,
-  History
+  History,
+  Trophy
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { APP_VERSION, APP_STATUS } from "@/lib/version";
 import {
@@ -53,40 +40,57 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  // Fetch role from profiles table
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  const isTeacher = profile?.role === "teacher";
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans overflow-hidden">
       {/* Top Nav Bar */}
       <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between px-6 shrink-0 z-20">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
+          <Link href="/dashboard" className="flex items-center gap-2 group cursor-pointer transition-opacity hover:opacity-80">
             <div className="size-8 bg-primary rounded-md flex items-center justify-center">
               <span className="font-bold text-white text-xs tracking-tighter">AIT</span>
             </div>
             <div className="flex items-center gap-2 font-mono text-xs font-medium">
-              <span className="text-muted-foreground">root /</span>
-              <span className="text-foreground">Aula IT</span>
+              <span className="text-muted-foreground group-hover:text-primary transition-colors">root /</span>
+              <span className="text-foreground font-bold">Inicio</span>
             </div>
-          </div>
+          </Link>
         </div>
 
         <div className="flex items-center gap-4 uppercase font-mono tracking-widest text-[10px]">
-          <Badge variant="outline" className="bg-orange-500/10 border-orange-500/20 text-orange-500 px-4 py-1.5 rounded-lg flex items-center gap-2 hover:bg-orange-500/20 transition-colors cursor-default">
-            <Flame className="size-3 fill-orange-500" />
-            <span className="font-bold">14 DAYS UPTIME</span>
-          </Badge>
+          {!isTeacher && (
+            <>
+              <Badge variant="outline" className="bg-orange-500/10 border-orange-500/20 text-orange-500 px-4 py-1.5 rounded-lg flex items-center gap-2 hover:bg-orange-500/20 transition-colors cursor-default">
+                <Flame className="size-3 fill-orange-500" />
+                <span className="font-bold">14 DÍAS ACTIVO</span>
+              </Badge>
 
-          <div className="flex items-center gap-1 bg-card border border-border/50 rounded-lg p-1 pr-3 hover:border-primary/50 transition-all cursor-default group">
-            <div className="size-8 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold transition-all">
-              14
-            </div>
-            <span className="text-[9px] font-bold text-muted-foreground transition-colors">LVL</span>
-          </div>
+              <div className="flex items-center gap-1 bg-card border border-border/50 rounded-lg p-1 pr-3 hover:border-primary/50 transition-all cursor-default group">
+                <div className="size-8 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold transition-all">
+                  14
+                </div>
+                <span className="text-[9px] font-bold text-muted-foreground transition-colors">NVL</span>
+              </div>
+            </>
+          )}
 
           <ThemeToggle />
 
+          <Button variant="ghost" size="icon" className="size-10 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-all">
+            <Settings className="size-4" />
+          </Button>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="size-10 rounded-lg bg-card border-border/50 text-muted-foreground hover:bg-accent hover:text-foreground transition-all">
+              <Button variant="outline" size="icon" className="size-10 rounded-lg bg-card border-border/50 text-muted-foreground hover:bg-accent hover:text-foreground transition-all ml-2">
                 <Avatar className="size-8">
                   <AvatarFallback className="bg-primary/20 text-primary font-bold text-[10px]">
                     {user.user_metadata?.full_name?.substring(0, 2).toUpperCase() || 'U'}
@@ -96,15 +100,18 @@ export default async function DashboardLayout({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 font-sans">
               <DropdownMenuLabel className="flex flex-col">
-                <span className="font-bold">{user.user_metadata?.full_name || 'User'}</span>
+                <span className="font-bold">{user.user_metadata?.full_name || 'Usuario'}</span>
                 <span className="text-[10px] text-muted-foreground font-mono">{user.email}</span>
+                {isTeacher && (
+                  <span className="text-[10px] text-accent-blue font-mono font-bold mt-1 uppercase tracking-widest">Profesor</span>
+                )}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <form action={logout} className="w-full">
-                  <button type="submit" className="w-full flex items-center gap-2 cursor-pointer font-medium">
+                  <button type="submit" className="w-full flex items-center gap-2 cursor-pointer font-medium text-destructive">
                     <LogOut className="size-4" />
-                    <span>Log out</span>
+                    <span>Cerrar sesión</span>
                   </button>
                 </form>
               </DropdownMenuItem>
@@ -114,55 +121,6 @@ export default async function DashboardLayout({
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar */}
-        <aside className="w-[240px] bg-background border-r border-border/50 flex flex-col shrink-0">
-          <div className="p-6">
-            <div className="text-[10px] font-mono font-bold text-muted-foreground uppercase tracking-[0.2em] mb-4 opacity-50">
-              EDUCATION SYSTEM
-            </div>
-            <nav className="flex flex-col gap-1">
-              <Link href="/dashboard" passHref>
-                <Button variant="secondary" className="w-full justify-start gap-3 px-3 h-10 bg-card border border-border/50 text-foreground shadow-sm">
-                  <Home className="size-4" />
-                  <span className="font-medium">Inicio</span>
-                </Button>
-              </Link>
-              <Link href="#" passHref>
-                <Button variant="ghost" className="w-full justify-start gap-3 px-3 h-10 text-muted-foreground hover:text-foreground hover:bg-card/50">
-                  <BookOpen className="size-4" />
-                  <span className="font-medium">Mis Cursos</span>
-                </Button>
-              </Link>
-              <Link href="#" passHref>
-                <Button variant="ghost" className="w-full justify-start gap-3 px-3 h-10 text-muted-foreground hover:text-foreground hover:bg-card/50">
-                  <BarChart2 className="size-4" />
-                  <span className="font-medium">Progreso</span>
-                </Button>
-              </Link>
-              <Link href="#" passHref>
-                <Button variant="ghost" className="w-full justify-start gap-3 px-3 h-10 text-muted-foreground hover:text-foreground hover:bg-card/50">
-                  <HelpCircle className="size-4" />
-                  <span className="font-medium">Recursos</span>
-                </Button>
-              </Link>
-            </nav>
-          </div>
-
-          <div className="mt-auto p-6 flex flex-col gap-6">
-            <Separator className="bg-border/30" />
-            <Button variant="ghost" className="w-full justify-start gap-3 px-3 h-10 text-muted-foreground hover:text-foreground group">
-              <Settings className="size-4 group-hover:rotate-45 transition-transform" />
-              <span className="text-sm font-medium">Ajustes</span>
-            </Button>
-            <div className="px-3">
-              {/* Version Tag */}
-              <div className="font-mono text-[9px] text-muted-foreground/60 tracking-widest uppercase">
-                build_id: v{APP_VERSION} ({APP_STATUS})
-              </div>
-            </div>
-          </div>
-        </aside>
-
         {/* Main Content Area */}
         <main className="flex-1 bg-background overflow-y-auto px-10 py-8 relative">
           {children}
@@ -173,7 +131,7 @@ export default async function DashboardLayout({
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-2">
               <History className="size-4 text-primary" />
-              <h3 className="font-bold text-sm tracking-tight">Activity Log</h3>
+              <h3 className="font-bold text-sm tracking-tight">Historial de Actividad</h3>
             </div>
             <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
               <MoreHorizontal className="size-4" />
@@ -186,12 +144,12 @@ export default async function DashboardLayout({
               <div className="relative">
                 <div className="absolute -left-[31px] top-1 size-[9px] rounded-full bg-primary ring-4 ring-background" />
                 <div className="flex flex-col gap-1">
-                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">10m ago</span>
-                  <h4 className="text-xs font-bold">Module <span className="text-primary">SOR</span> Access</h4>
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">hace 10m</span>
+                  <h4 className="text-xs font-bold">Módulo <span className="text-primary">SOR</span> Accedido</h4>
                   <Card className="mt-2 bg-card/30 border-border/30">
                     <CardContent className="p-3">
                       <p className="text-[10px] font-mono text-muted-foreground leading-relaxed">
-                        [EXEC] COMPLETED QUIZ 101: <span className="text-primary font-bold">92% SCORE</span>
+                        [EXEC] TEST 101 COMPLETADO: <span className="text-primary font-bold">92% PUNTUACIÓN</span>
                       </p>
                     </CardContent>
                   </Card>
@@ -202,12 +160,12 @@ export default async function DashboardLayout({
               <div className="relative">
                 <div className="absolute -left-[31px] top-1 size-[9px] rounded-full bg-green-500 ring-4 ring-background" />
                 <div className="flex flex-col gap-1">
-                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">2h ago</span>
-                  <h4 className="text-xs font-bold">Assignment Uploaded</h4>
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">hace 2h</span>
+                  <h4 className="text-xs font-bold">Tarea Subida</h4>
                   <Card className="mt-2 bg-card/30 border-border/30">
                     <CardContent className="p-3">
                       <p className="text-[10px] font-mono text-muted-foreground leading-relaxed">
-                        STUDENT UPLOADED UNIT 3 NETWORK TOPOLOGY PROJECT
+                        ESTUDIANTE SUBIÓ PROYECTO TEMA 3 TOPOLOGÍA DE RED
                       </p>
                     </CardContent>
                   </Card>
@@ -218,12 +176,12 @@ export default async function DashboardLayout({
               <div className="relative">
                 <div className="absolute -left-[31px] top-1 size-[9px] rounded-full bg-orange-500 ring-4 ring-background" />
                 <div className="flex flex-col gap-1">
-                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">5h ago</span>
-                  <h4 className="text-xs font-bold">Exam Reminder</h4>
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">hace 5h</span>
+                  <h4 className="text-xs font-bold">Recordatorio</h4>
                   <Card className="mt-2 bg-card/30 border-border/30">
                     <CardContent className="p-3">
                       <p className="text-[10px] font-mono text-orange-500/80 leading-relaxed uppercase">
-                        [WARN] HOMEWORK OVERDUE: CSS GRID LAYOUT
+                        [WARN] TAREA ATRASADA: CSS GRID LAYOUT
                       </p>
                     </CardContent>
                   </Card>
@@ -234,13 +192,13 @@ export default async function DashboardLayout({
               <div className="relative">
                 <div className="absolute -left-[31px] top-1 size-[9px] rounded-full bg-purple-500 ring-4 ring-background" />
                 <div className="flex flex-col gap-1">
-                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">1d ago</span>
-                  <h4 className="text-xs font-bold">Achievement</h4>
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">hace 1d</span>
+                  <h4 className="text-xs font-bold">Logro</h4>
                   <Card className="mt-2 bg-card/30 border-border/30">
                     <CardContent className="p-3 flex items-center gap-2">
                       <Trophy className="size-4 text-purple-500" />
                       <p className="text-[10px] font-mono text-foreground leading-relaxed uppercase">
-                        UNLOCKED: GIT MASTER
+                        DESBLOQUEADO: MAESTRO DE GIT
                       </p>
                     </CardContent>
                   </Card>
@@ -249,15 +207,21 @@ export default async function DashboardLayout({
             </div>
           </div>
 
-          <div className="mt-auto pt-6 border-t border-border/50">
+          <div className="mt-auto pt-6 border-t border-border/50 flex flex-col gap-4">
             <Button variant="outline" className="w-full h-9 text-[10px] font-mono uppercase tracking-widest bg-card border-border/50 hover:bg-muted transition-colors">
-              View Full Logs
+              Ver Historial Completo
             </Button>
+
+            {/* Version Tag */}
+            <div className="text-center font-mono text-[9px] text-muted-foreground/60 tracking-widest uppercase mt-4">
+              build_id: v{APP_VERSION} ({APP_STATUS})
+            </div>
           </div>
         </aside>
       </div>
     </div>
   );
 }
+
 
 

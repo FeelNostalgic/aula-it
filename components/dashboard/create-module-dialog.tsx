@@ -37,7 +37,7 @@ function SubmitButton() {
     const { pending } = useFormStatus();
     return (
         <Button type="submit" disabled={pending} className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground">
-            {pending ? "CREATING..." : "CREATE MODULE"}
+            {pending ? "CREANDO..." : "CREAR MÓDULO"}
         </Button>
     );
 }
@@ -61,14 +61,14 @@ export function CreateModuleDialog() {
             <DialogTrigger asChild>
                 <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4">
                     <Plus className="mr-2 size-4" />
-                    CREATE NEW MODULE
+                    CREAR NUEVO MÓDULO
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px] bg-surface-dark border-border-subtle text-foreground">
                 <DialogHeader>
-                    <DialogTitle className="text-xl font-bold tracking-tight">Create Module</DialogTitle>
+                    <DialogTitle className="text-xl font-bold tracking-tight">Crear Módulo</DialogTitle>
                     <DialogDescription className="text-text-muted text-xs font-medium">
-                        Deploy a new educational unit to the system core.
+                        Desplegar una nueva unidad educativa en el sistema.
                     </DialogDescription>
                 </DialogHeader>
                 <form action={handleSubmit} className="grid gap-6 py-4">
@@ -79,34 +79,34 @@ export function CreateModuleDialog() {
                     )}
                     <div className="grid gap-2">
                         <Label htmlFor="name" className="text-[10px] font-mono font-bold text-text-muted uppercase tracking-widest">
-                            Module Name
+                            Nombre del Módulo
                         </Label>
                         <Input
                             id="name"
                             name="name"
-                            placeholder="e.g. Advanced Cybersecurity"
+                            placeholder="ej. Ciberseguridad Avanzada"
                             className="bg-background border-border-subtle focus-visible:ring-accent-blue"
                             required
                         />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="description" className="text-[10px] font-mono font-bold text-text-muted uppercase tracking-widest">
-                            Description
+                            Descripción
                         </Label>
                         <Input
                             id="description"
                             name="description"
-                            placeholder="Core principles and attack vectors..."
+                            placeholder="Principios básicos y vectores de ataque..."
                             className="bg-background border-border-subtle focus-visible:ring-accent-blue"
                         />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="icon" className="text-[10px] font-mono font-bold text-text-muted uppercase tracking-widest">
-                            Visual ID (Icon)
+                            ID Visual (Icono)
                         </Label>
                         <Select name="icon" defaultValue="BookOpen">
                             <SelectTrigger className="bg-background border-border-subtle focus:ring-accent-blue text-xs">
-                                <SelectValue placeholder="Select an icon" />
+                                <SelectValue placeholder="Seleccione un icono" />
                             </SelectTrigger>
                             <SelectContent className="bg-surface border-border-subtle">
                                 {ICONS.map((item) => (

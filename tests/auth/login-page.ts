@@ -13,10 +13,10 @@ export class LoginPage extends BasePage {
         super(page);
         this.emailInput = page.locator('input[name="email"]');
         this.passwordInput = page.locator('input[name="password"]');
-        this.loginButton = page.locator('button:has-text("SIGN IN")');
+        this.loginButton = page.locator('button:has-text("INICIAR SESIÓN")');
         this.registerLink = page.locator('a[href="/register"]');
         this.registerNameInput = page.locator('input[name="name"]');
-        this.registerButton = page.locator('button:has-text("CREATE ACCOUNT")');
+        this.registerButton = page.locator('button:has-text("CREAR CUENTA")');
     }
 
     async login(email: string, pass: string) {

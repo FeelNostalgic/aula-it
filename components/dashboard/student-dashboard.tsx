@@ -15,7 +15,7 @@ export function StudentDashboard() {
                 </div>
                 <Input
                     type="text"
-                    placeholder="Search projects or run a command..."
+                    placeholder="Buscar proyectos o ejecutar un comando..."
                     className="w-full bg-background border-border-subtle rounded-xl h-[52px] pl-10 pr-16 text-sm font-sans text-foreground focus-visible:ring-1 focus-visible:ring-accent-blue focus-visible:border-accent-blue/50 transition-all placeholder:text-text-muted/60"
                 />
                 <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
@@ -36,11 +36,11 @@ export function StudentDashboard() {
                             <div className="absolute inset-0 bg-accent-blue/10 animate-pulse" />
                             <div className="-rotate-45 flex flex-col items-center">
                                 <span className="text-3xl font-bold text-foreground tracking-tighter">14</span>
-                                <span className="text-[8px] font-mono font-bold text-accent-blue uppercase tracking-[0.2em] -mt-1">LEVEL</span>
+                                <span className="text-[8px] font-mono font-bold text-accent-blue uppercase tracking-[0.2em] -mt-1">NIVEL</span>
                             </div>
                         </div>
                         <div className="absolute -bottom-2 -right-2 px-2 py-0.5 bg-accent-blue text-primary-foreground text-[9px] font-mono font-black italic rounded flex items-center gap-1 shadow-lg shadow-accent-blue/20">
-                            S-CLASS
+                            CLASE-S
                         </div>
                     </div>
 
@@ -50,16 +50,16 @@ export function StudentDashboard() {
                             <div className="space-y-1">
                                 <h3 className="text-xs font-mono font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
                                     <Terminal className="size-3 text-accent-blue" />
-                                    Experience
+                                    Experiencia
                                 </h3>
                                 <p className="text-lg font-bold text-foreground tracking-tight">
                                     2,400 <span className="text-text-muted text-sm font-medium">/ 3,000 XP</span>
                                 </p>
                             </div>
                             <div className="text-right space-y-1">
-                                <p className="text-[10px] font-mono text-accent-blue font-bold tracking-widest">NEXT: LVL 15</p>
+                                <p className="text-[10px] font-mono text-accent-blue font-bold tracking-widest">SIGUIENTE: NVL 15</p>
                                 <Badge variant="outline" className="border-accent-blue/20 bg-accent-blue/5 text-accent-blue text-[9px] px-2 py-0">
-                                    +12.4% THIS WEEK
+                                    +12.4% ESTA SEMANA
                                 </Badge>
                             </div>
                         </div>
@@ -67,8 +67,8 @@ export function StudentDashboard() {
                         <div className="space-y-1.5">
                             <Progress value={80} className="h-2 bg-surface border border-border-subtle" />
                             <div className="flex justify-between font-mono text-[9px] text-text-muted/60 tracking-wider">
-                                <span>BUFFER_STATUS: STABLE</span>
-                                <span className="animate-pulse">{"///"} SYNCHRONIZING_CORE</span>
+                                <span>ESTADO_BUFFER: ESTABLE</span>
+                                <span className="animate-pulse">{"///"} SINCRONIZANDO_NUCLEO</span>
                             </div>
                         </div>
                     </div>
@@ -80,7 +80,7 @@ export function StudentDashboard() {
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-bold">Módulos Activos</h2>
                     <Button variant="link" className="text-[10px] font-mono font-bold text-accent-blue hover:underline tracking-widest uppercase flex items-center gap-2 p-0 h-auto">
-                        VIEW ALL <ArrowRight className="size-3" />
+                        VER TODOS <ArrowRight className="size-3" />
                     </Button>
                 </div>
 

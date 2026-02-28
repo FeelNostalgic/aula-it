@@ -27,7 +27,7 @@ function LoginButton() {
       ) : (
         <LogIn className="mr-2 h-4 w-4" />
       )}
-      {pending ? "INITIALIZING..." : "SIGN IN"}
+      {pending ? "INICIANDO..." : "INICIAR SESIÓN"}
     </Button>
   );
 }
@@ -67,9 +67,9 @@ export default function LoginPage() {
         {/* Login Card */}
         <Card className="border-border/50 bg-card shadow-2xl overflow-hidden">
           <CardHeader className="space-y-1 pb-6 text-center">
-            <CardTitle className="text-xl font-mono tracking-wider uppercase text-white">Security Protocol</CardTitle>
+            <CardTitle className="text-xl font-mono tracking-wider uppercase text-white">Protocolo de Seguridad</CardTitle>
             <CardDescription className="text-xs uppercase tracking-widest font-mono text-muted-foreground">
-              Level 4 Clearance Required
+              Se Requiere Autorización Nivel 4
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-6">
@@ -84,7 +84,7 @@ export default function LoginPage() {
                   name="email"
                   type="email"
                   required
-                  placeholder="user@it-academy.dev"
+                  placeholder="usuario@aula-it.dev"
                   className="h-12 bg-background/50 border-border/50 focus-visible:ring-primary font-sans"
                 />
               </div>
@@ -93,7 +93,7 @@ export default function LoginPage() {
               <div className="grid gap-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password" className="text-xs font-mono font-medium text-muted-foreground uppercase tracking-wider">
-                    Password
+                    Contraseña
                   </Label>
                 </div>
                 <div className="relative">
@@ -139,7 +139,7 @@ export default function LoginPage() {
               </div>
               <div className="relative flex justify-center text-[10px] uppercase">
                 <span className="bg-card px-2 text-muted-foreground font-mono tracking-widest">
-                  or
+                  o
                 </span>
               </div>
             </div>
@@ -150,7 +150,7 @@ export default function LoginPage() {
               className="w-full h-12 bg-background/50 border-border/50 hover:bg-accent/10 text-white text-xs font-mono tracking-wider"
             >
               <Chrome className="mr-2 h-4 w-4 text-primary" />
-              CONTINUE WITH GOOGLE
+              CONTINUAR CON GOOGLE
             </Button>
           </CardContent>
           <CardFooter className="flex flex-col gap-4 border-t border-border/50 bg-muted/30 pt-6">
@@ -158,7 +158,7 @@ export default function LoginPage() {
               href="/register"
               className="text-[11px] text-muted-foreground hover:text-primary transition-colors uppercase font-mono tracking-tight"
             >
-              DON'T HAVE AN ACCOUNT? SIGN UP
+              ¿NO TIENES CUENTA? REGÍSTRATE
             </Link>
           </CardFooter>
         </Card>
@@ -167,7 +167,7 @@ export default function LoginPage() {
         <div className="text-center">
           <Button variant="outline" size="sm" className="h-9 px-4 rounded-full bg-border-subtle/20 border-border/20 text-muted-foreground hover:text-white hover:bg-border/30 transition-all font-medium text-xs">
             <ShieldCheck className="mr-2 h-4 w-4" />
-            Request system access
+            Solicitar acceso al sistema
           </Button>
         </div>
       </main>
