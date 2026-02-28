@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CreateUnitDialog } from "./create-unit-dialog";
 import { useBreadcrumb } from "./breadcrumb-context";
@@ -166,14 +167,16 @@ export function ModuleDetailView({ module, initialUnits }: ModuleDetailViewProps
                             : "flex flex-col gap-4"
                         }>
                             {initialUnits.map((unit) => {
+                                const progress = Math.floor(Math.random() * 40) + 60; // Mock progress 60-100%
+
                                 if (viewMode === "list") {
                                     return (
                                         <div
                                             key={unit.id}
                                             className="bg-surface-dark border border-border-subtle hover:border-accent-blue/50 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 group transition-all cursor-pointer shadow-sm hover:shadow-md"
                                         >
-                                            {/* Order + Name */}
-                                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                                            {/* Col 1: Order + Name */}
+                                            <div className="flex items-center gap-4 w-full md:w-[20%] md:max-w-[400px] shrink-0">
                                                 <div className="size-10 rounded-lg bg-surface border border-accent-blue/20 shadow-[0_0_10px_rgba(34,211,238,0.05)] flex items-center justify-center shrink-0">
                                                     <span className="text-sm font-bold text-accent-blue font-mono">{unit.order_index + 1}</span>
                                                 </div>
@@ -187,8 +190,28 @@ export function ModuleDetailView({ module, initialUnits }: ModuleDetailViewProps
                                                 </div>
                                             </div>
 
-                                            {/* Status Badge */}
-                                            <div className="shrink-0 flex md:justify-end">
+                                            {/* Col 2: Last activity (moved to middle) */}
+                                            <div className="w-full md:flex-1 min-w-[200px] shrink-0 flex items-center gap-3">
+                                                <div className="size-8 rounded-full bg-surface border border-border-subtle flex items-center justify-center shrink-0">
+                                                    <Terminal className="size-3.5 text-text-muted" />
+                                                </div>
+                                                <div className="space-y-0.5 min-w-0">
+                                                    <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted leading-none">Última actividad</div>
+                                                    <div className="text-sm font-bold text-foreground leading-none truncate group-hover:text-accent-blue/90 transition-colors">Tema 1: Conceptos base</div>
+                                                </div>
+                                            </div>
+
+                                            {/* Col 3: Progress */}
+                                            <div className="w-full md:w-[250px] shrink-0">
+                                                <div className="flex justify-between items-center mb-1.5">
+                                                    <span className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Progreso</span>
+                                                    <span className="text-xs font-bold text-foreground">{progress}%</span>
+                                                </div>
+                                                <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
+                                            </div>
+
+                                            {/* Col 4: Status Badge */}
+                                            <div className="w-full md:w-[120px] shrink-0 flex md:justify-end mt-2 md:mt-0">
                                                 <Badge variant="outline" className="border-border-strong bg-surface text-text-muted gap-1.5 py-1 px-3">
                                                     <span className="size-1.5 rounded-full bg-text-muted" />
                                                     PENDIENTE
@@ -202,28 +225,49 @@ export function ModuleDetailView({ module, initialUnits }: ModuleDetailViewProps
                                 return (
                                     <Card
                                         key={unit.id}
-                                        className="bg-surface-dark border-border-subtle hover:border-accent-blue/50 hover:shadow-lg hover:shadow-accent-blue/5 transition-all group overflow-hidden cursor-pointer rounded-2xl"
+                                        className="bg-surface-dark border-border-subtle hover:border-accent-blue/50 hover:shadow-lg hover:shadow-accent-blue/5 transition-all group overflow-hidden cursor-pointer flex flex-col h-full rounded-2xl"
                                     >
-                                        <div className="p-6 flex flex-col">
+                                        <div className="p-6 flex flex-col h-full">
                                             {/* Header */}
-                                            <div className="flex items-start justify-between mb-4">
-                                                <div className="size-12 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center group-hover:scale-110 group-hover:bg-accent-blue/10 transition-all">
+                                            <div className="flex items-start gap-4 mb-5">
+                                                <div className="size-12 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:bg-accent-blue/10 transition-all">
                                                     <span className="text-lg font-bold text-accent-blue font-mono">{unit.order_index + 1}</span>
                                                 </div>
-                                                <Badge variant="outline" className="border-border-strong bg-surface text-text-muted gap-1.5 shadow-sm">
-                                                    <span className="size-1.5 rounded-full bg-text-muted" />
-                                                    PENDIENTE
-                                                </Badge>
+                                                <div className="min-w-0 flex-1">
+                                                    <h3 className="text-lg font-bold text-foreground tracking-tight group-hover:text-accent-blue transition-colors line-clamp-1">
+                                                        {unit.name}
+                                                    </h3>
+                                                    <p className="text-sm text-text-muted mt-1.5 line-clamp-2">
+                                                        {unit.description || "Sin descripción proporcionada para esta unidad."}
+                                                    </p>
+                                                </div>
                                             </div>
 
-                                            {/* Content */}
-                                            <div>
-                                                <h3 className="text-lg font-bold text-foreground tracking-tight group-hover:text-accent-blue transition-colors line-clamp-1">
-                                                    {unit.name}
-                                                </h3>
-                                                <p className="text-sm text-text-muted mt-1.5 line-clamp-2">
-                                                    {unit.description || "Sin descripción proporcionada para esta unidad."}
-                                                </p>
+                                            {/* Footer Area */}
+                                            <div className="mt-auto space-y-4 pt-4 border-t border-border-subtle/50 relative">
+                                                <div className="flex items-end justify-between mb-2">
+                                                    <Badge variant="outline" className="border-border-strong bg-surface text-text-muted gap-1.5 shadow-sm">
+                                                        <span className="size-1.5 rounded-full bg-text-muted" />
+                                                        PENDIENTE
+                                                    </Badge>
+                                                    <div className="flex items-baseline gap-1 font-bold text-foreground">
+                                                        <span className="text-xl leading-none">{progress}</span>
+                                                        <span className="text-sm text-text-muted">%</span>
+                                                    </div>
+                                                </div>
+
+                                                <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
+
+                                                {/* Last activity Inner Box */}
+                                                <div className="bg-[#050A0D] border border-border-subtle rounded-xl p-3 flex items-center gap-3 mt-4 group-hover:border-accent-blue/30 transition-colors">
+                                                    <div className="size-8 rounded-lg bg-surface flex items-center justify-center shrink-0">
+                                                        <Terminal className="size-4 text-text-muted group-hover:text-accent-blue transition-colors" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted mb-0.5">Última actividad abierta</div>
+                                                        <div className="text-xs font-bold text-foreground truncate group-hover:text-accent-blue/90 transition-colors">Tema 1: Conceptos base</div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </Card>
