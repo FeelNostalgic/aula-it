@@ -24,7 +24,7 @@ export function DashboardShell({ children, appVersion, appStatus }: DashboardShe
             )}
 
             {/* Main Content Area */}
-            <main className={`flex-1 bg-background overflow-y-auto pr-24 py-8 relative ${isHome ? "pl-24" : "pl-12"}`}>
+            <main className="flex-1 bg-background overflow-y-auto px-24 py-8 relative">
                 {children}
             </main>
         </div>
