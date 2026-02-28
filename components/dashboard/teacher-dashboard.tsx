@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
     LayoutGrid,
     List,
@@ -13,7 +14,8 @@ import {
     Network,
     Database,
     Terminal,
-    MoreVertical
+    MoreVertical,
+    Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -96,62 +98,155 @@ export function TeacherDashboard({ initialModules }: TeacherDashboardProps) {
                     {initialModules.map((module) => {
                         const Icon = ICON_MAP[module.icon] || BookOpen;
 
-                        return (
-                            <Card
-                                key={module.id}
-                                className={`bg-surface-dark border-border-subtle hover:border-accent-blue/50 transition-all group overflow-hidden ${viewMode === "list" ? "flex flex-row items-center p-0" : ""
-                                    }`}
-                            >
-                                <CardHeader className={`space-y-0 ${viewMode === "list" ? "flex-1 p-4" : "p-6"}`}>
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <div className="size-10 rounded-lg bg-surface border border-border-subtle flex items-center justify-center text-accent-blue group-hover:scale-110 transition-transform">
+                        // Mock values for demonstration
+                        const progress = Math.floor(Math.random() * 40) + 60; // 60-100%
+                        const studentsCount = Math.floor(Math.random() * 20) + 10;
+                        const statuses = ["ACTIVO", "EN REVISIÓN", "PENDIENTE"] as const;
+                        const status = statuses[module.id.length % 3]; // Deterministic mock based on ID
+
+                        if (viewMode === "list") {
+                            return (
+                                <Link href={`/dashboard/modules/${module.id}`} key={module.id}>
+                                    <div className="bg-surface-dark border border-border-subtle hover:border-accent-blue/50 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 group transition-all cursor-pointer shadow-sm hover:shadow-md">
+                                        {/* Col 1: Icon + Text */}
+                                        <div className="flex items-center gap-4 min-w-[280px] flex-1">
+                                            <div className="size-10 rounded-lg bg-surface border border-accent-blue/20 shadow-[0_0_10px_rgba(34,211,238,0.05)] flex items-center justify-center text-accent-blue group-hover:scale-110 transition-transform shrink-0">
                                                 <Icon className="size-5" />
                                             </div>
-                                            <div className="space-y-1">
-                                                <CardTitle className="text-base font-bold text-foreground tracking-tight">{module.name}</CardTitle>
-                                                {module.description && viewMode === "grid" && (
-                                                    <CardDescription className="text-xs text-text-muted line-clamp-1">{module.description}</CardDescription>
-                                                )}
+                                            <div className="min-w-0">
+                                                <h3 className="font-bold text-foreground truncate group-hover:text-accent-blue transition-colors tracking-tight">{module.name}</h3>
+                                                <p className="text-xs text-text-muted truncate">{module.description || "Sin descripción"}</p>
                                             </div>
                                         </div>
-                                        <Button variant="ghost" size="icon" className="size-8 text-text-muted opacity-0 group-hover:opacity-100">
-                                            <MoreVertical className="size-4" />
-                                        </Button>
-                                    </div>
-                                </CardHeader>
 
-                                <CardContent className={`${viewMode === "list" ? "flex items-center gap-8 p-4 shrink-0" : "p-6 pt-0"}`}>
-                                    <div className={`grid ${viewMode === "list" ? "grid-cols-2 gap-8" : "grid-cols-2 gap-4"} mb-6`}>
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-text-muted uppercase tracking-widest">
-                                                <Users className="size-3 text-accent-green" />
-                                                Alumnos
+                                        {/* Col 2: Progress */}
+                                        <div className="w-full md:w-[180px] shrink-0">
+                                            <div className="flex justify-between items-center mb-1.5">
+                                                <span className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Progreso</span>
+                                                <span className="text-xs font-bold text-foreground">{progress}%</span>
                                             </div>
-                                            <p className="text-lg font-bold">0</p>
+                                            <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
                                         </div>
-                                        <div className="space-y-1 text-right md:text-left">
-                                            <div className="flex items-center justify-end md:justify-start gap-1.5 text-[10px] font-mono font-bold text-text-muted uppercase tracking-widest">
-                                                <TrendingUp className="size-3 text-accent-orange" />
-                                                Progreso
-                                            </div>
-                                            <p className="text-lg font-bold">0%</p>
-                                        </div>
-                                    </div>
 
-                                    <div className="flex items-center justify-between gap-4 mt-auto">
-                                        <div className="flex-1">
-                                            <Progress value={0} className="h-1.5 bg-surface" />
+                                        {/* Col 3: Students */}
+                                        <div className="w-full md:w-[120px] shrink-0 flex items-center gap-3">
+                                            <div className="size-8 rounded-full bg-surface border border-border-subtle flex items-center justify-center shrink-0">
+                                                <Users className="size-3.5 text-text-muted" />
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted leading-none">Alumnos</div>
+                                                <div className="text-sm font-bold text-foreground leading-none">{studentsCount}</div>
+                                            </div>
                                         </div>
-                                        <Button
-                                            variant="link"
-                                            className="p-0 h-auto text-[10px] font-mono font-bold text-accent-blue tracking-widest shrink-0"
-                                        >
-                                            GESTIONAR <ArrowRight className="size-3 ml-1" />
-                                        </Button>
+
+                                        {/* Col 4: Status Badge */}
+                                        <div className="w-full md:w-[130px] shrink-0 flex md:justify-end mt-2 md:mt-0">
+                                            {status === "ACTIVO" && (
+                                                <Badge variant="outline" className="border-accent-green/30 bg-accent-green/10 text-accent-green gap-1.5 py-1 px-3">
+                                                    <span className="size-1.5 rounded-full bg-accent-green animate-pulse" />
+                                                    ACTIVO
+                                                </Badge>
+                                            )}
+                                            {status === "EN REVISIÓN" && (
+                                                <Badge variant="outline" className="border-accent-orange/30 bg-accent-orange/10 text-accent-orange gap-1.5 py-1 px-3">
+                                                    <span className="size-1.5 rounded-full bg-accent-orange" />
+                                                    REVISIÓN
+                                                </Badge>
+                                            )}
+                                            {status === "PENDIENTE" && (
+                                                <Badge variant="outline" className="border-border-strong bg-surface text-text-muted gap-1.5 py-1 px-3">
+                                                    <span className="size-1.5 rounded-full bg-text-muted" />
+                                                    PENDIENTE
+                                                </Badge>
+                                            )}
+                                        </div>
                                     </div>
-                                </CardContent>
-                            </Card>
+                                </Link>
+                            );
+                        }
+
+                        // Grid View
+                        return (
+                            <Link href={`/dashboard/modules/${module.id}`} key={module.id} className="block h-full">
+                                <Card className="bg-surface-dark border-border-subtle hover:border-accent-blue/50 hover:shadow-lg hover:shadow-accent-blue/5 transition-all group overflow-hidden cursor-pointer flex flex-col h-full rounded-2xl">
+                                    <div className="p-6 flex flex-col h-full">
+                                        {/* Header */}
+                                        <div className="flex items-start justify-between mb-5">
+                                            <div className="size-12 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center text-accent-blue group-hover:scale-110 group-hover:bg-accent-blue/10 transition-all">
+                                                <Icon className="size-6" />
+                                            </div>
+                                            {status === "ACTIVO" && (
+                                                <Badge variant="outline" className="border-accent-green/30 bg-accent-green/5 text-accent-green gap-1.5 shadow-sm">
+                                                    <span className="size-1.5 rounded-full bg-accent-green animate-pulse" />
+                                                    ACTIVO
+                                                </Badge>
+                                            )}
+                                            {status === "EN REVISIÓN" && (
+                                                <Badge variant="outline" className="border-accent-orange/30 bg-accent-orange/5 text-accent-orange gap-1.5 shadow-sm">
+                                                    <span className="size-1.5 rounded-full bg-accent-orange" />
+                                                    REVISIÓN
+                                                </Badge>
+                                            )}
+                                            {status === "PENDIENTE" && (
+                                                <Badge variant="outline" className="border-border-strong bg-surface text-text-muted gap-1.5 shadow-sm">
+                                                    <span className="size-1.5 rounded-full bg-text-muted" />
+                                                    PENDIENTE
+                                                </Badge>
+                                            )}
+                                        </div>
+
+                                        {/* Content */}
+                                        <div className="mb-6">
+                                            <h3 className="text-lg font-bold text-foreground tracking-tight group-hover:text-accent-blue transition-colors line-clamp-1">
+                                                {module.name}
+                                            </h3>
+                                            <p className="text-sm text-text-muted mt-1.5 line-clamp-2">
+                                                {module.description || "Sin descripción proporcionada para este módulo."}
+                                            </p>
+                                        </div>
+
+                                        {/* Footer Area */}
+                                        <div className="mt-auto space-y-4 pt-4 border-t border-border-subtle/50 relative">
+                                            {/* Progress and Students */}
+                                            <div className="flex items-end justify-between">
+                                                <div className="space-y-1.5">
+                                                    <div className="text-[10px] uppercase tracking-widest font-mono font-bold text-text-muted">
+                                                        Progreso Global
+                                                    </div>
+                                                    <div className="flex items-baseline gap-1 font-bold text-foreground">
+                                                        <span className="text-2xl leading-none">{progress}</span>
+                                                        <span className="text-sm text-text-muted">%</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-col items-end gap-1.5">
+                                                    <div className="flex -space-x-2">
+                                                        {[1, 2, 3].map((i) => (
+                                                            <div key={i} className="size-6 rounded-full bg-surface-dark border-2 border-border-subtle flex items-center justify-center overflow-hidden z-10">
+                                                                <Users className="size-3 text-text-muted opacity-50" />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <span className="text-[10px] font-bold text-text-muted tracking-wider uppercase">+{studentsCount} Alumnos</span>
+                                                </div>
+                                            </div>
+
+                                            <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
+
+                                            {/* Next Delivery Inner Box */}
+                                            <div className="bg-[#050A0D] border border-border-subtle rounded-xl p-3 flex items-center gap-3 mt-4 group-hover:border-accent-blue/30 transition-colors">
+                                                <div className="size-8 rounded-lg bg-surface flex items-center justify-center shrink-0">
+                                                    <Terminal className="size-4 text-text-muted group-hover:text-accent-blue transition-colors" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted mb-0.5">Próxima entrega</div>
+                                                    <div className="text-xs font-bold text-foreground truncate group-hover:text-accent-blue/90 transition-colors">Práctica: Instalación Linux</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </Link>
                         );
                     })}
                 </div>
