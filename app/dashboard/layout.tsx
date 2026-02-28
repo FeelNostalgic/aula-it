@@ -27,6 +27,16 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { APP_VERSION, APP_STATUS } from "@/lib/version";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { logout } from "@/app/(auth)/login/actions";
 
 export default async function DashboardLayout({
   children,
@@ -74,9 +84,32 @@ export default async function DashboardLayout({
 
           <ThemeToggle />
 
-          <Button variant="outline" size="icon" className="size-10 rounded-lg bg-card border-border/50 text-muted-foreground hover:bg-accent hover:text-foreground transition-all">
-            <User className="size-5" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="size-10 rounded-lg bg-card border-border/50 text-muted-foreground hover:bg-accent hover:text-foreground transition-all">
+                <Avatar className="size-8">
+                  <AvatarFallback className="bg-primary/20 text-primary font-bold text-[10px]">
+                    {user.user_metadata?.full_name?.substring(0, 2).toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 font-sans">
+              <DropdownMenuLabel className="flex flex-col">
+                <span className="font-bold">{user.user_metadata?.full_name || 'User'}</span>
+                <span className="text-[10px] text-muted-foreground font-mono">{user.email}</span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <form action={logout} className="w-full">
+                  <button type="submit" className="w-full flex items-center gap-2 cursor-pointer font-medium">
+                    <LogOut className="size-4" />
+                    <span>Log out</span>
+                  </button>
+                </form>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 

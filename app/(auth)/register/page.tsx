@@ -73,6 +73,21 @@ export default function RegisterPage() {
                     </CardHeader>
                     <CardContent className="grid gap-6">
                         <form action={formAction} className="flex flex-col gap-6">
+                            {/* Field: Name */}
+                            <div className="grid gap-2">
+                                <Label htmlFor="name" className="text-xs font-mono font-medium text-muted-foreground uppercase tracking-wider">
+                                    Name
+                                </Label>
+                                <Input
+                                    id="name"
+                                    name="name"
+                                    type="text"
+                                    required
+                                    placeholder="John Doe"
+                                    className="h-12 bg-background/50 border-border/50 focus-visible:ring-primary font-sans"
+                                />
+                            </div>
+
                             {/* Field: Email */}
                             <div className="grid gap-2">
                                 <Label htmlFor="email" className="text-xs font-mono font-medium text-muted-foreground uppercase tracking-wider">
