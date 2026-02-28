@@ -6,7 +6,7 @@ import { login, loginWithGoogle } from "./actions";
 import Link from "next/link";
 import { Chrome, Terminal, LogIn, Loader2, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { APP_VERSION } from "@/lib/version";
+import { APP_VERSION, APP_STATUS } from "@/lib/version";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,7 +40,7 @@ export default function LoginPage() {
     <div className="bg-background text-foreground min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
       {/* Version Tag */}
       <div className="fixed top-6 right-6 font-mono text-[10px] tracking-widest uppercase opacity-40 text-muted-foreground">
-        build_id: v{APP_VERSION} (stable)
+        build_id: v{APP_VERSION} ({APP_STATUS})
       </div>
 
       {/* Background Pattern Decoration */}
