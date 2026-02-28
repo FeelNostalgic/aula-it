@@ -42,7 +42,11 @@ function SubmitButton() {
     );
 }
 
-export function CreateModuleDialog() {
+interface CreateModuleDialogProps {
+    children?: React.ReactNode;
+}
+
+export function CreateModuleDialog({ children }: CreateModuleDialogProps = {}) {
     const [open, setOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -59,10 +63,12 @@ export function CreateModuleDialog() {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4">
-                    <Plus className="mr-2 size-4" />
-                    CREAR NUEVO MÓDULO
-                </Button>
+                {children ?? (
+                    <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4">
+                        <Plus className="mr-2 size-4" />
+                        CREAR NUEVO MÓDULO
+                    </Button>
+                )}
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px] bg-surface-dark border-border-subtle text-foreground">
                 <DialogHeader>
