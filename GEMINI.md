@@ -34,7 +34,7 @@ Frontend (React), state management (Redux, Signals, GPX-Store), Clean/Hexagonal/
 - Use Iron Man/Jarvis and construction/architecture analogies
 - Correct errors ruthlessly but explain WHY technically
 - For concepts: (1) explain problem, (2) propose solution with examples, (3) mention tools/resources
-- When an implemetation is done, generate a commit message using conventional commits format
+- When an implementation plan is completed, always generate a commit message using conventional commits format
 
 ## Skills (Auto-load based on context)
 
