@@ -16,6 +16,7 @@ type StudentResult = {
     id: string;
     full_name: string | null;
     email: string;
+    avatar_url: string | null;
 };
 
 export function EnrollStudentDialog({ moduleId, children }: EnrollStudentDialogProps) {
@@ -102,10 +103,19 @@ export function EnrollStudentDialog({ moduleId, children }: EnrollStudentDialogP
                         {results.map((student) => (
                             <div key={student.id} className="flex items-center justify-between p-3 rounded-xl border border-border-subtle bg-surface/30 hover:bg-surface/50 transition-colors group">
                                 <div className="flex items-center gap-3">
-                                    <div className="size-10 rounded-full bg-accent-blue/10 flex items-center justify-center shrink-0 border border-accent-blue/20">
-                                        <span className="text-sm font-bold text-accent-blue">
-                                            {student.full_name?.charAt(0) || "U"}
-                                        </span>
+                                    <div className="size-10 rounded-full bg-accent-blue/10 flex items-center justify-center shrink-0 border border-accent-blue/20 overflow-hidden">
+                                        {student.avatar_url ? (
+                                            <img
+                                                src={student.avatar_url}
+                                                alt={student.full_name || "Avatar"}
+                                                className="size-full object-cover"
+                                                referrerPolicy="no-referrer"
+                                            />
+                                        ) : (
+                                            <span className="text-sm font-bold text-accent-blue">
+                                                {student.full_name?.charAt(0) || "U"}
+                                            </span>
+                                        )}
                                     </div>
                                     <div>
                                         <div className="font-semibold text-foreground text-sm">{student.full_name || "Usuario Desconocido"}</div>

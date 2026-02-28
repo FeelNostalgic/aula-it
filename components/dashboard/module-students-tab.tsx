@@ -18,6 +18,7 @@ type Student = {
     id: string;
     full_name: string | null;
     email: string;
+    avatar_url: string | null;
 };
 
 interface ModuleStudentsTabProps {
@@ -105,10 +106,19 @@ export function ModuleStudentsTab({ moduleId, students }: ModuleStudentsTabProps
                                 <div key={student.id} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1.5fr_1fr_1fr_auto] gap-4 p-4 items-center hover:bg-surface/30 transition-colors">
                                     {/* Alumno */}
                                     <div className="flex items-center gap-3">
-                                        <div className="size-10 rounded-full bg-accent-orange/10 flex items-center justify-center shrink-0">
-                                            <span className="text-sm font-bold text-accent-orange">
-                                                {student.full_name?.charAt(0) || "U"}
-                                            </span>
+                                        <div className="size-10 rounded-full bg-accent-orange/10 flex items-center justify-center shrink-0 overflow-hidden">
+                                            {student.avatar_url ? (
+                                                <img
+                                                    src={student.avatar_url}
+                                                    alt={student.full_name || "Avatar"}
+                                                    className="size-full object-cover"
+                                                    referrerPolicy="no-referrer"
+                                                />
+                                            ) : (
+                                                <span className="text-sm font-bold text-accent-orange">
+                                                    {student.full_name?.charAt(0) || "U"}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="min-w-0">
                                             <div className="font-bold text-foreground text-sm truncate">{student.full_name || "Usuario Desconocido"}</div>

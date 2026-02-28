@@ -55,7 +55,8 @@ export default async function ModulePage({ params }: ModulePageProps) {
             student_id,
             profiles (
                 id,
-                full_name
+                full_name,
+                avatar_url
             )
         `)
         .eq("module_id", id);
@@ -68,11 +69,15 @@ export default async function ModulePage({ params }: ModulePageProps) {
         const adminSupabase = createAdminClient();
         const { data: usersData } = await adminSupabase.auth.admin.listUsers();
         if (usersData?.users) {
-            const emailMap = new Map(usersData.users.map(u => [u.id, u.email]));
-            enrolledStudents = enrolledStudents.map((s: any) => ({
-                ...s,
-                email: emailMap.get(s.id) || "sin_email@aula.it"
-            }));
+            const authMap = new Map(usersData.users.map(u => [u.id, { email: u.email, avatar_url: u.user_metadata?.avatar_url }]));
+            enrolledStudents = enrolledStudents.map((s: any) => {
+                const authData = authMap.get(s.id);
+                return {
+                    ...s,
+                    email: authData?.email || "sin_email@aula.it",
+                    avatar_url: s.avatar_url || authData?.avatar_url || null,
+                };
+            });
         }
     }
 

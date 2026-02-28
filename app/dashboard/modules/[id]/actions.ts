@@ -225,7 +225,7 @@ export async function getAvailableStudents(moduleId: string, query?: string) {
     // Query profiles for students not in enrolledIds
     let studentQuery = supabase
         .from("profiles")
-        .select("id, full_name")
+        .select("id, full_name, avatar_url")
         .eq("role", "student");
 
     if (enrolledIds.length > 0) {
@@ -245,7 +245,8 @@ export async function getAvailableStudents(moduleId: string, query?: string) {
     let availableStudents = data.map(s => ({
         id: s.id,
         full_name: s.full_name,
-        email: `${s.full_name?.toLowerCase().replace(/\s+/g, '.')}@aula-it.edu`
+        email: `${s.full_name?.toLowerCase().replace(/\s+/g, '.')}@aula-it.edu`,
+        avatar_url: s.avatar_url as string | null,
     }));
 
     if (availableStudents.length > 0) {
@@ -254,11 +255,15 @@ export async function getAvailableStudents(moduleId: string, query?: string) {
         const { data: usersData } = await adminSupabase.auth.admin.listUsers();
 
         if (usersData?.users) {
-            const emailMap = new Map(usersData.users.map(u => [u.id, u.email]));
-            availableStudents = availableStudents.map(s => ({
-                ...s,
-                email: emailMap.get(s.id) || s.email
-            }));
+            const authMap = new Map(usersData.users.map(u => [u.id, { email: u.email, avatar_url: u.user_metadata?.avatar_url }]));
+            availableStudents = availableStudents.map(s => {
+                const authData = authMap.get(s.id);
+                return {
+                    ...s,
+                    email: authData?.email || s.email,
+                    avatar_url: s.avatar_url || authData?.avatar_url || null,
+                };
+            });
         }
     }
 
