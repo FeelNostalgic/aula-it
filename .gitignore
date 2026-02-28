@@ -42,5 +42,6 @@ next-env.d.ts
 # mcp
 .gemini
 
-# playwright
+# playwright (tests)
 /playwright-report
+/test-results

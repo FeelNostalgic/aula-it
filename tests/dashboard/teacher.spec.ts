@@ -1,13 +1,19 @@
 import { test, expect } from "@playwright/test";
 import { LoginPage } from "../auth/login-page";
 import { DashboardPage } from "./dashboard-page";
-import { cleanupTestUsers, generateTestEmail, getSupabaseAdmin } from "../helpers";
+import { generateTestEmail, getSupabaseAdmin } from "../helpers";
 
-test.afterAll(async () => {
-    await cleanupTestUsers();
-});
+let teacherEmail: string;
+let teacherUserId: string;
 
 test.describe("Teacher Dashboard", () => {
+    test.afterAll(async () => {
+        const supabase = getSupabaseAdmin();
+        if (!supabase || !teacherUserId) return;
+        await supabase.from("modules").delete().eq("teacher_id", teacherUserId);
+        await supabase.auth.admin.deleteUser(teacherUserId);
+    });
+
     test("debe permitir a un profesor crear un módulo", async ({ page }) => {
         const supabase = getSupabaseAdmin();
         if (!supabase) {
@@ -15,12 +21,12 @@ test.describe("Teacher Dashboard", () => {
             return;
         }
 
-        const testEmail = generateTestEmail("teacher");
+        teacherEmail = generateTestEmail("teacher");
         const password = "password123";
 
         // 1. Crear usuario con rol profesor usando Admin API
         const { data: { user }, error: createError } = await supabase.auth.admin.createUser({
-            email: testEmail,
+            email: teacherEmail,
             password: password,
             email_confirm: true,
             user_metadata: {
@@ -30,17 +36,15 @@ test.describe("Teacher Dashboard", () => {
         });
 
         if (createError || !user) throw new Error(`Could not create teacher: ${createError?.message}`);
+        teacherUserId = user.id;
 
-        // En la nueva arquitectura de seguridad (profiles), necesitamos asegurar que el perfil tenga el rol
-        // El trigger ya debería haberlo creado con el rol del metadata, pero vamos a asegurarnos
-        // para que el test sea robusto ante delays de triggers (aunque son inmediatos en transacciones)
         await supabase.from("profiles").update({ role: "teacher" }).eq("id", user.id);
 
         // 2. Login y Flow
         const loginPage = new LoginPage(page);
         const dashboardPage = new DashboardPage(page);
 
-        await loginPage.login(testEmail, password);
+        await loginPage.login(teacherEmail, password);
         await dashboardPage.verifyUrl(/\/dashboard/);
         await dashboardPage.verifyDashboardRole("Módulos que impartes");
 
