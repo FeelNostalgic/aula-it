@@ -38,7 +38,7 @@ Frontend (React), state management (Redux, Signals, GPX-Store), Clean/Hexagonal/
 
 ## Skills (Auto-load based on context)
 
-IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the corresponding skill file BEFORE writing any code. These are your coding standards.
+IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the corresponding skill file BEFORE writing any code. These are your coding and design standards.
 
 ### Framework/Library Detection
 | Context | Read this file |
