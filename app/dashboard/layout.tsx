@@ -26,6 +26,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { APP_VERSION } from "@/lib/version";
 
 export default async function DashboardLayout({
   children,
@@ -121,8 +122,9 @@ export default async function DashboardLayout({
               <span className="text-sm font-medium">Ajustes</span>
             </Button>
             <div className="px-3">
+              {/* Version Tag */}
               <div className="font-mono text-[9px] text-muted-foreground/60 tracking-widest uppercase">
-                system_v2.4.0 (stable)
+                build_id: v{APP_VERSION} (stable)
               </div>
             </div>
           </div>

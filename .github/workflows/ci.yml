@@ -11,6 +11,8 @@ concurrency:
 jobs:
   test:
     name: Playwright Tests
+    # Skip CI on version bump commits
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -42,14 +44,86 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
+  version:
+    name: Version Bump
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      bumped: ${{ steps.bump.outputs.bumped }}
+      new_version: ${{ steps.bump.outputs.new_version }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine version bump
+        id: bump
+        run: |
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          
+          # Check for breaking change (major)
+          if echo "$COMMIT_MSG" | grep -qE '^[a-z]+!:|BREAKING CHANGE'; then
+            BUMP="major"
+          # Check for feat (minor)
+          elif echo "$COMMIT_MSG" | grep -qE '^feat(\(.+\))?:'; then
+            BUMP="minor"
+          # Check for fix, refactor, perf, style, docs, test, ci, chore (patch)
+          elif echo "$COMMIT_MSG" | grep -qE '^(fix|refactor|perf|style|docs|test|ci|chore|build|skill)(\(.+\))?:'; then
+            BUMP="patch"
+          else
+            echo "No conventional commit prefix found. Skipping version bump."
+            echo "bumped=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "Detected bump type: $BUMP"
+          
+          # Bump version (npm version creates the git tag automatically)
+          NEW_VERSION=$(npm version $BUMP --no-git-tag-version)
+          echo "New version: $NEW_VERSION"
+          
+          # Commit and tag
+          git add package.json package-lock.json
+          git commit -m "chore(release): ${NEW_VERSION} [skip ci]"
+          git tag -a "${NEW_VERSION}" -m "Release ${NEW_VERSION}"
+          
+          # Push commit and tag
+          git push origin main --follow-tags
+          
+          echo "bumped=true" >> $GITHUB_OUTPUT
+          echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        if: steps.bump.outputs.bumped == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.bump.outputs.new_version }}
+          name: ${{ steps.bump.outputs.new_version }}
+          generate_release_notes: true
+
   deploy:
     name: Deploy to Vercel
-    needs: test
+    needs: [test, version]
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Pull the latest commit (which may include the version bump)
+          ref: main
 
       - name: Install Vercel CLI
         run: npm i -g vercel@latest

@@ -48,6 +48,7 @@ metadata:
 | `chore` | **patch** | Dependencies, maintenance |
 | `perf` | **patch** | Performance improvements |
 | `build` | **patch** | Build system changes |
+| `skill` | **patch** | Agent skill changes, new skills, or updates to existing skills |
 
 ### Breaking Changes (Major Bump)
 
@@ -89,6 +90,7 @@ Is it CI/CD?                              → ci:
 Is it dependency updates?                 → chore:
 Is it a performance improvement?          → perf:
 Does it change the build system?          → build:
+Is it an agent skill change?              → skill:
 None of the above?                        → No prefix (no version bump)
 ```
 
