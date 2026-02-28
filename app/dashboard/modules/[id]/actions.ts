@@ -205,3 +205,65 @@ export async function updateModuleSettings(moduleId: string, formData: FormData)
     revalidatePath(`/dashboard`);
     return { success: true };
 }
+
+export async function getAvailableStudents(moduleId: string, query?: string) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+        return { error: "Not authenticated" };
+    }
+
+    // Get IDs of already enrolled students
+    const { data: enrolled } = await supabase
+        .from("module_enrollments")
+        .select("student_id")
+        .eq("module_id", moduleId);
+
+    const enrolledIds = enrolled?.map(e => e.student_id) || [];
+
+    // Query profiles for students not in enrolledIds
+    let studentQuery = supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("role", "student");
+
+    if (enrolledIds.length > 0) {
+        studentQuery = studentQuery.not("id", "in", `(${enrolledIds.join(",")})`);
+    }
+
+    if (query?.trim()) {
+        studentQuery = studentQuery.ilike("full_name", `%${query.trim()}%`);
+    }
+
+    const { data, error } = await studentQuery.limit(20);
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    let availableStudents = data.map(s => ({
+        id: s.id,
+        full_name: s.full_name,
+        email: `${s.full_name?.toLowerCase().replace(/\s+/g, '.')}@aula-it.edu`
+    }));
+
+    if (availableStudents.length > 0) {
+        const { createAdminClient } = await import("@/utils/supabase/admin");
+        const adminSupabase = createAdminClient();
+        const { data: usersData } = await adminSupabase.auth.admin.listUsers();
+
+        if (usersData?.users) {
+            const emailMap = new Map(usersData.users.map(u => [u.id, u.email]));
+            availableStudents = availableStudents.map(s => ({
+                ...s,
+                email: emailMap.get(s.id) || s.email
+            }));
+        }
+    }
+
+    return {
+        success: true,
+        students: availableStudents
+    };
+}

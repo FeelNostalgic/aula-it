@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CreateUnitDialog } from "./create-unit-dialog";
+import { EnrollStudentDialog } from "./enroll-student-dialog";
 import { useBreadcrumb } from "./breadcrumb-context";
 import { ModuleStudentsTab } from "./module-students-tab";
 import { ModuleSettingsTab } from "./module-settings-tab";
@@ -55,6 +56,7 @@ type Unit = {
 type Student = {
     id: string;
     full_name: string | null;
+    email: string;
 };
 
 interface ModuleDetailViewProps {
@@ -91,13 +93,15 @@ export function ModuleDetailView({ module, initialUnits, initialStudents }: Modu
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Button
-                        variant="outline"
-                        className="font-mono font-bold tracking-widest text-[10px] h-9 px-4 border-border-subtle text-text-muted hover:text-foreground"
-                    >
-                        <Users className="mr-2 size-4" />
-                        AÑADIR ALUMNOS
-                    </Button>
+                    <EnrollStudentDialog moduleId={module.id}>
+                        <Button
+                            variant="outline"
+                            className="font-mono font-bold tracking-widest text-[10px] h-9 px-4 border-border-subtle text-text-muted hover:text-foreground"
+                        >
+                            <Users className="mr-2 size-4" />
+                            AÑADIR ALUMNOS
+                        </Button>
+                    </EnrollStudentDialog>
                     <CreateUnitDialog moduleId={module.id} />
                 </div>
             </div>

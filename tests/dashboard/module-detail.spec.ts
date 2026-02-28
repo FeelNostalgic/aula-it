@@ -10,6 +10,7 @@ let teacherModuleId: string;
 let emptyModuleId: string;
 let testEmail: string;
 let testUserId: string;
+let testStudentId: string;
 const password = "password123";
 
 test.describe("Module Detail", () => {
@@ -29,6 +30,17 @@ test.describe("Module Detail", () => {
         testUserId = user.id;
 
         await supabase.from("profiles").update({ role: "teacher" }).eq("id", user.id);
+
+        const { data: { user: student }, error: studentError } = await supabase.auth.admin.createUser({
+            email: generateTestEmail("mod-detail-student"),
+            password,
+            email_confirm: true,
+            user_metadata: { full_name: "Test Student Detail", role: "student" },
+        });
+        if (studentError || !student) throw new Error(`Could not create student: ${studentError?.message}`);
+        testStudentId = student.id;
+
+        await supabase.from("profiles").update({ role: "student" }).eq("id", student.id);
 
         // Create a test module with units
         const { data: mod } = await supabase
@@ -55,8 +67,10 @@ test.describe("Module Detail", () => {
         // Clean up only OUR test user data
         await supabase.from("units").delete().eq("module_id", teacherModuleId);
         await supabase.from("units").delete().eq("module_id", emptyModuleId);
+        await supabase.from("module_enrollments").delete().eq("student_id", testStudentId);
         await supabase.from("modules").delete().eq("teacher_id", testUserId);
         await supabase.auth.admin.deleteUser(testUserId);
+        await supabase.auth.admin.deleteUser(testStudentId);
     });
 
     test("navegar desde dashboard al detalle y verificar breadcrumb",
@@ -143,6 +157,61 @@ test.describe("Module Detail", () => {
             // Switch back to Dashboard
             await moduleDetailPage.clickTab("dashboard");
             await expect(moduleDetailPage.tabDashboard).toHaveAttribute("data-state", "active");
+        }
+    );
+
+    test("añadir y eliminar un alumno de un módulo",
+        { tag: ["@high", "@e2e", "@module-enrollment", "@MODULE-ENROLLMENT-E2E-001"] },
+        async ({ page }) => {
+            if (!testUserId) { test.skip(); return; }
+
+            const loginPage = new LoginPage(page);
+            const moduleDetailPage = new ModuleDetailPage(page);
+
+            await loginPage.login(testEmail, password);
+            await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+            await page.waitForLoadState("networkidle");
+            await moduleDetailPage.goto(teacherModuleId);
+
+            // Switch to Alumnos tab
+            await moduleDetailPage.clickTab("alumnos");
+            await expect(moduleDetailPage.tabAlumnos).toHaveAttribute("data-state", "active");
+
+            // Open the Enroll Student Dialog
+            await page.getByRole("button", { name: /Añadir Alumnos/i }).click();
+            const dialog = page.getByRole("dialog");
+            await expect(dialog).toBeVisible();
+
+            // Wait for search button/input
+            await expect(dialog.getByRole("button", { name: "Buscar" })).toBeVisible();
+
+            // Strictly wait for at least one Añadir button to appear
+            const addButton = dialog.getByRole("button", { name: "Añadir" }).first();
+            await expect(addButton).toBeVisible({ timeout: 5000 });
+            await addButton.click();
+
+            // Give it time to enroll and refresh the list
+            await page.waitForTimeout(2000);
+
+            // Close the dialog by pressing Escape
+            await page.keyboard.press("Escape");
+            await expect(dialog).toBeHidden();
+
+            // Wait for the Alumnos tab list to re-render
+            await page.waitForTimeout(1000);
+
+            // Now on the Alumnos tab, we should see the student in the list.
+            // Wait for the action button to be visible
+            const actionsButton = page.getByTestId("student-actions-button").first();
+            await expect(actionsButton).toBeVisible({ timeout: 5000 });
+            await actionsButton.click();
+
+            const deleteOption = page.getByRole("menuitem", { name: "Eliminar alumno" });
+            await expect(deleteOption).toBeVisible();
+            await deleteOption.click();
+
+            // Wait for the action to complete
+            await page.waitForTimeout(2000);
         }
     );
 

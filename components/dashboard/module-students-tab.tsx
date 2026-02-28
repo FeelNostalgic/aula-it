@@ -1,16 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { Search, MoreVertical } from "lucide-react";
+import { useState, useTransition } from "react";
+import { Search, MoreVertical, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { EnrollStudentDialog } from "./enroll-student-dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { unenrollStudent } from "@/app/dashboard/modules/[id]/actions";
 
 type Student = {
     id: string;
     full_name: string | null;
+    email: string;
 };
 
 interface ModuleStudentsTabProps {
@@ -20,6 +27,16 @@ interface ModuleStudentsTabProps {
 
 export function ModuleStudentsTab({ moduleId, students }: ModuleStudentsTabProps) {
     const [searchQuery, setSearchQuery] = useState("");
+    const [isPending, startTransition] = useTransition();
+
+    const handleUnenroll = (studentId: string) => {
+        startTransition(async () => {
+            const result = await unenrollStudent(moduleId, studentId);
+            if (result.error) {
+                console.error("Error unenrolling student:", result.error);
+            }
+        });
+    };
 
     const filteredStudents = students.filter(student =>
         student.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -38,7 +55,6 @@ export function ModuleStudentsTab({ moduleId, students }: ModuleStudentsTabProps
             isOnline,
             lastActivity: lastActivityOptions[hash % lastActivityOptions.length],
             currentUnit: currentUnitOptions[hash % currentUnitOptions.length],
-            email: name ? `${name.toLowerCase().replace(/\s+/g, '.')}@aula-it.edu` : `student_${hash}@aula-it.edu`
         };
     };
 
@@ -60,17 +76,8 @@ export function ModuleStudentsTab({ moduleId, students }: ModuleStudentsTabProps
                         <Button variant="outline" className="flex-1 md:flex-none bg-surface border-border-strong text-text-muted hover:text-foreground">
                             Todos los Estados
                         </Button>
-                        <Button variant="outline" className="flex-1 md:flex-none bg-surface border-border-strong text-text-muted hover:text-foreground">
-                            Progreso: Cualquiera
-                        </Button>
                     </div>
                 </div>
-
-                <EnrollStudentDialog moduleId={moduleId}>
-                    <Button className="w-full lg:w-auto bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-semibold">
-                        Añadir alumnos
-                    </Button>
-                </EnrollStudentDialog>
             </div>
 
             {/* Students List */}
@@ -82,7 +89,7 @@ export function ModuleStudentsTab({ moduleId, students }: ModuleStudentsTabProps
                     <div>Unidad Actual</div>
                     <div>Última Actividad</div>
                     <div>Estado</div>
-                    <div className="w-10">Acciones</div>
+                    <div className="text-right pr-2">Acciones</div>
                 </div>
 
                 {/* Table Body */}
@@ -105,7 +112,7 @@ export function ModuleStudentsTab({ moduleId, students }: ModuleStudentsTabProps
                                         </div>
                                         <div className="min-w-0">
                                             <div className="font-bold text-foreground text-sm truncate">{student.full_name || "Usuario Desconocido"}</div>
-                                            <div className="text-xs text-text-muted truncate">{mockData.email}</div>
+                                            <div className="text-xs text-text-muted truncate">{student.email}</div>
                                         </div>
                                     </div>
 
@@ -136,10 +143,23 @@ export function ModuleStudentsTab({ moduleId, students }: ModuleStudentsTabProps
                                     </div>
 
                                     {/* Acciones */}
-                                    <div className="flex justify-start md:justify-center">
-                                        <Button variant="ghost" size="icon" className="size-8 text-text-muted hover:text-foreground">
-                                            <MoreVertical className="size-4" />
-                                        </Button>
+                                    <div className="flex justify-end md:pr-2">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button data-testid="student-actions-button" variant="ghost" size="icon" className="size-8 text-text-muted hover:text-foreground data-[state=open]:bg-surface/50" disabled={isPending}>
+                                                    <MoreVertical className="size-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-[160px] bg-surface-dark border-border-strong">
+                                                <DropdownMenuItem
+                                                    className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
+                                                    onClick={() => handleUnenroll(student.id)}
+                                                >
+                                                    <Trash2 className="mr-2 size-4" />
+                                                    <span>Eliminar alumno</span>
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </div>
                                 </div>
                             );
