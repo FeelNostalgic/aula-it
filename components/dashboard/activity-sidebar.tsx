@@ -18,7 +18,7 @@ interface ActivitySidebarProps {
 }
 
 export function ActivitySidebar({ appVersion, appStatus }: ActivitySidebarProps) {
-    const [isOpen, setIsOpen] = useState(true);
+    const [isOpen, setIsOpen] = useState(false);
 
     return (
         <div className="relative flex h-full shrink-0 z-30">
