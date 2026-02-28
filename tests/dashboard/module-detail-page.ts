@@ -2,7 +2,6 @@ import { BasePage } from "../base-page";
 import { expect, Locator } from "@playwright/test";
 
 export class ModuleDetailPage extends BasePage {
-    readonly breadcrumb: Locator;
     readonly breadcrumbInicio: Locator;
     readonly breadcrumbModuleName: Locator;
     readonly addUnitButton: Locator;
@@ -17,9 +16,9 @@ export class ModuleDetailPage extends BasePage {
 
     constructor(page: any) {
         super(page);
-        this.breadcrumb = page.locator("nav");
-        this.breadcrumbInicio = page.locator('nav a:has-text("Inicio")');
-        this.breadcrumbModuleName = page.locator("nav span.font-bold");
+        // Breadcrumb is now in the top nav header
+        this.breadcrumbInicio = page.locator('header a:has-text("Inicio")');
+        this.breadcrumbModuleName = page.locator("header");
         this.addUnitButton = page.locator('button:has-text("AÑADIR UNIDAD DIDÁCTICA")').first();
         this.addStudentsButton = page.locator('button:has-text("AÑADIR ALUMNOS")');
         this.unitCards = page.locator('[class*="bg-surface-dark"][class*="border-border-subtle"]').filter({ has: page.locator("h3") });
@@ -51,7 +50,8 @@ export class ModuleDetailPage extends BasePage {
     }
 
     async verifyBreadcrumbModuleName(name: string): Promise<void> {
-        await expect(this.breadcrumbModuleName).toContainText(name);
+        // Verify the module name appears in the top nav header
+        await expect(this.breadcrumbModuleName).toContainText(name, { timeout: 5000 });
     }
 
     async clickTab(tab: "dashboard" | "alumnos" | "configuracion"): Promise<void> {
@@ -64,7 +64,7 @@ export class ModuleDetailPage extends BasePage {
     }
 
     async navigateToInicio(): Promise<void> {
-        await this.breadcrumbInicio.click();
+        this.breadcrumbInicio.click();
         await this.page.waitForLoadState("networkidle");
     }
 }

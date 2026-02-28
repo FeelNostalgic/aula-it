@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useState, useEffect } from "react";
 import {
     LayoutGrid,
     List,
@@ -13,7 +12,6 @@ import {
     Terminal,
     Users,
     Settings,
-    ChevronRight,
     GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,6 +19,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CreateUnitDialog } from "./create-unit-dialog";
+import { useBreadcrumb } from "./breadcrumb-context";
 
 const ICON_MAP: Record<string, any> = {
     BookOpen,
@@ -57,20 +56,16 @@ interface ModuleDetailViewProps {
 export function ModuleDetailView({ module, initialUnits }: ModuleDetailViewProps) {
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const ModuleIcon = ICON_MAP[module.icon] || BookOpen;
+    const { setSegments } = useBreadcrumb();
+
+    // Set breadcrumb segments for the top nav
+    useEffect(() => {
+        setSegments([{ label: module.name }]);
+        return () => setSegments([]);
+    }, [module.name, setSegments]);
 
     return (
         <div className="flex flex-col gap-8">
-            {/* Breadcrumb */}
-            <nav className="flex items-center gap-2 font-mono text-xs font-medium">
-                <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">
-                    root /
-                </Link>
-                <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">
-                    Inicio
-                </Link>
-                <ChevronRight className="size-3 text-muted-foreground" />
-                <span className="text-foreground font-bold">{module.name}</span>
-            </nav>
 
             {/* Module Header */}
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
