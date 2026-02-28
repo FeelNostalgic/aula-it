@@ -1,11 +1,34 @@
-import { Search, MoreVertical, Terminal, Database, Globe, Command, ArrowRight } from "lucide-react";
+import { Search, MoreVertical, Terminal, Database, Globe, Command, ArrowRight, BookOpen, Clock, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import Link from "next/link";
 
-export function StudentDashboard() {
+type Module = {
+    id: string;
+    name: string;
+    description: string | null;
+    icon: string;
+    created_at: string;
+    teacher_id: string;
+    status: "active" | "completed" | "pending";
+};
+
+interface StudentDashboardProps {
+    initialModules: Module[];
+}
+
+const ICON_MAP: Record<string, any> = {
+    BookOpen,
+    Terminal,
+    Database,
+    Globe,
+    // Add logic for matching icons based on the module icon string
+};
+
+export function StudentDashboard({ initialModules }: StudentDashboardProps) {
     return (
         <div className="flex flex-col gap-10">
             {/* Command Search Bar */}
@@ -75,6 +98,47 @@ export function StudentDashboard() {
                 </CardContent>
             </Card>
 
+            {/* Stats Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
+                <Card className="bg-surface-dark border-border-subtle shadow-sm flex flex-col justify-between p-6">
+                    <div className="flex items-center gap-4">
+                        <div className="size-10 rounded-lg bg-accent-blue/10 flex items-center justify-center text-accent-blue">
+                            <BookOpen className="size-5" />
+                        </div>
+                        <div className="space-y-0.5">
+                            <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Módulos Matriculados</p>
+                            <h3 className="text-2xl font-bold text-foreground font-mono">{initialModules.length}</h3>
+                        </div>
+                    </div>
+                </Card>
+                <Card className="bg-surface-dark border-border-subtle shadow-sm flex flex-col justify-between p-6">
+                    <div className="flex items-center gap-4">
+                        <div className="size-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500">
+                            <Clock className="size-5" />
+                        </div>
+                        <div className="space-y-0.5">
+                            <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Módulos en Curso</p>
+                            <h3 className="text-2xl font-bold text-foreground font-mono">
+                                {initialModules.filter(m => m.status === 'active' || !m.status).length}
+                            </h3>
+                        </div>
+                    </div>
+                </Card>
+                <Card className="bg-surface-dark border-border-subtle shadow-sm flex flex-col justify-between p-6">
+                    <div className="flex items-center gap-4">
+                        <div className="size-10 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-500">
+                            <CheckCircle2 className="size-5" />
+                        </div>
+                        <div className="space-y-0.5">
+                            <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Módulos Completados</p>
+                            <h3 className="text-2xl font-bold text-foreground font-mono">
+                                {initialModules.filter(m => m.status === 'completed').length}
+                            </h3>
+                        </div>
+                    </div>
+                </Card>
+            </div>
+
             {/* Seccion: Modulos Activos */}
             <div className="flex flex-col gap-6">
                 <div className="flex items-center justify-between">
@@ -85,96 +149,49 @@ export function StudentDashboard() {
                 </div>
 
                 <div className="flex flex-col gap-4">
-                    {/* Module 1 */}
-                    <Card className="bg-surface-dark border-border-subtle hover:border-border-subtle/80 transition-all cursor-default group shadow-sm overflow-hidden">
-                        <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6">
-                            <div className="flex items-center gap-4">
-                                <div className="size-11 rounded-lg bg-surface border border-border-subtle flex items-center justify-center text-text-muted group-hover:text-foreground transition-colors">
-                                    <span className="material-symbols-outlined text-[24px]">rebase_edit</span>
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                    <CardTitle className="text-base font-bold">Sistemas Operativos</CardTitle>
-                                    <CardDescription className="text-[10px] font-mono text-text-muted uppercase tracking-tighter">Último acceso: Hoy</CardDescription>
-                                </div>
+                    {initialModules.length === 0 ? (
+                        <Card className="bg-surface-dark border-border-subtle border-dashed p-12 text-center flex flex-col items-center gap-4">
+                            <div className="size-12 rounded-full bg-accent-blue/10 flex items-center justify-center">
+                                <BookOpen className="size-6 text-accent-blue" />
                             </div>
-                            <Badge variant="outline" className="bg-accent-green/10 border-accent-green/20 text-accent-green hover:bg-accent-green/20 text-[10px]">
-                                COMPLETADO
-                            </Badge>
-                        </CardHeader>
-                        <CardContent className="px-6 pb-6 pt-0">
-                            <div className="flex items-center gap-2 text-[10px] font-mono text-text-muted mb-4 uppercase tracking-tighter">
-                                <span className="material-symbols-outlined text-[14px]">view_agenda</span>
-                                Tema actual: Gestión de Procesos
+                            <div className="space-y-1">
+                                <h3 className="font-bold">No hay módulos activos</h3>
+                                <p className="text-xs text-text-muted">Aún no estás matriculado en ningún módulo.</p>
                             </div>
+                        </Card>
+                    ) : (
+                        initialModules.map(module => {
+                            const Icon = ICON_MAP[module.icon] || BookOpen;
+                            const statusConfig = {
+                                active: { color: "text-accent-green", bg: "bg-accent-green/10", border: "border-accent-green/20", label: "ACTIVO" },
+                                pending: { color: "text-accent-orange", bg: "bg-accent-orange/10", border: "border-accent-orange/20", label: "PENDIENTE" },
+                                completed: { color: "text-accent-blue", bg: "bg-accent-blue/10", border: "border-accent-blue/20", label: "COMPLETADO" }
+                            }[module.status || "pending"];
 
-                            <div className="flex flex-col gap-2">
-                                <div className="flex items-center justify-between text-[10px] font-mono font-bold">
-                                    <span className="text-accent-blue">85%</span>
-                                </div>
-                                <Progress value={85} className="h-1.5" />
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Module 2 */}
-                    <Card className="bg-surface-dark border-border-subtle hover:border-border-subtle/80 transition-all cursor-default group shadow-sm overflow-hidden">
-                        <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6">
-                            <div className="flex items-center gap-4">
-                                <div className="size-11 rounded-lg bg-surface border border-border-subtle flex items-center justify-center text-text-muted group-hover:text-foreground transition-colors">
-                                    <span className="material-symbols-outlined text-[24px]">hub</span>
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                    <CardTitle className="text-base font-bold">Redes Locales</CardTitle>
-                                    <CardDescription className="text-[10px] font-mono text-text-muted uppercase tracking-tighter">Último acceso: Ayer</CardDescription>
-                                </div>
-                            </div>
-                            <Badge variant="outline" className="bg-accent-orange/10 border-accent-orange/20 text-accent-orange hover:bg-accent-orange/20 text-[10px]">
-                                EN CURSO
-                            </Badge>
-                        </CardHeader>
-                        <CardContent className="px-6 pb-6 pt-0">
-                            <div className="flex items-center gap-2 text-[10px] font-mono text-text-muted mb-4 uppercase tracking-tighter">
-                                <span className="material-symbols-outlined text-[14px]">view_agenda</span>
-                                Tema actual: Modelo OSI
-                            </div>
-
-                            <div className="flex flex-col gap-2">
-                                <div className="flex items-center justify-between text-[10px] font-mono font-bold">
-                                    <span className="text-accent-orange">48%</span>
-                                </div>
-                                <Progress
-                                    value={48}
-                                    className="h-1.5"
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Module 3 */}
-                    <Card className="bg-surface-dark border-border-subtle opacity-60 hover:opacity-100 transition-all cursor-default group border-dashed shadow-sm overflow-hidden">
-                        <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6">
-                            <div className="flex items-center gap-4">
-                                <div className="size-11 rounded-lg bg-surface border border-border-subtle flex items-center justify-center text-text-muted group-hover:text-foreground transition-colors">
-                                    <span className="material-symbols-outlined text-[24px]">database</span>
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                    <CardTitle className="text-base font-bold text-foreground group-hover:text-primary transition-colors">Bases de Datos</CardTitle>
-                                    <CardDescription className="text-[10px] font-mono text-text-muted uppercase tracking-tighter">Último acceso: --</CardDescription>
-                                </div>
-                            </div>
-                            <Badge variant="outline" className="bg-border-subtle/30 border-border-subtle/50 text-text-muted text-[10px]">
-                                PENDIENTE
-                            </Badge>
-                        </CardHeader>
-                        <CardContent className="px-6 pb-6 pt-0">
-                            <div className="flex items-center gap-10">
-                                <div className="h-2 w-32 bg-border-subtle rounded-full" />
-                                <div className="h-2 w-32 bg-border-subtle rounded-full" />
-                            </div>
-
-                            <div className="mt-8 h-1 w-full bg-border-subtle rounded-full" />
-                        </CardContent>
-                    </Card>
+                            return (
+                                <Link href={`/dashboard/modules/${module.id}`} key={module.id}>
+                                    <Card className="bg-surface-dark border-border-subtle hover:border-border-subtle/80 transition-all cursor-pointer group shadow-sm overflow-hidden min-h-[140px] flex flex-col justify-center">
+                                        <CardHeader className="flex flex-row items-start justify-between space-y-0 p-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="size-11 rounded-lg bg-surface border border-border-subtle flex items-center justify-center text-accent-blue group-hover:bg-accent-blue/10 transition-colors">
+                                                    <Icon className="size-5" />
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    <CardTitle className="text-base font-bold group-hover:text-accent-blue transition-colors">{module.name}</CardTitle>
+                                                    <CardDescription className="text-xs text-text-muted line-clamp-1">{module.description || "Sin descripción"}</CardDescription>
+                                                </div>
+                                            </div>
+                                            {statusConfig && (
+                                                <Badge variant="outline" className={`${statusConfig.bg} ${statusConfig.border} ${statusConfig.color} text-[10px]`}>
+                                                    {statusConfig.label}
+                                                </Badge>
+                                            )}
+                                        </CardHeader>
+                                    </Card>
+                                </Link>
+                            )
+                        })
+                    )}
                 </div>
             </div>
         </div>

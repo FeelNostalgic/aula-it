@@ -30,9 +30,34 @@ export default async function DashboardPage() {
       .eq("teacher_id", user.id)
       .order("created_at", { ascending: false });
 
-    return <TeacherDashboard initialModules={modules || []} />;
+    // Fetch total unique students across all teacher's modules
+    const moduleIds = modules?.map(m => m.id) || [];
+    let totalStudents = 0;
+
+    if (moduleIds.length > 0) {
+      const { data: enrollments } = await supabase
+        .from("module_enrollments")
+        .select("student_id")
+        .in("module_id", moduleIds);
+
+      const uniqueStudents = new Set(enrollments?.map(e => e.student_id));
+      totalStudents = uniqueStudents.size;
+    }
+
+    return <TeacherDashboard initialModules={modules || []} totalStudents={totalStudents} />;
   }
 
-  return <StudentDashboard />;
+  // Fetch student enrolled modules
+  const { data: enrollments } = await supabase
+    .from("module_enrollments")
+    .select("modules(*)")
+    .eq("student_id", user.id);
+
+  const enrolledModules = enrollments
+    ?.map(e => e.modules)
+    .filter(Boolean)
+    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) || [];
+
+  return <StudentDashboard initialModules={enrolledModules as any[]} />;
 }
 

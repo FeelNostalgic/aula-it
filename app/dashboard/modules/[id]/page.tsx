@@ -18,24 +18,43 @@ export default async function ModulePage({ params }: ModulePageProps) {
         redirect("/login");
     }
 
-    // Verify role
+    // Verify role and access
     const { data: profile } = await supabase
         .from("profiles")
-        .select("role")
+        .select("*")
         .eq("id", user.id)
         .single();
 
-    if (profile?.role !== "teacher") {
-        redirect("/dashboard");
-    }
+    let module = null;
 
-    // Fetch module (only if owned by this teacher)
-    const { data: module } = await supabase
-        .from("modules")
-        .select("*")
-        .eq("id", id)
-        .eq("teacher_id", user.id)
-        .single();
+    if (profile?.role === "teacher") {
+        // Fetch module (owned by this teacher)
+        const { data: ownedModule } = await supabase
+            .from("modules")
+            .select("*")
+            .eq("id", id)
+            .eq("teacher_id", user.id)
+            .single();
+        module = ownedModule;
+    } else if (profile?.role === "student") {
+        // Check enrollment
+        const { data: enrollment } = await supabase
+            .from("module_enrollments")
+            .select("module_id")
+            .eq("module_id", id)
+            .eq("student_id", user.id)
+            .single();
+
+        if (enrollment) {
+            // Fetch module info
+            const { data: enrolledModule } = await supabase
+                .from("modules")
+                .select("*")
+                .eq("id", id)
+                .single();
+            module = enrolledModule;
+        }
+    }
 
     if (!module) {
         notFound();
@@ -86,6 +105,7 @@ export default async function ModulePage({ params }: ModulePageProps) {
             module={module}
             initialUnits={units || []}
             initialStudents={enrolledStudents as any[]}
+            userRole={profile?.role as "teacher" | "student"}
         />
     );
 }

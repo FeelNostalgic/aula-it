@@ -183,6 +183,7 @@ export async function updateModuleSettings(moduleId: string, formData: FormData)
 
     const name = formData.get("name") as string;
     const description = formData.get("description") as string;
+    const status = formData.get("status") as string;
 
     if (!name?.trim()) {
         return { error: "Module name cannot be empty" };
@@ -193,6 +194,7 @@ export async function updateModuleSettings(moduleId: string, formData: FormData)
         .update({
             name: name.trim(),
             description: description ? description.trim() : null,
+            status: (status as any) || 'pending'
         })
         .eq("id", moduleId)
         .eq("teacher_id", user.id);
@@ -203,6 +205,39 @@ export async function updateModuleSettings(moduleId: string, formData: FormData)
 
     revalidatePath(`/dashboard/modules/${moduleId}`);
     revalidatePath(`/dashboard`);
+    return { success: true };
+}
+
+export async function deleteModule(moduleId: string) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+        return { error: "Not authenticated" };
+    }
+
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+    if (profile?.role !== "teacher") {
+        return { error: "Unauthorized: only teachers can delete modules" };
+    }
+
+    // Verify ownership and delete
+    const { error } = await supabase
+        .from("modules")
+        .delete()
+        .eq("id", moduleId)
+        .eq("teacher_id", user.id);
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    revalidatePath("/dashboard");
     return { success: true };
 }
 

@@ -42,6 +42,7 @@ type Module = {
     icon: string;
     created_at: string;
     teacher_id: string;
+    status?: "active" | "completed" | "pending" | null;
 };
 
 type Unit = {
@@ -64,12 +65,41 @@ interface ModuleDetailViewProps {
     module: Module;
     initialUnits: Unit[];
     initialStudents: Student[];
+    userRole: "teacher" | "student";
 }
 
-export function ModuleDetailView({ module, initialUnits, initialStudents }: ModuleDetailViewProps) {
+export function ModuleDetailView({ module, initialUnits, initialStudents, userRole }: ModuleDetailViewProps) {
+    const isTeacher = userRole === "teacher";
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const ModuleIcon = ICON_MAP[module.icon] || BookOpen;
     const { setSegments } = useBreadcrumb();
+
+    const statusConfig = {
+        active: {
+            color: "text-accent-green",
+            bg: "bg-accent-green/10",
+            border: "border-accent-green/30",
+            label: "ACTIVO",
+            dotBg: "bg-accent-green",
+            dotAnim: "animate-pulse"
+        },
+        pending: {
+            color: "text-text-muted",
+            bg: "bg-surface",
+            border: "border-border-strong",
+            label: "PENDIENTE",
+            dotBg: "bg-text-muted",
+            dotAnim: ""
+        },
+        completed: {
+            color: "text-accent-blue",
+            bg: "bg-accent-blue/10",
+            border: "border-accent-blue/30",
+            label: "COMPLETADO",
+            dotBg: "bg-accent-blue",
+            dotAnim: ""
+        }
+    }[module.status || "pending"];
 
     // Set breadcrumb segments for the top nav
     useEffect(() => {
@@ -87,24 +117,34 @@ export function ModuleDetailView({ module, initialUnits, initialStudents }: Modu
                         <ModuleIcon className="size-7" />
                     </div>
                     <div className="space-y-1.5">
-                        <h1 className="text-2xl font-bold tracking-tight text-foreground">{module.name}</h1>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-2xl font-bold tracking-tight text-foreground">{module.name}</h1>
+                            {statusConfig && (
+                                <Badge variant="outline" className={`${statusConfig.border} ${statusConfig.bg} ${statusConfig.color} gap-1.5 py-1 px-3 shadow-sm`}>
+                                    <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
+                                    {statusConfig.label}
+                                </Badge>
+                            )}
+                        </div>
                         <p className="text-sm text-text-muted max-w-xl">
                             {module.description || "Sin descripción proporcionada para este módulo."}
                         </p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    <EnrollStudentDialog moduleId={module.id}>
-                        <Button
-                            variant="outline"
-                            className="font-mono font-bold tracking-widest text-[10px] h-9 px-4 border-border-subtle text-text-muted hover:text-foreground"
-                        >
-                            <Users className="mr-2 size-4" />
-                            AÑADIR ALUMNOS
-                        </Button>
-                    </EnrollStudentDialog>
-                    <CreateUnitDialog moduleId={module.id} />
-                </div>
+                {isTeacher && (
+                    <div className="flex items-center gap-3">
+                        <EnrollStudentDialog moduleId={module.id}>
+                            <Button
+                                variant="outline"
+                                className="font-mono font-bold tracking-widest text-[10px] h-9 px-4 border-border-subtle text-text-muted hover:text-foreground"
+                            >
+                                <Users className="mr-2 size-4" />
+                                AÑADIR ALUMNOS
+                            </Button>
+                        </EnrollStudentDialog>
+                        <CreateUnitDialog moduleId={module.id} />
+                    </div>
+                )}
             </div>
 
             {/* Tabs */}
@@ -117,20 +157,24 @@ export function ModuleDetailView({ module, initialUnits, initialStudents }: Modu
                         <LayoutGrid className="mr-2 size-3.5" />
                         DASHBOARD
                     </TabsTrigger>
-                    <TabsTrigger
-                        value="alumnos"
-                        className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
-                    >
-                        <GraduationCap className="mr-2 size-3.5" />
-                        ALUMNOS
-                    </TabsTrigger>
-                    <TabsTrigger
-                        value="configuracion"
-                        className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
-                    >
-                        <Settings className="mr-2 size-3.5" />
-                        CONFIGURACIÓN
-                    </TabsTrigger>
+                    {isTeacher && (
+                        <>
+                            <TabsTrigger
+                                value="alumnos"
+                                className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
+                            >
+                                <GraduationCap className="mr-2 size-3.5" />
+                                ALUMNOS
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="configuracion"
+                                className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
+                            >
+                                <Settings className="mr-2 size-3.5" />
+                                CONFIGURACIÓN
+                            </TabsTrigger>
+                        </>
+                    )}
                 </TabsList>
 
                 {/* Dashboard Tab (Units) */}

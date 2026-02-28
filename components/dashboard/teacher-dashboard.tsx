@@ -40,22 +40,63 @@ type Module = {
     icon: string;
     created_at: string;
     teacher_id: string;
+    status?: "active" | "completed" | "pending" | null;
 };
 
 interface TeacherDashboardProps {
     initialModules: Module[];
+    totalStudents: number;
 }
 
-export function TeacherDashboard({ initialModules }: TeacherDashboardProps) {
+export function TeacherDashboard({ initialModules, totalStudents }: TeacherDashboardProps) {
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
     return (
         <div className="flex flex-col gap-10">
+            {/* Stats Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="bg-surface-dark border-border-subtle shadow-sm flex flex-col justify-between p-6">
+                    <div className="flex items-center gap-4">
+                        <div className="size-10 rounded-lg bg-accent-blue/10 flex items-center justify-center text-accent-blue">
+                            <BookOpen className="size-5" />
+                        </div>
+                        <div className="space-y-0.5">
+                            <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Total Módulos</p>
+                            <h3 className="text-2xl font-bold text-foreground font-mono">{initialModules.length}</h3>
+                        </div>
+                    </div>
+                </Card>
+                <Card className="bg-surface-dark border-border-subtle shadow-sm flex flex-col justify-between p-6">
+                    <div className="flex items-center gap-4">
+                        <div className="size-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500">
+                            <Clock className="size-5" />
+                        </div>
+                        <div className="space-y-0.5">
+                            <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Módulos Activos</p>
+                            <h3 className="text-2xl font-bold text-foreground font-mono">
+                                {initialModules.filter(m => m.status === 'active' || !m.status).length}
+                            </h3>
+                        </div>
+                    </div>
+                </Card>
+                <Card className="bg-surface-dark border-border-subtle shadow-sm flex flex-col justify-between p-6">
+                    <div className="flex items-center gap-4">
+                        <div className="size-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
+                            <Users className="size-5" />
+                        </div>
+                        <div className="space-y-0.5">
+                            <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Alumnos Totales</p>
+                            <h3 className="text-2xl font-bold text-foreground font-mono">{totalStudents}</h3>
+                        </div>
+                    </div>
+                </Card>
+            </div>
+
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
-                    <h2 className="text-2xl font-bold tracking-tight text-foreground">Módulos que impartes</h2>
-                    <p className="text-sm font-medium text-text-muted">Gestiona tus unidades educativas y haz seguimiento de tus alumnos.</p>
+                    <h2 className="text-2xl font-bold tracking-tight text-foreground">Gestión de Módulos</h2>
+                    <p className="text-sm font-medium text-text-muted">Supervisión general de tus cursos y contenidos.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
@@ -102,8 +143,33 @@ export function TeacherDashboard({ initialModules }: TeacherDashboardProps) {
                         // Mock values for demonstration
                         const progress = Math.floor(Math.random() * 40) + 60; // 60-100%
                         const studentsCount = Math.floor(Math.random() * 20) + 10;
-                        const statuses = ["ACTIVO", "EN REVISIÓN", "PENDIENTE"] as const;
-                        const status = statuses[module.id.length % 3]; // Deterministic mock based on ID
+                        // Component rendering config based on status
+                        const statusConfig = {
+                            active: {
+                                color: "text-accent-green",
+                                bg: "bg-accent-green/10",
+                                border: "border-accent-green/30",
+                                label: "ACTIVO",
+                                dotBg: "bg-accent-green",
+                                dotAnim: "animate-pulse"
+                            },
+                            pending: {
+                                color: "text-text-muted",
+                                bg: "bg-surface",
+                                border: "border-border-strong",
+                                label: "PENDIENTE",
+                                dotBg: "bg-text-muted",
+                                dotAnim: ""
+                            },
+                            completed: {
+                                color: "text-accent-blue",
+                                bg: "bg-accent-blue/10",
+                                border: "border-accent-blue/30",
+                                label: "COMPLETADO",
+                                dotBg: "bg-accent-blue",
+                                dotAnim: ""
+                            }
+                        }[module.status || "pending"];
 
                         if (viewMode === "list") {
                             return (
@@ -142,22 +208,10 @@ export function TeacherDashboard({ initialModules }: TeacherDashboardProps) {
 
                                         {/* Col 4: Status Badge */}
                                         <div className="w-full md:w-[130px] shrink-0 flex md:justify-end mt-2 md:mt-0">
-                                            {status === "ACTIVO" && (
-                                                <Badge variant="outline" className="border-accent-green/30 bg-accent-green/10 text-accent-green gap-1.5 py-1 px-3">
-                                                    <span className="size-1.5 rounded-full bg-accent-green animate-pulse" />
-                                                    ACTIVO
-                                                </Badge>
-                                            )}
-                                            {status === "EN REVISIÓN" && (
-                                                <Badge variant="outline" className="border-accent-orange/30 bg-accent-orange/10 text-accent-orange gap-1.5 py-1 px-3">
-                                                    <span className="size-1.5 rounded-full bg-accent-orange" />
-                                                    REVISIÓN
-                                                </Badge>
-                                            )}
-                                            {status === "PENDIENTE" && (
-                                                <Badge variant="outline" className="border-border-strong bg-surface text-text-muted gap-1.5 py-1 px-3">
-                                                    <span className="size-1.5 rounded-full bg-text-muted" />
-                                                    PENDIENTE
+                                            {statusConfig && (
+                                                <Badge variant="outline" className={`${statusConfig.border} ${statusConfig.bg} ${statusConfig.color} gap-1.5 py-1 px-3`}>
+                                                    <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
+                                                    {statusConfig.label}
                                                 </Badge>
                                             )}
                                         </div>
@@ -176,22 +230,10 @@ export function TeacherDashboard({ initialModules }: TeacherDashboardProps) {
                                             <div className="size-12 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center text-accent-blue group-hover:scale-110 group-hover:bg-accent-blue/10 transition-all">
                                                 <Icon className="size-6" />
                                             </div>
-                                            {status === "ACTIVO" && (
-                                                <Badge variant="outline" className="border-accent-green/30 bg-accent-green/5 text-accent-green gap-1.5 shadow-sm">
-                                                    <span className="size-1.5 rounded-full bg-accent-green animate-pulse" />
-                                                    ACTIVO
-                                                </Badge>
-                                            )}
-                                            {status === "EN REVISIÓN" && (
-                                                <Badge variant="outline" className="border-accent-orange/30 bg-accent-orange/5 text-accent-orange gap-1.5 shadow-sm">
-                                                    <span className="size-1.5 rounded-full bg-accent-orange" />
-                                                    REVISIÓN
-                                                </Badge>
-                                            )}
-                                            {status === "PENDIENTE" && (
-                                                <Badge variant="outline" className="border-border-strong bg-surface text-text-muted gap-1.5 shadow-sm">
-                                                    <span className="size-1.5 rounded-full bg-text-muted" />
-                                                    PENDIENTE
+                                            {statusConfig && (
+                                                <Badge variant="outline" className={`${statusConfig.border} ${statusConfig.bg} ${statusConfig.color} gap-1.5 shadow-sm`}>
+                                                    <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
+                                                    {statusConfig.label}
                                                 </Badge>
                                             )}
                                         </div>
