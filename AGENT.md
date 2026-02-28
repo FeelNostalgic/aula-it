@@ -42,6 +42,8 @@ IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the correspon
 ### Framework/Library Detection
 | Context | Read this file |
 |---------|----------------|
+| Create new AI agent skills | `~/.agent/skills/skill-creator/SKILL.md` |
+| Git commits, versioning, releases | `~/.agent/skills/conventional-commits/SKILL.md` |
 | React components, hooks, JSX | `~/.agent/skills/react-19/SKILL.md` |
 | Next.js, app router, server components | `~/.agent/skills/nextjs-16/SKILL.md` |
 | TypeScript types, interfaces, generics | `~/.agent/skills/typescript/SKILL.md` |
