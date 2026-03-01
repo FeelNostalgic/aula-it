@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActivityPhaseWithSteps, ActivityStepWithClientState } from "@/types/activity";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import { StepEditorPanel } from "@/components/dashboard/activity-builder/step-ed
 import { UserNav } from "@/components/dashboard/user-nav";
 import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb";
 import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/breadcrumb-context";
+import { EditorTabsBar } from "@/components/dashboard/activity-builder/editor-tabs-bar";
 
 interface ActivityBuilderClientProps {
     activity: any;
@@ -39,7 +40,7 @@ function BreadcrumbSetter({ activity }: { activity: any }) {
             });
         }
 
-        segments.push({ label: "Actividad", href: "" });
+        segments.push({ label: activity.title || "Actividad", href: "" });
 
         setSegments(segments);
     }, [activity, setSegments]);
@@ -51,6 +52,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
     const router = useRouter();
     const [phases, setPhases] = useState<ActivityPhaseWithSteps[]>(initialPhases);
     const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+    const [openedStepsIds, setOpenedStepsIds] = useState<string[]>([]);
 
     const isTeacher = profile?.role === "teacher";
 
@@ -60,6 +62,13 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
         } else {
             router.push('/dashboard');
         }
+    };
+
+    const handleSelectStep = (id: string | null) => {
+        if (id && !openedStepsIds.includes(id)) {
+            setOpenedStepsIds(prev => [...prev, id]);
+        }
+        setSelectedStepId(id);
     };
 
     const selectedStep = phases
@@ -114,16 +123,37 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                             phases={phases}
                             setPhases={setPhases}
                             selectedStepId={selectedStepId}
-                            setSelectedStepId={setSelectedStepId}
+                            setSelectedStepId={handleSelectStep}
                         />
                     </div>
 
                     {/* Central Step Editor */}
                     <div className="flex-1 h-full bg-background relative flex flex-col">
-                        <StepEditorPanel
-                            step={selectedStep}
-                            onUpdateStep={handleUpdateStep}
+                        <EditorTabsBar
+                            openedStepsIds={openedStepsIds}
+                            onOpenedStepsChange={setOpenedStepsIds}
+                            activeStepId={selectedStepId}
+                            onSelectStep={setSelectedStepId}
+                            onCloseStep={(id) => {
+                                const newOpened = openedStepsIds.filter(stepId => stepId !== id);
+                                setOpenedStepsIds(newOpened);
+                                if (selectedStepId === id) {
+                                    setSelectedStepId(newOpened.length > 0 ? newOpened[newOpened.length - 1] : null);
+                                }
+                            }}
+                            allSteps={phases.flatMap(p => p.steps)}
                         />
+                        {selectedStep ? (
+                            <StepEditorPanel
+                                step={selectedStep}
+                                onUpdateStep={handleUpdateStep}
+                            />
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center text-text-muted">
+                                <FileText className="size-12 mb-4 opacity-20" />
+                                <p>Selecciona o crea un paso en el mapa de fases.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
