@@ -154,10 +154,18 @@ export function TeacherDashboard({ initialModules, totalStudents }: TeacherDashb
                                 dotAnim: "animate-pulse"
                             },
                             pending: {
-                                color: "text-text-muted",
-                                bg: "bg-surface",
-                                border: "border-border-strong",
+                                color: "text-accent-orange",
+                                bg: "bg-accent-orange/10",
+                                border: "border-accent-orange/30",
                                 label: "PENDIENTE",
+                                dotBg: "bg-accent-orange",
+                                dotAnim: ""
+                            },
+                            archived: {
+                                color: "text-text-muted",
+                                bg: "bg-surface-dark",
+                                border: "border-border-strong border-dashed",
+                                label: "ARCHIVADO",
                                 dotBg: "bg-text-muted",
                                 dotAnim: ""
                             },

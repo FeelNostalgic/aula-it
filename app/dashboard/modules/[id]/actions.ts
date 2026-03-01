@@ -208,6 +208,39 @@ export async function updateModuleSettings(moduleId: string, formData: FormData)
     return { success: true };
 }
 
+export async function archiveModule(moduleId: string) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+        return { error: "Not authenticated" };
+    }
+
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+    if (profile?.role !== "teacher") {
+        return { error: "Unauthorized: only teachers can archive modules" };
+    }
+
+    const { error } = await supabase
+        .from("modules")
+        .update({ status: 'archived' })
+        .eq("id", moduleId)
+        .eq("teacher_id", user.id);
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    revalidatePath(`/dashboard/modules/${moduleId}`);
+    revalidatePath("/dashboard");
+    return { success: true };
+}
+
 export async function deleteModule(moduleId: string) {
     const supabase = await createClient();
 

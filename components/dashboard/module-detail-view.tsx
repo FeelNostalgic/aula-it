@@ -84,11 +84,11 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
             dotAnim: "animate-pulse"
         },
         pending: {
-            color: "text-text-muted",
-            bg: "bg-surface",
-            border: "border-border-strong",
+            color: "text-accent-orange",
+            bg: "bg-accent-orange/10",
+            border: "border-accent-orange/30",
             label: "PENDIENTE",
-            dotBg: "bg-text-muted",
+            dotBg: "bg-accent-orange",
             dotAnim: ""
         },
         completed: {
@@ -97,6 +97,14 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
             border: "border-accent-blue/30",
             label: "COMPLETADO",
             dotBg: "bg-accent-blue",
+            dotAnim: ""
+        },
+        archived: {
+            color: "text-text-muted",
+            bg: "bg-surface-dark",
+            border: "border-border-strong border-dashed",
+            label: "ARCHIVADO",
+            dotBg: "bg-text-muted",
             dotAnim: ""
         }
     }[module.status || "pending"];

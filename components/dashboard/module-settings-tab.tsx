@@ -12,9 +12,10 @@ import {
     Trash2,
     CheckCircle2,
     Clock,
-    PlayCircle
+    PlayCircle,
+    Archive
 } from "lucide-react";
-import { updateModuleSettings, deleteModule } from "@/app/dashboard/modules/[id]/actions";
+import { updateModuleSettings, deleteModule, archiveModule } from "@/app/dashboard/modules/[id]/actions";
 import {
     Select,
     SelectContent,
@@ -37,13 +38,15 @@ type Module = {
     name: string;
     description: string | null;
     icon: string;
-    status?: "active" | "completed" | "pending" | null;
+    status?: "active" | "completed" | "pending" | "archived" | null;
 };
 
 export function ModuleSettingsTab({ module }: { module: Module }) {
     const [loading, setLoading] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+    const [archiveLoading, setArchiveLoading] = useState(false);
     const router = useRouter();
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -55,6 +58,19 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
 
         if (result?.error) {
             alert(result.error);
+        }
+    };
+
+    const handleArchive = async () => {
+        setArchiveLoading(true);
+        const result = await archiveModule(module.id);
+        setArchiveLoading(false);
+
+        if (result?.error) {
+            alert(result.error);
+            setIsArchiveDialogOpen(false);
+        } else {
+            router.push("/dashboard");
         }
     };
 
@@ -120,6 +136,12 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                                             <span>Completado</span>
                                         </div>
                                     </SelectItem>
+                                    <SelectItem value="archived" className="focus:bg-accent-blue/10 focus:text-accent-blue">
+                                        <div className="flex items-center gap-2">
+                                            <Archive className="size-4 text-text-muted" />
+                                            <span>Archivado</span>
+                                        </div>
+                                    </SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -156,7 +178,54 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                     </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-4 border-b border-border-subtle">
+                    <div>
+                        <h3 className="font-bold text-foreground mb-1">Archivar Módulo</h3>
+                        <p className="text-xs text-text-muted mr-4">El módulo dejará de ser visible para los alumnos matriculados, pero conservarás sus datos.</p>
+                    </div>
+
+                    <Dialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" className="border-border-strong text-foreground hover:bg-surface shrink-0 gap-2">
+                                <Archive className="size-4" />
+                                Archivar Módulo
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-surface-dark border-border-strong text-foreground">
+                            <DialogHeader>
+                                <DialogTitle className="text-xl font-bold">¿Deseas archivar este módulo?</DialogTitle>
+                                <DialogDescription className="text-text-muted pt-2 text-sm">
+                                    Los alumnos dejarán de ver este módulo inmediatamente en su panel principal. Puedes restaurarlo más tarde.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <DialogFooter className="mt-6 gap-2 sm:gap-0">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setIsArchiveDialogOpen(false)}
+                                    className="border-border-strong text-foreground hover:bg-surface"
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    onClick={handleArchive}
+                                    disabled={archiveLoading}
+                                    className="bg-accent-orange hover:bg-accent-orange/90 text-surface-dark font-bold"
+                                >
+                                    {archiveLoading ? (
+                                        <>
+                                            <Loader2 className="mr-2 size-4 animate-spin" />
+                                            Archivando...
+                                        </>
+                                    ) : (
+                                        "Sí, archivar módulo"
+                                    )}
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-4 mt-2">
                     <div>
                         <h3 className="font-bold text-foreground mb-1">Eliminar Módulo</h3>
                         <p className="text-xs text-text-muted mr-4">Esta acción eliminará permanentemente el módulo, sus unidades y todas las matriculaciones de alumnos asociados.</p>

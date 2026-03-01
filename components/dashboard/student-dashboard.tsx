@@ -165,7 +165,8 @@ export function StudentDashboard({ initialModules }: StudentDashboardProps) {
                             const statusConfig = {
                                 active: { color: "text-accent-green", bg: "bg-accent-green/10", border: "border-accent-green/20", label: "ACTIVO" },
                                 pending: { color: "text-accent-orange", bg: "bg-accent-orange/10", border: "border-accent-orange/20", label: "PENDIENTE" },
-                                completed: { color: "text-accent-blue", bg: "bg-accent-blue/10", border: "border-accent-blue/20", label: "COMPLETADO" }
+                                completed: { color: "text-accent-blue", bg: "bg-accent-blue/10", border: "border-accent-blue/20", label: "COMPLETADO" },
+                                archived: { color: "text-text-muted", bg: "bg-surface", border: "border-border-strong border-dashed", label: "ARCHIVADO" }
                             }[module.status || "pending"];
 
                             return (

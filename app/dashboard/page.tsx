@@ -56,6 +56,7 @@ export default async function DashboardPage() {
   const enrolledModules = enrollments
     ?.map(e => e.modules)
     .filter(Boolean)
+    .filter((m: any) => m.status !== "archived")
     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) || [];
 
   return <StudentDashboard initialModules={enrolledModules as any[]} />;
