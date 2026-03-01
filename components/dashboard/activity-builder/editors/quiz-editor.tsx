@@ -115,94 +115,134 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                 )}
             </div>
 
+            <div className="flex gap-4 p-1 bg-surface-dark rounded-lg w-fit border border-border/50">
+                <Button
+                    variant={!content.googleFormUrl ? "secondary" : "ghost"}
+                    size="sm"
+                    className="text-xs h-7 px-4"
+                    onClick={() => handleUpdate({ ...content, googleFormUrl: "" })}
+                >
+                    Built-in
+                </Button>
+                <Button
+                    variant={content.googleFormUrl ? "secondary" : "ghost"}
+                    size="sm"
+                    className="text-xs h-7 px-4"
+                    onClick={() => handleUpdate({ ...content, googleFormUrl: content.googleFormUrl || "https://docs.google.com/forms/..." })}
+                >
+                    Google Form
+                </Button>
+            </div>
+
             <div className="space-y-6">
-                {content.questions.length === 0 ? (
-                    <div className="text-center p-12 border border-dashed border-border/50 rounded-xl bg-surface/20">
-                        <p className="text-text-muted mb-4">No hay preguntas creadas.</p>
-                        <Button onClick={addQuestion} variant="outline" className="text-accent-blue border-accent-blue/30 hover:bg-accent-blue/10">
-                            <Plus className="size-4 mr-2" /> Añadir la primera pregunta
-                        </Button>
+                {content.googleFormUrl ? (
+                    <div className="p-8 bg-surface-dark border border-white/5 rounded-xl space-y-4">
+                        <label className="text-sm font-semibold text-foreground">Google Form Link</label>
+                        <Input
+                            value={content.googleFormUrl}
+                            onChange={(e) => handleUpdate({ ...content, googleFormUrl: e.target.value })}
+                            placeholder="https://docs.google.com/forms/d/e/.../viewform?embedded=true"
+                            className="bg-surface border-border"
+                        />
+                        <p className="text-xs text-text-muted italic">
+                            Asegúrate de que el enlace termine en /viewform o tenga embedded=true para que se vea correctamente en el visor del alumno.
+                        </p>
+                        {content.googleFormUrl.includes("http") && (
+                            <div className="aspect-video w-full border border-border/50 rounded-lg overflow-hidden bg-background mt-4">
+                                <iframe src={content.googleFormUrl} className="size-full" />
+                            </div>
+                        )}
                     </div>
                 ) : (
-                    content.questions.map((q, idx) => (
-                        <div key={q.id} className="p-6 bg-surface-dark border border-white/5 rounded-xl space-y-4 shadow-sm relative group">
-                            <div className="flex items-start gap-4">
-                                <span className="bg-surface text-text-muted font-bold px-3 py-1 rounded-md text-sm mt-1 shrink-0">
-                                    Q{idx + 1}
-                                </span>
-                                <Input
-                                    value={q.text}
-                                    onChange={(e) => updateQuestionText(q.id, e.target.value)}
-                                    placeholder="Escribe la pregunta aquí..."
-                                    className="flex-1 bg-surface border-border flex text-sm font-medium"
-                                />
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => removeQuestion(q.id)}
-                                    className="text-text-muted hover:text-red-400 hover:bg-red-400/10 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                    <Trash2 className="size-4" />
+                    <>
+                        {content.questions.length === 0 ? (
+                            <div className="text-center p-12 border border-dashed border-border/50 rounded-xl bg-surface/20">
+                                <p className="text-text-muted mb-4">No hay preguntas creadas.</p>
+                                <Button onClick={addQuestion} variant="outline" className="text-accent-blue border-accent-blue/30 hover:bg-accent-blue/10">
+                                    <Plus className="size-4 mr-2" /> Añadir la primera pregunta
                                 </Button>
                             </div>
-
-                            <div className="pl-14 space-y-2">
-                                {q.options.map((opt, oIdx) => (
-                                    <div key={opt.id} className="flex items-center gap-3">
-                                        <button
-                                            onClick={() => updateOption(q.id, opt.id, { isCorrect: !opt.isCorrect })}
-                                            className="focus:outline-none transition-colors shrink-0"
-                                            title={opt.isCorrect ? "Marcar como incorrecta" : "Marcar como correcta"}
-                                        >
-                                            {opt.isCorrect ? (
-                                                <CheckCircle2 className="size-5 text-green-500" />
-                                            ) : (
-                                                <Circle className="size-5 text-text-muted/40 hover:text-text-muted" />
-                                            )}
-                                        </button>
+                        ) : (
+                            content.questions.map((q, idx) => (
+                                <div key={q.id} className="p-6 bg-surface-dark border border-white/5 rounded-xl space-y-4 shadow-sm relative group">
+                                    <div className="flex items-start gap-4">
+                                        <span className="bg-surface text-text-muted font-bold px-3 py-1 rounded-md text-sm mt-1 shrink-0">
+                                            Q{idx + 1}
+                                        </span>
                                         <Input
-                                            value={opt.text}
-                                            onChange={(e) => updateOption(q.id, opt.id, { text: e.target.value })}
-                                            placeholder={`Opción ${oIdx + 1} `}
-                                            className={cn(
-                                                "h-9 bg-background/50 border-border/50 text-sm",
-                                                opt.isCorrect ? "border-green-500/30" : ""
-                                            )}
+                                            value={q.text}
+                                            onChange={(e) => updateQuestionText(q.id, e.target.value)}
+                                            placeholder="Escribe la pregunta aquí..."
+                                            className="flex-1 bg-surface border-border flex text-sm font-medium"
                                         />
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            onClick={() => removeOption(q.id, opt.id)}
-                                            className="size-8 text-text-muted hover:text-red-400 shrink-0"
-                                            disabled={q.options.length <= 2}
-                                            title="Eliminar opción"
+                                            onClick={() => removeQuestion(q.id)}
+                                            className="text-text-muted hover:text-red-400 hover:bg-red-400/10 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                                         >
-                                            <Trash2 className="size-3.5" />
+                                            <Trash2 className="size-4" />
                                         </Button>
                                     </div>
-                                ))}
 
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => addOption(q.id)}
-                                    className="text-text-muted hover:text-accent-blue ml-7 mt-2"
-                                >
-                                    <Plus className="size-3 mr-1" /> Añadir Opción
+                                    <div className="pl-14 space-y-2">
+                                        {q.options.map((opt, oIdx) => (
+                                            <div key={opt.id} className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() => updateOption(q.id, opt.id, { isCorrect: !opt.isCorrect })}
+                                                    className="focus:outline-none transition-colors shrink-0"
+                                                    title={opt.isCorrect ? "Marcar como incorrecta" : "Marcar como correcta"}
+                                                >
+                                                    {opt.isCorrect ? (
+                                                        <CheckCircle2 className="size-5 text-green-500" />
+                                                    ) : (
+                                                        <Circle className="size-5 text-text-muted/40 hover:text-text-muted" />
+                                                    )}
+                                                </button>
+                                                <Input
+                                                    value={opt.text}
+                                                    onChange={(e) => updateOption(q.id, opt.id, { text: e.target.value })}
+                                                    placeholder={`Opción ${oIdx + 1} `}
+                                                    className={cn(
+                                                        "h-9 bg-background/50 border-border/50 text-sm",
+                                                        opt.isCorrect ? "border-green-500/30" : ""
+                                                    )}
+                                                />
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => removeOption(q.id, opt.id)}
+                                                    className="size-8 text-text-muted hover:text-red-400 shrink-0"
+                                                    disabled={q.options.length <= 2}
+                                                    title="Eliminar opción"
+                                                >
+                                                    <Trash2 className="size-3.5" />
+                                                </Button>
+                                            </div>
+                                        ))}
+
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => addOption(q.id)}
+                                            className="text-text-muted hover:text-accent-blue ml-7 mt-2"
+                                        >
+                                            <Plus className="size-3 mr-1" /> Añadir Opción
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                        {content.questions.length > 0 && (
+                            <div className="flex justify-center pt-4">
+                                <Button onClick={addQuestion} className="bg-surface hover:bg-surface-dark text-foreground border border-border/50">
+                                    <Plus className="size-4 mr-2" /> Nueva Pregunta
                                 </Button>
                             </div>
-                        </div>
-                    ))
+                        )}
+                    </>
                 )}
             </div>
-
-            {content.questions.length > 0 && (
-                <div className="flex justify-center pt-4">
-                    <Button onClick={addQuestion} className="bg-surface hover:bg-surface-dark text-foreground border border-border/50">
-                        <Plus className="size-4 mr-2" /> Nueva Pregunta
-                    </Button>
-                </div>
-            )}
         </div>
     );
 }

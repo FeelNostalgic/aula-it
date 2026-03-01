@@ -9,10 +9,10 @@ import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 
 interface PresentationEditorProps {
     step: ActivityStepWithClientState;
-    onUpdateStep: (updatedStep: ActivityStepWithClientState) => void;
+    onUpdate: (updatedStep: ActivityStepWithClientState) => void;
 }
 
-export function PresentationEditor({ step, onUpdateStep }: PresentationEditorProps) {
+export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) {
     const defaultContent: PresentationContent = { slidesUrl: "", notes: "" };
     const initialContent = (step.content as PresentationContent) || defaultContent;
 
@@ -41,7 +41,7 @@ export function PresentationEditor({ step, onUpdateStep }: PresentationEditorPro
             if (res.error) {
                 toast.error("Error al guardar la presentación");
             } else {
-                onUpdateStep({ ...step, content: newContent });
+                onUpdate({ ...step, content: newContent });
             }
             setIsSaving(false);
         }, 1000); // 1s debounce

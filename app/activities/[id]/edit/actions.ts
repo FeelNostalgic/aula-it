@@ -67,6 +67,8 @@ export async function createStep(phaseId: string, title: string, type: ActivityS
         defaultContent = { questions: [] };
     } else if (type === 'presentation') {
         defaultContent = { slidesUrl: '', notes: '' };
+    } else if (type === 'resource') {
+        defaultContent = { items: [], markdownHeader: '' };
     }
 
     const { data, error } = await supabase

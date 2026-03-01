@@ -10,8 +10,8 @@ export type ActivityPhase = {
     updated_at: string;
 };
 
-// Los cuatro tipos de pasos soportados
-export type ActivityStepType = 'theory' | 'deliverable' | 'animation' | 'quiz' | 'presentation';
+// Los cinco tipos de pasos soportados + resource
+export type ActivityStepType = 'theory' | 'deliverable' | 'animation' | 'quiz' | 'presentation' | 'resource';
 
 // Definición de un Paso, que pertenece a una Fase
 export type ActivityStep = {
@@ -61,28 +61,42 @@ export type QuizQuestion = {
 export type QuizContent = {
     questions: QuizQuestion[];
     passingScore?: number;
+    googleFormUrl?: string; // e.g. embedded Google Form
 };
 
-// 5. Presentation
 export type PresentationContent = {
     slidesUrl?: string; // e.g. embedded Google Slides or Pitch
     notes?: string;
 };
 
-// Union type for all possible content types
+// 6. Resource (Files/Links)
+export type ResourceItem = {
+    id: string;
+    title: string;
+    description?: string;
+    url: string;
+    type: 'file' | 'link';
+};
+
+export type ResourceContent = {
+    items: ResourceItem[];
+    markdownHeader?: string;
+};
+
 export type ActivityStepContent =
     | TheoryContent
     | DeliverableContent
     | AnimationContent
     | QuizContent
     | PresentationContent
+    | ResourceContent
     | null;
 
 // Tipos para el estado en cliente (inclusiones anidadas para el sidebar)
 export type ActivityStepWithClientState = ActivityStep & {
     isExpanded?: boolean;
     isSelected?: boolean;
-    content: TheoryContent | DeliverableContent | AnimationContent | QuizContent | PresentationContent; // tipado fuerte
+    content: TheoryContent | DeliverableContent | AnimationContent | QuizContent | PresentationContent | ResourceContent; // tipado fuerte
 };
 
 export type ActivityPhaseWithSteps = ActivityPhase & {

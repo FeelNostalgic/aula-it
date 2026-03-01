@@ -18,6 +18,7 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
     const [description, setDescription] = useState(activity.description || "");
     const [duration, setDuration] = useState(activity.duration || 30);
     const [difficulty, setDifficulty] = useState(activity.difficulty || "Media");
+    const [logoUrl, setLogoUrl] = useState(activity.logo_url || "");
     const [isSaving, setIsSaving] = useState(false);
 
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -39,24 +40,30 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
 
     const handleTitleChange = (val: string) => {
         setTitle(val);
-        triggerSave({ title: val, description, duration, difficulty });
+        triggerSave({ title: val, description, duration, difficulty, logo_url: logoUrl });
         // Optimistic update for the breadcrumb/header
         onUpdate({ ...activity, title: val });
     };
 
-    const handleDescriptionChange = (val: string) => {
-        setDescription(val);
-        triggerSave({ title, description: val, duration, difficulty });
-    };
-
-    const handleDurationChange = (val: number) => {
-        setDuration(val);
-        triggerSave({ title, description, duration: val, difficulty });
+    const handleLogoChange = (val: string) => {
+        setLogoUrl(val);
+        triggerSave({ title, description, duration, difficulty, logo_url: val });
+        onUpdate({ ...activity, logo_url: val });
     };
 
     const handleDifficultyChange = (val: string) => {
         setDifficulty(val);
-        triggerSave({ title, description, duration, difficulty: val });
+        triggerSave({ title, description, duration, difficulty: val, logo_url: logoUrl });
+    };
+
+    const handleDescriptionChange = (val: string) => {
+        setDescription(val);
+        triggerSave({ title, description: val, duration, difficulty, logo_url: logoUrl });
+    };
+
+    const handleDurationChange = (val: number) => {
+        setDuration(val);
+        triggerSave({ title, description, duration: val, difficulty, logo_url: logoUrl });
     };
 
     return (
@@ -80,14 +87,34 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
 
             <div className="space-y-6 bg-surface-dark/50 p-6 rounded-xl border border-border/50">
 
-                <div className="space-y-2">
-                    <label className="text-sm font-semibold text-foreground">Nombre de la Actividad</label>
-                    <Input
-                        value={title}
-                        onChange={(e) => handleTitleChange(e.target.value)}
-                        placeholder="Ej: Misión 1: Introducción a Next.js"
-                        className="bg-surface border-border/50"
-                    />
+                <div className="grid grid-cols-[100px_1fr] gap-6">
+                    <div className="size-20 rounded-xl bg-surface border border-border/50 flex items-center justify-center overflow-hidden shrink-0 mt-2">
+                        {logoUrl ? (
+                            <img src={logoUrl} alt="Logo" className="size-full object-cover" />
+                        ) : (
+                            <Settings className="size-8 text-text-muted/20" />
+                        )}
+                    </div>
+                    <div className="space-y-4 flex-1">
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold text-foreground">Nombre de la Actividad</label>
+                            <Input
+                                value={title}
+                                onChange={(e) => handleTitleChange(e.target.value)}
+                                placeholder="Ej: Misión 1: Introducción a Next.js"
+                                className="bg-surface border-border/50"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold text-foreground">URL del Logo / Icono</label>
+                            <Input
+                                value={logoUrl}
+                                onChange={(e) => handleLogoChange(e.target.value)}
+                                placeholder="https://ejemplo.com/logo.png"
+                                className="bg-surface border-border/50"
+                            />
+                        </div>
+                    </div>
                 </div>
 
                 <div className="space-y-2">

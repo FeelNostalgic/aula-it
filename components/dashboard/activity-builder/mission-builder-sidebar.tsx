@@ -18,7 +18,8 @@ import {
     Eye,
     EyeOff,
     Lock,
-    Unlock
+    Unlock,
+    FolderDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType } from "@/types/activity";
@@ -72,6 +73,7 @@ const getStepIcon = (type: ActivityStepType) => {
         case 'animation': return <PlaySquare className="size-4 text-pink-400" />;
         case 'quiz': return <CheckSquare className="size-4 text-accent-orange" />;
         case 'presentation': return <MonitorPlay className="size-4 text-emerald-400" />;
+        case 'resource': return <FolderDown className="size-4 text-accent-blue" />;
     }
 };
 
@@ -82,6 +84,7 @@ const getStepTypeName = (type: ActivityStepType) => {
         case 'animation': return "Animación";
         case 'quiz': return "Cuestionario";
         case 'presentation': return "Presentación";
+        case 'resource': return "Recursos";
     }
 };
 
@@ -287,6 +290,9 @@ function SortablePhaseHeader({
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddStep(phase.id, 'presentation'); }} className="cursor-pointer text-xs">
                             <MonitorPlay className="size-3.5 mr-2 text-emerald-400" /> Añadir Presentación
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddStep(phase.id, 'resource'); }} className="cursor-pointer text-xs">
+                            <FolderDown className="size-3.5 mr-2 text-accent-blue" /> Añadir Recursos
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>

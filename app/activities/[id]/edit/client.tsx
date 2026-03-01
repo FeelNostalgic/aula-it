@@ -15,6 +15,9 @@ import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb
 import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/breadcrumb-context";
 import { EditorTabsBar } from "@/components/dashboard/activity-builder/editor-tabs-bar";
 import { updateActivityStatus, updateStepTitle, updateActivitySettings } from "./actions";
+import { QuizEditor } from "@/components/dashboard/activity-builder/editors/quiz-editor";
+import { PresentationEditor } from "@/components/dashboard/activity-builder/editors/presentation-editor";
+import { ResourceEditor } from "@/components/dashboard/activity-builder/editors/resource-editor";
 
 interface ActivityBuilderClientProps {
     activity: any;
@@ -105,6 +108,19 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
             })));
             const res = await updateStepTitle(id, newTitle);
             if (res.error) toast.error("Error al renombrar paso");
+        }
+    };
+
+    const renderEditor = (step: ActivityStepWithClientState, onUpdate: (updatedStep: ActivityStepWithClientState) => void) => {
+        switch (step.type) {
+            case 'quiz':
+                return <QuizEditor step={step} onUpdate={onUpdate} />;
+            case 'presentation':
+                return <PresentationEditor step={step} onUpdate={onUpdate} />;
+            case 'resource':
+                return <ResourceEditor step={step} onUpdate={onUpdate} />;
+            default:
+                return <StepEditorPanel step={step} onUpdateStep={onUpdate} />; // Fallback to generic panel
         }
     };
 
@@ -220,10 +236,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                                     onUpdate={setActivityData}
                                 />
                             ) : selectedStep ? (
-                                <StepEditorPanel
-                                    step={selectedStep}
-                                    onUpdateStep={handleUpdateStep}
-                                />
+                                renderEditor(selectedStep, handleUpdateStep)
                             ) : (
                                 <div className="flex-1 flex flex-col items-center justify-center text-text-muted">
                                     <FileText className="size-12 mb-4 opacity-20" />
