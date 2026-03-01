@@ -195,6 +195,7 @@ function SortableResourceItem({ item, updateItem, removeItem }: SortableResource
                 "p-4 bg-surface-dark border border-white/5 rounded-xl flex gap-4 items-start group shadow-sm transition-shadow",
                 isDragging && "shadow-2xl border-accent-blue/50 scale-[1.02] opacity-80"
             )}
+            data-testid="resource-card"
         >
             <div
                 {...attributes}
@@ -246,6 +247,7 @@ function SortableResourceItem({ item, updateItem, removeItem }: SortableResource
                         size="icon"
                         className="size-8 hover:bg-white/5"
                         onClick={() => window.open(item.url, '_blank')}
+                        aria-label="Abrir enlace"
                     >
                         <ExternalLink className="size-4" />
                     </Button>
@@ -255,6 +257,7 @@ function SortableResourceItem({ item, updateItem, removeItem }: SortableResource
                     size="icon"
                     className="size-8 text-red-400/70 hover:text-red-400 hover:bg-red-400/10"
                     onClick={() => removeItem(item.id)}
+                    aria-label="Eliminar"
                 >
                     <Trash2 className="size-4" />
                 </Button>

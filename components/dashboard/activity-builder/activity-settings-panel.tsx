@@ -97,8 +97,9 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                     </div>
                     <div className="space-y-4 flex-1">
                         <div className="space-y-2">
-                            <label className="text-sm font-semibold text-foreground">Nombre de la Actividad</label>
+                            <label htmlFor="activity-title" className="text-sm font-semibold text-foreground">Nombre de la Actividad</label>
                             <Input
+                                id="activity-title"
                                 value={title}
                                 onChange={(e) => handleTitleChange(e.target.value)}
                                 placeholder="Ej: Misión 1: Introducción a Next.js"
@@ -106,8 +107,9 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-semibold text-foreground">URL del Logo / Icono</label>
+                            <label htmlFor="activity-logo" className="text-sm font-semibold text-foreground">URL del Logo / Icono</label>
                             <Input
+                                id="activity-logo"
                                 value={logoUrl}
                                 onChange={(e) => handleLogoChange(e.target.value)}
                                 placeholder="https://ejemplo.com/logo.png"
@@ -118,8 +120,9 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                 </div>
 
                 <div className="space-y-2">
-                    <label className="text-sm font-semibold text-foreground">Descripción para el Alumno</label>
+                    <label htmlFor="activity-description" className="text-sm font-semibold text-foreground">Descripción para el Alumno</label>
                     <Textarea
+                        id="activity-description"
                         value={description}
                         onChange={(e) => handleDescriptionChange(e.target.value)}
                         placeholder="Describe brevemente qué aprenderá y hará el alumno..."
@@ -129,8 +132,9 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
 
                 <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">
-                        <label className="text-sm font-semibold text-foreground">Duración Estimada (min)</label>
+                        <label htmlFor="activity-duration" className="text-sm font-semibold text-foreground">Duración Estimada (min)</label>
                         <Input
+                            id="activity-duration"
                             type="number"
                             value={duration}
                             onChange={(e) => handleDurationChange(parseInt(e.target.value) || 0)}
@@ -138,9 +142,9 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                         />
                     </div>
                     <div className="space-y-2">
-                        <label className="text-sm font-semibold text-foreground">Nivel de Dificultad</label>
+                        <label htmlFor="activity-difficulty" className="text-sm font-semibold text-foreground">Nivel de Dificultad</label>
                         <Select value={difficulty} onValueChange={handleDifficultyChange}>
-                            <SelectTrigger className="bg-surface border-border/50">
+                            <SelectTrigger id="activity-difficulty" className="bg-surface border-border/50">
                                 <SelectValue placeholder="Selecciona..." />
                             </SelectTrigger>
                             <SelectContent className="bg-surface-dark border-border-strong">

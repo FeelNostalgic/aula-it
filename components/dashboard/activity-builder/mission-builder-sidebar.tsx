@@ -30,6 +30,15 @@ import {
     DropdownMenuTrigger,
     DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 import {
@@ -124,6 +133,7 @@ function SortableStepItem({
             ref={setNodeRef}
             style={style}
             onClick={onSelect}
+            data-step-title={step.title}
             className={cn(
                 "group flex items-center gap-2 py-2 px-3 pl-8 text-sm cursor-pointer transition-colors border-l-2",
                 isSelected
@@ -150,6 +160,7 @@ function SortableStepItem({
                 <Button
                     variant="ghost"
                     size="icon"
+                    aria-label={step.is_visible !== false ? "Ocultar paso" : "Mostrar paso"}
                     className={cn(
                         "size-6 transition-all",
                         step.is_visible !== false ? "opacity-0 group-hover:opacity-100 text-text-muted hover:text-foreground" : "opacity-100 text-accent-blue"
@@ -161,6 +172,7 @@ function SortableStepItem({
                 <Button
                     variant="ghost"
                     size="icon"
+                    aria-label={!step.is_locked ? "Bloquear paso" : "Desbloquear paso"}
                     className={cn(
                         "size-6 transition-all",
                         !step.is_locked ? "opacity-0 group-hover:opacity-100 text-text-muted hover:text-foreground" : "opacity-100 text-accent-orange"
@@ -204,7 +216,10 @@ function SortablePhaseHeader({
     handleRenamePhase,
     setRenamingPhaseId,
     handleAddStep,
-    handleDeletePhase
+    handleDeletePhase,
+    setActivePhaseForStep,
+    setActiveStepType,
+    setIsAddingStep
 }: any) {
     const {
         attributes,
@@ -271,27 +286,27 @@ function SortablePhaseHeader({
             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-7 text-text-muted hover:text-foreground shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" aria-label="Añadir Paso" className="size-7 text-text-muted hover:text-foreground shrink-0" onClick={(e) => e.stopPropagation()}>
                             <Plus className="size-4" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="bg-surface-dark border-border-strong w-48 z-50">
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddStep(phase.id, 'theory'); }} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('theory'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
                             <FileText className="size-3.5 mr-2 text-accent-blue" /> Añadir Teoría
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddStep(phase.id, 'animation'); }} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('animation'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
                             <PlaySquare className="size-3.5 mr-2 text-pink-400" /> Añadir Animación
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddStep(phase.id, 'deliverable'); }} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('deliverable'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
                             <PenTool className="size-3.5 mr-2 text-purple-400" /> Añadir Entregable
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddStep(phase.id, 'quiz'); }} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('quiz'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
                             <CheckSquare className="size-3.5 mr-2 text-accent-orange" /> Añadir Cuestionario
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddStep(phase.id, 'presentation'); }} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('presentation'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
                             <MonitorPlay className="size-3.5 mr-2 text-emerald-400" /> Añadir Presentación
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddStep(phase.id, 'resource'); }} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('resource'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
                             <FolderDown className="size-3.5 mr-2 text-accent-blue" /> Añadir Recursos
                         </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -326,6 +341,12 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
     const [newPhaseTitle, setNewPhaseTitle] = useState("");
     const [renamingPhaseId, setRenamingPhaseId] = useState<string | null>(null);
     const [renamedTitle, setRenamedTitle] = useState("");
+
+    // Step dialog state
+    const [isAddingStep, setIsAddingStep] = useState(false);
+    const [activePhaseForStep, setActivePhaseForStep] = useState<string | null>(null);
+    const [activeStepType, setActiveStepType] = useState<ActivityStepType | null>(null);
+    const [newStepTitle, setNewStepTitle] = useState("");
 
     const [activeId, setActiveId] = useState<string | null>(null);
     const [activeType, setActiveType] = useState<"Phase" | "Step" | null>(null);
@@ -373,15 +394,19 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
         }
     };
 
-    const handleAddStep = async (phaseId: string, type: ActivityStepType) => {
-        const phaseIndex = phases.findIndex(p => p.id === phaseId);
+    const handleAddStep = async () => {
+        if (!activePhaseForStep || !activeStepType || !newStepTitle.trim()) {
+            setIsAddingStep(false);
+            return;
+        }
+
+        const phaseIndex = phases.findIndex(p => p.id === activePhaseForStep);
         if (phaseIndex === -1) return;
 
         const phase = phases[phaseIndex];
         const newOrderIndex = phase.steps.length;
-        const title = "Nuevo " + getStepTypeName(type);
 
-        const result = await createStep(phaseId, title, type, newOrderIndex);
+        const result = await createStep(activePhaseForStep, newStepTitle.trim(), activeStepType, newOrderIndex);
 
         if (result.error) {
             toast.error("Error al crear el paso");
@@ -394,6 +419,8 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
             newPhases[phaseIndex].isExpanded = true;
             setPhases(newPhases);
             setSelectedStepId(result.data.id);
+            setIsAddingStep(false);
+            setNewStepTitle("");
             toast.success("Paso añadido");
         }
     };
@@ -578,30 +605,64 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
         <div className="w-[320px] h-full shrink-0 border-r border-border/50 bg-background flex flex-col">
             <div className="p-4 border-b border-border/50 flex items-center justify-between shrink-0">
                 <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">El Mapa (Fases)</h2>
-                <Button variant="ghost" size="icon" className="size-8 text-text-muted hover:text-foreground" onClick={() => setIsAddingPhase(true)}>
+                <Button variant="ghost" size="icon" aria-label="Añadir Fase" className="size-8 text-text-muted hover:text-foreground" onClick={() => setIsAddingPhase(true)}>
                     <Plus className="size-4" />
                 </Button>
             </div>
 
-            {isAddingPhase && (
-                <div className="p-3 border-b border-border/50 bg-accent/5 shrink-0">
-                    <input
-                        autoFocus
-                        placeholder="Nombre de la fase..."
-                        className="w-full bg-background border border-border/50 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary mb-2"
-                        value={newPhaseTitle}
-                        onChange={(e) => setNewPhaseTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleAddPhase();
-                            if (e.key === 'Escape') setIsAddingPhase(false);
-                        }}
-                    />
-                    <div className="flex gap-2">
-                        <Button size="sm" onClick={handleAddPhase} className="h-7 text-[10px] px-2">Crear Fase</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setIsAddingPhase(false)} className="h-7 text-[10px] px-2 text-text-muted">Cancelar</Button>
+            <Dialog open={isAddingPhase} onOpenChange={setIsAddingPhase}>
+                <DialogContent className="bg-surface-dark border-border/50 text-foreground">
+                    <DialogHeader>
+                        <DialogTitle>Nueva Fase</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="phase-title">Nombre de la fase</Label>
+                            <Input
+                                id="phase-title"
+                                autoFocus
+                                placeholder="Ej: Fundamentos, Práctica Final..."
+                                value={newPhaseTitle}
+                                onChange={(e) => setNewPhaseTitle(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleAddPhase();
+                                }}
+                            />
+                        </div>
                     </div>
-                </div>
-            )}
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setIsAddingPhase(false)}>Cancelar</Button>
+                        <Button onClick={handleAddPhase}>Crear Fase</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isAddingStep} onOpenChange={setIsAddingStep}>
+                <DialogContent className="bg-surface-dark border-border/50 text-foreground">
+                    <DialogHeader>
+                        <DialogTitle>Nuevo Paso</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="step-title">Título del paso</Label>
+                            <Input
+                                id="step-title"
+                                autoFocus
+                                placeholder="Ej: Teoría de Next.js, Ejercicio 1..."
+                                value={newStepTitle}
+                                onChange={(e) => setNewStepTitle(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleAddStep();
+                                }}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setIsAddingStep(false)}>Cancelar</Button>
+                        <Button onClick={handleAddStep}>Crear Paso</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <div className="flex-1 overflow-y-auto p-3 space-y-4">
                 <DndContext
@@ -616,7 +677,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                             const isExpanded = phase.isExpanded !== false;
 
                             return (
-                                <div key={phase.id} className="flex flex-col mb-4">
+                                <div key={phase.id} className="flex flex-col mb-4" data-phase-title={phase.title}>
                                     <SortablePhaseHeader
                                         phase={phase}
                                         isExpanded={isExpanded}
@@ -628,6 +689,9 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                         setRenamingPhaseId={setRenamingPhaseId}
                                         handleAddStep={handleAddStep}
                                         handleDeletePhase={handleDeletePhase}
+                                        setActivePhaseForStep={setActivePhaseForStep}
+                                        setActiveStepType={setActiveStepType}
+                                        setIsAddingStep={setIsAddingStep}
                                     />
 
                                     {/* Phase Steps List */}

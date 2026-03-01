@@ -1,0 +1,164 @@
+import { Page, Locator, expect } from "@playwright/test";
+import { BasePage } from "../base-page";
+
+export class ActivityBuilderPage extends BasePage {
+    readonly headerTitle: Locator;
+    readonly btnPublishToggle: Locator;
+    readonly btnSettings: Locator;
+    readonly btnAddPhase: Locator;
+    readonly btnStudentPreview: Locator;
+
+    // Settings Panel
+    readonly settingsPanelHeader: Locator;
+    readonly inputTitle: Locator;
+    readonly inputDescription: Locator;
+    readonly inputDuration: Locator;
+    readonly selectDifficulty: Locator;
+    readonly inputLogoUrl: Locator;
+    readonly settingsPanel: Locator;
+
+    // Sidebar
+    readonly sidebarContainer: Locator;
+
+    // Central Editor
+    readonly editorTitleInput: Locator;
+
+    constructor(page: Page) {
+        super(page);
+
+        // Header
+        this.headerTitle = page.locator('div.flex.items-center.gap-1\\.5.font-mono').locator('span.text-foreground.font-bold');
+        this.btnPublishToggle = page.getByRole('button', { name: /Borrador|Publicado/i });
+        this.btnSettings = page.getByRole('button', { name: "Configuración" });
+        this.btnStudentPreview = page.getByRole('button', { name: "Vista Alumno" });
+
+        // Settings Panel Location changed since it's a tab now
+        this.settingsPanelHeader = page.getByRole('heading', { name: 'Configuración de la Actividad' });
+        this.inputTitle = page.getByLabel(/Nombre de la Actividad/i);
+        this.inputDescription = page.getByLabel(/Descripción/i);
+        this.inputDuration = page.getByLabel(/Duración/i);
+        this.selectDifficulty = page.getByRole('combobox', { name: /Dificultad/i });
+        this.inputLogoUrl = page.getByLabel(/URL del Logo/i);
+        this.settingsPanel = page.getByRole('heading', { name: 'Configuración de la Actividad' }); // Modified to target the header within the panel
+
+        // Sidebar
+        this.sidebarContainer = page.locator('.w-\\[320px\\]').filter({ hasText: 'El Mapa' });
+        this.btnAddPhase = page.getByRole('button', { name: 'Añadir Fase' }); // Modified
+
+        // Central Editor Tab Name (used when renaming steps)
+        this.editorTitleInput = page.locator('input').filter({ has: page.locator('..') }).first(); // Will refine this selector
+    }
+
+    async goto(id: string): Promise<void> {
+        await this.page.goto(`/activities/${id}/edit`);
+        await this.page.waitForLoadState('networkidle');
+        // Wait for the sidebar to be ready (at least the add phase button should be there)
+        await expect(this.btnAddPhase).toBeVisible({ timeout: 10000 });
+    }
+
+    // --- Settings Methods ---
+    async openSettings(): Promise<void> {
+        await this.btnSettings.click();
+        await expect(this.settingsPanel).toBeVisible(); // Modified
+    }
+
+    async updateSettings(data: { title?: string; description?: string; difficulty?: string; duration?: string; logoUrl?: string }): Promise<void> {
+        if (data.title) await this.page.getByLabel('Nombre de la Actividad').fill(data.title);
+        if (data.description) await this.page.getByLabel('Descripción para el Alumno').fill(data.description);
+        if (data.difficulty) {
+            await this.page.getByLabel('Nivel de Dificultad').click();
+            await this.page.getByRole('option', { name: data.difficulty }).click();
+        }
+        if (data.duration) await this.page.getByLabel('Duración Estimada (min)').fill(data.duration);
+        if (data.logoUrl) await this.page.getByLabel('URL del Logo / Icono').fill(data.logoUrl);
+
+        // Wait for debounce/save
+        await this.page.waitForTimeout(1500);
+    }
+
+    async toggleStatus(): Promise<void> {
+        await this.btnPublishToggle.click();
+        await this.waitForNotification();
+    }
+
+    // --- Sidebar Methods ---
+    async addPhase(title: string): Promise<void> { // Modified
+        await this.btnAddPhase.click();
+        const dialog = this.page.getByRole('dialog', { name: 'Nueva Fase' });
+        await expect(dialog).toBeVisible();
+        await dialog.getByLabel('Nombre de la fase').fill(title);
+        await dialog.getByRole('button', { name: 'Crear Fase' }).click();
+        await expect(dialog).toBeHidden();
+    }
+
+    async addStep(phaseTitle: string, title: string, type: 'Teoría' | 'Animación' | 'Entregable' | 'Cuestionario' | 'Presentación' | 'Recursos'): Promise<void> { // Modified
+        const phase = this.page.locator(`[data-phase-title="${phaseTitle}"]`);
+        await phase.getByRole('button', { name: 'Añadir Paso' }).click();
+
+        // Menu item mapping
+        const menuLabel = `Añadir ${type}`;
+        await this.page.getByRole('menuitem', { name: menuLabel }).click();
+
+        const dialog = this.page.getByRole('dialog', { name: 'Nuevo Paso' });
+        await expect(dialog).toBeVisible();
+        await dialog.getByLabel('Título del paso').fill(title);
+        await dialog.getByRole('button', { name: 'Crear Paso' }).click();
+        await expect(dialog).toBeHidden();
+    }
+
+    async clickStep(stepTitle: string): Promise<void> {
+        const step = this.sidebarContainer.locator(`div[data-step-title="${stepTitle}"]`);
+        await step.scrollIntoViewIfNeeded();
+        await step.click();
+    }
+
+    async toggleStepVisibility(stepTitle: string): Promise<void> {
+        const step = this.sidebarContainer.locator(`div[data-step-title="${stepTitle}"]`);
+        await step.hover();
+        // The label changes based on state, but we can use a partial match or just target the button
+        await step.getByRole('button').filter({ has: this.page.locator('svg.lucide-eye, svg.lucide-eye-off') }).click();
+    }
+
+    async toggleStepLock(stepTitle: string): Promise<void> {
+        const step = this.sidebarContainer.locator(`div[data-step-title="${stepTitle}"]`);
+        await step.hover();
+        await step.getByRole('button').filter({ has: this.page.locator('svg.lucide-lock, svg.lucide-unlock') }).click();
+    }
+
+    // --- Editor Methods ---
+    async fillTheoryContent(content: string): Promise<void> {
+        await this.page.locator('.ProseMirror').fill(content);
+        await this.waitForNotification(); // Save notification
+    }
+
+    async addResource(url: string, title: string): Promise<void> {
+        await this.page.getByRole('button', { name: 'Añadir Enlace' }).click();
+
+        // Find the last added resource card (empty)
+        const resourceCards = this.page.getByTestId('resource-card');
+        const newCard = resourceCards.last();
+
+        await newCard.getByPlaceholder('URL del enlace externo').fill(url);
+        await newCard.getByPlaceholder('Título del recurso').fill(title);
+        // Wait for auto-save debounce
+        await this.page.waitForTimeout(1500);
+        await this.waitForNotification();
+    }
+
+    async toggleQuizToGoogleForms(url: string): Promise<void> {
+        await this.page.getByRole('button', { name: 'Google Form' }).click();
+        await this.page.getByPlaceholder('https://docs.google.com/forms/d/e/.../viewform?embedded=true').fill(url);
+        await this.page.waitForTimeout(1500); // debounce
+        await this.waitForNotification();
+    }
+
+    // --- Student Preview Methods ---
+    async enterStudentPreview(): Promise<void> {
+        await this.btnStudentPreview.click();
+        await expect(this.page.getByRole('button', { name: 'Vista Alumno' }).first()).toBeVisible();
+    }
+
+    async exitStudentPreview(): Promise<void> {
+        await this.page.getByRole('button', { name: 'Editor' }).click();
+    }
+}
