@@ -5,6 +5,7 @@ import { TheoryEditor } from "./editors/theory-editor";
 import { DeliverableEditor } from "./editors/deliverable-editor";
 import { AnimationEditor } from "./editors/animation-editor";
 import { QuizEditor } from "./editors/quiz-editor";
+import { PresentationEditor } from "./editors/presentation-editor";
 import { Copy } from "lucide-react";
 
 interface StepEditorPanelProps {
@@ -45,6 +46,7 @@ export function StepEditorPanel({ step, onUpdateStep }: StepEditorPanelProps) {
                 {step.type === 'deliverable' && <DeliverableEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === 'animation' && <AnimationEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === 'quiz' && <QuizEditor step={step} onUpdate={onUpdateStep} />}
+                {step.type === 'presentation' && <PresentationEditor step={step} onUpdateStep={onUpdateStep} />}
             </div>
         </div>
     );

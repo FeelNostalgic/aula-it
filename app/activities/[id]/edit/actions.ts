@@ -65,6 +65,8 @@ export async function createStep(phaseId: string, title: string, type: ActivityS
         defaultContent = { componentUrl: '' };
     } else if (type === 'quiz') {
         defaultContent = { questions: [] };
+    } else if (type === 'presentation') {
+        defaultContent = { slidesUrl: '', notes: '' };
     }
 
     const { data, error } = await supabase
@@ -215,4 +217,72 @@ export async function reorderSteps(updates: { id: string, phase_id: string, orde
     }
 
     return { success: true };
+}
+
+export async function updateActivitySettings(activityId: string, updates: any) {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+        .from('activities')
+        .update(updates)
+        .eq('id', activityId)
+        .select()
+        .single();
+
+    if (error) {
+        console.error("Error updating activity settings:", error);
+        return { error: error.message };
+    }
+
+    revalidatePath(`/activities/${activityId}/edit`);
+    return { data };
+}
+
+export async function updateActivityStatus(activityId: string, status: string) {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+        .from('activities')
+        .update({ status })
+        .eq('id', activityId)
+        .select()
+        .single();
+
+    if (error) {
+        console.error("Error updating activity status:", error);
+        return { error: error.message };
+    }
+
+    revalidatePath(`/activities/${activityId}/edit`);
+    return { data };
+}
+
+export async function updateStepVisibility(stepId: string, isVisible: boolean) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from('activity_steps')
+        .update({ is_visible: isVisible })
+        .eq('id', stepId)
+        .select()
+        .single();
+    if (error) {
+        console.error("Error updating step visibility:", error);
+        return { error: error.message };
+    }
+    return { data };
+}
+
+export async function updateStepLock(stepId: string, isLocked: boolean) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from('activity_steps')
+        .update({ is_locked: isLocked })
+        .eq('id', stepId)
+        .select()
+        .single();
+    if (error) {
+        console.error("Error updating step lock:", error);
+        return { error: error.message };
+    }
+    return { data };
 }

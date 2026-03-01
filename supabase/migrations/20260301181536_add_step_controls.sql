@@ -1,0 +1,2 @@
+ALTER TABLE activity_steps ADD COLUMN IF NOT EXISTS is_visible BOOLEAN DEFAULT true;
+ALTER TABLE activity_steps ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT false;

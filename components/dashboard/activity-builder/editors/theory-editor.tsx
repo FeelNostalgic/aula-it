@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ActivityStepWithClientState, TheoryStepContent } from "@/types/activity";
+import { ActivityStepWithClientState, TheoryContent } from "@/types/activity";
 import { Textarea } from "@/components/ui/textarea";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
@@ -14,8 +14,8 @@ interface TheoryEditorProps {
 }
 
 export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
-    const defaultContent = (step.content as TheoryStepContent) || { markdown: '' };
-    const [markdown, setMarkdown] = useState(defaultContent.markdown || '');
+    const defaultContent = (step.content as TheoryContent) || { markdown: '' };
+    const [content, setContent] = useState<TheoryContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
 
     // Auto-save debounce ref
@@ -23,22 +23,29 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
 
     // Update local state when step changes (from selecting another step)
     useEffect(() => {
-        const content = (step.content as TheoryStepContent) || { markdown: '' };
-        setMarkdown(content.markdown || '');
+        const newContent = (step.content as TheoryContent) || { markdown: '' };
+        setContent(newContent);
     }, [step.id, step.content]);
+
+    const saveToServer = useCallback(async (contentToSave: TheoryContent) => {
+        setIsSaving(true);
+        const res = await updateStepContent(step.id, contentToSave);
+        if (res.error) {
+            toast.error("Error al guardar el contenido del paso");
+        }
+        setIsSaving(false);
+    }, [step.id]);
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newValue = e.target.value;
-        setMarkdown(newValue);
+        const newContent: TheoryContent = { ...content, markdown: newValue };
+        setContent(newContent);
 
         // Optimistic update
-        const newContent: TheoryStepContent = { ...defaultContent, markdown: newValue };
         onUpdate({ ...step, content: newContent });
 
         // Debounced save to server
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        setIsSaving(true);
-
         timeoutRef.current = setTimeout(async () => {
             const res = await updateStepContent(step.id, newContent);
             if (res.error) {
@@ -62,7 +69,7 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
                 </div>
                 <div className="flex-1 p-0 overflow-hidden">
                     <Textarea
-                        value={markdown}
+                        value={content.markdown}
                         onChange={handleChange}
                         className="h-full w-full resize-none border-none focus-visible:ring-0 rounded-none bg-transparent p-6 text-foreground font-mono text-sm leading-relaxed"
                         placeholder="# ¡Escribe tu contenido aquí!\n\nSoporta **Markdown** y [enlaces](https://github.com/remarkjs/react-markdown)..."
@@ -76,9 +83,9 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
                     <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Vista Previa</span>
                 </div>
                 <div className="flex-1 p-8 overflow-y-auto prose prose-invert prose-sm max-w-none prose-headings:font-semibold prose-a:text-accent-blue hover:prose-a:text-accent-blue/80 prose-p:leading-relaxed prose-pre:bg-surface-dark prose-pre:border prose-pre:border-border/50">
-                    {markdown ? (
+                    {content.markdown ? (
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {markdown}
+                            {content.markdown}
                         </ReactMarkdown>
                     ) : (
                         <div className="text-text-muted/50 italic mt-4 text-center">

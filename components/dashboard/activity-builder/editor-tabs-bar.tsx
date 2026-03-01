@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { ActivityStepWithClientState } from "@/types/activity";
 import { cn } from "@/lib/utils";
-import { X, GripVertical, FileText, PlaySquare, PenTool, CheckSquare } from "lucide-react";
+import { X, GripVertical, FileText, PlaySquare, PenTool, CheckSquare, Settings, MonitorPlay } from "lucide-react";
 import {
     DndContext,
     closestCenter,
@@ -29,6 +30,7 @@ interface EditorTabsBarProps {
     onSelectStep: (id: string) => void;
     onCloseStep: (id: string) => void;
     allSteps: ActivityStepWithClientState[];
+    onRenameTab: (id: string, newTitle: string) => void;
 }
 
 const getStepIcon = (type?: ActivityStepType) => {
@@ -37,6 +39,7 @@ const getStepIcon = (type?: ActivityStepType) => {
         case 'deliverable': return <PenTool className="size-3.5 text-purple-400" />;
         case 'animation': return <PlaySquare className="size-3.5 text-pink-400" />;
         case 'quiz': return <CheckSquare className="size-3.5 text-accent-orange" />;
+        case 'presentation': return <MonitorPlay className="size-3.5 text-emerald-400" />;
         default: return <FileText className="size-3.5 text-text-muted" />;
     }
 };
@@ -46,14 +49,19 @@ function SortableTab({
     step,
     isActive,
     onSelect,
-    onClose
+    onClose,
+    onRename
 }: {
     id: string;
     step?: ActivityStepWithClientState;
     isActive: boolean;
     onSelect: () => void;
     onClose: (e: React.MouseEvent) => void;
+    onRename: (id: string, newTitle: string) => void;
 }) {
+    const [isRenaming, setIsRenaming] = useState(false);
+    const [tempTitle, setTempTitle] = useState("");
+
     const {
         attributes,
         listeners,
@@ -61,7 +69,7 @@ function SortableTab({
         transform,
         transition,
         isDragging
-    } = useSortable({ id });
+    } = useSortable({ id, disabled: isRenaming });
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -69,15 +77,34 @@ function SortableTab({
         zIndex: isDragging ? 50 : undefined,
     };
 
-    if (!step) return null;
+    const isSettings = id === 'settings';
+
+    if (!step && !isSettings) return null;
+
+    const title = isSettings ? "Configuración" : step?.title;
+    const icon = isSettings ? <Settings className="size-3.5 text-text-muted" /> : getStepIcon(step?.type);
+
+    const handleStartRename = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setTempTitle(isSettings ? "Nueva Actividad" : (step?.title || ""));
+        setIsRenaming(true);
+    };
+
+    const handleFinishRename = () => {
+        if (tempTitle.trim() && tempTitle !== (isSettings ? "Configuración" : step?.title)) {
+            onRename(id, tempTitle.trim());
+        }
+        setIsRenaming(false);
+    };
 
     return (
         <div
             ref={setNodeRef}
             style={style}
             onClick={onSelect}
+            onDoubleClick={handleStartRename}
             className={cn(
-                "group flex items-center h-full min-w-32 max-w-48 px-3 border-r border-border/50 text-xs cursor-pointer select-none transition-colors",
+                "group flex items-center h-full min-w-32 max-w-64 px-3 border-r border-border/50 text-xs cursor-pointer select-none transition-colors",
                 isActive
                     ? "bg-background border-t-2 border-t-accent-blue text-foreground"
                     : "bg-surface-dark border-t-2 border-t-transparent text-text-muted hover:bg-surface hover:text-foreground",
@@ -87,15 +114,33 @@ function SortableTab({
             <div
                 {...attributes}
                 {...listeners}
-                className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-text-muted hover:text-foreground mr-1"
+                className={cn(
+                    "opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-text-muted hover:text-foreground mr-1",
+                    isRenaming && "hidden"
+                )}
                 onClick={(e) => e.stopPropagation()}
             >
                 <GripVertical className="size-3" />
             </div>
 
-            <div className="mr-2 shrink-0">{getStepIcon(step.type)}</div>
+            <div className="mr-2 shrink-0">{icon}</div>
 
-            <span className="truncate flex-1 font-medium">{step.title}</span>
+            {isRenaming ? (
+                <input
+                    autoFocus
+                    className="bg-surface-dark border border-accent-blue/50 rounded px-1 py-0.5 text-xs focus:outline-none w-full"
+                    value={tempTitle}
+                    onChange={(e) => setTempTitle(e.target.value)}
+                    onBlur={handleFinishRename}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleFinishRename();
+                        if (e.key === 'Escape') setIsRenaming(false);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                />
+            ) : (
+                <span className="truncate flex-1 font-medium">{title}</span>
+            )}
 
             <button
                 onClick={onClose}
@@ -113,7 +158,8 @@ export function EditorTabsBar({
     activeStepId,
     onSelectStep,
     onCloseStep,
-    allSteps
+    allSteps,
+    onRenameTab
 }: EditorTabsBarProps) {
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -153,6 +199,7 @@ export function EditorTabsBar({
                                 e.stopPropagation();
                                 onCloseStep(id);
                             }}
+                            onRename={onRenameTab}
                         />
                     ))}
                 </SortableContext>

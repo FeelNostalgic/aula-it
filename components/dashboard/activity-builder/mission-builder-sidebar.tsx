@@ -13,7 +13,12 @@ import {
     GripVertical,
     ChevronDown,
     ChevronRight,
-    Trash2
+    Trash2,
+    MonitorPlay,
+    Eye,
+    EyeOff,
+    Lock,
+    Unlock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType } from "@/types/activity";
@@ -49,7 +54,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 // Mock imports for server actions
-import { createPhase, createStep, deletePhase, deleteStep, reorderSteps, reorderPhases, updatePhaseTitle } from "@/app/activities/[id]/edit/actions";
+import { createPhase, createStep, deletePhase, deleteStep, reorderSteps, reorderPhases, updatePhaseTitle, updateStepVisibility, updateStepLock } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 
 interface MissionBuilderSidebarProps {
@@ -66,6 +71,7 @@ const getStepIcon = (type: ActivityStepType) => {
         case 'deliverable': return <PenTool className="size-4 text-purple-400" />;
         case 'animation': return <PlaySquare className="size-4 text-pink-400" />;
         case 'quiz': return <CheckSquare className="size-4 text-accent-orange" />;
+        case 'presentation': return <MonitorPlay className="size-4 text-emerald-400" />;
     }
 };
 
@@ -75,6 +81,7 @@ const getStepTypeName = (type: ActivityStepType) => {
         case 'deliverable': return "Entregable";
         case 'animation': return "Animación";
         case 'quiz': return "Cuestionario";
+        case 'presentation': return "Presentación";
     }
 };
 
@@ -83,12 +90,16 @@ function SortableStepItem({
     step,
     isSelected,
     onSelect,
-    onDelete
+    onDelete,
+    onToggleVisibility,
+    onToggleLock
 }: {
     step: ActivityStepWithClientState,
     isSelected: boolean,
     onSelect: () => void,
-    onDelete: () => void
+    onDelete: () => void,
+    onToggleVisibility: () => void,
+    onToggleLock: () => void
 }) {
     const {
         attributes,
@@ -129,7 +140,33 @@ function SortableStepItem({
 
             {getStepIcon(step.type)}
 
-            <span className="flex-1 truncate">{step.title}</span>
+            <span className={cn("flex-1 truncate", step.is_visible === false && "line-through opacity-50")}>{step.title}</span>
+
+            <div className="flex items-center gap-1 min-w-[40px] justify-end">
+                {/* Always show if hidden or locked, otherwise show on hover */}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                        "size-6 transition-all",
+                        step.is_visible !== false ? "opacity-0 group-hover:opacity-100 text-text-muted hover:text-foreground" : "opacity-100 text-accent-blue"
+                    )}
+                    onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}
+                >
+                    {step.is_visible !== false ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                        "size-6 transition-all",
+                        !step.is_locked ? "opacity-0 group-hover:opacity-100 text-text-muted hover:text-foreground" : "opacity-100 text-accent-orange"
+                    )}
+                    onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
+                >
+                    {!step.is_locked ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
+                </Button>
+            </div>
 
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -247,6 +284,9 @@ function SortablePhaseHeader({
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddStep(phase.id, 'quiz'); }} className="cursor-pointer text-xs">
                             <CheckSquare className="size-3.5 mr-2 text-accent-orange" /> Añadir Cuestionario
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleAddStep(phase.id, 'presentation'); }} className="cursor-pointer text-xs">
+                            <MonitorPlay className="size-3.5 mr-2 text-emerald-400" /> Añadir Presentación
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
@@ -385,6 +425,25 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
         setPhases(phases.map(p =>
             p.id === phaseId ? { ...p, isExpanded: p.isExpanded === undefined ? false : !p.isExpanded } : p
         ));
+    };
+
+    const handleToggleVisibility = async (phaseId: string, stepId: string, currentVisibility: boolean) => {
+        const result = await updateStepVisibility(stepId, !currentVisibility);
+        if (result.error) {
+            toast.error("Error al actualizar visibilidad");
+        } else {
+            // Optimistic update
+            setPhases(phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => s.id === stepId ? { ...s, is_visible: !currentVisibility } : s) } : p));
+        }
+    };
+
+    const handleToggleLock = async (phaseId: string, stepId: string, currentLock: boolean) => {
+        const result = await updateStepLock(stepId, !currentLock);
+        if (result.error) {
+            toast.error("Error al actualizar bloqueo");
+        } else {
+            setPhases(phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => s.id === stepId ? { ...s, is_locked: !currentLock } : s) } : p));
+        }
     };
 
     // --- Drag and Drop Logic ---
@@ -579,6 +638,8 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                                             isSelected={selectedStepId === step.id}
                                                             onSelect={() => setSelectedStepId(step.id)}
                                                             onDelete={() => handleDeleteStep(phase.id, step.id)}
+                                                            onToggleVisibility={() => handleToggleVisibility(phase.id, step.id, step.is_visible !== false)}
+                                                            onToggleLock={() => handleToggleLock(phase.id, step.id, !!step.is_locked)}
                                                         />
                                                     ))}
                                                 </SortableContext>
@@ -605,6 +666,8 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                 isSelected={selectedStepId === (phases.flatMap(p => p.steps).find(s => `step-${s.id}` === activeId)?.id)}
                                 onSelect={() => { }}
                                 onDelete={() => { }}
+                                onToggleVisibility={() => { }}
+                                onToggleLock={() => { }}
                             />
                         ) : null}
                     </DragOverlay>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ActivityStepWithClientState, QuizStepContent, QuizQuestion } from "@/types/activity";
+import { ActivityStepWithClientState, QuizContent, QuizQuestion } from "@/types/activity";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
@@ -15,17 +15,17 @@ interface QuizEditorProps {
 }
 
 export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
-    const defaultContent = (step.content as QuizStepContent) || { questions: [] };
-    const [content, setContent] = useState<QuizStepContent>(defaultContent);
+    const defaultContent = (step.content as QuizContent) || { questions: [], passingScore: 80 };
+    const [content, setContent] = useState<QuizContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
-        const newContent = (step.content as QuizStepContent) || { questions: [] };
+        const newContent = (step.content as QuizContent) || { questions: [], passingScore: 80 };
         setContent(newContent);
     }, [step.id, step.content]);
 
-    const saveToServer = (newContent: QuizStepContent) => {
+    const saveToServer = (newContent: QuizContent) => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         setIsSaving(true);
         timeoutRef.current = setTimeout(async () => {
@@ -35,7 +35,7 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
         }, 1200);
     };
 
-    const handleUpdate = (newContent: QuizStepContent) => {
+    const handleUpdate = (newContent: QuizContent) => {
         setContent(newContent);
         onUpdate({ ...step, content: newContent });
         saveToServer(newContent);
