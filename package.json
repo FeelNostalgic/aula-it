@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "playwright test"
+    "test": "playwright test",
+    "sync:agents": "powershell -ExecutionPolicy Bypass -File scripts/sync-agents.ps1"
   },
   "repository": {
     "type": "git",
