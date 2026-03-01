@@ -33,12 +33,16 @@ export default async function ActivityEditPage({
     const { data: activity, error } = await supabase
         .from("activities")
         .select(`
-      *,
-      unit:units(
-        id,
-        module_id
-      )
-    `)
+          *,
+          unit:units(
+            id,
+            name,
+            module:modules(
+              id,
+              name
+            )
+          )
+        `)
         .eq("id", id)
         .single();
 
@@ -67,8 +71,10 @@ export default async function ActivityEditPage({
 
     return (
         <ActivityBuilderClient
-            activity={activity}
+            activity={activity as any}
             initialPhases={initialPhases as any}
+            profile={profile}
+            user={user}
         />
     );
 }

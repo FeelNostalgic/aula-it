@@ -1,46 +1,76 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react"; // Changed from ChevronLeft to ArrowLeft
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActivityPhaseWithSteps, ActivityStepWithClientState } from "@/types/activity";
-import { toast } from "sonner"; // Added toast import
-import { MissionBuilderSidebar } from "@/components/dashboard/activity-builder/mission-builder-sidebar"; // Uncommented and added
-import { StepEditorPanel } from "@/components/dashboard/activity-builder/step-editor-panel"; // Uncommented and added
+import { toast } from "sonner";
+import { MissionBuilderSidebar } from "@/components/dashboard/activity-builder/mission-builder-sidebar";
+import { StepEditorPanel } from "@/components/dashboard/activity-builder/step-editor-panel";
+import { UserNav } from "@/components/dashboard/user-nav";
+import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb";
+import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/breadcrumb-context";
 
 interface ActivityBuilderClientProps {
     activity: any;
     initialPhases: ActivityPhaseWithSteps[];
+    profile: any;
+    user: any;
 }
 
-export function ActivityBuilderClient({ activity, initialPhases }: ActivityBuilderClientProps) {
+function BreadcrumbSetter({ activity }: { activity: any }) {
+    const { setSegments } = useBreadcrumb();
+
+    useEffect(() => {
+        const segments = [];
+
+        if (activity.unit?.module) {
+            segments.push({
+                label: activity.unit.module.name,
+                href: `/dashboard/modules/${activity.unit.module.id}`
+            });
+        }
+
+        if (activity.unit) {
+            segments.push({
+                label: activity.unit.name,
+                href: `/dashboard/units/${activity.unit.id}`
+            });
+        }
+
+        segments.push({ label: "Actividad", href: "" });
+
+        setSegments(segments);
+    }, [activity, setSegments]);
+
+    return null;
+}
+
+export function ActivityBuilderClient({ activity, initialPhases, profile, user }: ActivityBuilderClientProps) {
     const router = useRouter();
     const [phases, setPhases] = useState<ActivityPhaseWithSteps[]>(initialPhases);
-
-    // Track selected step
     const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
 
-    const handleBackToMap = () => { // Renamed from handleReturnToMap
+    const isTeacher = profile?.role === "teacher";
+
+    const handleBackToMap = () => {
         if (activity.unit?.id) {
-            router.push(`/dashboard/modules/${activity.unit.module_id}/units/${activity.unit.id}`);
+            router.push(`/dashboard/units/${activity.unit.id}`);
         } else {
             router.push('/dashboard');
         }
     };
 
-    // Find the currently selected step to pass to the editor
     const selectedStep = phases
-        .flatMap(p => p.steps)
-        .find(s => s.id === selectedStepId) as ActivityStepWithClientState | undefined;
+        .flatMap((p: ActivityPhaseWithSteps) => p.steps)
+        .find((s: any) => s.id === selectedStepId) as ActivityStepWithClientState | undefined;
 
     const handleUpdateStep = (updatedStep: ActivityStepWithClientState) => {
-        // Here we will update the step content optimistically
-        // and trigger the server action (debounced if text)
-        setPhases(current =>
-            current.map(phase => ({
+        setPhases((current: ActivityPhaseWithSteps[]) =>
+            current.map((phase: ActivityPhaseWithSteps) => ({
                 ...phase,
-                steps: phase.steps.map(step =>
+                steps: phase.steps.map((step: any) =>
                     step.id === updatedStep.id ? updatedStep : step
                 )
             }))
@@ -48,53 +78,55 @@ export function ActivityBuilderClient({ activity, initialPhases }: ActivityBuild
     };
 
     return (
-        <div className="flex flex-col h-screen w-full bg-background overflow-hidden relative">
-            {/* Top Navigation Bar - IMMERSIVE */}
-            <header className="shrink-0 h-16 border-b border-white/5 bg-surface/50 backdrop-blur-xl flex items-center justify-between px-4 z-10">
-                <div className="flex items-center gap-4">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-text-muted hover:text-white hover:bg-white/5"
-                        onClick={handleBackToMap}
-                    >
-                        <ArrowLeft className="size-5" />
-                    </Button>
-                    <div className="flex flex-col">
-                        <span className="text-xs text-text-muted font-mono tracking-wider uppercase">Constructor de Misión</span>
-                        <h1 className="text-sm font-semibold text-foreground truncate max-w-[300px]">
-                            {activity.title}
-                        </h1>
+        <BreadcrumbProvider>
+            <BreadcrumbSetter activity={activity} />
+            <div className="h-screen bg-background text-foreground flex flex-col font-sans overflow-hidden">
+                {/* Standardized Dashboard Header */}
+                <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between px-6 shrink-0 z-40">
+                    <div className="flex items-center gap-4">
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="size-8 rounded-lg border-border/50 hover:bg-accent/10 transition-colors"
+                            onClick={handleBackToMap}
+                        >
+                            <ArrowLeft className="size-4" />
+                        </Button>
+                        <DashboardBreadcrumb />
+                    </div>
+
+                    <div className="flex items-center gap-6">
+                        <UserNav
+                            userEmail={user.email || ""}
+                            userName={profile?.full_name || user.user_metadata?.full_name || "Usuario"}
+                            isTeacher={isTeacher}
+                            userId={user.id}
+                        />
+                    </div>
+                </header>
+
+                {/* Main Builder Area */}
+                <div className="flex-1 flex overflow-hidden">
+                    {/* Left Sidebar - Structure Builder */}
+                    <div className="w-80 shrink-0 border-r border-border/50 bg-background h-full flex flex-col">
+                        <MissionBuilderSidebar
+                            activityId={activity.id}
+                            phases={phases}
+                            setPhases={setPhases}
+                            selectedStepId={selectedStepId}
+                            setSelectedStepId={setSelectedStepId}
+                        />
+                    </div>
+
+                    {/* Central Step Editor */}
+                    <div className="flex-1 h-full bg-background relative flex flex-col">
+                        <StepEditorPanel
+                            step={selectedStep}
+                            onUpdateStep={handleUpdateStep}
+                        />
                     </div>
                 </div>
-
-                <div className="flex items-center gap-2">
-                    {/* Add publish/draft status here later */}
-                    <div className="h-2 w-2 rounded-full bg-primary/50 animate-pulse" title="Guardado automático activo"></div>
-                </div>
-            </header>
-
-            {/* Main Builder Area */}
-            <div className="flex-1 flex overflow-hidden">
-                {/* Left Sidebar - Structure Builder */}
-                <div className="w-80 shrink-0 border-r border-white/5 bg-surface/30 h-full flex flex-col">
-                    <MissionBuilderSidebar
-                        activityId={activity.id}
-                        phases={phases}
-                        setPhases={setPhases}
-                        selectedStepId={selectedStepId}
-                        setSelectedStepId={setSelectedStepId}
-                    />
-                </div>
-
-                {/* Central Step Editor */}
-                <div className="flex-1 h-full bg-background relative flex flex-col">
-                    <StepEditorPanel
-                        step={selectedStep}
-                        onUpdateStep={handleUpdateStep}
-                    />
-                </div>
             </div>
-        </div>
+        </BreadcrumbProvider>
     );
 }

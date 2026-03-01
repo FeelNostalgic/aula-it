@@ -152,6 +152,10 @@ function SortableStepItem({
 
 
 export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedStepId, setSelectedStepId }: MissionBuilderSidebarProps) {
+    const [isAddingPhase, setIsAddingPhase] = useState(false);
+    const [newPhaseTitle, setNewPhaseTitle] = useState("");
+    const [renamingPhaseId, setRenamingPhaseId] = useState<string | null>(null);
+    const [renamedTitle, setRenamedTitle] = useState("");
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -159,11 +163,13 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
     );
 
     const handleAddPhase = async () => {
-        const title = prompt("Nombre de la nueva fase:", "Nueva Fase");
-        if (!title) return;
+        if (!newPhaseTitle.trim()) {
+            setIsAddingPhase(false);
+            return;
+        }
 
         const newOrderIndex = phases.length;
-        const result = await createPhase(activityId, title, newOrderIndex);
+        const result = await createPhase(activityId, newPhaseTitle.trim(), newOrderIndex);
 
         if (result.error) {
             toast.error("Error al crear la fase");
@@ -172,7 +178,25 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
 
         if (result.data) {
             setPhases([...phases, { ...result.data, steps: [], isExpanded: true }]);
+            setNewPhaseTitle("");
+            setIsAddingPhase(false);
             toast.success("Fase creada");
+        }
+    };
+
+    const handleRenamePhase = async (phaseId: string) => {
+        if (!renamedTitle.trim()) {
+            setRenamingPhaseId(null);
+            return;
+        }
+
+        const res = await updatePhaseTitle(phaseId, renamedTitle.trim());
+        if (res.error) {
+            toast.error("Error al renombrar la fase");
+        } else {
+            setPhases(phases.map(p => p.id === phaseId ? { ...p, title: renamedTitle.trim() } : p));
+            setRenamingPhaseId(null);
+            toast.success("Fase renombrada");
         }
     };
 
@@ -265,10 +289,30 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
         <div className="w-[320px] h-full shrink-0 border-r border-border/50 bg-background flex flex-col">
             <div className="p-4 border-b border-border/50 flex items-center justify-between shrink-0">
                 <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">El Mapa (Fases)</h2>
-                <Button variant="ghost" size="icon" className="size-8 text-text-muted hover:text-foreground" onClick={handleAddPhase}>
+                <Button variant="ghost" size="icon" className="size-8 text-text-muted hover:text-foreground" onClick={() => setIsAddingPhase(true)}>
                     <Plus className="size-4" />
                 </Button>
             </div>
+
+            {isAddingPhase && (
+                <div className="p-3 border-b border-border/50 bg-accent/5">
+                    <input
+                        autoFocus
+                        placeholder="Nombre de la fase..."
+                        className="w-full bg-background border border-border/50 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary mb-2"
+                        value={newPhaseTitle}
+                        onChange={(e) => setNewPhaseTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleAddPhase();
+                            if (e.key === 'Escape') setIsAddingPhase(false);
+                        }}
+                    />
+                    <div className="flex gap-2">
+                        <Button size="sm" onClick={handleAddPhase} className="h-7 text-[10px] px-2">Crear Fase</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setIsAddingPhase(false)} className="h-7 text-[10px] px-2 text-text-muted">Cancelar</Button>
+                    </div>
+                </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-3 space-y-4">
                 {phases.map(phase => {
@@ -290,7 +334,22 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                     ) : (
                                         <Folder className="size-4 text-accent-orange shrink-0" />
                                     )}
-                                    <h3 className="font-bold text-sm text-foreground truncate">{phase.title}</h3>
+                                    {renamingPhaseId === phase.id ? (
+                                        <input
+                                            autoFocus
+                                            className="bg-background border border-border/50 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                                            value={renamedTitle}
+                                            onChange={(e) => setRenamedTitle(e.target.value)}
+                                            onBlur={() => handleRenamePhase(phase.id)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleRenamePhase(phase.id);
+                                                if (e.key === 'Escape') setRenamingPhaseId(null);
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    ) : (
+                                        <h3 className="font-bold text-sm text-foreground truncate">{phase.title}</h3>
+                                    )}
                                 </div>
 
                                 <DropdownMenu>
@@ -313,14 +372,9 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                             <CheckSquare className="size-3.5 mr-2 text-accent-orange" /> Añadir Cuestionario
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator className="bg-border-strong" />
-                                        <DropdownMenuItem onClick={async () => {
-                                            const newTitle = prompt("Nuevo nombre:", phase.title);
-                                            if (newTitle) {
-                                                const res = await updatePhaseTitle(phase.id, newTitle);
-                                                if (res.data) {
-                                                    setPhases(phases.map(p => p.id === phase.id ? { ...p, title: newTitle } : p));
-                                                }
-                                            }
+                                        <DropdownMenuItem onClick={() => {
+                                            setRenamingPhaseId(phase.id);
+                                            setRenamedTitle(phase.title);
                                         }} className="cursor-pointer text-xs">
                                             ✏️ Renombrar Fase
                                         </DropdownMenuItem>
