@@ -72,7 +72,8 @@ export async function createActivity(formData: FormData) {
     const type = formData.get("type") as string;
     const xp = parseInt(formData.get("xp") as string) || 0;
     const difficulty = formData.get("difficulty") as string;
-    const duration = formData.get("duration") as string;
+    const durationRaw = formData.get("duration") as string;
+    const duration = parseInt(durationRaw) || 30;
 
     if (!unitId || !title || !type) {
         return { error: "Unit ID, title, and type are required" };
@@ -98,7 +99,7 @@ export async function createActivity(formData: FormData) {
             type,
             xp,
             difficulty: difficulty || 'Bajo',
-            duration: duration || '0 min',
+            duration,
             order_index: nextOrder,
         });
 
