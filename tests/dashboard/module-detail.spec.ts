@@ -117,8 +117,10 @@ test.describe("Module Detail", () => {
             // Create unit
             await moduleDetailPage.createUnit("U.D.1 Introduccion", "Conceptos basicos de redes");
 
+            // Verify success toast appears
+            await expect(page.getByText("Unidad didáctica creada correctamente")).toBeVisible();
+
             // Wait for form processing + page revalidation
-            await page.waitForTimeout(2000);
             await page.waitForLoadState("networkidle");
 
             // Verify

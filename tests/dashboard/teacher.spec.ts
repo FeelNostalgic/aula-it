@@ -51,6 +51,9 @@ test.describe("Teacher Dashboard", () => {
         // 3. Crear módulo
         await dashboardPage.createModule("Playwright POM Module", "Created by refactored E2E Test");
 
+        // Verify success toast appears
+        await expect(page.getByText('Módulo "Playwright POM Module" creado correctamente')).toBeVisible();
+
         // 4. Verificar
         await dashboardPage.verifyModuleExists("Playwright POM Module");
     });

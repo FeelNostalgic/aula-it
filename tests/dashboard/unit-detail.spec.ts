@@ -112,24 +112,14 @@ test.describe("Unit Detail (Creador del Mapa)", () => {
             // Verify empty state first
             await expect(unitDetailPage.emptyState).toBeVisible();
 
-            // Intercept window.alert
-            let alertHandled = false;
-            page.on('dialog', async dialog => {
-                expect(dialog.message()).toContain('Reto creado exitosamente');
-                await dialog.accept();
-                alertHandled = true;
-            });
-
             // Create First Activity
             await unitDetailPage.createActivity("A1: Teoría básica", "50", "Lee el documento adjunto.");
 
-            // Wait for form processing + page revalidation
-            await page.waitForTimeout(2000);
-            await page.waitForLoadState("networkidle");
+            // Verify success toast appears
+            await expect(page.getByText("¡Reto creado con éxito!")).toBeVisible();
 
-            // Verify alert logic triggers correctly
-            expect(alertHandled).toBeTruthy();
-            alertHandled = false;
+            // Wait for form processing + page revalidation
+            await page.waitForLoadState("networkidle");
 
             // Verify first activity exists
             await unitDetailPage.verifyActivityExists("A1: Teoría básica");
