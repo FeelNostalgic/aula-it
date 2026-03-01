@@ -46,7 +46,7 @@ test.describe("Teacher Dashboard", () => {
 
         await loginPage.login(teacherEmail, password);
         await dashboardPage.verifyUrl(/\/dashboard/);
-        await dashboardPage.verifyDashboardRole("Módulos que impartes");
+        await dashboardPage.verifyDashboardRole("Gestión de Módulos");
 
         // 3. Crear módulo
         await dashboardPage.createModule("Playwright POM Module", "Created by refactored E2E Test");

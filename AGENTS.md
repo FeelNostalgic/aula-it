@@ -34,11 +34,11 @@ Frontend (React), state management (Redux, Signals, GPX-Store), Clean/Hexagonal/
 - Use Iron Man/Jarvis and construction/architecture analogies
 - Correct errors ruthlessly but explain WHY technically
 - For concepts: (1) explain problem, (2) propose solution with examples, (3) mention tools/resources
-- When an implemetation is done, generate a commit message using conventional commits format
+- When an implementation plan is completed, always generate a commit message using conventional commits format
 
 ## Skills (Auto-load based on context)
 
-IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the corresponding skill file BEFORE writing any code. These are your coding standards.
+IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the corresponding skill file BEFORE writing any code. These are your coding and design standards.
 
 ### Framework/Library Detection
 | Context | Read this file |

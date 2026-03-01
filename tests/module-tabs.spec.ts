@@ -68,23 +68,23 @@ test.describe("Module Details Tabs", () => {
         await expect(page.getByText('No hay alumnos matriculados en este módulo.')).toBeVisible();
 
         // Click adding students button
-        await page.getByRole('button', { name: 'Añadir alumnos', exact: true }).click();
+        await page.getByRole('button', { name: 'AÑADIR ALUMNOS', exact: true }).click();
 
         // Verify the dialog
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible();
         await expect(page.getByRole('heading', { name: 'Añadir Alumnos' })).toBeVisible();
 
-        // Search mechanism
-        const searchInput = page.getByPlaceholder('Buscar por nombre, email o ID...');
+        // 1. Scope to the dialog so you don't hit background elements
+        const searchInput = dialog.getByRole('textbox');
         await searchInput.fill('Ana');
 
-        // Wait for search debounce natively or through visual queue (spin goes away)
-        // Since Search doesn't have a dedicated button but reacts to input:
-        await page.waitForTimeout(1000); // give debounce time
+        // 2. Actually click the search button instead of hoping for a debounce
+        await dialog.getByRole('button', { name: 'Buscar' }).click();
 
-        const noResults = page.getByText('No se encontraron alumnos');
-        const anaResult = page.getByText('Ana').first();
+        // 3. Let Playwright do the waiting natively (NO hardcoded waitForTimeout!)
+        const noResults = dialog.getByText('No se encontraron alumnos');
+        const anaResult = dialog.getByText('Ana').first();
         await expect(noResults.or(anaResult)).toBeVisible({ timeout: 5000 });
 
         await page.keyboard.press('Escape');
@@ -97,9 +97,11 @@ test.describe("Module Details Tabs", () => {
 
         await expect(page.getByRole('heading', { name: 'Información General' })).toBeVisible();
         await expect(page.getByText('Nombre del módulo')).toBeVisible();
+        await expect(page.getByText('Estado del Módulo')).toBeVisible();
 
-        await expect(page.getByText('Público', { exact: true })).toBeVisible();
-        await expect(page.getByText('Privado', { exact: true })).toBeVisible();
+        // Verify that the select exists and contains the default state
+        const statusSelect = page.getByRole('combobox').first();
+        await expect(statusSelect).toContainText('Pendiente');
 
         const nameInput = page.locator('input[name="name"]');
         await expect(nameInput).toHaveValue("Redes Locales Tabs E2E");
