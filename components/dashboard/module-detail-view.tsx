@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import {
     LayoutGrid,
@@ -237,8 +238,9 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
 
                                 if (viewMode === "list") {
                                     return (
-                                        <div
+                                        <Link
                                             key={unit.id}
+                                            href={`/dashboard/units/${unit.id}`}
                                             className="bg-surface-dark border border-border-subtle hover:border-accent-blue/50 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 group transition-all cursor-pointer shadow-sm hover:shadow-md"
                                         >
                                             {/* Col 1: Order + Name */}
@@ -283,60 +285,61 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                                     PENDIENTE
                                                 </Badge>
                                             </div>
-                                        </div>
+                                        </Link>
                                     );
                                 }
 
                                 // Grid View
                                 return (
-                                    <Card
-                                        key={unit.id}
-                                        className="bg-surface-dark border-border-subtle hover:border-accent-blue/50 hover:shadow-lg hover:shadow-accent-blue/5 transition-all group overflow-hidden cursor-pointer flex flex-col h-full rounded-2xl"
-                                    >
-                                        <div className="p-6 flex flex-col h-full">
-                                            {/* Header */}
-                                            <div className="flex items-start gap-4 mb-5">
-                                                <div className="size-12 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:bg-accent-blue/10 transition-all">
-                                                    <span className="text-lg font-bold text-accent-blue font-mono">{unit.order_index + 1}</span>
+                                    <Link key={unit.id} href={`/dashboard/units/${unit.id}`} className="block h-full">
+                                        <Card
+                                            className="bg-surface-dark border-border-subtle hover:border-accent-blue/50 hover:shadow-lg hover:shadow-accent-blue/5 transition-all group overflow-hidden flex flex-col h-full rounded-2xl"
+                                        >
+                                            <div className="p-6 flex flex-col h-full">
+                                                {/* Header */}
+                                                <div className="flex items-start gap-4 mb-5">
+                                                    <div className="size-12 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:bg-accent-blue/10 transition-all">
+                                                        <span className="text-lg font-bold text-accent-blue font-mono">{unit.order_index + 1}</span>
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <h3 className="text-lg font-bold text-foreground tracking-tight group-hover:text-accent-blue transition-colors line-clamp-1">
+                                                            {unit.name}
+                                                        </h3>
+                                                        <p className="text-sm text-text-muted mt-1.5 line-clamp-2">
+                                                            {unit.description || "Sin descripción proporcionada para esta unidad."}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <h3 className="text-lg font-bold text-foreground tracking-tight group-hover:text-accent-blue transition-colors line-clamp-1">
-                                                        {unit.name}
-                                                    </h3>
-                                                    <p className="text-sm text-text-muted mt-1.5 line-clamp-2">
-                                                        {unit.description || "Sin descripción proporcionada para esta unidad."}
-                                                    </p>
+
+                                                {/* Footer Area */}
+                                                <div className="mt-auto space-y-4 pt-4 border-t border-border-subtle/50 relative">
+                                                    <div className="flex items-end justify-between mb-2">
+                                                        <Badge variant="outline" className="border-border-strong bg-surface text-text-muted gap-1.5 shadow-sm">
+                                                            <span className="size-1.5 rounded-full bg-text-muted" />
+                                                            PENDIENTE
+                                                        </Badge>
+                                                        <div className="flex items-baseline gap-1 font-bold text-foreground">
+                                                            <span className="text-xl leading-none">{progress}</span>
+                                                            <span className="text-sm text-text-muted">%</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
+
+                                                    {/* Last activity Inner Box */}
+                                                    <div className="bg-[#050A0D] border border-border-subtle rounded-xl p-3 flex items-center gap-3 mt-4 group-hover:border-accent-blue/30 transition-colors">
+                                                        <div className="size-8 rounded-lg bg-surface flex items-center justify-center shrink-0">
+                                                            <Terminal className="size-4 text-text-muted group-hover:text-accent-blue transition-colors" />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted mb-0.5">Última actividad abierta</div>
+                                                            <div className="text-xs font-bold text-foreground truncate group-hover:text-accent-blue/90 transition-colors">Tema 1: Conceptos base</div>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-
-                                            {/* Footer Area */}
-                                            <div className="mt-auto space-y-4 pt-4 border-t border-border-subtle/50 relative">
-                                                <div className="flex items-end justify-between mb-2">
-                                                    <Badge variant="outline" className="border-border-strong bg-surface text-text-muted gap-1.5 shadow-sm">
-                                                        <span className="size-1.5 rounded-full bg-text-muted" />
-                                                        PENDIENTE
-                                                    </Badge>
-                                                    <div className="flex items-baseline gap-1 font-bold text-foreground">
-                                                        <span className="text-xl leading-none">{progress}</span>
-                                                        <span className="text-sm text-text-muted">%</span>
-                                                    </div>
-                                                </div>
-
-                                                <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
-
-                                                {/* Last activity Inner Box */}
-                                                <div className="bg-[#050A0D] border border-border-subtle rounded-xl p-3 flex items-center gap-3 mt-4 group-hover:border-accent-blue/30 transition-colors">
-                                                    <div className="size-8 rounded-lg bg-surface flex items-center justify-center shrink-0">
-                                                        <Terminal className="size-4 text-text-muted group-hover:text-accent-blue transition-colors" />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted mb-0.5">Última actividad abierta</div>
-                                                        <div className="text-xs font-bold text-foreground truncate group-hover:text-accent-blue/90 transition-colors">Tema 1: Conceptos base</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </Card>
+                                        </Card>
+                                    </Link>
                                 );
                             })}
 

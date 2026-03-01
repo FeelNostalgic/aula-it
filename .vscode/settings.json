@@ -1,6 +1,4 @@
 {
     "css.lint.unknownAtRules": "ignore",
-    "github-actions.workflows.pinned.workflows": [
-        ".github/workflows/ci.yml"
-    ]
+    "github-actions.workflows.pinned.workflows": []
 }
