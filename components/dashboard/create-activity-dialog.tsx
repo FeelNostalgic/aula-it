@@ -22,7 +22,18 @@ import {
     SelectValue,
 }
     from "@/components/ui/select";
-import { Loader2, Plus, PenTool, Code, FileText, CheckSquare, HelpCircle, Gamepad2 } from "lucide-react";
+import {
+    Loader2,
+    Plus,
+    PenTool,
+    Code,
+    FileText,
+    CheckSquare,
+    HelpCircle,
+    Gamepad2,
+    Clock,
+    Zap
+} from "lucide-react";
 import { createActivity } from "@/app/dashboard/units/[id]/actions";
 import { toast } from "sonner";
 
@@ -138,6 +149,52 @@ export function CreateActivityDialog({ unitId, trigger }: CreateActivityDialogPr
                             />
                         </div>
 
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="difficulty" className="text-foreground">Dificultad</Label>
+                                <Select name="difficulty" defaultValue="Bajo">
+                                    <SelectTrigger className="bg-surface border-border-strong text-foreground focus:ring-accent-blue h-10 text-xs">
+                                        <SelectValue placeholder="Dificultad" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-surface border-border-strong text-foreground">
+                                        <SelectItem value="Bajo">
+                                            <div className="flex items-center gap-2 text-accent-green">
+                                                <Zap className="size-3" /> Fácil
+                                            </div>
+                                        </SelectItem>
+                                        <SelectItem value="Medio">
+                                            <div className="flex items-center gap-2 text-accent-amber">
+                                                <Zap className="size-3" /> Medio
+                                            </div>
+                                        </SelectItem>
+                                        <SelectItem value="Difícil">
+                                            <div className="flex items-center gap-2 text-accent-orange">
+                                                <Zap className="size-3" /> Difícil
+                                            </div>
+                                        </SelectItem>
+                                        <SelectItem value="Experto">
+                                            <div className="flex items-center gap-2 text-red-700">
+                                                <Zap className="size-3" /> Experto
+                                            </div>
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="duration" className="text-foreground">Duración (Ej: 15 min)</Label>
+                                <div className="relative">
+                                    <Input
+                                        id="duration"
+                                        name="duration"
+                                        placeholder="15 min"
+                                        className="bg-surface border-border-strong text-foreground focus-visible:ring-accent-blue h-10 text-xs pl-8"
+                                    />
+                                    <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-text-muted" />
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="grid gap-2">
                             <Label htmlFor="xp" className="text-foreground">Experiencia (XP)</Label>
                             <div className="relative">
@@ -147,14 +204,13 @@ export function CreateActivityDialog({ unitId, trigger }: CreateActivityDialogPr
                                     type="number"
                                     min="0"
                                     defaultValue="100"
-                                    className="bg-surface border-border-strong text-foreground focus-visible:ring-accent-blue pl-4 pr-12"
+                                    className="bg-surface border-border-strong text-foreground focus-visible:ring-accent-blue pl-4 pr-12 h-10"
                                     required
                                 />
-                                <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-accent-orange font-bold text-sm">
+                                <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-accent-orange font-bold text-xs">
                                     XP
                                 </div>
                             </div>
-                            <p className="text-xs text-text-muted">La cantidad de puntos que el alumno ganará al completar este reto.</p>
                         </div>
                     </div>
 

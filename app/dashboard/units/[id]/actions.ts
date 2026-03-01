@@ -71,6 +71,8 @@ export async function createActivity(formData: FormData) {
     const description = formData.get("description") as string;
     const type = formData.get("type") as string;
     const xp = parseInt(formData.get("xp") as string) || 0;
+    const difficulty = formData.get("difficulty") as string;
+    const duration = formData.get("duration") as string;
 
     if (!unitId || !title || !type) {
         return { error: "Unit ID, title, and type are required" };
@@ -95,6 +97,8 @@ export async function createActivity(formData: FormData) {
             description: description || null,
             type,
             xp,
+            difficulty: difficulty || 'Bajo',
+            duration: duration || '0 min',
             order_index: nextOrder,
         });
 
@@ -170,6 +174,28 @@ export async function reorderMultipleActivities(unitId: string, updates: { id: s
     );
 
     await Promise.all(updatePromises);
+
+    revalidatePath(`/dashboard/units/${unitId}`);
+    return { success: true };
+}
+
+export async function deleteActivity(unitId: string, activityId: string) {
+    const supabase = await createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Not authenticated" };
+
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Unauthorized" };
+
+    const { error } = await supabase
+        .from("activities")
+        .delete()
+        .eq("id", activityId);
+
+    if (error) {
+        return { error: error.message };
+    }
 
     revalidatePath(`/dashboard/units/${unitId}`);
     return { success: true };

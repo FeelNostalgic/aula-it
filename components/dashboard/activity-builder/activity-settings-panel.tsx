@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings } from "lucide-react";
+import { Settings, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { updateActivitySettings } from "@/app/activities/[id]/edit/actions";
 
@@ -17,7 +17,7 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
     const [title, setTitle] = useState(activity.title || "");
     const [description, setDescription] = useState(activity.description || "");
     const [duration, setDuration] = useState(activity.duration || 30);
-    const [difficulty, setDifficulty] = useState(activity.difficulty || "Media");
+    const [difficulty, setDifficulty] = useState(activity.difficulty || "Medio");
     const [logoUrl, setLogoUrl] = useState(activity.logo_url || "");
     const [isSaving, setIsSaving] = useState(false);
 
@@ -148,10 +148,26 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                                 <SelectValue placeholder="Selecciona..." />
                             </SelectTrigger>
                             <SelectContent className="bg-surface-dark border-border-strong">
-                                <SelectItem value="Fácil">Fácil</SelectItem>
-                                <SelectItem value="Media">Media</SelectItem>
-                                <SelectItem value="Difícil">Difícil</SelectItem>
-                                <SelectItem value="Experto">Experto</SelectItem>
+                                <SelectItem value="Fácil">
+                                    <div className="flex items-center gap-2 text-accent-green">
+                                        <Zap className="size-3" /> Fácil
+                                    </div>
+                                </SelectItem>
+                                <SelectItem value="Medio">
+                                    <div className="flex items-center gap-2 text-accent-amber">
+                                        <Zap className="size-3" /> Medio
+                                    </div>
+                                </SelectItem>
+                                <SelectItem value="Difícil">
+                                    <div className="flex items-center gap-2 text-accent-orange">
+                                        <Zap className="size-3" /> Difícil
+                                    </div>
+                                </SelectItem>
+                                <SelectItem value="Experto">
+                                    <div className="flex items-center gap-2 text-red-700">
+                                        <Zap className="size-3" /> Experto
+                                    </div>
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
