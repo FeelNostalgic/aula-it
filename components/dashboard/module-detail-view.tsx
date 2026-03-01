@@ -54,6 +54,11 @@ type Unit = {
     order_index: number;
     created_at: string;
     status?: string | null;
+    latest_activity?: {
+        id: string;
+        title: string;
+        status: string;
+    } | null;
 };
 
 type Student = {
@@ -282,8 +287,10 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                                     <Terminal className="size-3.5 text-text-muted" />
                                                 </div>
                                                 <div className="space-y-0.5 min-w-0">
-                                                    <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted leading-none">Última actividad</div>
-                                                    <div className="text-sm font-bold text-foreground leading-none truncate group-hover:text-accent-blue/90 transition-colors">Tema 1: Conceptos base</div>
+                                                    <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted leading-none text-nowrap">Última actividad</div>
+                                                    <div className="text-sm font-bold text-foreground leading-none truncate group-hover:text-accent-blue/90 transition-colors">
+                                                        {unit.latest_activity?.title || "Sin actividades publicadas"}
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -351,7 +358,9 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                                         </div>
                                                         <div className="flex-1 min-w-0">
                                                             <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted mb-0.5">Última actividad abierta</div>
-                                                            <div className="text-xs font-bold text-foreground truncate group-hover:text-accent-blue/90 transition-colors">Tema 1: Conceptos base</div>
+                                                            <div className="text-xs font-bold text-foreground truncate group-hover:text-accent-blue/90 transition-colors">
+                                                                {unit.latest_activity?.title || "Sin actividades publicadas"}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>

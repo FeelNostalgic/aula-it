@@ -26,25 +26,24 @@ export default async function DashboardPage() {
   if (role === "teacher") {
     const { data: modules } = await supabase
       .from("modules")
-      .select("*")
+      .select(`
+        *,
+        enrolled_students:module_enrollments (
+          student:profiles (
+            id,
+            avatar_url
+          )
+        )
+      `)
       .eq("teacher_id", user.id)
       .order("created_at", { ascending: false });
 
-    // Fetch total unique students across all teacher's modules
-    const moduleIds = modules?.map(m => m.id) || [];
-    let totalStudents = 0;
+    // Calculate total unique students across all teacher's modules
+    const allStudents = modules?.flatMap(m => m.enrolled_students?.map((e: any) => e.student?.id)) || [];
+    const uniqueStudents = new Set(allStudents.filter(Boolean));
+    const totalStudents = uniqueStudents.size;
 
-    if (moduleIds.length > 0) {
-      const { data: enrollments } = await supabase
-        .from("module_enrollments")
-        .select("student_id")
-        .in("module_id", moduleIds);
-
-      const uniqueStudents = new Set(enrollments?.map(e => e.student_id));
-      totalStudents = uniqueStudents.size;
-    }
-
-    return <TeacherDashboard initialModules={modules || []} totalStudents={totalStudents} />;
+    return <TeacherDashboard initialModules={(modules as any) || []} totalStudents={totalStudents} />;
   }
 
   // Fetch student enrolled modules

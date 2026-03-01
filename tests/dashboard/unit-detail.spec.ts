@@ -152,8 +152,8 @@ test.describe("Unit Detail (Creador del Mapa)", () => {
             await unitDetailPage.verifyActivityExists("A1: Teoría básica");
             await unitDetailPage.verifyActivityExists("A2: Cuestionario de prueba");
 
-            const firstRowTitle = page.locator('.group.flex.items-center h4').first();
-            const secondRowTitle = page.locator('.group.flex.items-center h4').nth(1);
+            const firstRowTitle = unitDetailPage.activitiesList.first();
+            const secondRowTitle = unitDetailPage.activitiesList.nth(1);
 
             await expect(firstRowTitle).toHaveText("A1: Teoría básica");
             await expect(secondRowTitle).toHaveText("A2: Cuestionario de prueba");
@@ -166,8 +166,8 @@ test.describe("Unit Detail (Creador del Mapa)", () => {
             await page.waitForLoadState("networkidle");
 
             // Now order should be A2, then A1
-            await expect(page.locator('.group.flex.items-center h4').nth(0)).toHaveText("A2: Cuestionario de prueba");
-            await expect(page.locator('.group.flex.items-center h4').nth(1)).toHaveText("A1: Teoría básica");
+            await expect(unitDetailPage.activitiesList.nth(0)).toHaveText("A2: Cuestionario de prueba");
+            await expect(unitDetailPage.activitiesList.nth(1)).toHaveText("A1: Teoría básica");
         }
     );
 

@@ -24,6 +24,17 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import {
+    LayoutGrid,
+    List,
+    Plus,
+    Clock,
+    Zap,
+    BarChart3,
+    ArrowRight
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 // DnD Kit Imports
 import {
@@ -53,6 +64,10 @@ type Activity = {
     xp: number;
     order_index: number;
     status?: string | null;
+    difficulty?: string | null;
+    duration?: string | null;
+    logo_url?: string | null;
+    phasesCount?: number;
 };
 
 interface UnitActivitiesTabProps {
@@ -73,7 +88,7 @@ const getActivityIcon = (type: string) => {
 };
 
 // Sortable Item Component
-function SortableActivityItem({ activity }: { activity: Activity }) {
+function SortableActivityItem({ activity, viewMode }: { activity: Activity, viewMode: 'grid' | 'list' }) {
     const {
         attributes,
         listeners,
@@ -91,12 +106,88 @@ function SortableActivityItem({ activity }: { activity: Activity }) {
 
     const router = useRouter();
 
+    if (viewMode === 'grid') {
+        return (
+            <div
+                ref={setNodeRef}
+                style={style}
+                onClick={() => router.push(`/activities/${activity.id}/edit`)}
+                className={cn(
+                    "group relative bg-surface-dark border border-border-strong rounded-2xl p-5 hover:border-accent-blue/40 hover:bg-surface/50 transition-all duration-300 cursor-pointer flex flex-col h-full",
+                    isDragging && "opacity-50 ring-2 ring-accent-blue/20 cursor-grabbing shadow-2xl scale-105"
+                )}
+            >
+                {/* Status Badge */}
+                <div className="flex justify-between items-start mb-4">
+                    <Badge variant="outline" className={cn(
+                        "text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full border",
+                        activity.status === 'published' ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-accent-orange/10 text-accent-orange border-accent-orange/20"
+                    )}>
+                        {activity.status === 'published' ? 'Publicado' : 'Borrador'}
+                    </Badge>
+                    <div
+                        {...attributes}
+                        {...listeners}
+                        className="text-text-muted opacity-30 hover:opacity-100 cursor-grab active:cursor-grabbing p-1 -mt-1 transition-opacity"
+                    >
+                        <GripVertical className="size-4" />
+                    </div>
+                </div>
+
+                {/* Logo / Icon */}
+                <div className="mb-4">
+                    {activity.logo_url ? (
+                        <div className="size-12 rounded-xl border border-border-subtle bg-surface overflow-hidden">
+                            <img src={activity.logo_url} alt={activity.title} className="size-full object-cover" />
+                        </div>
+                    ) : (
+                        <div className="size-12 rounded-xl border border-border-subtle bg-surface flex items-center justify-center">
+                            {getActivityIcon(activity.type)}
+                        </div>
+                    )}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1">
+                    <h4 className="font-bold text-lg text-foreground mb-2 group-hover:text-accent-blue transition-colors line-clamp-1">{activity.title}</h4>
+                    <p className="text-sm text-text-muted line-clamp-2 leading-relaxed">
+                        {activity.description || "Sin descripción para este reto."}
+                    </p>
+                </div>
+
+                {/* Footer Info */}
+                <div className="mt-6 pt-4 border-t border-border-subtle flex flex-wrap gap-y-3 justify-between items-center text-[11px] font-bold text-text-muted uppercase tracking-wider">
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1">
+                            <Zap className="size-3 text-accent-orange" />
+                            <span>{activity.xp} XP</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <BarChart3 className="size-3 text-accent-blue" />
+                            <span>{activity.phasesCount || 0} Pasos</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Hover Action */}
+                <div className="absolute bottom-5 right-5 opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-1 group-hover:translate-x-0">
+                    <div className="bg-accent-blue/10 p-2 rounded-full border border-accent-blue/20">
+                        <ArrowRight className="size-4 text-accent-blue" />
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div
             ref={setNodeRef}
             style={style}
             onClick={() => router.push(`/activities/${activity.id}/edit`)}
-            className={`group flex items-center gap-4 bg-surface-dark border border-border-strong rounded-xl p-4 hover:border-accent-blue/30 hover:bg-surface/50 transition-colors cursor-pointer ${isDragging ? 'opacity-50 ring-2 ring-accent-blue/20 cursor-grabbing' : ''}`}
+            className={cn(
+                "group flex items-center gap-4 bg-surface-dark border border-border-strong rounded-xl p-4 hover:border-accent-blue/30 hover:bg-surface/50 transition-all cursor-pointer",
+                isDragging && "opacity-50 ring-2 ring-accent-blue/20 cursor-grabbing shadow-lg"
+            )}
         >
             {/* Drag handle */}
             <div
@@ -107,25 +198,51 @@ function SortableActivityItem({ activity }: { activity: Activity }) {
                 <GripVertical className="size-5" />
             </div>
 
-            {/* Icon */}
-            <div className="bg-surface p-3 rounded-xl border border-border-subtle shrink-0">
-                {getActivityIcon(activity.type)}
+            {/* Icon/Logo */}
+            <div className="shrink-0">
+                {activity.logo_url ? (
+                    <div className="size-12 rounded-xl border border-border-subtle bg-surface overflow-hidden">
+                        <img src={activity.logo_url} alt={activity.title} className="size-full object-cover" />
+                    </div>
+                ) : (
+                    <div className="bg-surface p-3 rounded-xl border border-border-subtle">
+                        {getActivityIcon(activity.type)}
+                    </div>
+                )}
             </div>
 
             {/* Content */}
             <div className="flex-1 min-w-0">
-                <h4 className="font-bold text-foreground truncate">{activity.title}</h4>
-                {activity.description && (
-                    <p className="text-sm text-text-muted truncate mt-0.5">
-                        {activity.description}
-                    </p>
-                )}
+                <div className="flex items-center gap-2 mb-0.5">
+                    <h4 className="font-bold text-foreground truncate group-hover:text-accent-blue transition-colors">{activity.title}</h4>
+                    <span className={cn(
+                        "text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border leading-none",
+                        activity.status === 'published' ? "text-green-400 border-green-500/20 bg-green-500/5" : "text-accent-orange border-accent-orange/20 bg-accent-orange/5"
+                    )}>
+                        {activity.status === 'published' ? 'Publicado' : 'Borrador'}
+                    </span>
+                </div>
+                <p className="text-xs text-text-muted truncate max-w-xl">
+                    {activity.description || "Explora este reto y completa tus objetivos."}
+                </p>
             </div>
 
-            {/* XP Badge */}
-            <div className="hidden sm:flex items-center gap-1.5 bg-accent-orange/10 text-accent-orange px-3 py-1 rounded-full font-bold text-sm shrink-0 border border-accent-orange/20">
-                <span>{activity.xp}</span>
-                <span className="text-[10px] uppercase tracking-wider">XP</span>
+            {/* Stats */}
+            <div className="hidden md:flex items-center gap-4 mr-4">
+                <div className="flex flex-col items-center">
+                    <span className="text-[10px] text-text-muted uppercase tracking-tighter mb-0.5">Exp</span>
+                    <div className="flex items-center gap-1 text-accent-orange font-bold text-sm">
+                        <Zap className="size-3" />
+                        <span>{activity.xp}</span>
+                    </div>
+                </div>
+                <div className="flex flex-col items-center">
+                    <span className="text-[10px] text-text-muted uppercase tracking-tighter mb-0.5">Pasos</span>
+                    <div className="flex items-center gap-1 text-accent-blue font-bold text-sm">
+                        <BarChart3 className="size-3" />
+                        <span>{activity.phasesCount || 0}</span>
+                    </div>
+                </div>
             </div>
 
             {/* Actions Dropdown */}
@@ -151,6 +268,7 @@ export function UnitActivitiesTab({ unitId, initialActivities }: UnitActivitiesT
         [...initialActivities].sort((a, b) => a.order_index - b.order_index)
     );
     const [isReordering, setIsReordering] = useState(false);
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -206,24 +324,46 @@ export function UnitActivitiesTab({ unitId, initialActivities }: UnitActivitiesT
     };
 
     return (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-6 w-full">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                 <div className="flex items-center gap-3">
                     <div>
                         <h2 className="text-xl font-bold text-foreground">Retos de la Unidad</h2>
-                        <p className="text-sm text-text-muted mt-1">
-                            Crea y organiza las actividades que los alumnos deberán completar.
-                        </p>
-                    </div>
-                    {isReordering && (
-                        <div className="bg-surface px-3 py-1 rounded-full border border-border-subtle flex items-center gap-2 animate-in fade-in slide-in-from-left-2 transition-all">
-                            <Loader2 className="size-3 animate-spin text-accent-blue" />
-                            <span className="text-[10px] font-mono font-bold tracking-widest text-text-muted uppercase">Guardando...</span>
+                        <div className="flex items-center gap-2 mt-1">
+                            <p className="text-sm text-text-muted">
+                                {activities.length} {activities.length === 1 ? 'Actividad' : 'Actividades'} configuradas
+                            </p>
+                            {isReordering && (
+                                <div className="bg-surface px-2 py-0.5 rounded-full border border-border-subtle flex items-center gap-1.5 animate-in fade-in transition-all">
+                                    <Loader2 className="size-2.5 animate-spin text-accent-blue" />
+                                    <span className="text-[9px] font-mono font-bold tracking-widest text-text-muted uppercase">Guardando...</span>
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
 
-                <CreateActivityDialog unitId={unitId} />
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
+                        <Button
+                            variant={viewMode === "grid" ? "secondary" : "ghost"}
+                            size="icon"
+                            className={cn("h-8 w-8", viewMode === 'grid' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
+                            onClick={() => setViewMode('grid')}
+                        >
+                            <LayoutGrid className="size-4" />
+                        </Button>
+                        <Button
+                            variant={viewMode === "list" ? "secondary" : "ghost"}
+                            size="icon"
+                            className={cn("h-8 w-8", viewMode === 'list' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
+                            onClick={() => setViewMode('list')}
+                        >
+                            <List className="size-4" />
+                        </Button>
+                    </div>
+                    <CreateActivityDialog unitId={unitId} />
+                </div>
             </div>
 
             {activities.length === 0 ? (
@@ -247,13 +387,52 @@ export function UnitActivitiesTab({ unitId, initialActivities }: UnitActivitiesT
                         items={activities.map(a => a.id)}
                         strategy={verticalListSortingStrategy}
                     >
-                        <div className="space-y-3">
+                        <div className={cn(
+                            viewMode === 'grid'
+                                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                                : "space-y-3"
+                        )}>
                             {activities.map((activity) => (
                                 <SortableActivityItem
                                     key={activity.id}
                                     activity={activity}
+                                    viewMode={viewMode}
                                 />
                             ))}
+
+                            {/* Empty Card for creating new activity */}
+                            <CreateActivityDialog
+                                unitId={unitId}
+                                trigger={
+                                    <button className={cn(
+                                        "bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 cursor-pointer transition-all group hover:bg-accent-blue/5 flex",
+                                        viewMode === 'grid'
+                                            ? "flex-col items-center justify-center gap-3 p-6 rounded-2xl min-h-[180px] h-full"
+                                            : "items-center gap-4 p-4 rounded-xl w-full"
+                                    )}>
+                                        <div className={cn(
+                                            "bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all shrink-0",
+                                            viewMode === 'grid' ? "size-12 rounded-full" : "size-10 rounded-lg"
+                                        )}>
+                                            <Plus className={cn(
+                                                "text-text-muted group-hover:text-accent-blue transition-colors",
+                                                viewMode === 'grid' ? "size-5" : "size-4"
+                                            )} />
+                                        </div>
+                                        <div className={viewMode === 'grid' ? "text-center" : "text-left"}>
+                                            <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">
+                                                Nuevo Reto
+                                            </p>
+                                            <p className={cn(
+                                                "text-xs text-text-muted",
+                                                viewMode === 'grid' && "mt-0.5"
+                                            )}>
+                                                Añade contenido didáctico
+                                            </p>
+                                        </div>
+                                    </button>
+                                }
+                            />
                         </div>
                     </SortableContext>
                 </DndContext>

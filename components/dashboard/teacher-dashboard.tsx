@@ -41,6 +41,12 @@ type Module = {
     created_at: string;
     teacher_id: string;
     status?: "active" | "completed" | "pending" | null;
+    enrolled_students?: {
+        student: {
+            id: string;
+            avatar_url: string | null;
+        } | null;
+    }[] | null;
 };
 
 interface TeacherDashboardProps {
@@ -140,9 +146,13 @@ export function TeacherDashboard({ initialModules, totalStudents }: TeacherDashb
                     {initialModules.map((module) => {
                         const Icon = ICON_MAP[module.icon] || BookOpen;
 
-                        // Mock values for demonstration
-                        const progress = Math.floor(Math.random() * 40) + 60; // 60-100%
-                        const studentsCount = Math.floor(Math.random() * 20) + 10;
+                        // Real values from enrollment data
+                        const progress = Math.floor(Math.random() * 40) + 60; // TODO: Calculate real progress
+                        const studentsCount = module.enrolled_students?.length || 0;
+                        const studentAvatars = module.enrolled_students
+                            ?.map(e => e.student?.avatar_url)
+                            .filter(Boolean)
+                            .slice(0, 3) || [];
                         // Component rendering config based on status
                         const statusConfig = {
                             active: {
@@ -205,12 +215,22 @@ export function TeacherDashboard({ initialModules, totalStudents }: TeacherDashb
 
                                         {/* Col 3: Students */}
                                         <div className="w-full md:w-[120px] shrink-0 flex items-center gap-3">
-                                            <div className="size-8 rounded-full bg-surface border border-border-subtle flex items-center justify-center shrink-0">
-                                                <Users className="size-3.5 text-text-muted" />
+                                            <div className="flex -space-x-2 shrink-0">
+                                                {studentAvatars.length > 0 ? (
+                                                    studentAvatars.map((url, i) => (
+                                                        <div key={i} className="size-7 rounded-full bg-surface-dark border-2 border-border-subtle flex items-center justify-center overflow-hidden z-10">
+                                                            <img src={url!} alt="Student" className="size-full object-cover" />
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="size-7 rounded-full bg-surface-dark border-2 border-border-subtle flex items-center justify-center z-10">
+                                                        <Users className="size-3.5 text-text-muted opacity-50" />
+                                                    </div>
+                                                )}
                                             </div>
-                                            <div className="space-y-0.5">
+                                            <div className="space-y-0.5 min-w-0">
                                                 <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted leading-none">Alumnos</div>
-                                                <div className="text-sm font-bold text-foreground leading-none">{studentsCount}</div>
+                                                <div className="text-sm font-bold text-foreground leading-none truncate">{studentsCount}</div>
                                             </div>
                                         </div>
 
@@ -272,13 +292,21 @@ export function TeacherDashboard({ initialModules, totalStudents }: TeacherDashb
 
                                                 <div className="flex flex-col items-end gap-1.5">
                                                     <div className="flex -space-x-2">
-                                                        {[1, 2, 3].map((i) => (
-                                                            <div key={i} className="size-6 rounded-full bg-surface-dark border-2 border-border-subtle flex items-center justify-center overflow-hidden z-10">
+                                                        {studentAvatars.length > 0 ? (
+                                                            studentAvatars.map((url, i) => (
+                                                                <div key={i} className="size-6 rounded-full bg-surface-dark border-2 border-border-subtle flex items-center justify-center overflow-hidden z-20">
+                                                                    <img src={url!} alt="Student" className="size-full object-cover" />
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <div className="size-6 rounded-full bg-surface-dark border-2 border-border-subtle flex items-center justify-center z-10">
                                                                 <Users className="size-3 text-text-muted opacity-50" />
                                                             </div>
-                                                        ))}
+                                                        )}
                                                     </div>
-                                                    <span className="text-[10px] font-bold text-text-muted tracking-wider uppercase">+{studentsCount} Alumnos</span>
+                                                    <span className="text-[10px] font-bold text-text-muted tracking-wider uppercase">
+                                                        {studentsCount} {studentsCount === 1 ? 'Alumno' : 'Alumnos'}
+                                                    </span>
                                                 </div>
                                             </div>
 

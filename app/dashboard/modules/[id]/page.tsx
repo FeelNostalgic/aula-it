@@ -60,12 +60,32 @@ export default async function ModulePage({ params }: ModulePageProps) {
         notFound();
     }
 
-    // Fetch units for this module
-    const { data: units } = await supabase
+    // Fetch units for this module with their activities to find the latest published one
+    const { data: unitsData } = await supabase
         .from("units")
-        .select("*")
+        .select(`
+            *,
+            activities (
+                id,
+                title,
+                status,
+                created_at
+            )
+        `)
         .eq("module_id", id)
         .order("order_index", { ascending: true });
+
+    // Transform units to include the latest published activity
+    const units = unitsData?.map(unit => {
+        const latestPublished = (unit.activities as any[])
+            ?.filter(a => a.status === "active")
+            ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+
+        return {
+            ...unit,
+            latest_activity: latestPublished || null
+        };
+    });
 
     // Fetch enrolled students
     const { data: enrollments } = await supabase

@@ -43,12 +43,20 @@ export default async function UnitPage({
         .eq("id", unit.module_id)
         .single();
 
-    // Fetch Activities
-    const { data: activities } = await supabase
+    // Fetch Activities with extra fields and phase count
+    const { data: activitiesData } = await supabase
         .from("activities")
-        .select("*")
+        .select(`
+            *,
+            activity_phases (count)
+        `)
         .eq("unit_id", unitId)
         .order("order_index", { ascending: true });
+
+    const activities = activitiesData?.map(activity => ({
+        ...activity,
+        phasesCount: (activity.activity_phases as any)?.[0]?.count || 0
+    }));
 
     // Fetch Students enrolled in the Module
     const { data: enrollments } = await supabase

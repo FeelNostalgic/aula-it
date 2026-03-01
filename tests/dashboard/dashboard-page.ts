@@ -27,7 +27,7 @@ export class DashboardPage extends BasePage {
     }
 
     async verifyModuleExists(name: string) {
-        await expect(this.page.locator(`text=${name}`)).toBeVisible();
+        await expect(this.page.getByRole("heading", { name, exact: true })).toBeVisible();
     }
 
     async verifyDashboardRole(roleTitle: string) {
