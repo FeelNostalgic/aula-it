@@ -2,8 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowDown, ArrowUp, GripVertical, MoreVertical, PenTool, Code, FileText, CheckSquare, Gamepad2, HelpCircle, Trophy } from "lucide-react";
-import { reorderActivity } from "@/app/dashboard/units/[id]/actions";
+import {
+    GripVertical,
+    MoreVertical,
+    PenTool,
+    Code,
+    FileText,
+    CheckSquare,
+    Gamepad2,
+    HelpCircle,
+    Trophy,
+    Loader2
+} from "lucide-react";
+import { reorderMultipleActivities } from "@/app/dashboard/units/[id]/actions";
 import { CreateActivityDialog } from "./create-activity-dialog";
 import {
     DropdownMenu,
@@ -11,6 +22,25 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+
+// DnD Kit Imports
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type Activity = {
     id: string;
@@ -40,64 +70,149 @@ const getActivityIcon = (type: string) => {
     }
 };
 
+// Sortable Item Component
+function SortableActivityItem({ activity }: { activity: Activity }) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: activity.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : undefined,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={`group flex items-center gap-4 bg-surface-dark border border-border-strong rounded-xl p-4 hover:border-accent-blue/30 transition-colors ${isDragging ? 'opacity-50 ring-2 ring-accent-blue/20 cursor-grabbing' : ''}`}
+        >
+            {/* Drag handle */}
+            <div
+                {...attributes}
+                {...listeners}
+                className="text-text-muted opacity-30 hover:opacity-100 cursor-grab active:cursor-grabbing p-1 -ml-1 transition-opacity"
+            >
+                <GripVertical className="size-5" />
+            </div>
+
+            {/* Icon */}
+            <div className="bg-surface p-3 rounded-xl border border-border-subtle shrink-0">
+                {getActivityIcon(activity.type)}
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-foreground truncate">{activity.title}</h4>
+                {activity.description && (
+                    <p className="text-sm text-text-muted truncate mt-0.5">
+                        {activity.description}
+                    </p>
+                )}
+            </div>
+
+            {/* XP Badge */}
+            <div className="hidden sm:flex items-center gap-1.5 bg-accent-orange/10 text-accent-orange px-3 py-1 rounded-full font-bold text-sm shrink-0 border border-accent-orange/20">
+                <span>{activity.xp}</span>
+                <span className="text-[10px] uppercase tracking-wider">XP</span>
+            </div>
+
+            {/* Actions Dropdown */}
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-text-muted hover:text-foreground">
+                        <MoreVertical className="size-4" />
+                        <span className="sr-only">Opciones de actividad</span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-surface-dark border-border-strong text-foreground w-48">
+                    <DropdownMenuItem className="focus:bg-surface focus:text-foreground cursor-pointer">
+                        Editar Reto
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer">
+                        Eliminar
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
+    );
+}
+
 export function UnitActivitiesTab({ unitId, initialActivities }: UnitActivitiesTabProps) {
-    // Sort activities by order_index initially
     const [activities, setActivities] = useState<Activity[]>(
         [...initialActivities].sort((a, b) => a.order_index - b.order_index)
     );
     const [isReordering, setIsReordering] = useState(false);
 
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8, // Avoid accidental drags when clicking
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
     useEffect(() => {
         setActivities([...initialActivities].sort((a, b) => a.order_index - b.order_index));
     }, [initialActivities]);
 
-    const handleMoveActivity = async (index: number, direction: 'up' | 'down') => {
-        if (
-            (direction === 'up' && index === 0) ||
-            (direction === 'down' && index === activities.length - 1)
-        ) {
-            return; // Can't move further
-        }
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
 
-        setIsReordering(true);
-        const newActivities = [...activities];
-        const swapIndex = direction === 'up' ? index - 1 : index + 1;
+        if (over && active.id !== over.id) {
+            const oldIndex = activities.findIndex((item) => item.id === active.id);
+            const newIndex = activities.findIndex((item) => item.id === over.id);
 
-        // Perform local swap for immediate UI feedback
-        const currentActivity = newActivities[index];
-        const swapActivity = newActivities[swapIndex];
+            const reorderedList = arrayMove(activities, oldIndex, newIndex);
 
-        // Swap order_index logically
-        const tempOrder = currentActivity.order_index;
-        currentActivity.order_index = swapActivity.order_index;
-        swapActivity.order_index = tempOrder;
+            // Re-map order_indices locally
+            const activitiesWithNewOrder = reorderedList.map((activity, idx) => ({
+                ...activity,
+                order_index: idx
+            }));
 
-        // Swap positions in array
-        newActivities[index] = swapActivity;
-        newActivities[swapIndex] = currentActivity;
+            setActivities(activitiesWithNewOrder);
+            setIsReordering(true);
 
-        setActivities(newActivities);
+            // Persist to database
+            const updates = activitiesWithNewOrder.map(a => ({ id: a.id, order_index: a.order_index }));
+            const result = await reorderMultipleActivities(unitId, updates);
 
-        // Persist to database
-        const result = await reorderActivity(unitId, currentActivity.id, direction);
+            setIsReordering(false);
 
-        setIsReordering(false);
-
-        if (result?.error) {
-            alert(result.error);
-            // Revert on error (could fetch fresh data or revert local state)
-            setActivities([...initialActivities].sort((a, b) => a.order_index - b.order_index));
+            if (result?.error) {
+                alert(result.error);
+                // Revert to initial
+                setActivities([...initialActivities].sort((a, b) => a.order_index - b.order_index));
+            }
         }
     };
 
     return (
         <div className="space-y-6 max-w-4xl">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                <div>
-                    <h2 className="text-xl font-bold text-foreground">Retos de la Unidad</h2>
-                    <p className="text-sm text-text-muted mt-1">
-                        Crea y organiza las actividades que los alumnos deberán completar.
-                    </p>
+                <div className="flex items-center gap-3">
+                    <div>
+                        <h2 className="text-xl font-bold text-foreground">Retos de la Unidad</h2>
+                        <p className="text-sm text-text-muted mt-1">
+                            Crea y organiza las actividades que los alumnos deberán completar.
+                        </p>
+                    </div>
+                    {isReordering && (
+                        <div className="bg-surface px-3 py-1 rounded-full border border-border-subtle flex items-center gap-2 animate-in fade-in slide-in-from-left-2 transition-all">
+                            <Loader2 className="size-3 animate-spin text-accent-blue" />
+                            <span className="text-[10px] font-mono font-bold tracking-widest text-text-muted uppercase">Guardando...</span>
+                        </div>
+                    )}
                 </div>
 
                 <CreateActivityDialog unitId={unitId} />
@@ -115,83 +230,27 @@ export function UnitActivitiesTab({ unitId, initialActivities }: UnitActivitiesT
                     <CreateActivityDialog unitId={unitId} />
                 </div>
             ) : (
-                <div className="space-y-3">
-                    {activities.map((activity, index) => (
-                        <div
-                            key={activity.id}
-                            className="group flex items-center gap-4 bg-surface-dark border border-border-strong rounded-xl p-4 hover:border-accent-blue/30 transition-colors"
-                        >
-                            {/* Drag handle placeholder (visual only for now) */}
-                            <div className="text-text-muted opacity-30 cursor-not-allowed">
-                                <GripVertical className="size-5" />
-                            </div>
-
-                            {/* Icon */}
-                            <div className="bg-surface p-3 rounded-xl border border-border-subtle shrink-0">
-                                {getActivityIcon(activity.type)}
-                            </div>
-
-                            {/* Content */}
-                            <div className="flex-1 min-w-0">
-                                <h4 className="font-bold text-foreground truncate">{activity.title}</h4>
-                                {activity.description && (
-                                    <p className="text-sm text-text-muted truncate mt-0.5">
-                                        {activity.description}
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* XP Badge */}
-                            <div className="hidden sm:flex items-center gap-1.5 bg-accent-orange/10 text-accent-orange px-3 py-1 rounded-full font-bold text-sm shrink-0 border border-accent-orange/20">
-                                <span>{activity.xp}</span>
-                                <span className="text-[10px] uppercase tracking-wider">XP</span>
-                            </div>
-
-                            {/* Order Controls */}
-                            <div className="flex flex-col gap-1 border-l border-border-subtle pl-4 shrink-0">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-text-muted hover:text-foreground hover:bg-surface disabled:opacity-30"
-                                    onClick={() => handleMoveActivity(index, 'up')}
-                                    disabled={index === 0 || isReordering}
-                                >
-                                    <ArrowUp className="size-4" />
-                                    <span className="sr-only">Subir</span>
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-text-muted hover:text-foreground hover:bg-surface disabled:opacity-30"
-                                    onClick={() => handleMoveActivity(index, 'down')}
-                                    disabled={index === activities.length - 1 || isReordering}
-                                >
-                                    <ArrowDown className="size-4" />
-                                    <span className="sr-only">Bajar</span>
-                                </Button>
-                            </div>
-
-                            {/* Actions Dropdown */}
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-text-muted hover:text-foreground">
-                                        <MoreVertical className="size-4" />
-                                        <span className="sr-only">Opciones de actividad</span>
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="bg-surface-dark border-border-strong text-foreground w-48">
-                                    <DropdownMenuItem className="focus:bg-surface focus:text-foreground cursor-pointer">
-                                        Editar Reto
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem className="text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer">
-                                        Eliminar
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                >
+                    <SortableContext
+                        items={activities.map(a => a.id)}
+                        strategy={verticalListSortingStrategy}
+                    >
+                        <div className="space-y-3">
+                            {activities.map((activity) => (
+                                <SortableActivityItem
+                                    key={activity.id}
+                                    activity={activity}
+                                />
+                            ))}
                         </div>
-                    ))}
-                </div>
+                    </SortableContext>
+                </DndContext>
             )}
         </div>
     );
 }
+

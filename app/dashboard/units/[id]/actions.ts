@@ -150,3 +150,28 @@ export async function reorderActivity(unitId: string, activityId: string, direct
     revalidatePath(`/dashboard/units/${unitId}`);
     return { success: true };
 }
+
+export async function reorderMultipleActivities(unitId: string, updates: { id: string, order_index: number }[]) {
+    const supabase = await createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Not authenticated" };
+
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Unauthorized" };
+
+    // Perform individual updates for each activity
+    // Note: for very large lists, a Postgres function (RPC) would be more efficient
+    const updatePromises = updates.map(update =>
+        supabase
+            .from("activities")
+            .update({ order_index: update.order_index })
+            .eq("id", update.id)
+    );
+
+    await Promise.all(updatePromises);
+
+    revalidatePath(`/dashboard/units/${unitId}`);
+    return { success: true };
+}
+

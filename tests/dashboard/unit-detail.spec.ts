@@ -145,7 +145,7 @@ test.describe("Unit Detail (Creador del Mapa)", () => {
         }
     );
 
-    test("reordenar actividades (subir y bajar)",
+    test("reordenar actividades (drag and drop)",
         { tag: ["@high", "@e2e", "@unit-detail", "@UNIT-DETAIL-E2E-003"] },
         async ({ page }) => {
             if (!testUserId) { test.skip(); return; }
@@ -162,17 +162,17 @@ test.describe("Unit Detail (Creador del Mapa)", () => {
             await unitDetailPage.verifyActivityExists("A1: Teoría básica");
             await unitDetailPage.verifyActivityExists("A2: Cuestionario de prueba");
 
-            const firstRowTitle = page.locator('.group.flex.items-center h4').nth(0);
+            const firstRowTitle = page.locator('.group.flex.items-center h4').first();
             const secondRowTitle = page.locator('.group.flex.items-center h4').nth(1);
 
             await expect(firstRowTitle).toHaveText("A1: Teoría básica");
             await expect(secondRowTitle).toHaveText("A2: Cuestionario de prueba");
 
-            // Move the first one down
-            await unitDetailPage.moveActivity(0, 'down');
+            // Move the first one down by dragging it to the second one
+            await unitDetailPage.dragActivity(0, 1);
 
             // Give some time for DB update and revalidatePath
-            await page.waitForTimeout(2000);
+            await page.waitForTimeout(1000);
             await page.waitForLoadState("networkidle");
 
             // Now order should be A2, then A1
@@ -180,6 +180,7 @@ test.describe("Unit Detail (Creador del Mapa)", () => {
             await expect(page.locator('.group.flex.items-center h4').nth(1)).toHaveText("A1: Teoría básica");
         }
     );
+
 
     test("modificar configuracion de la unidad (publicar)",
         { tag: ["@high", "@e2e", "@unit-detail", "@UNIT-DETAIL-E2E-004"] },
