@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowDown, ArrowUp, GripVertical, MoreVertical, PenTool, Code, FileText, CheckSquare, Gamepad2, HelpCircle, Trophy } from "lucide-react";
 import { reorderActivity } from "@/app/dashboard/units/[id]/actions";
@@ -46,6 +46,10 @@ export function UnitActivitiesTab({ unitId, initialActivities }: UnitActivitiesT
         [...initialActivities].sort((a, b) => a.order_index - b.order_index)
     );
     const [isReordering, setIsReordering] = useState(false);
+
+    useEffect(() => {
+        setActivities([...initialActivities].sort((a, b) => a.order_index - b.order_index));
+    }, [initialActivities]);
 
     const handleMoveActivity = async (index: number, direction: 'up' | 'down') => {
         if (

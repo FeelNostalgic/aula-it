@@ -53,6 +53,7 @@ type Unit = {
     description: string | null;
     order_index: number;
     created_at: string;
+    status?: string | null;
 };
 
 type Student = {
@@ -112,9 +113,9 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
 
     // Set breadcrumb segments for the top nav
     useEffect(() => {
-        setSegments([{ label: module.name }]);
+        setSegments([{ label: module.name, href: `/dashboard/modules/${module.id}` }]);
         return () => setSegments([]);
-    }, [module.name, setSegments]);
+    }, [module.name, module.id, setSegments]);
 
     return (
         <div className="flex flex-col gap-8">
@@ -236,6 +237,23 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                 const hash = unit.id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
                                 const progress = (hash % 5) * 10 + 60; // Mock progress 60-100%
 
+                                const unitStatusConfig = {
+                                    active: {
+                                        color: "text-accent-green",
+                                        bg: "bg-accent-green/10",
+                                        border: "border-accent-green/30",
+                                        label: "PUBLICADO",
+                                        dotBg: "bg-accent-green",
+                                    },
+                                    draft: {
+                                        color: "text-accent-orange",
+                                        bg: "bg-accent-orange/10",
+                                        border: "border-accent-orange/30",
+                                        label: "BORRADOR",
+                                        dotBg: "bg-accent-orange",
+                                    },
+                                }[unit.status === "active" ? "active" : "draft"];
+
                                 if (viewMode === "list") {
                                     return (
                                         <Link
@@ -280,9 +298,9 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
 
                                             {/* Col 4: Status Badge */}
                                             <div className="w-full md:w-[120px] shrink-0 flex md:justify-end mt-2 md:mt-0">
-                                                <Badge variant="outline" className="border-border-strong bg-surface text-text-muted gap-1.5 py-1 px-3">
-                                                    <span className="size-1.5 rounded-full bg-text-muted" />
-                                                    PENDIENTE
+                                                <Badge variant="outline" className={`${unitStatusConfig.border} ${unitStatusConfig.bg} ${unitStatusConfig.color} gap-1.5 py-1 px-3 shadow-sm`}>
+                                                    <span className={`size-1.5 rounded-full ${unitStatusConfig.dotBg}`} />
+                                                    {unitStatusConfig.label}
                                                 </Badge>
                                             </div>
                                         </Link>
@@ -314,9 +332,9 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                                 {/* Footer Area */}
                                                 <div className="mt-auto space-y-4 pt-4 border-t border-border-subtle/50 relative">
                                                     <div className="flex items-end justify-between mb-2">
-                                                        <Badge variant="outline" className="border-border-strong bg-surface text-text-muted gap-1.5 shadow-sm">
-                                                            <span className="size-1.5 rounded-full bg-text-muted" />
-                                                            PENDIENTE
+                                                        <Badge variant="outline" className={`${unitStatusConfig.border} ${unitStatusConfig.bg} ${unitStatusConfig.color} gap-1.5 shadow-sm`}>
+                                                            <span className={`size-1.5 rounded-full ${unitStatusConfig.dotBg}`} />
+                                                            {unitStatusConfig.label}
                                                         </Badge>
                                                         <div className="flex items-baseline gap-1 font-bold text-foreground">
                                                             <span className="text-xl leading-none">{progress}</span>

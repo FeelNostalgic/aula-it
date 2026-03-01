@@ -26,7 +26,13 @@ export function DashboardBreadcrumb() {
                         {segments.map((segment, i) => (
                             <span key={i} className="flex items-center gap-1.5">
                                 <span className="text-muted-foreground">/</span>
-                                <span className="text-foreground font-bold">{segment.label}</span>
+                                {segment.href && i < segments.length - 1 ? (
+                                    <Link href={segment.href} className="text-muted-foreground hover:text-primary transition-colors">
+                                        {segment.label}
+                                    </Link>
+                                ) : (
+                                    <span className="text-foreground font-bold">{segment.label}</span>
+                                )}
                             </span>
                         ))}
                     </>

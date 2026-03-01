@@ -118,7 +118,7 @@ export function UnitDetailView({ unit, module, initialActivities, students, subm
 
             {/* Tabs */}
             <Tabs defaultValue="actividades" className="w-full">
-                <TabsList className="bg-surface border border-border-subtle rounded-lg p-1 h-auto w-full justify-start overflow-x-auto">
+                <TabsList className="bg-surface border border-border-subtle rounded-lg p-1 h-auto inline-flex max-w-full justify-start overflow-x-auto">
                     <TabsTrigger
                         value="actividades"
                         className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
