@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, Users } from "lucide-react";
 import { enrollStudent, getAvailableStudents } from "@/app/dashboard/modules/[id]/actions";
+import { toast } from "sonner";
 
 interface EnrollStudentDialogProps {
     moduleId: string;
@@ -52,8 +53,9 @@ export function EnrollStudentDialog({ moduleId, children }: EnrollStudentDialogP
         setEnrolling(null);
 
         if (result?.error) {
-            alert(result.error);
+            toast.error(`Error al matricular: ${result.error}`);
         } else {
+            toast.success("Alumno matriculado correctamente");
             // Refresh list after enrollment
             fetchStudents(search);
         }

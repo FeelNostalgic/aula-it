@@ -24,6 +24,7 @@ import {
     from "@/components/ui/select";
 import { Loader2, Plus, PenTool, Code, FileText, CheckSquare, HelpCircle, Gamepad2 } from "lucide-react";
 import { createActivity } from "@/app/dashboard/units/[id]/actions";
+import { toast } from "sonner";
 
 interface CreateActivityDialogProps {
     unitId: string;
@@ -56,9 +57,9 @@ export function CreateActivityDialog({ unitId }: CreateActivityDialogProps) {
         setLoading(false);
 
         if (result?.error) {
-            alert(result.error);
+            toast.error(`Error al crear el reto: ${result.error}`);
         } else {
-            alert("Reto creado exitosamente");
+            toast.success("¡Reto creado con éxito!");
             setOpen(false);
         }
     };

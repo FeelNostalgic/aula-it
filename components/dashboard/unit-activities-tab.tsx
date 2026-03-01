@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { reorderMultipleActivities } from "@/app/dashboard/units/[id]/actions";
 import { CreateActivityDialog } from "./create-activity-dialog";
+import { toast } from "sonner";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -185,15 +186,21 @@ export function UnitActivitiesTab({ unitId, initialActivities }: UnitActivitiesT
 
             // Persist to database
             const updates = activitiesWithNewOrder.map(a => ({ id: a.id, order_index: a.order_index }));
-            const result = await reorderMultipleActivities(unitId, updates);
+
+            toast.promise(reorderMultipleActivities(unitId, updates), {
+                loading: 'Guardando orden...',
+                success: (result) => {
+                    if (result?.error) throw new Error(result.error);
+                    return 'Orden actualizado correctamente';
+                },
+                error: (err) => {
+                    // Revert to initial on error
+                    setActivities([...initialActivities].sort((a, b) => a.order_index - b.order_index));
+                    return `Error al reordenar: ${err.message}`;
+                },
+            });
 
             setIsReordering(false);
-
-            if (result?.error) {
-                alert(result.error);
-                // Revert to initial
-                setActivities([...initialActivities].sort((a, b) => a.order_index - b.order_index));
-            }
         }
     };
 

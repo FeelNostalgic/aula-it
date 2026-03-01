@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createUnit } from "@/app/dashboard/modules/[id]/actions";
 import { useFormStatus } from "react-dom";
+import { toast } from "sonner";
 
 function SubmitButton() {
     const { pending } = useFormStatus();
@@ -33,15 +34,14 @@ interface CreateUnitDialogProps {
 
 export function CreateUnitDialog({ moduleId, children }: CreateUnitDialogProps) {
     const [open, setOpen] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
     async function handleSubmit(formData: FormData) {
         const result = await createUnit(null, formData);
         if (result?.error) {
-            setError(result.error);
+            toast.error(result.error);
         } else {
+            toast.success("Unidad didáctica creada correctamente");
             setOpen(false);
-            setError(null);
         }
     }
 
@@ -64,11 +64,7 @@ export function CreateUnitDialog({ moduleId, children }: CreateUnitDialogProps) 
                 </DialogHeader>
                 <form action={handleSubmit} className="grid gap-6 py-4">
                     <input type="hidden" name="module_id" value={moduleId} />
-                    {error && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded text-red-500 text-[10px] font-mono uppercase font-bold tracking-widest">
-                            {error}
-                        </div>
-                    )}
+
                     <div className="grid gap-2">
                         <Label htmlFor="name" className="text-[10px] font-mono font-bold text-text-muted uppercase tracking-widest">
                             Nombre de la Unidad

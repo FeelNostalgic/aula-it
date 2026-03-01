@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { createModule } from "@/app/dashboard/actions";
 import { useFormStatus } from "react-dom";
+import { toast } from "sonner";
 
 const ICONS = [
     { value: "BookOpen", label: "Libro", icon: BookOpen },
@@ -48,15 +49,16 @@ interface CreateModuleDialogProps {
 
 export function CreateModuleDialog({ children }: CreateModuleDialogProps = {}) {
     const [open, setOpen] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
     async function handleSubmit(formData: FormData) {
+        const name = formData.get("name") as string;
         const result = await createModule(null, formData);
+
         if (result?.error) {
-            setError(result.error);
+            toast.error(`Error al crear el módulo: ${result.error}`);
         } else {
+            toast.success(`Módulo "${name}" creado correctamente`);
             setOpen(false);
-            setError(null);
         }
     }
 
@@ -78,11 +80,6 @@ export function CreateModuleDialog({ children }: CreateModuleDialogProps = {}) {
                     </DialogDescription>
                 </DialogHeader>
                 <form action={handleSubmit} className="grid gap-6 py-4">
-                    {error && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded text-red-500 text-[10px] font-mono uppercase font-bold tracking-widest">
-                            {error}
-                        </div>
-                    )}
                     <div className="grid gap-2">
                         <Label htmlFor="name" className="text-[10px] font-mono font-bold text-text-muted uppercase tracking-widest">
                             Nombre del Módulo

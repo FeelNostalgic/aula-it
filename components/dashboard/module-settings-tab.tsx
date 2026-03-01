@@ -16,6 +16,7 @@ import {
     Archive
 } from "lucide-react";
 import { updateModuleSettings, deleteModule, archiveModule } from "@/app/dashboard/modules/[id]/actions";
+import { toast } from "sonner";
 import {
     Select,
     SelectContent,
@@ -57,7 +58,9 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
         setLoading(false);
 
         if (result?.error) {
-            alert(result.error);
+            toast.error(`Error al guardar: ${result.error}`);
+        } else {
+            toast.success("Ajustes del módulo actualizados");
         }
     };
 
@@ -67,9 +70,10 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
         setArchiveLoading(false);
 
         if (result?.error) {
-            alert(result.error);
+            toast.error(`Error al archivar: ${result.error}`);
             setIsArchiveDialogOpen(false);
         } else {
+            toast.success("Módulo archivado correctamente");
             router.push("/dashboard");
         }
     };
@@ -80,9 +84,10 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
         setDeleteLoading(false);
 
         if (result?.error) {
-            alert(result.error);
+            toast.error(`Error al eliminar: ${result.error}`);
             setIsDeleteDialogOpen(false);
         } else {
+            toast.success("Módulo eliminado permanentemente");
             router.push("/dashboard");
         }
     };

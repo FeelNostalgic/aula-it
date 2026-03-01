@@ -13,6 +13,7 @@ import {
     Map
 } from "lucide-react";
 import { updateUnitSettings } from "@/app/dashboard/units/[id]/actions";
+import { toast } from "sonner";
 import {
     Select,
     SelectContent,
@@ -40,9 +41,9 @@ export function UnitSettingsTab({ unit }: { unit: Unit }) {
         setLoading(false);
 
         if (result?.error) {
-            alert(result.error);
+            toast.error(`Error al guardar: ${result.error}`);
         } else {
-            // Optional: Show success state or rely on server action revalidation
+            toast.success("Ajustes de la unidad actualizados");
         }
     };
 
