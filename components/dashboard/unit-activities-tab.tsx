@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
     GripVertical,
@@ -88,11 +89,14 @@ function SortableActivityItem({ activity }: { activity: Activity }) {
         zIndex: isDragging ? 50 : undefined,
     };
 
+    const router = useRouter();
+
     return (
         <div
             ref={setNodeRef}
             style={style}
-            className={`group flex items-center gap-4 bg-surface-dark border border-border-strong rounded-xl p-4 hover:border-accent-blue/30 transition-colors ${isDragging ? 'opacity-50 ring-2 ring-accent-blue/20 cursor-grabbing' : ''}`}
+            onClick={() => router.push(`/activities/${activity.id}/edit`)}
+            className={`group flex items-center gap-4 bg-surface-dark border border-border-strong rounded-xl p-4 hover:border-accent-blue/30 hover:bg-surface/50 transition-colors cursor-pointer ${isDragging ? 'opacity-50 ring-2 ring-accent-blue/20 cursor-grabbing' : ''}`}
         >
             {/* Drag handle */}
             <div
@@ -127,16 +131,13 @@ function SortableActivityItem({ activity }: { activity: Activity }) {
             {/* Actions Dropdown */}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-text-muted hover:text-foreground">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-text-muted hover:text-foreground relative z-10" onClick={(e) => e.stopPropagation()}>
                         <MoreVertical className="size-4" />
                         <span className="sr-only">Opciones de actividad</span>
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-surface-dark border-border-strong text-foreground w-48">
-                    <DropdownMenuItem className="focus:bg-surface focus:text-foreground cursor-pointer">
-                        Editar Reto
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer">
+                    <DropdownMenuItem className="text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer" onClick={(e) => e.stopPropagation()}>
                         Eliminar
                     </DropdownMenuItem>
                 </DropdownMenuContent>
