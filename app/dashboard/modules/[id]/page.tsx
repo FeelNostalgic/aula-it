@@ -74,9 +74,9 @@ export default async function ModulePage({ params }: ModulePageProps) {
         `)
         .eq("module_id", id);
 
-    // If student, only show active units
+    // If student, only show published or blocked units
     if (profile?.role === "student") {
-        unitsQuery = unitsQuery.eq("status", "active");
+        unitsQuery = unitsQuery.in("status", ["published", "blocked"]);
     }
 
     const { data: unitsData } = await unitsQuery.order("order_index", { ascending: true });

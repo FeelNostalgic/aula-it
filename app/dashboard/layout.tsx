@@ -69,6 +69,7 @@ export default async function DashboardLayout({
         <DashboardShell
           appVersion={APP_VERSION}
           appStatus={APP_STATUS}
+          isTeacher={isTeacher}
         >
           {children}
         </DashboardShell>

@@ -2,16 +2,20 @@
 
 import { usePathname } from "next/navigation";
 import { ActivitySidebar } from "./activity-sidebar";
+import { cn } from "@/lib/utils";
+import { useUIStore } from "@/lib/store/ui-store";
 
 interface DashboardShellProps {
     children: React.ReactNode;
     appVersion: string;
     appStatus: string;
+    isTeacher?: boolean;
 }
 
 export function DashboardShell({ children, appVersion, appStatus }: DashboardShellProps) {
     const pathname = usePathname();
     const isHome = pathname === "/dashboard";
+    const { isFullscreen } = useUIStore();
 
     return (
         <div className="flex flex-1 overflow-hidden">
@@ -24,7 +28,10 @@ export function DashboardShell({ children, appVersion, appStatus }: DashboardShe
             )}
 
             {/* Main Content Area */}
-            <main className="flex-1 bg-background overflow-y-auto px-24 py-8 relative">
+            <main className={cn(
+                "flex-1 bg-background relative",
+                isFullscreen ? "overflow-hidden p-0" : "overflow-y-auto px-24 py-8"
+            )}>
                 {children}
             </main>
         </div>

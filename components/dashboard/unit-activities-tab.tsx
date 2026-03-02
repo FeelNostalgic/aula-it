@@ -88,6 +88,7 @@ type Activity = {
 interface UnitActivitiesTabProps {
     unitId: string;
     initialActivities: Activity[];
+    isTeacher?: boolean;
 }
 
 // Difficulty color helper
@@ -132,12 +133,14 @@ function SortableActivityItem({
     activity,
     viewMode,
     unitId,
-    onDelete
+    onDelete,
+    isTeacher
 }: {
     activity: Activity,
     viewMode: 'grid' | 'list',
     unitId: string,
-    onDelete: (id: string) => void
+    onDelete: (id: string) => void,
+    isTeacher?: boolean
 }) {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -240,7 +243,7 @@ function SortableActivityItem({
                 <div
                     ref={setNodeRef}
                     style={style}
-                    onClick={() => router.push(`/activities/${activity.id}/edit`)}
+                    onClick={() => router.push(isTeacher ? `/dashboard/activities/${activity.id}/edit` : `/dashboard/activities/${activity.id}`)}
                     className={cn(
                         "group relative bg-surface-dark border border-border-strong rounded-2xl p-5 hover:border-accent-blue/40 hover:bg-surface/50 transition-all duration-300 cursor-pointer flex flex-col h-full",
                         isDragging && "opacity-50 ring-2 ring-accent-blue/20 cursor-grabbing shadow-2xl scale-105"
@@ -252,19 +255,21 @@ function SortableActivityItem({
                             "text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full border",
                             activity.status === 'published' ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-accent-orange/10 text-accent-orange border-accent-orange/20"
                         )}>
-                            {activity.status === 'published' ? 'Publicado' : 'Borrador'}
+                            {activity.status === 'published' ? 'Publicado' : activity.status === 'blocked' ? 'Bloqueado' : 'Borrador'}
                         </Badge>
-                        <div className="flex items-center gap-1">
-                            <div
-                                {...attributes}
-                                {...listeners}
-                                className="text-text-muted opacity-30 hover:opacity-100 cursor-grab active:cursor-grabbing p-1 transition-opacity"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <GripVertical className="size-4" />
+                        {isTeacher && (
+                            <div className="flex items-center gap-1">
+                                <div
+                                    {...attributes}
+                                    {...listeners}
+                                    className="text-text-muted opacity-30 hover:opacity-100 cursor-grab active:cursor-grabbing p-1 transition-opacity"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <GripVertical className="size-4" />
+                                </div>
+                                <ActionsMenu />
                             </div>
-                            <ActionsMenu />
-                        </div>
+                        )}
                     </div>
 
                     {/* Logo and Title side by side */}
@@ -331,21 +336,23 @@ function SortableActivityItem({
             <div
                 ref={setNodeRef}
                 style={style}
-                onClick={() => router.push(`/activities/${activity.id}/edit`)}
+                onClick={() => router.push(isTeacher ? `/dashboard/activities/${activity.id}/edit` : `/dashboard/activities/${activity.id}`)}
                 className={cn(
                     "group flex items-center gap-4 bg-surface-dark border border-border-strong rounded-xl p-4 hover:border-accent-blue/30 hover:bg-surface/50 transition-all cursor-pointer",
                     isDragging && "opacity-50 ring-2 ring-accent-blue/20 cursor-grabbing shadow-lg"
                 )}
             >
                 {/* Drag handle */}
-                <div
-                    {...attributes}
-                    {...listeners}
-                    className="text-text-muted opacity-30 hover:opacity-100 cursor-grab active:cursor-grabbing p-1 -ml-1 transition-opacity"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <GripVertical className="size-5" />
-                </div>
+                {isTeacher && (
+                    <div
+                        {...attributes}
+                        {...listeners}
+                        className="text-text-muted opacity-30 hover:opacity-100 cursor-grab active:cursor-grabbing p-1 -ml-1 transition-opacity"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <GripVertical className="size-5" />
+                    </div>
+                )}
 
                 {/* Icon/Logo */}
                 <div className="shrink-0">
@@ -408,16 +415,18 @@ function SortableActivityItem({
                     </div>
                 </div>
 
-                <ActionsMenu />
+                {isTeacher && <ActionsMenu />}
             </div>
             <DeleteConfirmation />
         </>
     );
 }
 
-export function UnitActivitiesTab({ unitId, initialActivities }: UnitActivitiesTabProps) {
+export function UnitActivitiesTab({ unitId, initialActivities, isTeacher = true }: UnitActivitiesTabProps) {
     const [activities, setActivities] = useState<Activity[]>(
-        [...initialActivities].sort((a, b) => a.order_index - b.order_index)
+        [...initialActivities]
+            .filter(a => isTeacher || a.status !== 'draft')
+            .sort((a, b) => a.order_index - b.order_index)
     );
     const [isReordering, setIsReordering] = useState(false);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -434,8 +443,12 @@ export function UnitActivitiesTab({ unitId, initialActivities }: UnitActivitiesT
     );
 
     useEffect(() => {
-        setActivities([...initialActivities].sort((a, b) => a.order_index - b.order_index));
-    }, [initialActivities]);
+        setActivities(
+            [...initialActivities]
+                .filter(a => isTeacher || a.status !== 'draft')
+                .sort((a, b) => a.order_index - b.order_index)
+        );
+    }, [initialActivities, isTeacher]);
 
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
@@ -514,7 +527,7 @@ export function UnitActivitiesTab({ unitId, initialActivities }: UnitActivitiesT
                             <List className="size-4" />
                         </Button>
                     </div>
-                    <CreateActivityDialog unitId={unitId} />
+                    {isTeacher && <CreateActivityDialog unitId={unitId} />}
                 </div>
             </div>
 
@@ -525,9 +538,11 @@ export function UnitActivitiesTab({ unitId, initialActivities }: UnitActivitiesT
                     </div>
                     <h3 className="text-lg font-bold text-foreground mb-2">Aún no hay retos creados</h3>
                     <p className="text-text-muted text-sm max-w-sm mb-6">
-                        Comienza a construir el recorrido de aprendizaje añadiendo el primer reto para esta unidad.
+                        {isTeacher
+                            ? "Comienza a construir el recorrido de aprendizaje añadiendo el primer reto para esta unidad."
+                            : "Vuelve más tarde para descubrir los retos de esta unidad."}
                     </p>
-                    <CreateActivityDialog unitId={unitId} />
+                    {isTeacher && <CreateActivityDialog unitId={unitId} />}
                 </div>
             ) : (
                 <DndContext
@@ -550,43 +565,45 @@ export function UnitActivitiesTab({ unitId, initialActivities }: UnitActivitiesT
                                     activity={activity}
                                     viewMode={viewMode}
                                     unitId={unitId}
+                                    isTeacher={isTeacher}
                                     onDelete={(id) => setActivities(prev => prev.filter(a => a.id !== id))}
                                 />
                             ))}
 
-                            {/* Empty Card for creating new activity */}
-                            <CreateActivityDialog
-                                unitId={unitId}
-                                trigger={
-                                    <button className={cn(
-                                        "bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 cursor-pointer transition-all group hover:bg-accent-blue/5 flex",
-                                        viewMode === 'grid'
-                                            ? "flex-col items-center justify-center gap-3 p-6 rounded-2xl min-h-[240px] h-full"
-                                            : "items-center gap-4 p-4 rounded-xl w-full"
-                                    )}>
-                                        <div className={cn(
-                                            "bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all shrink-0",
-                                            viewMode === 'grid' ? "size-12 rounded-full" : "size-10 rounded-lg"
+                            {isTeacher && (
+                                <CreateActivityDialog
+                                    unitId={unitId}
+                                    trigger={
+                                        <button className={cn(
+                                            "bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 cursor-pointer transition-all group hover:bg-accent-blue/5 flex",
+                                            viewMode === 'grid'
+                                                ? "flex-col items-center justify-center gap-3 p-6 rounded-2xl min-h-[240px] h-full"
+                                                : "items-center gap-4 p-4 rounded-xl w-full"
                                         )}>
-                                            <Plus className={cn(
-                                                "text-text-muted group-hover:text-accent-blue transition-colors",
-                                                viewMode === 'grid' ? "size-5" : "size-4"
-                                            )} />
-                                        </div>
-                                        <div className={viewMode === 'grid' ? "text-center" : "text-left"}>
-                                            <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">
-                                                Nuevo Reto
-                                            </p>
-                                            <p className={cn(
-                                                "text-xs text-text-muted",
-                                                viewMode === 'grid' && "mt-0.5"
+                                            <div className={cn(
+                                                "bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all shrink-0",
+                                                viewMode === 'grid' ? "size-12 rounded-full" : "size-10 rounded-lg"
                                             )}>
-                                                Añade contenido didáctico
-                                            </p>
-                                        </div>
-                                    </button>
-                                }
-                            />
+                                                <Plus className={cn(
+                                                    "text-text-muted group-hover:text-accent-blue transition-colors",
+                                                    viewMode === 'grid' ? "size-5" : "size-4"
+                                                )} />
+                                            </div>
+                                            <div className={viewMode === 'grid' ? "text-center" : "text-left"}>
+                                                <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">
+                                                    Nuevo Reto
+                                                </p>
+                                                <p className={cn(
+                                                    "text-xs text-text-muted",
+                                                    viewMode === 'grid' && "mt-0.5"
+                                                )}>
+                                                    Añade contenido didáctico
+                                                </p>
+                                            </div>
+                                        </button>
+                                    }
+                                />
+                            )}
                         </div>
                     </SortableContext>
                 </DndContext>

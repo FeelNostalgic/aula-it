@@ -10,7 +10,8 @@ import {
     EyeOff,
     Eye,
     List,
-    Map
+    Map,
+    Lock
 } from "lucide-react";
 import { updateUnitSettings } from "@/app/dashboard/units/[id]/actions";
 import { toast } from "sonner";
@@ -77,16 +78,22 @@ export function UnitSettingsTab({ unit }: { unit: Unit }) {
                                     <SelectValue placeholder="Selecciona un estado" />
                                 </SelectTrigger>
                                 <SelectContent className="bg-surface-dark border-border-strong text-foreground">
-                                    <SelectItem value="active" className="focus:bg-accent-blue/10 focus:text-accent-blue">
+                                    <SelectItem value="published" className="focus:bg-accent-blue/10 focus:text-accent-blue font-bold">
                                         <div className="flex items-center gap-2">
-                                            <Eye className="size-4 text-accent-green" />
+                                            <Eye className="size-4 text-emerald-400" />
                                             <span>Publicado (Visible)</span>
                                         </div>
                                     </SelectItem>
-                                    <SelectItem value="draft" className="focus:bg-accent-blue/10 focus:text-accent-blue">
+                                    <SelectItem value="blocked" className="focus:bg-accent-blue/10 focus:text-accent-blue font-bold">
                                         <div className="flex items-center gap-2">
-                                            <EyeOff className="size-4 text-text-muted" />
-                                            <span>Borrador (Oculto)</span>
+                                            <Lock className="size-4 text-amber-500" />
+                                            <span>Bloqueado (Próximamente)</span>
+                                        </div>
+                                    </SelectItem>
+                                    <SelectItem value="draft" className="focus:bg-accent-blue/10 focus:text-accent-blue font-bold">
+                                        <div className="flex items-center gap-2">
+                                            <EyeOff className="size-4 text-zinc-500" />
+                                            <span>Borrador (Solo tú)</span>
                                         </div>
                                     </SelectItem>
                                 </SelectContent>

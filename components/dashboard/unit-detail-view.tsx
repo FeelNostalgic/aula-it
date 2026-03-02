@@ -7,7 +7,8 @@ import {
     CheckCircle,
     Map,
     BookOpen,
-    GraduationCap
+    GraduationCap,
+    FolderOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { UnitMapView } from "./unit-map-view";
 import { UnitMapConfigTab } from "./unit-map-config-tab";
+import { StudentUnitView } from "./student-unit-view";
 
 type Unit = {
     id: string;
@@ -78,23 +80,31 @@ export function UnitDetailView({
     const { setSegments } = useBreadcrumb();
 
     const statusConfig = {
-        active: {
-            color: "text-accent-green",
-            bg: "bg-accent-green/10",
-            border: "border-accent-green/30",
+        published: {
+            color: "text-emerald-400",
+            bg: "bg-emerald-400/10",
+            border: "border-emerald-400/30",
             label: "PUBLICADO",
-            dotBg: "bg-accent-green",
+            dotBg: "bg-emerald-400",
             dotAnim: "animate-pulse"
         },
-        draft: {
-            color: "text-accent-orange",
-            bg: "bg-accent-orange/10",
-            border: "border-accent-orange/30",
-            label: "BORRADOR",
-            dotBg: "bg-accent-orange",
+        blocked: {
+            color: "text-amber-500",
+            bg: "bg-amber-500/10",
+            border: "border-amber-500/30",
+            label: "BLOQUEADO",
+            dotBg: "bg-amber-500",
             dotAnim: ""
         },
-    }[unit.status as 'active' | 'draft' || "draft"];
+        draft: {
+            color: "text-zinc-500",
+            bg: "bg-zinc-500/10",
+            border: "border-zinc-500/30",
+            label: "BORRADOR",
+            dotBg: "bg-zinc-500",
+            dotAnim: ""
+        },
+    }[unit.status as 'published' | 'blocked' | 'draft' || "draft"];
 
     // Set breadcrumb segments for the top nav
     useEffect(() => {
@@ -104,6 +114,19 @@ export function UnitDetailView({
         ]);
         return () => setSegments([]);
     }, [module, unit.name, setSegments]);
+
+    if (!isTeacher && unit.view_type === 'map') {
+        return (
+            <StudentUnitView
+                unit={unit}
+                activities={activities}
+                connections={connections}
+                onStartActivity={(id) => {
+                    window.location.href = `/dashboard/activities/${id}`;
+                }}
+            />
+        );
+    }
 
     return (
         <div className="flex flex-col gap-8">
@@ -142,70 +165,116 @@ export function UnitDetailView({
             </div>
 
             {/* Tabs */}
-            <Tabs defaultValue="actividades" className="w-full">
-                <TabsList className="bg-surface border border-border-subtle rounded-lg p-1 h-auto inline-flex max-w-full justify-start overflow-x-auto">
-                    <TabsTrigger
-                        value="actividades"
-                        className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
-                    >
-                        <BookOpen className="mr-2 size-3.5" />
-                        RETOS
-                    </TabsTrigger>
-                    <TabsTrigger
-                        value="mapa"
-                        className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
-                    >
-                        <GraduationCap className="mr-2 size-3.5" />
-                        MAPA
-                    </TabsTrigger>
-                    {isTeacher && (
-                        <>
+            <Tabs defaultValue={unit.view_type === 'map' ? "mapa" : "actividades"} className="w-full">
+                <div className="px-12">
+                    <TabsList className="bg-surface border border-border-subtle rounded-lg p-1 h-auto inline-flex max-w-full justify-start overflow-x-auto">
+                        <TabsTrigger
+                            value="actividades"
+                            className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
+                        >
+                            <BookOpen className="mr-2 size-3.5" />
+                            RETOS
+                        </TabsTrigger>
+
+                        {!isTeacher && (
                             <TabsTrigger
-                                value="evaluacion"
+                                value="recursos"
                                 className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
                             >
-                                <CheckCircle className="mr-2 size-3.5" />
-                                EVALUACIÓN
+                                <FolderOpen className="mr-2 size-3.5" />
+                                RECURSOS
                             </TabsTrigger>
-                            <TabsTrigger
-                                value="configuracion"
-                                className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
-                            >
-                                <Settings className="mr-2 size-3.5" />
-                                CONFIGURACIÓN
-                            </TabsTrigger>
-                        </>
-                    )}
-                </TabsList>
+                        )}
+
+                        <TabsTrigger
+                            value="mapa"
+                            className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
+                        >
+                            <GraduationCap className="mr-2 size-3.5" />
+                            MAPA
+                        </TabsTrigger>
+
+                        {isTeacher && (
+                            <>
+                                <TabsTrigger
+                                    value="evaluacion"
+                                    className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
+                                >
+                                    <CheckCircle className="mr-2 size-3.5" />
+                                    EVALUACIÓN
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="configuracion"
+                                    className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
+                                >
+                                    <Settings className="mr-2 size-3.5" />
+                                    CONFIGURACIÓN
+                                </TabsTrigger>
+                            </>
+                        )}
+                    </TabsList>
+                </div>
 
                 {/* Actividades Tab */}
-                <TabsContent value="actividades" className="mt-6">
-                    <UnitActivitiesTab unitId={unit.id} initialActivities={activities} />
+                <TabsContent value="actividades" className="mt-6 px-12 pb-12">
+                    <UnitActivitiesTab
+                        unitId={unit.id}
+                        initialActivities={activities}
+                        isTeacher={isTeacher}
+                    />
                 </TabsContent>
 
+                {/* Recursos Tab (Student Only) */}
+                {!isTeacher && (
+                    <TabsContent value="recursos" className="mt-6 px-12 pb-12">
+                        <div className="bg-surface border border-dashed border-border-strong rounded-2xl flex flex-col items-center justify-center py-32 text-center">
+                            <div className="size-16 rounded-full bg-accent-blue/5 border border-accent-blue/20 flex items-center justify-center mb-6">
+                                <FolderOpen className="size-8 text-accent-blue/40" />
+                            </div>
+                            <h3 className="text-xl font-bold text-foreground mb-2">Recursos de la Unidad</h3>
+                            <p className="text-text-muted text-sm max-w-xs">
+                                Próximamente tendrás acceso a todo el material complementario aquí.
+                            </p>
+                        </div>
+                    </TabsContent>
+                )}
+
                 {/* Mapa Tab */}
-                <TabsContent value="mapa" className="mt-6">
-                    {userRole === 'teacher' ? (
-                        <UnitMapConfigTab
-                            unitId={unit.id}
-                            activities={activities}
-                            connections={connections}
-                        />
-                    ) : (
-                        <UnitMapView
-                            activities={activities}
-                            connections={connections}
-                            onStartActivity={(id) => {
-                                // Link to activity steps - following the existing logic if any
-                                window.location.href = `/dashboard/activities/${id}`;
-                            }}
-                        />
-                    )}
+                <TabsContent value="mapa" className="mt-6 flex-1 min-h-0">
+                    <div className="h-full flex flex-col px-12 pb-12">
+                        {isTeacher ? (
+                            <div className="flex flex-col lg:flex-row gap-6 h-full min-h-[600px] overflow-hidden">
+                                <div className="w-full lg:w-80 shrink-0">
+                                    <UnitMapConfigTab
+                                        unitId={unit.id}
+                                        activities={activities}
+                                        connections={connections}
+                                    />
+                                </div>
+                                <div className="flex-1 bg-surface-dark border border-border-strong rounded-2xl overflow-hidden relative">
+                                    <UnitMapView
+                                        activities={activities as any}
+                                        connections={connections}
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex-1 bg-surface-dark border border-border-strong rounded-2xl overflow-hidden relative min-h-[600px]">
+                                <UnitMapView
+                                    activities={activities as any}
+                                    connections={connections}
+                                    onStartActivity={(id) => {
+                                        window.location.href = `/dashboard/activities/${id}`;
+                                    }}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </TabsContent>
 
                 {/* Evaluación Tab */}
                 {isTeacher && (
-                    <TabsContent value="evaluacion" className="mt-6">
+                    <TabsContent value="evaluacion" className="mt-6 px-12 pb-12">
                         <UnitEvaluationTab
                             unitId={unit.id}
                             activities={activities}
@@ -217,7 +286,7 @@ export function UnitDetailView({
 
                 {/* Configuración Tab */}
                 {isTeacher && (
-                    <TabsContent value="configuracion" className="mt-6">
+                    <TabsContent value="configuracion" className="mt-6 px-12 pb-12">
                         <UnitSettingsTab unit={unit} />
                     </TabsContent>
                 )}

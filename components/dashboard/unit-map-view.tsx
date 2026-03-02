@@ -42,10 +42,11 @@ interface Connection {
 interface UnitMapViewProps {
     activities: Activity[];
     connections: Connection[];
-    onStartActivity: (id: string) => void;
+    onStartActivity?: (id: string) => void;
+    hideBottomBar?: boolean;
 }
 
-export function UnitMapView({ activities, connections, onStartActivity }: UnitMapViewProps) {
+export function UnitMapView({ activities, connections, onStartActivity, hideBottomBar = false }: UnitMapViewProps) {
     const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
     const [zoom, setZoom] = useState(1);
 
@@ -262,7 +263,7 @@ export function UnitMapView({ activities, connections, onStartActivity }: UnitMa
                                     : "bg-blue-600 hover:bg-blue-500 text-white shadow-[0_4px_20px_rgba(37,99,235,0.4)]"
                             )}
                             disabled={selectedActivity.status === 'blocked'}
-                            onClick={() => onStartActivity(selectedActivity.id)}
+                            onClick={() => onStartActivity?.(selectedActivity.id)}
                         >
                             {selectedActivity.status === 'blocked' ? (
                                 <>
@@ -301,24 +302,26 @@ export function UnitMapView({ activities, connections, onStartActivity }: UnitMa
             </div>
 
             {/* Progress Info */}
-            <div className="absolute bottom-6 left-6 right-20 pointer-events-none">
-                <div className="bg-zinc-900/80 border border-zinc-700 p-4 rounded-xl backdrop-blur max-w-sm pointer-events-auto">
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">Progreso de la Unidad</span>
-                        <span className="text-xs font-bold text-blue-400">
-                            {Math.round((visibleActivities.filter(a => a.status === 'published').length / visibleActivities.length) * 100)}%
-                        </span>
-                    </div>
-                    <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden border border-zinc-700">
-                        <motion.div
-                            className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
-                            initial={{ width: 0 }}
-                            animate={{ width: `${(visibleActivities.filter(a => a.status === 'published').length / visibleActivities.length) * 100}%` }}
-                            transition={{ duration: 1 }}
-                        />
+            {!hideBottomBar && (
+                <div className="absolute bottom-6 left-6 right-20 pointer-events-none">
+                    <div className="bg-zinc-900/80 border border-zinc-700 p-4 rounded-xl backdrop-blur max-w-sm pointer-events-auto">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 italic">Progreso de la Unidad</span>
+                            <span className="text-xs font-bold text-blue-400">
+                                {Math.round((visibleActivities.filter(a => a.status === 'published').length / visibleActivities.length) * 100)}%
+                            </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden border border-zinc-700">
+                            <motion.div
+                                className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${(visibleActivities.filter(a => a.status === 'published').length / visibleActivities.length) * 100}%` }}
+                                transition={{ duration: 1 }}
+                            />
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }
