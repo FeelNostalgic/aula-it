@@ -1,0 +1,76 @@
+import { createClient } from "@/utils/supabase/server";
+import { notFound, redirect } from "next/navigation";
+import MapClient from "./client";
+
+export default async function UnitMapPage({
+    params,
+}: {
+    params: { id: string };
+}) {
+    const supabase = await createClient();
+    const { id } = await params;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        redirect("/login");
+    }
+
+    // Fetch Unit Data
+    const { data: unit } = await supabase
+        .from("units")
+        .select(`
+            *,
+            activity_connections (
+                id,
+                source_activity_id,
+                target_activity_id
+            )
+        `)
+        .eq("id", id)
+        .single();
+
+    if (!unit) {
+        notFound();
+    }
+
+    // Fetch Activities for this unit
+    const { data: activities } = await supabase
+        .from("activities")
+        .select("*")
+        .eq("unit_id", id)
+        .order("order_index", { ascending: true });
+
+    // Get User Role
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+    const role = profile?.role || 'student';
+
+    // Map connections format for React Flow
+    const mapConnections = (unit.activity_connections || []).map((conn: any) => ({
+        id: conn.id,
+        source: conn.source_activity_id,
+        target: conn.target_activity_id
+    }));
+
+    const unitWithConnections = {
+        ...unit,
+        map_connections: mapConnections
+    };
+
+    const activitiesWithPosition = (activities || []).map(a => ({
+        ...a,
+        position: a.position_x !== null ? { x: a.position_x, y: a.position_y } : null
+    }));
+
+    return (
+        <MapClient
+            unit={unitWithConnections}
+            activities={activitiesWithPosition}
+            role={role as 'student' | 'teacher'}
+        />
+    );
+}

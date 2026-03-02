@@ -8,7 +8,11 @@ import {
     Map,
     BookOpen,
     GraduationCap,
-    FolderOpen
+    FolderOpen,
+    ExternalLink,
+    Network,
+    Zap,
+    ArrowLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,10 +22,11 @@ import { UnitSettingsTab } from "./unit-settings-tab";
 import { UnitActivitiesTab } from "./unit-activities-tab";
 import { UnitEvaluationTab } from "./unit-evaluation-tab";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { UnitMapView } from "./unit-map-view";
-import { UnitMapConfigTab } from "./unit-map-config-tab";
 import { StudentUnitView } from "./student-unit-view";
+
+// Remove legacy imports
+// import { UnitMapView } from "./unit-map-view";
+// import { UnitMapConfigTab } from "./unit-map-config-tab";
 
 type Unit = {
     id: string;
@@ -88,7 +93,7 @@ export function UnitDetailView({
     const statusConfig = {
         published: {
             color: "text-accent-green",
-            bg: "bg-accent-green/10",
+            bg: "bg-size-[100%_2px,3px_100%]",
             border: "border-accent-green/30",
             label: "PUBLICADO",
             dotBg: "bg-accent-green",
@@ -132,7 +137,6 @@ export function UnitDetailView({
 
     return (
         <div className="flex flex-col gap-8">
-
             {/* Top Bar with Back Button */}
             <div>
                 <Link href={`/dashboard/modules/${module.id}`}>
@@ -167,10 +171,9 @@ export function UnitDetailView({
             </div>
 
             {/* Tabs */}
-            <Tabs defaultValue={unit.view_type === 'map' ? "mapa" : "actividades"} className="w-full">
+            <Tabs defaultValue={unit.view_type === 'map' ? "map" : "actividades"} className="w-full">
                 <div className="px-12 mb-6">
                     <TabsList className="bg-surface border border-border-subtle rounded-lg p-1 h-auto inline-flex max-w-full justify-start overflow-x-auto">
-                        {/* Only show "RETOS" if view_type is 'list' or if teacher */}
                         {(isTeacher || (unit.view_type || 'list') === 'list') && (
                             <TabsTrigger
                                 value="actividades"
@@ -191,10 +194,9 @@ export function UnitDetailView({
                             </TabsTrigger>
                         )}
 
-                        {/* Only show "MAPA" if view_type is 'map' or if teacher */}
                         {(isTeacher || unit.view_type === 'map') && (
                             <TabsTrigger
-                                value="mapa"
+                                value="map"
                                 className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
                             >
                                 <GraduationCap className="mr-2 size-3.5" />
@@ -232,7 +234,7 @@ export function UnitDetailView({
                     />
                 </TabsContent>
 
-                {/* Recursos Tab (Student Only) */}
+                {/* Recursos Tab */}
                 {!isTeacher && (
                     <TabsContent value="recursos" className="mt-6 px-12 pb-12">
                         <div className="bg-surface border border-dashed border-border-strong rounded-2xl flex flex-col items-center justify-center py-32 text-center">
@@ -248,35 +250,47 @@ export function UnitDetailView({
                 )}
 
                 {/* Mapa Tab */}
-                <TabsContent value="mapa" className="mt-6 flex-1 min-h-0">
-                    <div className="h-full flex flex-col px-12 pb-12">
-                        {isTeacher ? (
-                            <div className="flex flex-col lg:flex-row gap-6 h-full min-h-[600px] overflow-hidden">
-                                <div className="w-full lg:w-80 shrink-0">
-                                    <UnitMapConfigTab
-                                        unitId={unit.id}
-                                        activities={activities}
-                                        connections={connections}
-                                    />
+                <TabsContent value="map" className="mt-0 border-white/3 outline-none">
+                    <div className="p-8">
+                        <div className="max-w-4xl mx-auto space-y-8">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-dark/50 border border-border-strong rounded-3xl p-8 backdrop-blur-sm">
+                                <div className="space-y-2">
+                                    <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">
+                                        Mapa Interactivo
+                                    </h3>
+                                    <p className="text-text-muted text-sm max-w-md leading-relaxed">
+                                        Explora el camino de aprendizaje, visualiza las conexiones entre retos y sigue tu progreso en un entorno inmersivo.
+                                    </p>
                                 </div>
-                                <div className="flex-1 bg-surface-dark border border-border-strong rounded-2xl overflow-hidden relative">
-                                    <UnitMapView
-                                        activities={activities as any}
-                                        connections={connections}
-                                    />
+                                <Link href={`/units/${unit.id}/map`}>
+                                    <Button className="bg-accent-blue hover:bg-accent-blue/90 text-white font-black uppercase tracking-widest h-14 px-8 rounded-2xl shadow-lg shadow-accent-blue/20 group transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]">
+                                        {isTeacher ? 'Abrir Creador de Mapa' : 'Explorar Mapa'}
+                                        <ExternalLink className="size-4 ml-3 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                                    </Button>
+                                </Link>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="bg-surface-dark border border-border-strong rounded-2xl p-6 space-y-4">
+                                    <div className="size-10 rounded-xl bg-accent-blue/10 border border-accent-blue/20 flex items-center justify-center text-accent-blue">
+                                        <Network className="size-5" />
+                                    </div>
+                                    <h4 className="text-sm font-black text-white uppercase tracking-tight">Estructura No Lineal</h4>
+                                    <p className="text-xs text-text-muted leading-relaxed">
+                                        Visualiza cómo se desbloquean los retos y las rutas alternativas.
+                                    </p>
+                                </div>
+                                <div className="bg-surface-dark border border-border-strong rounded-2xl p-6 space-y-4">
+                                    <div className="size-10 rounded-xl bg-accent-amber/10 border border-accent-amber/20 flex items-center justify-center text-accent-amber">
+                                        <Zap className="size-5" />
+                                    </div>
+                                    <h4 className="text-sm font-black text-white uppercase tracking-tight">Entorno IDE</h4>
+                                    <p className="text-xs text-text-muted leading-relaxed">
+                                        Experiencia inmersiva a pantalla completa sin distracciones.
+                                    </p>
                                 </div>
                             </div>
-                        ) : (
-                            <div className="flex-1 bg-surface-dark border border-border-strong rounded-2xl overflow-hidden relative min-h-[600px]">
-                                <UnitMapView
-                                    activities={activities as any}
-                                    connections={connections}
-                                    onStartActivity={(id) => {
-                                        window.location.href = `/dashboard/activities/${id}`;
-                                    }}
-                                />
-                            </div>
-                        )}
+                        </div>
                     </div>
                 </TabsContent>
 
