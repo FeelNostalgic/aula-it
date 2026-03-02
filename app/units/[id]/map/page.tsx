@@ -71,6 +71,8 @@ export default async function UnitMapPage({
             unit={unitWithConnections}
             activities={activitiesWithPosition}
             role={role as 'student' | 'teacher'}
+            user={user}
+            profile={profile}
         />
     );
 }
