@@ -243,7 +243,7 @@ function SortableActivityItem({
                 <div
                     ref={setNodeRef}
                     style={style}
-                    onClick={() => router.push(isTeacher ? `/dashboard/activities/${activity.id}/edit` : `/dashboard/activities/${activity.id}`)}
+                    onClick={() => router.push(isTeacher ? `/activities/${activity.id}/edit` : `/activities/${activity.id}`)}
                     className={cn(
                         "group relative bg-surface-dark border border-border-strong rounded-2xl p-5 hover:border-accent-blue/40 hover:bg-surface/50 transition-all duration-300 cursor-pointer flex flex-col h-full",
                         isDragging && "opacity-50 ring-2 ring-accent-blue/20 cursor-grabbing shadow-2xl scale-105"
@@ -338,7 +338,7 @@ function SortableActivityItem({
             <div
                 ref={setNodeRef}
                 style={style}
-                onClick={() => router.push(isTeacher ? `/dashboard/activities/${activity.id}/edit` : `/dashboard/activities/${activity.id}`)}
+                onClick={() => router.push(isTeacher ? `/activities/${activity.id}/edit` : `/activities/${activity.id}`)}
                 className={cn(
                     "group flex items-center gap-4 bg-surface-dark border border-border-strong rounded-xl p-4 hover:border-accent-blue/30 hover:bg-surface/50 transition-all cursor-pointer",
                     isDragging && "opacity-50 ring-2 ring-accent-blue/20 cursor-grabbing shadow-lg"

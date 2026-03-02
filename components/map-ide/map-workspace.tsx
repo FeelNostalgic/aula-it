@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Maximize2, Minimize2, Save, Play, MousePointer2, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 const nodeTypes: NodeTypes = {
     mission: MissionNodeComponent,
@@ -40,6 +41,7 @@ interface MapWorkspaceProps {
 }
 
 export function MapWorkspace({ unit, activities, role }: MapWorkspaceProps) {
+    const router = useRouter();
     const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
     const [selectedActivity, setSelectedActivity] = useState<any | null>(null);
 
@@ -142,6 +144,10 @@ export function MapWorkspace({ unit, activities, role }: MapWorkspaceProps) {
         [rfInstance, setNodes]
     );
 
+    const handleStartMission = useCallback((missionId: string) => {
+        router.push(`/activities/${missionId}`);
+    }, [router]);
+
     return (
         <div className="flex h-screen w-full bg-[#020609] overflow-hidden select-none">
             {/* Sidebar */}
@@ -150,6 +156,7 @@ export function MapWorkspace({ unit, activities, role }: MapWorkspaceProps) {
                     unit={unit}
                     selectedActivity={selectedActivity}
                     moduleId={unit.module_id}
+                    onStartMission={handleStartMission}
                 />
             ) : (
                 <TeacherSidebar
