@@ -27,7 +27,7 @@ export class UnitDetailPage extends BasePage {
         this.breadcrumbUnitName = page.locator("header");
 
         // Tabs
-        this.tabActivities = page.getByRole("tab", { name: /ACTIVIDADES/i });
+        this.tabActivities = page.getByRole("tab", { name: /RETOS/i });
         this.tabEvaluation = page.getByRole("tab", { name: /EVALUACIÓN/i });
         this.tabSettings = page.getByRole("tab", { name: /CONFIGURACIÓN/i });
 

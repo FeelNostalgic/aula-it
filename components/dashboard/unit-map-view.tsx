@@ -28,7 +28,7 @@ interface Activity {
     xp: number;
     duration: number | null;
     difficulty: string | null;
-    status: 'published' | 'blocked' | 'draft';
+    status: 'published' | 'active' | 'blocked' | 'draft';
     position_x: number;
     position_y: number;
     order_index: number;
@@ -66,6 +66,7 @@ export function UnitMapView({ activities, connections, onStartActivity, hideBott
     const getNodeStyles = (activity: Activity) => {
         switch (activity.status) {
             case 'published':
+            case 'active':
                 return {
                     bg: 'bg-blue-500/10',
                     border: 'border-blue-500/50',

@@ -36,6 +36,16 @@ export default async function UnitPage({
         redirect("/dashboard");
     }
 
+    // Access control for students
+    if (userRole === "student") {
+        const rawStatus = unit.status?.toLowerCase() || 'draft';
+        const isDraft = rawStatus === 'draft' || rawStatus === 'borrador';
+
+        if (isDraft) {
+            redirect(`/dashboard/modules/${unit.module_id}`);
+        }
+    }
+
     // Fetch parent Module
     const { data: module } = await supabase
         .from("modules")

@@ -74,9 +74,9 @@ export default async function ModulePage({ params }: ModulePageProps) {
         `)
         .eq("module_id", id);
 
-    // If student, only show published or blocked units
+    // If student, only show published, blocked, or active (legacy) units
     if (profile?.role === "student") {
-        unitsQuery = unitsQuery.in("status", ["published", "blocked"]);
+        unitsQuery = unitsQuery.in("status", ["published", "blocked", "active"]);
     }
 
     const { data: unitsData } = await unitsQuery.order("order_index", { ascending: true });
@@ -84,7 +84,7 @@ export default async function ModulePage({ params }: ModulePageProps) {
     // Transform units to include the latest published activity
     const units = unitsData?.map(unit => {
         const latestPublished = (unit.activities as any[])
-            ?.filter(a => a.status === "published")
+            ?.filter(a => a.status === "published" || a.status === "active")
             ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
         return {

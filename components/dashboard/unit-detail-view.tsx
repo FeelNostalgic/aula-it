@@ -79,32 +79,45 @@ export function UnitDetailView({
     const isTeacher = userRole === "teacher";
     const { setSegments } = useBreadcrumb();
 
+    // Normalize status for robust lookup
+    const rawStatus = unit.status?.toLowerCase() || 'draft';
+    const normalizedStatus = (rawStatus === 'active' || rawStatus === 'activo') ? 'published' :
+        (rawStatus === 'bloqueado' ? 'blocked' :
+            (rawStatus === 'borrador' ? 'draft' : rawStatus));
+
     const statusConfig = {
         published: {
-            color: "text-emerald-400",
-            bg: "bg-emerald-400/10",
-            border: "border-emerald-400/30",
+            color: "text-accent-green",
+            bg: "bg-accent-green/10",
+            border: "border-accent-green/30",
             label: "PUBLICADO",
-            dotBg: "bg-emerald-400",
+            dotBg: "bg-accent-green",
             dotAnim: "animate-pulse"
         },
         blocked: {
-            color: "text-amber-500",
-            bg: "bg-amber-500/10",
-            border: "border-amber-500/30",
+            color: "text-accent-red",
+            bg: "bg-accent-red/10",
+            border: "border-accent-red/30",
             label: "BLOQUEADO",
-            dotBg: "bg-amber-500",
+            dotBg: "bg-accent-red",
             dotAnim: ""
         },
         draft: {
-            color: "text-zinc-500",
-            bg: "bg-zinc-500/10",
-            border: "border-zinc-500/30",
+            color: "text-accent-orange",
+            bg: "bg-accent-orange/10",
+            border: "border-accent-orange/30",
             label: "BORRADOR",
-            dotBg: "bg-zinc-500",
+            dotBg: "bg-accent-orange",
             dotAnim: ""
         },
-    }[unit.status as 'published' | 'blocked' | 'draft' || "draft"];
+    }[normalizedStatus as 'published' | 'blocked' | 'draft'] || {
+        color: "text-accent-orange",
+        bg: "bg-accent-orange/10",
+        border: "border-accent-orange/30",
+        label: "BORRADOR",
+        dotBg: "bg-accent-orange",
+        dotAnim: ""
+    };
 
     // Set breadcrumb segments for the top nav
     useEffect(() => {
@@ -115,18 +128,7 @@ export function UnitDetailView({
         return () => setSegments([]);
     }, [module, unit.name, setSegments]);
 
-    if (!isTeacher && unit.view_type === 'map') {
-        return (
-            <StudentUnitView
-                unit={unit}
-                activities={activities}
-                connections={connections}
-                onStartActivity={(id) => {
-                    window.location.href = `/dashboard/activities/${id}`;
-                }}
-            />
-        );
-    }
+    // Note: Special student-only entry removed to maintain consistency with teacher UI as requested.
 
     return (
         <div className="flex flex-col gap-8">
@@ -166,15 +168,18 @@ export function UnitDetailView({
 
             {/* Tabs */}
             <Tabs defaultValue={unit.view_type === 'map' ? "mapa" : "actividades"} className="w-full">
-                <div className="px-12">
+                <div className="px-12 mb-6">
                     <TabsList className="bg-surface border border-border-subtle rounded-lg p-1 h-auto inline-flex max-w-full justify-start overflow-x-auto">
-                        <TabsTrigger
-                            value="actividades"
-                            className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
-                        >
-                            <BookOpen className="mr-2 size-3.5" />
-                            RETOS
-                        </TabsTrigger>
+                        {/* Only show "RETOS" if view_type is 'list' or if teacher */}
+                        {(isTeacher || (unit.view_type || 'list') === 'list') && (
+                            <TabsTrigger
+                                value="actividades"
+                                className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
+                            >
+                                <BookOpen className="mr-2 size-3.5" />
+                                RETOS
+                            </TabsTrigger>
+                        )}
 
                         {!isTeacher && (
                             <TabsTrigger
@@ -186,13 +191,16 @@ export function UnitDetailView({
                             </TabsTrigger>
                         )}
 
-                        <TabsTrigger
-                            value="mapa"
-                            className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
-                        >
-                            <GraduationCap className="mr-2 size-3.5" />
-                            MAPA
-                        </TabsTrigger>
+                        {/* Only show "MAPA" if view_type is 'map' or if teacher */}
+                        {(isTeacher || unit.view_type === 'map') && (
+                            <TabsTrigger
+                                value="mapa"
+                                className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
+                            >
+                                <GraduationCap className="mr-2 size-3.5" />
+                                MAPA
+                            </TabsTrigger>
+                        )}
 
                         {isTeacher && (
                             <>

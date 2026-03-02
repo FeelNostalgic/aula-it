@@ -76,7 +76,7 @@ type Activity = {
     type: string;
     xp: number;
     order_index: number;
-    status: 'published' | 'blocked' | 'draft';
+    status: 'published' | 'active' | 'blocked' | 'draft';
     difficulty?: string | null;
     duration?: number | null;
     logo_url?: string | null;
@@ -253,9 +253,11 @@ function SortableActivityItem({
                     <div className="flex justify-between items-start mb-5">
                         <Badge variant="outline" className={cn(
                             "text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full border",
-                            activity.status === 'published' ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-accent-orange/10 text-accent-orange border-accent-orange/20"
+                            (activity.status === 'published' || activity.status === 'active') ? "bg-green-500/10 text-green-400 border-green-500/20" :
+                                activity.status === 'blocked' ? "bg-accent-red/10 text-accent-red border-accent-red/20" :
+                                    "bg-accent-orange/10 text-accent-orange border-accent-orange/20"
                         )}>
-                            {activity.status === 'published' ? 'Publicado' : activity.status === 'blocked' ? 'Bloqueado' : 'Borrador'}
+                            {(activity.status === 'published' || activity.status === 'active') ? 'Publicado' : activity.status === 'blocked' ? 'Bloqueado' : 'Borrador'}
                         </Badge>
                         {isTeacher && (
                             <div className="flex items-center gap-1">
@@ -373,9 +375,11 @@ function SortableActivityItem({
                         <h4 className="font-bold text-foreground truncate group-hover:text-accent-blue transition-colors">{activity.title}</h4>
                         <span className={cn(
                             "text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border leading-none",
-                            activity.status === 'published' ? "text-green-400 border-green-500/20 bg-green-500/5" : "text-accent-orange border-accent-orange/20 bg-accent-orange/5"
+                            (activity.status === 'published' || activity.status === 'active') ? "text-green-400 border-green-500/20 bg-green-500/5" :
+                                activity.status === 'blocked' ? "text-accent-red border-accent-red/20 bg-accent-red/5" :
+                                    "text-accent-orange border-accent-orange/20 bg-accent-orange/5"
                         )}>
-                            {activity.status === 'published' ? 'Publicado' : 'Borrador'}
+                            {(activity.status === 'published' || activity.status === 'active') ? 'Publicado' : activity.status === 'blocked' ? 'Bloqueado' : 'Borrador'}
                         </span>
                         <div className={cn(
                             "flex items-center gap-1 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border leading-none ml-2",
@@ -509,24 +513,26 @@ export function UnitActivitiesTab({ unitId, initialActivities, isTeacher = true 
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
-                        <Button
-                            variant={viewMode === "grid" ? "secondary" : "ghost"}
-                            size="icon"
-                            className={cn("h-8 w-8", viewMode === 'grid' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
-                            onClick={() => setViewMode('grid')}
-                        >
-                            <LayoutGrid className="size-4" />
-                        </Button>
-                        <Button
-                            variant={viewMode === "list" ? "secondary" : "ghost"}
-                            size="icon"
-                            className={cn("h-8 w-8", viewMode === 'list' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
-                            onClick={() => setViewMode('list')}
-                        >
-                            <List className="size-4" />
-                        </Button>
-                    </div>
+                    {isTeacher && (
+                        <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
+                            <Button
+                                variant={viewMode === "grid" ? "secondary" : "ghost"}
+                                size="icon"
+                                className={cn("h-8 w-8", viewMode === 'grid' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
+                                onClick={() => setViewMode('grid')}
+                            >
+                                <LayoutGrid className="size-4" />
+                            </Button>
+                            <Button
+                                variant={viewMode === "list" ? "secondary" : "ghost"}
+                                size="icon"
+                                className={cn("h-8 w-8", viewMode === 'list' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
+                                onClick={() => setViewMode('list')}
+                            >
+                                <List className="size-4" />
+                            </Button>
+                        </div>
+                    )}
                     {isTeacher && <CreateActivityDialog unitId={unitId} />}
                 </div>
             </div>

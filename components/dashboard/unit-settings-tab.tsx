@@ -33,6 +33,10 @@ type Unit = {
 
 export function UnitSettingsTab({ unit }: { unit: Unit }) {
     const [loading, setLoading] = useState(false);
+    const rawStatus = unit.status?.toLowerCase() || 'draft';
+    const normalizedStatus = (rawStatus === 'active' || rawStatus === 'activo') ? 'published' :
+        (rawStatus === 'bloqueado' ? 'blocked' :
+            (rawStatus === 'borrador' ? 'draft' : rawStatus));
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -70,29 +74,28 @@ export function UnitSettingsTab({ unit }: { unit: Unit }) {
                                 className="bg-surface border-border-strong text-foreground focus-visible:ring-accent-blue"
                             />
                         </div>
-
                         <div className="space-y-2">
                             <Label htmlFor="status" className="text-foreground">Visibilidad</Label>
-                            <Select name="status" defaultValue={unit.status || "draft"}>
+                            <Select name="status" defaultValue={normalizedStatus}>
                                 <SelectTrigger className="bg-surface border-border-strong text-foreground focus:ring-accent-blue">
                                     <SelectValue placeholder="Selecciona un estado" />
                                 </SelectTrigger>
                                 <SelectContent className="bg-surface-dark border-border-strong text-foreground">
                                     <SelectItem value="published" className="focus:bg-accent-blue/10 focus:text-accent-blue font-bold">
                                         <div className="flex items-center gap-2">
-                                            <Eye className="size-4 text-emerald-400" />
+                                            <Eye className="size-4 text-accent-green" />
                                             <span>Publicado (Visible)</span>
                                         </div>
                                     </SelectItem>
                                     <SelectItem value="blocked" className="focus:bg-accent-blue/10 focus:text-accent-blue font-bold">
                                         <div className="flex items-center gap-2">
-                                            <Lock className="size-4 text-amber-500" />
+                                            <Lock className="size-4 text-accent-red" />
                                             <span>Bloqueado (Próximamente)</span>
                                         </div>
                                     </SelectItem>
                                     <SelectItem value="draft" className="focus:bg-accent-blue/10 focus:text-accent-blue font-bold">
                                         <div className="flex items-center gap-2">
-                                            <EyeOff className="size-4 text-zinc-500" />
+                                            <EyeOff className="size-4 text-accent-orange" />
                                             <span>Borrador (Solo tú)</span>
                                         </div>
                                     </SelectItem>

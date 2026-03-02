@@ -30,6 +30,13 @@ export async function updateUnitSettings(unitId: string, formData: FormData) {
         return { error: "Unit name cannot be empty" };
     }
 
+    // Get module_id to revalidate module page
+    const { data: unitData } = await supabase
+        .from("units")
+        .select("module_id")
+        .eq("id", unitId)
+        .single();
+
     const { error } = await supabase
         .from("units")
         .update({
@@ -44,6 +51,9 @@ export async function updateUnitSettings(unitId: string, formData: FormData) {
         return { error: error.message };
     }
 
+    if (unitData?.module_id) {
+        revalidatePath(`/dashboard/modules/${unitData.module_id}`);
+    }
     revalidatePath(`/dashboard/units/${unitId}`);
     return { success: true };
 }

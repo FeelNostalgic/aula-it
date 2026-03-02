@@ -15,6 +15,7 @@ import {
     Settings,
     GraduationCap,
     Plus,
+    Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,6 +27,7 @@ import { EnrollStudentDialog } from "./enroll-student-dialog";
 import { useBreadcrumb } from "./breadcrumb-context";
 import { ModuleStudentsTab } from "./module-students-tab";
 import { ModuleSettingsTab } from "./module-settings-tab";
+import { cn } from "@/lib/utils";
 
 const ICON_MAP: Record<string, any> = {
     BookOpen,
@@ -247,13 +249,26 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                 const hash = unit.id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
                                 const progress = (hash % 5) * 10 + 60; // Mock progress 60-100%
 
+                                // Normalize status for robust lookup
+                                const rawStatus = unit.status?.toLowerCase() || 'draft';
+                                const normalizedStatus = (rawStatus === 'active' || rawStatus === 'activo') ? 'published' :
+                                    (rawStatus === 'bloqueado' ? 'blocked' :
+                                        (rawStatus === 'borrador' ? 'draft' : rawStatus));
+
                                 const unitStatusConfig = {
-                                    active: {
+                                    published: {
                                         color: "text-accent-green",
                                         bg: "bg-accent-green/10",
                                         border: "border-accent-green/30",
                                         label: "PUBLICADO",
                                         dotBg: "bg-accent-green",
+                                    },
+                                    blocked: {
+                                        color: "text-accent-red",
+                                        bg: "bg-accent-red/10",
+                                        border: "border-accent-red/30",
+                                        label: "BLOQUEADO",
+                                        dotBg: "bg-accent-red",
                                     },
                                     draft: {
                                         color: "text-accent-orange",
@@ -262,74 +277,95 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                         label: "BORRADOR",
                                         dotBg: "bg-accent-orange",
                                     },
-                                }[unit.status === "active" ? "active" : "draft"];
+                                }[normalizedStatus as 'published' | 'blocked' | 'draft'] || {
+                                    color: "text-accent-orange",
+                                    bg: "bg-accent-orange/10",
+                                    border: "border-accent-orange/30",
+                                    label: "BORRADOR",
+                                    dotBg: "bg-accent-orange",
+                                };
 
-                                if (viewMode === "list") {
-                                    return (
-                                        <Link
-                                            key={unit.id}
-                                            href={`/dashboard/units/${unit.id}`}
-                                            className="bg-surface-dark border border-border-subtle hover:border-accent-blue/50 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 group transition-all cursor-pointer shadow-sm hover:shadow-md"
-                                        >
-                                            {/* Col 1: Order + Name */}
-                                            <div className="flex items-center gap-4 w-full md:w-[20%] md:max-w-[400px] shrink-0">
-                                                <div className="size-10 rounded-lg bg-surface border border-accent-blue/20 shadow-[0_0_10px_rgba(34,211,238,0.05)] flex items-center justify-center shrink-0">
-                                                    <span className="text-sm font-bold text-accent-blue font-mono">{unit.order_index + 1}</span>
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <h3 className="font-bold text-foreground truncate group-hover:text-accent-blue transition-colors tracking-tight">
-                                                        {unit.name}
-                                                    </h3>
-                                                    <p className="text-xs text-text-muted truncate">
-                                                        {unit.description || "Sin descripción"}
-                                                    </p>
-                                                </div>
-                                            </div>
+                                const isLocked = !isTeacher && normalizedStatus === 'blocked';
 
-                                            {/* Col 2: Last activity (moved to middle) */}
-                                            <div className="w-full md:flex-1 min-w-[200px] shrink-0 flex items-center gap-3">
-                                                <div className="size-8 rounded-full bg-surface border border-border-subtle flex items-center justify-center shrink-0">
-                                                    <Terminal className="size-3.5 text-text-muted" />
-                                                </div>
-                                                <div className="space-y-0.5 min-w-0">
-                                                    <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted leading-none text-nowrap">Última actividad</div>
-                                                    <div className="text-sm font-bold text-foreground leading-none truncate group-hover:text-accent-blue/90 transition-colors">
-                                                        {unit.latest_activity?.title || "Sin actividades publicadas"}
+                                const unitContent = (viewMode: "list" | "grid") => {
+                                    if (viewMode === "list") {
+                                        return (
+                                            <>
+                                                {/* Col 1: Order + Name */}
+                                                <div className="flex items-center gap-4 w-full md:w-[20%] md:max-w-[400px] shrink-0">
+                                                    <div className={cn(
+                                                        "size-10 rounded-lg bg-surface border shadow-[0_0_10px_rgba(34,211,238,0.05)] flex items-center justify-center shrink-0 transition-colors",
+                                                        isLocked ? "border-border-subtle" : "border-accent-blue/20"
+                                                    )}>
+                                                        {isLocked ? (
+                                                            <Lock className="size-4 text-text-muted" />
+                                                        ) : (
+                                                            <span className="text-sm font-bold text-accent-blue font-mono">{unit.order_index + 1}</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <h3 className="font-bold text-foreground truncate group-hover:text-accent-blue transition-colors tracking-tight">
+                                                            {unit.name}
+                                                        </h3>
+                                                        <p className="text-xs text-text-muted truncate">
+                                                            {unit.description || "Sin descripción"}
+                                                        </p>
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            {/* Col 3: Progress */}
-                                            <div className="w-full md:w-[250px] shrink-0">
-                                                <div className="flex justify-between items-center mb-1.5">
-                                                    <span className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Progreso</span>
-                                                    <span className="text-xs font-bold text-foreground">{progress}%</span>
+                                                {/* Col 2: Last activity (moved to middle) */}
+                                                <div className="w-full md:flex-1 min-w-[200px] shrink-0 flex items-center gap-3">
+                                                    <div className="size-8 rounded-full bg-surface border border-border-subtle flex items-center justify-center shrink-0">
+                                                        <Terminal className="size-3.5 text-text-muted" />
+                                                    </div>
+                                                    <div className="space-y-0.5 min-w-0">
+                                                        <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted leading-none text-nowrap">Última actividad</div>
+                                                        <div className="text-sm font-bold text-foreground leading-none truncate group-hover:text-accent-blue/90 transition-colors">
+                                                            {unit.latest_activity?.title || "Sin actividades publicadas"}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
-                                            </div>
 
-                                            {/* Col 4: Status Badge */}
-                                            <div className="w-full md:w-[120px] shrink-0 flex md:justify-end mt-2 md:mt-0">
-                                                <Badge variant="outline" className={`${unitStatusConfig.border} ${unitStatusConfig.bg} ${unitStatusConfig.color} gap-1.5 py-1 px-3 shadow-sm`}>
-                                                    <span className={`size-1.5 rounded-full ${unitStatusConfig.dotBg}`} />
-                                                    {unitStatusConfig.label}
-                                                </Badge>
-                                            </div>
-                                        </Link>
-                                    );
-                                }
+                                                {/* Col 3: Progress */}
+                                                <div className="w-full md:w-[250px] shrink-0">
+                                                    <div className="flex justify-between items-center mb-1.5">
+                                                        <span className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Progreso</span>
+                                                        <span className="text-xs font-bold text-foreground">{progress}%</span>
+                                                    </div>
+                                                    <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
+                                                </div>
 
-                                // Grid View
-                                return (
-                                    <Link key={unit.id} href={`/dashboard/units/${unit.id}`} className="block h-full">
+                                                {/* Col 4: Status Badge */}
+                                                <div className="w-full md:w-[120px] shrink-0 flex md:justify-end mt-2 md:mt-0">
+                                                    <Badge variant="outline" className={`${unitStatusConfig.border} ${unitStatusConfig.bg} ${unitStatusConfig.color} gap-1.5 py-1 px-3 shadow-sm`}>
+                                                        <span className={`size-1.5 rounded-full ${unitStatusConfig.dotBg}`} />
+                                                        {unitStatusConfig.label}
+                                                    </Badge>
+                                                </div>
+                                            </>
+                                        );
+                                    }
+
+                                    return (
                                         <Card
-                                            className="bg-surface-dark border-border-subtle hover:border-accent-blue/50 hover:shadow-lg hover:shadow-accent-blue/5 transition-all group overflow-hidden flex flex-col h-full rounded-2xl"
+                                            className={cn(
+                                                "bg-surface-dark border-border-subtle transition-all group overflow-hidden flex flex-col h-full rounded-2xl",
+                                                !isLocked && "hover:border-accent-blue/50 hover:shadow-lg hover:shadow-accent-blue/5",
+                                                isLocked && "opacity-50 grayscale saturate-50"
+                                            )}
                                         >
                                             <div className="p-6 flex flex-col h-full">
                                                 {/* Header */}
                                                 <div className="flex items-start gap-4 mb-5">
-                                                    <div className="size-12 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:bg-accent-blue/10 transition-all">
-                                                        <span className="text-lg font-bold text-accent-blue font-mono">{unit.order_index + 1}</span>
+                                                    <div className={cn(
+                                                        "size-12 rounded-xl bg-surface border shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center shrink-0 transition-all",
+                                                        isLocked ? "border-border-subtle" : "border-accent-blue/20 group-hover:scale-110 group-hover:bg-accent-blue/10"
+                                                    )}>
+                                                        {isLocked ? (
+                                                            <Lock className="size-5 text-text-muted" />
+                                                        ) : (
+                                                            <span className="text-lg font-bold text-accent-blue font-mono">{unit.order_index + 1}</span>
+                                                        )}
                                                     </div>
                                                     <div className="min-w-0 flex-1">
                                                         <h3 className="text-lg font-bold text-foreground tracking-tight group-hover:text-accent-blue transition-colors line-clamp-1">
@@ -371,6 +407,38 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                                 </div>
                                             </div>
                                         </Card>
+                                    );
+                                };
+
+                                if (viewMode === "list") {
+                                    return isLocked ? (
+                                        <div
+                                            key={unit.id}
+                                            className={cn(
+                                                "bg-surface-dark border border-border-subtle rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 opacity-50 grayscale saturate-50 cursor-not-allowed",
+                                            )}
+                                        >
+                                            {unitContent("list")}
+                                        </div>
+                                    ) : (
+                                        <Link
+                                            key={unit.id}
+                                            href={`/dashboard/units/${unit.id}`}
+                                            className="bg-surface-dark border border-border-subtle hover:border-accent-blue/50 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 group transition-all shadow-sm hover:shadow-md cursor-pointer"
+                                        >
+                                            {unitContent("list")}
+                                        </Link>
+                                    );
+                                }
+
+                                // Grid View
+                                return isLocked ? (
+                                    <div key={unit.id} className="block h-full cursor-not-allowed">
+                                        {unitContent("grid")}
+                                    </div>
+                                ) : (
+                                    <Link key={unit.id} href={`/dashboard/units/${unit.id}`} className="block h-full group">
+                                        {unitContent("grid")}
                                     </Link>
                                 );
                             })}
