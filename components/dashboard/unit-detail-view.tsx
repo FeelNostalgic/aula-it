@@ -5,7 +5,9 @@ import {
     LayoutGrid,
     Settings,
     CheckCircle,
-    Map
+    Map,
+    BookOpen,
+    GraduationCap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +18,8 @@ import { UnitActivitiesTab } from "./unit-activities-tab";
 import { UnitEvaluationTab } from "./unit-evaluation-tab";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { UnitMapView } from "./unit-map-view";
+import { UnitMapConfigTab } from "./unit-map-config-tab";
 
 type Unit = {
     id: string;
@@ -28,27 +32,48 @@ type Unit = {
     view_type?: string | null;
 };
 
-type Activity = {
+interface Activity {
     id: string;
-    unit_id: string;
+    unit_id: string; // Keeping unit_id as it was in the original type
     title: string;
     description: string | null;
     type: string;
     xp: number;
+    duration: number | null;
+    difficulty: string | null;
+    status: 'published' | 'blocked' | 'draft';
     order_index: number;
-    status?: string | null;
-};
-
-interface UnitDetailViewProps {
-    unit: Unit;
-    module: { id: string, name: string };
-    initialActivities: Activity[];
-    students: any[];
-    submissions: any[];
-    userRole: "teacher" | "student";
+    position_x: number;
+    position_y: number;
+    logo_url: string | null;
 }
 
-export function UnitDetailView({ unit, module, initialActivities, students, submissions, userRole }: UnitDetailViewProps) {
+interface Connection {
+    id: string;
+    unit_id: string;
+    source_activity_id: string;
+    target_activity_id: string;
+}
+
+interface UnitDetailViewProps {
+    unit: any;
+    module: any;
+    activities: Activity[];
+    connections: Connection[];
+    students: any[];
+    submissions: any[];
+    userRole: 'teacher' | 'student';
+}
+
+export function UnitDetailView({
+    unit,
+    module,
+    activities,
+    connections,
+    students,
+    submissions,
+    userRole
+}: UnitDetailViewProps) {
     const isTeacher = userRole === "teacher";
     const { setSegments } = useBreadcrumb();
 
@@ -69,7 +94,7 @@ export function UnitDetailView({ unit, module, initialActivities, students, subm
             dotBg: "bg-accent-orange",
             dotAnim: ""
         },
-    }[unit.status || "draft"];
+    }[unit.status as 'active' | 'draft' || "draft"];
 
     // Set breadcrumb segments for the top nav
     useEffect(() => {
@@ -123,8 +148,15 @@ export function UnitDetailView({ unit, module, initialActivities, students, subm
                         value="actividades"
                         className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
                     >
-                        <LayoutGrid className="mr-2 size-3.5" />
-                        ACTIVIDADES
+                        <BookOpen className="mr-2 size-3.5" />
+                        RETOS
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="mapa"
+                        className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
+                    >
+                        <GraduationCap className="mr-2 size-3.5" />
+                        MAPA
                     </TabsTrigger>
                     {isTeacher && (
                         <>
@@ -148,7 +180,27 @@ export function UnitDetailView({ unit, module, initialActivities, students, subm
 
                 {/* Actividades Tab */}
                 <TabsContent value="actividades" className="mt-6">
-                    <UnitActivitiesTab unitId={unit.id} initialActivities={initialActivities} />
+                    <UnitActivitiesTab unitId={unit.id} initialActivities={activities} />
+                </TabsContent>
+
+                {/* Mapa Tab */}
+                <TabsContent value="mapa" className="mt-6">
+                    {userRole === 'teacher' ? (
+                        <UnitMapConfigTab
+                            unitId={unit.id}
+                            activities={activities}
+                            connections={connections}
+                        />
+                    ) : (
+                        <UnitMapView
+                            activities={activities}
+                            connections={connections}
+                            onStartActivity={(id) => {
+                                // Link to activity steps - following the existing logic if any
+                                window.location.href = `/dashboard/activities/${id}`;
+                            }}
+                        />
+                    )}
                 </TabsContent>
 
                 {/* Evaluación Tab */}
@@ -156,7 +208,7 @@ export function UnitDetailView({ unit, module, initialActivities, students, subm
                     <TabsContent value="evaluacion" className="mt-6">
                         <UnitEvaluationTab
                             unitId={unit.id}
-                            activities={initialActivities}
+                            activities={activities}
                             students={students}
                             submissions={submissions}
                         />

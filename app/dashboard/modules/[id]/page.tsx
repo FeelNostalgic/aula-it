@@ -61,7 +61,7 @@ export default async function ModulePage({ params }: ModulePageProps) {
     }
 
     // Fetch units for this module with their activities to find the latest published one
-    const { data: unitsData } = await supabase
+    let unitsQuery = supabase
         .from("units")
         .select(`
             *,
@@ -72,13 +72,19 @@ export default async function ModulePage({ params }: ModulePageProps) {
                 created_at
             )
         `)
-        .eq("module_id", id)
-        .order("order_index", { ascending: true });
+        .eq("module_id", id);
+
+    // If student, only show active units
+    if (profile?.role === "student") {
+        unitsQuery = unitsQuery.eq("status", "active");
+    }
+
+    const { data: unitsData } = await unitsQuery.order("order_index", { ascending: true });
 
     // Transform units to include the latest published activity
     const units = unitsData?.map(unit => {
         const latestPublished = (unit.activities as any[])
-            ?.filter(a => a.status === "active")
+            ?.filter(a => a.status === "published")
             ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
         return {

@@ -76,11 +76,13 @@ type Activity = {
     type: string;
     xp: number;
     order_index: number;
-    status?: string | null;
+    status: 'published' | 'blocked' | 'draft';
     difficulty?: string | null;
-    duration?: string | null;
+    duration?: number | null;
     logo_url?: string | null;
     phasesCount?: number;
+    position_x?: number;
+    position_y?: number;
 };
 
 interface UnitActivitiesTabProps {

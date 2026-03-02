@@ -47,11 +47,16 @@ export default async function UnitPage({
     const { data: activitiesData } = await supabase
         .from("activities")
         .select(`
-            *,
+            id, unit_id, title, description, type, xp, order_index, status, created_at, duration, difficulty, logo_url, position_x, position_y,
             activity_phases (count)
         `)
         .eq("unit_id", unitId)
         .order("order_index", { ascending: true });
+
+    const { data: connections } = await supabase
+        .from('activity_connections')
+        .select('*')
+        .eq('unit_id', unitId);
 
     const activities = activitiesData?.map(activity => ({
         ...activity,
@@ -88,10 +93,11 @@ export default async function UnitPage({
     return (
         <UnitDetailView
             unit={unit}
-            module={module || { id: unit.module_id, name: "Módulo" }}
-            initialActivities={activities || []}
-            students={students}
-            submissions={submissions}
+            module={module}
+            activities={activities || []}
+            connections={connections || []}
+            students={students || []}
+            submissions={submissions || []}
             userRole={userRole}
         />
     );

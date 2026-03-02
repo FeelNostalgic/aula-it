@@ -45,3 +45,4 @@ next-env.d.ts
 # playwright (tests)
 /playwright-report
 /test-results
+.playwright-mcp

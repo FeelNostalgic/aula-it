@@ -229,9 +229,14 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                             </div>
                             <div className="space-y-1">
                                 <h3 className="font-bold text-foreground">No hay unidades registradas</h3>
-                                <p className="text-xs text-text-muted">Aún no has creado ninguna unidad didáctica. ¡Comienza ahora!</p>
+                                <p className="text-xs text-text-muted">
+                                    {isTeacher
+                                        ? "Aún no has creado ninguna unidad didáctica. ¡Comienza ahora!"
+                                        : "No hay unidades publicadas todavía para este módulo."
+                                    }
+                                </p>
                             </div>
-                            <CreateUnitDialog moduleId={module.id} />
+                            {isTeacher && <CreateUnitDialog moduleId={module.id} />}
                         </Card>
                     ) : (
                         <div className={viewMode === "grid"
@@ -371,30 +376,32 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                             })}
 
                             {/* Nueva Unidad Card */}
-                            {viewMode === "grid" ? (
-                                <CreateUnitDialog moduleId={module.id}>
-                                    <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all group min-h-[180px] hover:bg-accent-blue/5">
-                                        <div className="size-12 rounded-full bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all">
-                                            <Plus className="size-5 text-text-muted group-hover:text-accent-blue transition-colors" />
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nueva Unidad</p>
-                                            <p className="text-xs text-text-muted mt-0.5">Crear contenido didáctico</p>
-                                        </div>
-                                    </button>
-                                </CreateUnitDialog>
-                            ) : (
-                                <CreateUnitDialog moduleId={module.id}>
-                                    <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-xl p-4 flex items-center gap-4 cursor-pointer transition-all group hover:bg-accent-blue/5">
-                                        <div className="size-10 rounded-lg bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all shrink-0">
-                                            <Plus className="size-4 text-text-muted group-hover:text-accent-blue transition-colors" />
-                                        </div>
-                                        <div className="text-left">
-                                            <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nueva Unidad</p>
-                                            <p className="text-xs text-text-muted">Crear contenido didáctico</p>
-                                        </div>
-                                    </button>
-                                </CreateUnitDialog>
+                            {isTeacher && (
+                                viewMode === "grid" ? (
+                                    <CreateUnitDialog moduleId={module.id}>
+                                        <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all group min-h-[180px] hover:bg-accent-blue/5">
+                                            <div className="size-12 rounded-full bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all">
+                                                <Plus className="size-5 text-text-muted group-hover:text-accent-blue transition-colors" />
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nueva Unidad</p>
+                                                <p className="text-xs text-text-muted mt-0.5">Crear contenido didáctico</p>
+                                            </div>
+                                        </button>
+                                    </CreateUnitDialog>
+                                ) : (
+                                    <CreateUnitDialog moduleId={module.id}>
+                                        <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-xl p-4 flex items-center gap-4 cursor-pointer transition-all group hover:bg-accent-blue/5">
+                                            <div className="size-10 rounded-lg bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all shrink-0">
+                                                <Plus className="size-4 text-text-muted group-hover:text-accent-blue transition-colors" />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nueva Unidad</p>
+                                                <p className="text-xs text-text-muted">Crear contenido didáctico</p>
+                                            </div>
+                                        </button>
+                                    </CreateUnitDialog>
+                                )
                             )}
                         </div>
                     )}

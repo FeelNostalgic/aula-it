@@ -202,3 +202,102 @@ export async function deleteActivity(unitId: string, activityId: string) {
     return { success: true };
 }
 
+
+export async function updateActivityStatus(activityId: string, status: 'published' | 'blocked' | 'draft') {
+    const supabase = await createClient();
+
+    const { error } = await supabase
+        .from('activities')
+        .update({ status })
+        .eq('id', activityId);
+
+    if (error) {
+        console.error('Error updating activity status:', error);
+        return { error: 'No se pudo actualizar el estado de la actividad' };
+    }
+
+    revalidatePath('/dashboard/units/[id]', 'page');
+    return { success: true };
+}
+
+export async function updateActivityPosition(activityId: string, x: number, y: number) {
+    const supabase = await createClient();
+
+    const { error } = await supabase
+        .from('activities')
+        .update({ position_x: x, position_y: y })
+        .eq('id', activityId);
+
+    if (error) {
+        console.error('Error updating activity position:', error);
+        return { error: 'No se pudo actualizar la posición de la actividad' };
+    }
+
+    revalidatePath('/dashboard/units/[id]', 'page');
+    return { success: true };
+}
+
+export async function updateMultipleActivityPositions(updates: { id: string, x: number, y: number }[]) {
+    const supabase = await createClient();
+
+    // Optimización: realizar actualizaciones en paralelo o vía RPC si fueran muchas, 
+    // pero para el mapa actual un Promise.all es suficiente.
+    const results = await Promise.all(
+        updates.map(async (update) => {
+            const { error } = await supabase
+                .from('activities')
+                .update({ position_x: update.x, position_y: update.y })
+                .eq('id', update.id);
+            return { id: update.id, error };
+        })
+    );
+
+    const errors = results.filter(r => r.error);
+    if (errors.length > 0) {
+        console.error('Errors updating multiple positions:', errors);
+        return { error: 'Algunas posiciones no se pudieron guardar' };
+    }
+
+    revalidatePath('/dashboard/units/[id]', 'page');
+    return { success: true };
+}
+
+export async function addActivityConnection(unitId: string, sourceId: string, targetId: string) {
+    const supabase = await createClient();
+
+    const { error } = await supabase
+        .from('activity_connections')
+        .insert({
+            unit_id: unitId,
+            source_activity_id: sourceId,
+            target_activity_id: targetId
+        });
+
+    if (error) {
+        if (error.code === '23505') { // Unique violation
+            return { error: 'Esta conexión ya existe' };
+        }
+        console.error('Error adding activity connection:', error);
+        return { error: 'No se pudo crear la conexión' };
+    }
+
+    revalidatePath('/dashboard/units/[id]', 'page');
+    return { success: true };
+}
+
+export async function removeActivityConnection(connectionId: string) {
+    const supabase = await createClient();
+
+    const { error } = await supabase
+        .from('activity_connections')
+        .delete()
+        .eq('id', connectionId);
+
+    if (error) {
+        console.error('Error removing activity connection:', error);
+        return { error: 'No se pudo eliminar la conexión' };
+    }
+
+    revalidatePath('/dashboard/units/[id]', 'page');
+    return { success: true };
+}
