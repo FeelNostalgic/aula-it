@@ -18,13 +18,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { CreateActivityDialog } from '@/components/dashboard/create-activity-dialog';
 
 interface TeacherSidebarProps {
+    unit: any;
     activities: any[];
     onAddActivity?: (activity: any) => void;
 }
 
-export function TeacherSidebar({ activities, onAddActivity }: TeacherSidebarProps) {
+export function TeacherSidebar({ unit, activities, onAddActivity }: TeacherSidebarProps) {
     // Draggable item for React Flow (DND implementation)
     const onDragStart = (event: React.DragEvent, activity: any) => {
         event.dataTransfer.setData('application/reactflow', JSON.stringify(activity));
@@ -55,13 +57,23 @@ export function TeacherSidebar({ activities, onAddActivity }: TeacherSidebarProp
                     </Button>
                 </div>
 
-                <div className="relative">
+                <div className="relative mb-4">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-text-muted" />
                     <Input
                         placeholder="Buscar retos..."
                         className="pl-9 h-10 bg-surface-dark border-border-subtle focus:border-accent-blue/50 text-sm"
                     />
                 </div>
+
+                <CreateActivityDialog
+                    unitId={unit.id}
+                    trigger={
+                        <Button className="w-full bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-black uppercase tracking-wider text-[10px] h-10 gap-2 shadow-[0_0_20px_rgba(34,211,238,0.2)]">
+                            <Plus className="size-4" />
+                            Crear Nuevo Reto
+                        </Button>
+                    }
+                />
             </div>
 
             {/* List of Available Activities */}

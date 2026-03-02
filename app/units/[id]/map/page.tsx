@@ -23,7 +23,9 @@ export default async function UnitMapPage({
             activity_connections (
                 id,
                 source_activity_id,
-                target_activity_id
+                target_activity_id,
+                source_handle,
+                target_handle
             )
         `)
         .eq("id", id)
@@ -53,7 +55,9 @@ export default async function UnitMapPage({
     const mapConnections = (unit.activity_connections || []).map((conn: any) => ({
         id: conn.id,
         source: conn.source_activity_id,
-        target: conn.target_activity_id
+        target: conn.target_activity_id,
+        sourceHandle: conn.source_handle,
+        targetHandle: conn.target_handle
     }));
 
     const unitWithConnections = {
@@ -71,6 +75,8 @@ export default async function UnitMapPage({
             unit={unitWithConnections}
             activities={activitiesWithPosition}
             role={role as 'student' | 'teacher'}
+            user={user}
+            profile={profile}
         />
     );
 }

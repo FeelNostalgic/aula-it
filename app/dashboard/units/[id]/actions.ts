@@ -111,6 +111,8 @@ export async function createActivity(formData: FormData) {
             difficulty: difficulty || 'Bajo',
             duration,
             order_index: nextOrder,
+            position_x: null,
+            position_y: null,
         });
 
     if (error) {
