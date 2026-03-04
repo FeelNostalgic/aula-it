@@ -44,7 +44,7 @@ export function StepViewer({ step }: StepViewerProps) {
 function TheoryViewer({ content }: { content: TheoryContent }) {
     return (
         <div className="max-w-4xl mx-auto space-y-6">
-            <div className="prose prose-invert prose-blue max-w-none prose-pre:p-0 prose-pre:bg-transparent">
+            <div className="prose dark:prose-invert prose-blue max-w-none prose-pre:p-0 prose-pre:bg-transparent prose-code:bg-surface-dark prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none font-sans">
                 <ReactMarkdown
                     remarkPlugins={[remarkGfm, remarkMath]}
                     rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
@@ -63,7 +63,7 @@ function DeliverableViewer({ content }: { content: DeliverableContent }) {
                 <h3 className="text-sm font-bold text-accent-blue flex items-center gap-2 uppercase tracking-widest">
                     <PencilRuler className="size-4" /> Instrucciones de la Entrega
                 </h3>
-                <div className="prose prose-invert prose-sm max-w-none text-text-muted prose-pre:p-0">
+                <div className="prose dark:prose-invert prose-sm max-w-none text-text-muted prose-pre:p-0 prose-code:bg-surface-dark prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none font-sans">
                     <ReactMarkdown
                         remarkPlugins={[remarkGfm, remarkMath]}
                         rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
@@ -209,7 +209,7 @@ function ResourceViewer({ content }: { content: ResourceContent }) {
     return (
         <div className="max-w-4xl mx-auto space-y-12">
             {content?.markdownHeader && (
-                <div className="prose prose-invert prose-blue max-w-none prose-pre:p-0">
+                <div className="prose dark:prose-invert prose-blue max-w-none prose-pre:p-0 prose-code:bg-surface-dark prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none font-sans">
                     <ReactMarkdown
                         remarkPlugins={[remarkGfm, remarkMath]}
                         rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
