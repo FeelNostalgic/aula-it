@@ -255,7 +255,7 @@ export function UnitDetailView({
                         <div className="max-w-4xl mx-auto space-y-8">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-dark/50 border border-border-strong rounded-3xl p-8 backdrop-blur-sm">
                                 <div className="space-y-2">
-                                    <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">
+                                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">
                                         Mapa Interactivo
                                     </h3>
                                     <p className="text-text-muted text-sm max-w-md leading-relaxed">

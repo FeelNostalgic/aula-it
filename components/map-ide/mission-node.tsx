@@ -108,17 +108,17 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
         window.open(`/activities/${id}/edit`, '_blank');
     };
 
-    const getLabelPositionClasses = () => {
+    const getLabelAlignmentClasses = () => {
         switch (title_position) {
             case 'right':
-                return "left-full ml-4 top-1/2 -translate-y-1/2 text-left items-start";
+                return "text-left items-start ml-[8.5rem]";
             case 'up':
-                return "bottom-full mb-4 left-1/2 -translate-x-1/2 text-center items-center";
+                return "text-center items-center mb-28";
             case 'left':
-                return "right-full mr-4 top-1/2 -translate-y-1/2 text-right items-end";
+                return "text-right items-end mr-[8.5rem]";
             case 'down':
             default:
-                return "top-full mt-4 left-1/2 -translate-x-1/2 text-center items-center";
+                return "text-center items-center mt-28";
         }
     };
 
@@ -204,42 +204,57 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
                                 />
                             )}
                         </motion.div>
-                    </div>
 
-                    {/* Label container with dynamic position */}
-                    <div className={cn(
-                        "absolute flex flex-col min-w-[120px] pointer-events-none transition-all duration-500",
-                        getLabelPositionClasses()
-                    )}>
-                        <div className={cn(
-                            "text-[11px] font-black uppercase tracking-wider transition-colors drop-shadow-sm",
-                            styles.textColor,
-                            selected && "text-white"
-                        )}>
-                            {label}
+                        {/* Centered container for label orbital movement */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <motion.div
+                                initial={false}
+                                animate={{
+                                    x: title_position === 'right' ? 85 : title_position === 'left' ? -85 : 0,
+                                    y: title_position === 'down' ? 60 : title_position === 'up' ? -60 : 0,
+                                }}
+                                transition={{
+                                    type: 'spring',
+                                    stiffness: 200,
+                                    damping: 25,
+                                    mass: 0.5
+                                }}
+                                className={cn(
+                                    "flex flex-col min-w-[120px] transition-colors duration-500",
+                                    getLabelAlignmentClasses()
+                                )}
+                            >
+                                <div className={cn(
+                                    "text-[11px] font-black uppercase tracking-wider transition-colors drop-shadow-sm",
+                                    styles.textColor,
+                                    selected && "text-white"
+                                )}>
+                                    {label}
+                                </div>
+                                {status === 'active' && (
+                                    <div className="text-[8px] font-mono text-accent-blue/70 uppercase tracking-[0.2em] mt-0.5">
+                                        En Curso
+                                    </div>
+                                )}
+                                {status === 'blocked' && (
+                                    <div className="text-[8px] font-mono text-text-muted/40 uppercase tracking-[0.2em] mt-0.5">
+                                        Bloqueado
+                                    </div>
+                                )}
+                                {isCompleted && (
+                                    <div className="text-[8px] font-mono text-accent-green uppercase tracking-[0.2em] mt-0.5 font-bold">
+                                        Completado
+                                    </div>
+                                )}
+                            </motion.div>
                         </div>
-                        {status === 'active' && (
-                            <div className="text-[8px] font-mono text-accent-blue/70 uppercase tracking-[0.2em] mt-0.5">
-                                En Curso
-                            </div>
-                        )}
-                        {status === 'blocked' && (
-                            <div className="text-[8px] font-mono text-text-muted/40 uppercase tracking-[0.2em] mt-0.5">
-                                Bloqueado
-                            </div>
-                        )}
-                        {isCompleted && (
-                            <div className="text-[8px] font-mono text-accent-green uppercase tracking-[0.2em] mt-0.5 font-bold">
-                                Completado
-                            </div>
-                        )}
                     </div>
                 </div>
             </ContextMenuTrigger>
             <ContextMenuContent className="w-56 bg-surface-dark border-border-strong text-white backdrop-blur-xl">
                 <ContextMenuItem onClick={rotateTitle} className="flex gap-2 items-center hover:bg-white/10 cursor-pointer">
                     <RotateCw className="size-4 text-accent-blue" />
-                    <span>Rotar título ({title_position})</span>
+                    <span>Rotar título</span>
                 </ContextMenuItem>
                 <ContextMenuSeparator className="bg-border-subtle" />
                 <ContextMenuItem onClick={openIDE} className="flex gap-2 items-center hover:bg-white/10 cursor-pointer">
