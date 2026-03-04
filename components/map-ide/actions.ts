@@ -71,3 +71,22 @@ export async function deleteActivityConnection(connectionId: string, unitId: str
 export async function removeActivityFromMap(activityId: string, unitId: string) {
     return updateActivityPosition(activityId, null, null, unitId);
 }
+
+export async function updateActivityTitlePosition(activityId: string, position: string, unitId: string) {
+    const supabase = await createClient();
+
+    const { error } = await supabase
+        .from('activities')
+        .update({
+            title_position: position
+        })
+        .eq('id', activityId);
+
+    if (error) {
+        console.error('Error updating activity title position:', error);
+        return { success: false, error };
+    }
+
+    revalidatePath(`/units/${unitId}/map`);
+    return { success: true };
+}
