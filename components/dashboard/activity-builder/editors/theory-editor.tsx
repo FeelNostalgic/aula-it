@@ -7,6 +7,10 @@ import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeRaw from "rehype-raw";
+import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
 
 interface TheoryEditorProps {
     step: ActivityStepWithClientState;
@@ -82,9 +86,12 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
                 <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50">
                     <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Vista Previa</span>
                 </div>
-                <div className="flex-1 p-8 overflow-y-auto prose prose-invert prose-sm max-w-none prose-headings:font-semibold prose-a:text-accent-blue hover:prose-a:text-accent-blue/80 prose-p:leading-relaxed prose-pre:bg-surface-dark prose-pre:border prose-pre:border-border/50">
+                <div className="flex-1 p-8 overflow-y-auto prose prose-invert prose-sm max-w-none prose-headings:font-semibold prose-a:text-accent-blue hover:prose-a:text-accent-blue/80 prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-pre:border-none">
                     {content.markdown ? (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
+                        >
                             {content.markdown}
                         </ReactMarkdown>
                     ) : (

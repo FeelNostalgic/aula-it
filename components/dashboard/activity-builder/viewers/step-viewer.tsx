@@ -3,6 +3,10 @@
 import { ActivityStepWithClientState, TheoryContent, QuizContent, PresentationContent, ResourceContent, DeliverableContent, AnimationContent } from "@/types/activity";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeRaw from "rehype-raw";
+import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
 import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, Circle, PencilRuler, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -40,8 +44,11 @@ export function StepViewer({ step }: StepViewerProps) {
 function TheoryViewer({ content }: { content: TheoryContent }) {
     return (
         <div className="max-w-4xl mx-auto space-y-6">
-            <div className="prose prose-invert prose-blue max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <div className="prose prose-invert prose-blue max-w-none prose-pre:p-0 prose-pre:bg-transparent">
+                <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
+                >
                     {content?.markdown || "_Este paso no tiene contenido aún._"}
                 </ReactMarkdown>
             </div>
@@ -56,8 +63,11 @@ function DeliverableViewer({ content }: { content: DeliverableContent }) {
                 <h3 className="text-sm font-bold text-accent-blue flex items-center gap-2 uppercase tracking-widest">
                     <PencilRuler className="size-4" /> Instrucciones de la Entrega
                 </h3>
-                <div className="prose prose-invert prose-sm max-w-none text-text-muted">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <div className="prose prose-invert prose-sm max-w-none text-text-muted prose-pre:p-0">
+                    <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
+                    >
                         {content?.instructionsMarkdown || "_No hay instrucciones detalladas para esta entrega._"}
                     </ReactMarkdown>
                 </div>
@@ -199,8 +209,11 @@ function ResourceViewer({ content }: { content: ResourceContent }) {
     return (
         <div className="max-w-4xl mx-auto space-y-12">
             {content?.markdownHeader && (
-                <div className="prose prose-invert prose-blue max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <div className="prose prose-invert prose-blue max-w-none prose-pre:p-0">
+                    <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
+                    >
                         {content.markdownHeader}
                     </ReactMarkdown>
                 </div>
