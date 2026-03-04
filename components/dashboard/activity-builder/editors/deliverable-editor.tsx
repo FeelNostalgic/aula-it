@@ -52,7 +52,7 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
     };
 
     return (
-        <div className="flex flex-col h-full w-full bg-background overflow-hidden relative">
+        <div className="flex flex-col h-full w-full bg-background overflow-hidden relative min-h-0">
             <div className="shrink-0 p-6 border-b border-border/50 bg-surface/30">
                 <div className="flex items-center justify-between mb-4">
                     <div>
@@ -82,11 +82,11 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
                 </div>
             </div>
 
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex overflow-hidden min-h-0">
                 <ResizablePanelGroup direction="horizontal">
                     {/* Editor Panel */}
                     <ResizablePanel defaultSize={50} minSize={30}>
-                        <div className="flex flex-col h-full bg-surface-dark/20 relative">
+                        <div className="flex flex-col h-full bg-surface-dark/20 relative min-h-0">
                             <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50 justify-between">
                                 <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Instrucciones (Markdown)</span>
                                 <button
