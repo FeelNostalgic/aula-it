@@ -48,6 +48,11 @@ push → Playwright Tests → Version Bump → Deploy a Vercel
 - Si los tests **fallan**, no se despliega nada.
 - Si los tests **pasan**, se bumpa la versión, se crea un tag y un GitHub Release, y se despliega a producción.
 
+Hacer siempre rebase al pull, así evitamos colisiones entre los commits remotos y los locales. Para ello, ejecutar el siguiente comando:
+```bash
+git config --global pull.rebase true
+```
+
 ## Versionado (Conventional Commits)
 
 La versión del proyecto se gestiona **automáticamente** mediante el pipeline. El tipo de bump depende del **prefijo del commit**:

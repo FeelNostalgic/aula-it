@@ -73,16 +73,20 @@ jobs:
       - name: Determine version bump
         id: bump
         run: |
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          # Extraemos todos los mensajes de los commits del push
+          COMMIT_MSGS=$(jq -r '.commits[].message' "$GITHUB_EVENT_PATH")
+          
+          echo "Mensajes a evaluar:"
+          echo "$COMMIT_MSGS"
           
           # Check for breaking change (major)
-          if echo "$COMMIT_MSG" | grep -qE '^[a-z]+!:|BREAKING CHANGE'; then
+          if echo "$COMMIT_MSGS" | grep -qE '^[a-z]+!:|BREAKING CHANGE'; then
             BUMP="major"
           # Check for feat (minor)
-          elif echo "$COMMIT_MSG" | grep -qE '^feat(\(.+\))?:'; then
+          elif echo "$COMMIT_MSGS" | grep -qE '^feat(\(.+\))?:'; then
             BUMP="minor"
           # Check for fix, refactor, perf, style, docs, test, ci, chore (patch)
-          elif echo "$COMMIT_MSG" | grep -qE '^(fix|refactor|perf|style|docs|test|ci|chore|build|skill)(\(.+\))?:'; then
+          elif echo "$COMMIT_MSGS" | grep -qE '^(fix|refactor|perf|style|docs|test|ci|chore|build|skill)(\(.+\))?:'; then
             BUMP="patch"
           else
             echo "No conventional commit prefix found. Skipping version bump."
