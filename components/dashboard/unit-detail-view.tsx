@@ -171,7 +171,7 @@ export function UnitDetailView({
             </div>
 
             {/* Tabs */}
-            <Tabs defaultValue={unit.view_type === 'map' ? "map" : "actividades"} className="w-full">
+            <Tabs defaultValue={isTeacher ? "actividades" : (unit.view_type === 'map' ? "map" : "actividades")} className="w-full">
                 <div className="px-12 mb-6">
                     <TabsList className="bg-surface border border-border-subtle rounded-lg p-1 h-auto inline-flex max-w-full justify-start overflow-x-auto">
                         {(isTeacher || (unit.view_type || 'list') === 'list') && (

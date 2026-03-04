@@ -128,7 +128,7 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                                     </div>
                                 ) : (
                                     <div className="flex items-center gap-2">
-                                        Iniciar Misión
+                                        Abrir actividad
                                         <ChevronRight className="size-4" />
                                     </div>
                                 )}
