@@ -25,6 +25,7 @@ export type MissionNodeData = {
     isSelected?: boolean;
     title_position?: 'down' | 'right' | 'up' | 'left';
     unitId: string;
+    onTitlePositionChange?: (newPosition: 'down' | 'right' | 'up' | 'left') => void;
 };
 
 // Define the custom node type for React Flow
@@ -86,13 +87,22 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
         const currentIndex = positions.indexOf(title_position);
         const nextPosition = positions[(currentIndex + 1) % positions.length];
 
+        // Actualización local inmediata para feedback en tiempo real
+        if (data.onTitlePositionChange) {
+            data.onTitlePositionChange(nextPosition);
+        }
+
         const result = await updateActivityTitlePosition(id, nextPosition, unitId);
         if (!result.success) {
             toast.error("Error al mover el título");
+            // Revertimos cambio local si falla el servidor
+            if (data.onTitlePositionChange) {
+                data.onTitlePositionChange(title_position);
+            }
         } else {
             toast.success("Título movido");
         }
-    }, [id, title_position, unitId]);
+    }, [id, title_position, unitId, data]);
 
     const openIDE = () => {
         window.open(`/activities/${id}/edit`, '_blank');

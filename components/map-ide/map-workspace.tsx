@@ -104,6 +104,34 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
+    const updateNodeTitlePosition = useCallback((nodeId: string, newPosition: 'down' | 'right' | 'up' | 'left') => {
+        setNodes((nds) =>
+            nds.map((node) => {
+                if (node.id === nodeId) {
+                    return {
+                        ...node,
+                        data: {
+                            ...node.data,
+                            title_position: newPosition,
+                        },
+                    };
+                }
+                return node;
+            })
+        );
+    }, [setNodes]);
+
+    // Enriquecer nodes con el callback después de inicializar el estado
+    const enrichedNodes = useMemo(() => {
+        return nodes.map(node => ({
+            ...node,
+            data: {
+                ...node.data,
+                onTitlePositionChange: (pos: 'down' | 'right' | 'up' | 'left') => updateNodeTitlePosition(node.id, pos)
+            }
+        }));
+    }, [nodes, updateNodeTitlePosition]);
+
     const onConnect: OnConnect = useCallback(
         async (params) => {
             if (!isTeacher || isEraserMode) return;
@@ -337,7 +365,7 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                     {/* Canvas */}
                     <main className="flex-1 relative overflow-hidden bg-[#020609]">
                         <ReactFlow
-                            nodes={nodes}
+                            nodes={enrichedNodes}
                             edges={edges}
                             onNodesChange={onNodesChange}
                             onEdgesChange={onEdgesChange}
