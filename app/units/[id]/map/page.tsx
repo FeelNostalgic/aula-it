@@ -43,13 +43,6 @@ export default async function UnitMapPage({
         .eq("unit_id", id)
         .order("order_index", { ascending: true });
 
-    // Fetch Unit Resources
-    const { data: unitFiles } = await supabase
-        .from("unit_files")
-        .select("*")
-        .eq("unit_id", id)
-        .order("created_at", { ascending: false });
-
     // Get User Role
     const { data: profile } = await supabase
         .from("profiles")
@@ -85,7 +78,6 @@ export default async function UnitMapPage({
             role={role as 'student' | 'teacher'}
             user={user}
             profile={profile}
-            unitFiles={unitFiles || []}
         />
     );
 }

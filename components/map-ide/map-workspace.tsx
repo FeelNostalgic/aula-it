@@ -26,12 +26,13 @@ import { MapBackground } from './map-background';
 import { StudentSidebar } from './student-sidebar';
 import { TeacherSidebar } from './teacher-sidebar';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Save, MousePointer2, Eraser, FolderDown, FileText } from 'lucide-react';
+import { ArrowLeft, Save, MousePointer2, Eraser, FolderDown, FileText, ChevronRight, ExternalLink, LayoutGrid, List } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { UserNav } from '@/components/dashboard/user-nav';
 import { DashboardBreadcrumb } from '@/components/dashboard/dashboard-breadcrumb';
 import { cn } from '@/lib/utils';
+import { ResourceIcon } from '@/components/dashboard/resource-icon';
 import {
     updateActivityPosition,
     createActivityConnection,
@@ -49,15 +50,27 @@ interface MapWorkspaceProps {
     role: 'student' | 'teacher';
     user: any;
     profile: any;
-    unitFiles?: any[];
 }
 
-export function MapWorkspace({ unit, activities, role, user, profile, unitFiles = [] }: MapWorkspaceProps) {
+export function MapWorkspace({ unit, activities, role, user, profile }: MapWorkspaceProps) {
     const router = useRouter();
     const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
     const [selectedActivity, setSelectedActivity] = useState<any | null>(null);
     const [isEraserMode, setIsEraserMode] = useState(false);
     const [activeView, setActiveView] = useState<'map' | 'resources'>('map');
+    const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+    // Persist view mode preference
+    React.useEffect(() => {
+        const savedMode = localStorage.getItem('resourceViewMode') as 'grid' | 'list';
+        if (savedMode) setViewMode(savedMode);
+    }, []);
+
+    const handleViewModeChange = (mode: 'grid' | 'list') => {
+        setViewMode(mode);
+        localStorage.setItem('resourceViewMode', mode);
+    };
 
     const isTeacher = role === 'teacher';
 
@@ -355,7 +368,10 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
                                 moduleId={unit.module_id}
                                 onStartMission={handleStartMission}
                                 activeView={activeView}
-                                onViewChange={setActiveView}
+                                onViewChange={(view) => {
+                                    setActiveView(view);
+                                    if (view === 'resources') setCurrentFolderId(null);
+                                }}
                             />
                         ) : (
                             <div className="w-80 border-r border-border/50 flex flex-col">
@@ -374,45 +390,165 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
                     {(!isTeacher && activeView === 'resources') ? (
                         <main className="flex-1 relative overflow-y-auto bg-background p-12">
                             <div className="max-w-4xl mx-auto">
-                                <div className="mb-8">
-                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-accent-blue mb-2">Recursos de la Unidad</div>
-                                    <h2 className="text-2xl font-black text-foreground leading-tight uppercase tracking-tighter">
-                                        {unit.name}
-                                    </h2>
+                                <div className="mb-8 flex items-center justify-between">
+                                    <div className="space-y-1">
+                                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-accent-blue font-sans">Recursos de la Unidad</div>
+                                        <div className="flex items-center gap-2">
+                                            <h2 className="text-2xl font-black text-foreground leading-tight uppercase tracking-tighter font-sans">
+                                                {unit.name}
+                                            </h2>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center bg-muted/30 dark:bg-surface-dark/50 p-1 rounded-xl border border-border/50">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleViewModeChange('grid')}
+                                            className={cn(
+                                                "h-8 w-8 p-0 rounded-lg transition-all",
+                                                viewMode === 'grid' ? "bg-background shadow-sm text-accent-blue" : "text-muted-foreground hover:text-foreground"
+                                            )}
+                                        >
+                                            <LayoutGrid className="size-4" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleViewModeChange('list')}
+                                            className={cn(
+                                                "h-8 w-8 p-0 rounded-lg transition-all",
+                                                viewMode === 'list' ? "bg-background shadow-sm text-accent-blue" : "text-muted-foreground hover:text-foreground"
+                                            )}
+                                        >
+                                            <List className="size-4" />
+                                        </Button>
+                                    </div>
                                 </div>
 
-                                {unitFiles.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-muted/40 dark:bg-surface-dark/50 rounded-xl border border-dashed border-border">
-                                        <FileText className="size-12 text-muted-foreground/30 dark:text-text-muted/30 mb-4" />
-                                        <p className="text-sm text-muted-foreground dark:text-text-muted">No hay recursos disponibles para esta unidad.</p>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {unitFiles.map((file) => (
-                                            <a
-                                                key={file.id}
-                                                href={file.file_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="group p-4 bg-muted/20 hover:bg-muted/40 dark:bg-surface-dark/40 dark:hover:bg-surface-dark border border-border/10 hover:border-accent-blue/30 rounded-xl transition-all"
-                                            >
-                                                <div className="flex items-start gap-3">
-                                                    <div className="size-10 rounded-lg bg-accent-blue/10 flex items-center justify-center shrink-0">
-                                                        <FolderDown className="size-5 text-accent-blue" />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="text-sm font-bold text-foreground truncate transition-colors group-hover:text-accent-blue">
-                                                            {file.name}
+                                {/* Navigation Breadcrumbs */}
+                                <div className="mb-6 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-text-muted/40">
+                                    <button
+                                        onClick={() => setCurrentFolderId(null)}
+                                        className={cn("hover:text-accent-blue transition-colors", !currentFolderId && "text-accent-blue")}
+                                    >
+                                        Raíz
+                                    </button>
+                                    {(() => {
+                                        if (!currentFolderId) return null;
+                                        const path = [];
+                                        let current = (unit.resources || []).find((r: any) => r.id === currentFolderId);
+                                        while (current) {
+                                            path.unshift(current);
+                                            current = (unit.resources || []).find((r: any) => r.id === current.parentId);
+                                        }
+                                        return path.map((folder) => (
+                                            <React.Fragment key={folder.id}>
+                                                <ChevronRight className="size-3" />
+                                                <button
+                                                    onClick={() => setCurrentFolderId(folder.id)}
+                                                    className={cn("hover:text-accent-blue transition-colors", currentFolderId === folder.id && "text-accent-blue")}
+                                                >
+                                                    {folder.title}
+                                                </button>
+                                            </React.Fragment>
+                                        ));
+                                    })()}
+                                </div>
+
+                                {(() => {
+                                    const resources = unit.resources || [];
+                                    const currentResources = resources.filter((r: any) => (r.parentId || null) === currentFolderId);
+
+                                    if (currentResources.length === 0) {
+                                        return (
+                                            <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-muted/20 dark:bg-surface-dark/30 rounded-3xl border border-dashed border-border/50">
+                                                <FileText className="size-12 text-muted-foreground/20 dark:text-text-muted/20 mb-4" />
+                                                <p className="text-sm font-bold text-muted-foreground/40 dark:text-text-muted/40 uppercase tracking-widest">Esta carpeta está vacía</p>
+                                                {currentFolderId && (
+                                                    <Button
+                                                        variant="link"
+                                                        onClick={() => {
+                                                            const parent = resources.find((r: any) => r.id === currentFolderId)?.parentId || null;
+                                                            setCurrentFolderId(parent);
+                                                        }}
+                                                        className="mt-4 text-accent-blue font-black uppercase tracking-widest text-[10px]"
+                                                    >
+                                                        <ArrowLeft className="size-3 mr-2" />
+                                                        Volver atrás
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        );
+                                    }
+
+                                    if (viewMode === 'grid') {
+                                        return (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                                {currentResources.map((resource: any) => {
+                                                    const isFolder = resource.type === 'folder';
+                                                    return (
+                                                        <div
+                                                            key={resource.id}
+                                                            onClick={() => isFolder ? setCurrentFolderId(resource.id) : window.open(resource.url, '_blank')}
+                                                            className="group p-6 bg-muted/20 hover:bg-muted/40 dark:bg-surface-dark/40 dark:hover:bg-surface-dark border border-border/10 hover:border-accent-blue/30 rounded-3xl transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl"
+                                                        >
+                                                            <div className="flex flex-col items-start gap-4 h-full">
+                                                                <div className="size-12 rounded-2xl bg-accent-blue/5 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                                                    <ResourceIcon type={resource.type} mimeType={resource.mimeType} className="rounded-xl!" />
+                                                                </div>
+                                                                <div className="flex-1 min-w-0 space-y-1 w-full">
+                                                                    <div className="text-sm font-black text-foreground truncate group-hover:text-accent-blue transition-colors uppercase tracking-tight">
+                                                                        {resource.title || "Sin título"}
+                                                                    </div>
+                                                                    <p className="text-[10px] text-text-muted leading-relaxed line-clamp-2">
+                                                                        {resource.description || (isFolder ? "Carpeta de recursos" : "Sin descripción")}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="w-full pt-4 border-t border-border/5 flex items-center justify-between text-[8px] font-black uppercase tracking-[0.2em] text-text-muted/40">
+                                                                    <span>{isFolder ? 'Carpeta' : (resource.type === 'file' ? 'Archivo' : 'Enlace')}</span>
+                                                                    {!isFolder && <ExternalLink className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                                    {isFolder && <ChevronRight className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                        <div className="text-xs text-text-muted mt-1 font-mono">
-                                                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div className="space-y-2">
+                                            {currentResources.map((resource: any) => {
+                                                const isFolder = resource.type === 'folder';
+                                                return (
+                                                    <div
+                                                        key={resource.id}
+                                                        onClick={() => isFolder ? setCurrentFolderId(resource.id) : window.open(resource.url, '_blank')}
+                                                        className="group p-4 bg-muted/20 hover:bg-muted/40 dark:bg-surface-dark/40 dark:hover:bg-surface-dark border border-border/10 hover:border-accent-blue/30 rounded-2xl flex items-center gap-4 transition-all cursor-pointer"
+                                                    >
+                                                        <div className="size-10 shrink-0 group-hover:scale-110 transition-transform">
+                                                            <ResourceIcon type={resource.type} mimeType={resource.mimeType} className="rounded-lg" />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="text-sm font-black text-foreground group-hover:text-accent-blue transition-colors truncate uppercase tracking-tight">
+                                                                {resource.title || "Sin título"}
+                                                            </div>
+                                                            <p className="text-[10px] text-text-muted truncate">
+                                                                {resource.description || (isFolder ? "Carpeta de recursos" : "Sin descripción")}
+                                                            </p>
+                                                        </div>
+                                                        <div className="hidden sm:flex items-center gap-4 text-[8px] font-black uppercase tracking-[0.2em] text-text-muted/40">
+                                                            <span>{isFolder ? 'Carpeta' : (resource.type === 'file' ? 'Archivo' : 'Enlace')}</span>
+                                                            {!isFolder && <ExternalLink className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                            {isFolder && <ChevronRight className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
                                                         </div>
                                                     </div>
-                                                </div>
-                                            </a>
-                                        ))}
-                                    </div>
-                                )}
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </main>
                     ) : (
