@@ -57,10 +57,20 @@ declare namespace google {
             setVisible(visible: boolean): void;
         }
 
+        enum ViewId {
+            DOCS = "all",
+            RECENTLY_PICKED = "recently-picked",
+        }
+
         class DocsView {
+            constructor(viewId?: ViewId);
             setIncludeFolders(include: boolean): DocsView;
             setSelectFolderEnabled(enabled: boolean): DocsView;
             setMimeTypes(mimeTypes: string): DocsView;
+            setOwnedByMe(ownedByMe: boolean): DocsView;
+            setStarred(starred: boolean): DocsView;
+            setParent(parentId: string): DocsView;
+            setLabel(label: string): DocsView;
         }
 
         class DocsUploadView {

@@ -17,6 +17,12 @@ export interface DriveFile {
     lastEditedUtc: number;
 }
 
+export interface PickerOptions {
+    mimeTypes?: string[];
+    multiSelect?: boolean;
+    title?: string;
+}
+
 /**
  * Hook to open a Google Drive Picker and return selected files.
  * Loads `gapi` + `google.accounts.oauth2` scripts on demand (once).
@@ -62,7 +68,7 @@ export function useGoogleDrivePicker() {
     }, [loadScript]);
 
     // --- Main open function ---
-    const openPicker = useCallback((): Promise<DriveFile[]> => {
+    const openPicker = useCallback((options?: PickerOptions): Promise<DriveFile[]> => {
         return new Promise(async (resolve, reject) => {
             setIsLoading(true);
 
@@ -98,12 +104,12 @@ export function useGoogleDrivePicker() {
                         return;
                     }
                     accessTokenRef.current = tokenResponse.access_token;
-                    showPicker(tokenResponse.access_token, resolve);
+                    showPicker(tokenResponse.access_token, resolve, options);
                 };
 
                 // If we already have a token, try to reuse it
                 if (accessTokenRef.current) {
-                    showPicker(accessTokenRef.current, resolve);
+                    showPicker(accessTokenRef.current, resolve, options);
                 } else {
                     // Try to get token without forcing consent screen if possible
                     tokenClientRef.current.requestAccessToken();
@@ -116,20 +122,41 @@ export function useGoogleDrivePicker() {
     }, [initGapi, initGis]);
 
     const showPicker = useCallback(
-        (token: string, onDone: (files: DriveFile[]) => void) => {
-            const picker = new google.picker.PickerBuilder()
+        (token: string, onDone: (files: DriveFile[]) => void, options?: PickerOptions) => {
+            const createDocsView = (label?: string) => {
+                const view = new google.picker.DocsView()
+                    .setIncludeFolders(true)
+                    .setSelectFolderEnabled(false);
+                if (options?.mimeTypes?.length) {
+                    view.setMimeTypes(options.mimeTypes.join(","));
+                }
+                if (label) view.setLabel(label);
+                return view;
+            };
+
+            const myDriveView = createDocsView("Mi unidad").setOwnedByMe(true);
+            const sharedView = createDocsView("Compartidos conmigo").setOwnedByMe(false);
+            const recentView = new google.picker.DocsView(google.picker.ViewId.RECENTLY_PICKED)
+                .setLabel("Recientes");
+            if (options?.mimeTypes?.length) {
+                recentView.setMimeTypes(options.mimeTypes.join(","));
+            }
+
+            const builder = new google.picker.PickerBuilder()
                 .setAppId(APP_ID)
                 .setOAuthToken(token)
                 .setDeveloperKey(API_KEY)
-                .addView(
-                    new google.picker.DocsView()
-                        .setIncludeFolders(true)
-                        .setSelectFolderEnabled(false)
-                )
+                .addView(myDriveView)
+                .addView(sharedView)
+                .addView(recentView)
                 .addView(new google.picker.DocsUploadView())
-                .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
-                .enableFeature(google.picker.Feature.NAV_HIDDEN)
-                .setTitle("Seleccionar archivos de Google Drive")
+                .setTitle(options?.title || "Seleccionar archivos de Google Drive");
+
+            if (options?.multiSelect !== false) {
+                builder.enableFeature(google.picker.Feature.MULTISELECT_ENABLED);
+            }
+
+            const picker = builder
                 .setCallback((data: any) => {
                     console.log("Picker callback data:", data);
 

@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { Plus, Trash2, CheckCircle2, Circle } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Circle, HardDrive } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
+import { toFormEmbedUrl, GOOGLE_MIME } from "@/lib/google-drive-urls";
 
 interface QuizEditorProps {
     step: ActivityStepWithClientState;
@@ -19,6 +21,7 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
     const [content, setContent] = useState<QuizContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
     useEffect(() => {
         const newContent = (step.content as QuizContent) || { questions: [], passingScore: 80 };
@@ -99,6 +102,21 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
         handleUpdate({ questions });
     };
 
+    const handlePickFormFromDrive = async () => {
+        try {
+            const files = await openPicker({
+                mimeTypes: [GOOGLE_MIME.FORM],
+                multiSelect: false,
+                title: "Seleccionar Google Form",
+            });
+            if (files.length > 0) {
+                handleUpdate({ ...content, googleFormUrl: toFormEmbedUrl(files[0]) });
+            }
+        } catch {
+            toast.error("Error al abrir Google Drive");
+        }
+    };
+
     return (
         <div className="flex flex-col h-full w-full p-8 overflow-y-auto max-w-4xl mx-auto space-y-8 pb-32">
             <div className="flex items-center justify-between">
@@ -138,12 +156,24 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                 {content.googleFormUrl ? (
                     <div className="p-8 bg-surface-dark border border-white/5 rounded-xl space-y-4">
                         <label className="text-sm font-semibold text-foreground">Google Form Link</label>
-                        <Input
-                            value={content.googleFormUrl}
-                            onChange={(e) => handleUpdate({ ...content, googleFormUrl: e.target.value })}
-                            placeholder="https://docs.google.com/forms/d/e/.../viewform?embedded=true"
-                            className="bg-surface border-border"
-                        />
+                        <div className="flex gap-2">
+                            <Input
+                                value={content.googleFormUrl}
+                                onChange={(e) => handleUpdate({ ...content, googleFormUrl: e.target.value })}
+                                placeholder="https://docs.google.com/forms/d/e/.../viewform?embedded=true"
+                                className="bg-surface border-border flex-1"
+                            />
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handlePickFormFromDrive}
+                                disabled={isDriveLoading}
+                                className="h-9 border-border/50 hover:bg-surface-dark shrink-0"
+                            >
+                                <HardDrive className="size-4 mr-2 text-accent-blue" />
+                                {isDriveLoading ? "..." : "Drive"}
+                            </Button>
+                        </div>
                         <p className="text-xs text-text-muted italic">
                             Asegúrate de que el enlace termine en /viewform o tenga embedded=true para que se vea correctamente en el visor del alumno.
                         </p>

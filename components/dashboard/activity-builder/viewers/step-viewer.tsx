@@ -11,6 +11,7 @@ import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink,
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ResourceIcon } from "../../resource-icon";
+import { toSlidesDownloadUrl } from "@/lib/google-drive-urls";
 
 interface StepViewerProps {
     step: ActivityStepWithClientState;
@@ -123,8 +124,18 @@ function QuizViewer({ content }: { content: QuizContent }) {
     if (content?.googleFormUrl) {
         return (
             <div className="w-full h-screen min-h-[600px] flex flex-col gap-4">
-                <div className="bg-surface p-4 rounded-xl border border-border/50 text-xs text-text-muted flex items-center gap-2">
-                    <ExternalLink className="size-3" /> External Quiz via Google Forms
+                <div className="bg-surface p-4 rounded-xl border border-border/50 flex items-center justify-between">
+                    <span className="text-xs text-text-muted flex items-center gap-2">
+                        <CheckSquare className="size-3" /> Cuestionario via Google Forms
+                    </span>
+                    <Button
+                        onClick={() => window.open(content.googleFormUrl, '_blank')}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 h-7 text-xs"
+                    >
+                        <ExternalLink className="size-3" /> Abrir en ventana completa
+                    </Button>
                 </div>
                 <iframe
                     src={content.googleFormUrl}
@@ -174,6 +185,24 @@ function QuizViewer({ content }: { content: QuizContent }) {
 function PresentationViewer({ content }: { content: PresentationContent }) {
     return (
         <div className="w-full flex flex-col gap-8">
+            {content?.slidesUrl && (() => {
+                const downloadUrl = toSlidesDownloadUrl(content.slidesUrl);
+                return (
+                    <div className="flex items-center justify-between">
+                        <h4 className="text-lg font-bold">Presentación</h4>
+                        <div className="flex gap-2">
+                            {downloadUrl && (
+                                <Button onClick={() => window.open(downloadUrl, '_blank')} variant="outline" size="sm" className="gap-2">
+                                    <Download className="size-4" /> Descargar
+                                </Button>
+                            )}
+                            <Button onClick={() => window.open(content.slidesUrl, '_blank')} variant="ghost" size="sm" className="gap-2">
+                                <ExternalLink className="size-4" /> Abrir en nueva pestaña
+                            </Button>
+                        </div>
+                    </div>
+                );
+            })()}
             <div className="aspect-video w-full rounded-2xl overflow-hidden border border-border shadow-2xl bg-surface-dark flex items-center justify-center relative">
                 {content?.slidesUrl ? (
                     <iframe

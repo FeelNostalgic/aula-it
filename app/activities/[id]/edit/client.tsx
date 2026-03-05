@@ -215,7 +215,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                 ) : (
                     <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
                         {/* Left Sidebar - Structure Builder */}
-                        <ResizablePanel defaultSize={20} minSize={10} maxSize={40} className="bg-background h-full flex flex-col">
+                        <ResizablePanel defaultSize={12} minSize={10} maxSize={40} className="bg-background h-full flex flex-col">
                             <MissionBuilderSidebar
                                 activityId={activity.id}
                                 phases={phases}

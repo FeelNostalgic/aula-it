@@ -4,8 +4,12 @@ import { useState, useEffect, useRef } from "react";
 import { ActivityStepWithClientState, PresentationContent } from "@/types/activity";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { HardDrive } from "lucide-react";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
+import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
+import { toEmbedUrl, GOOGLE_MIME } from "@/lib/google-drive-urls";
 
 interface PresentationEditorProps {
     step: ActivityStepWithClientState;
@@ -21,6 +25,7 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
     const [isSaving, setIsSaving] = useState(false);
 
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
     // Update local state when step changes
     useEffect(() => {
@@ -52,6 +57,21 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
         triggerSave(val, notes);
     };
 
+    const handlePickFromDrive = async () => {
+        try {
+            const files = await openPicker({
+                mimeTypes: [GOOGLE_MIME.PRESENTATION],
+                multiSelect: false,
+                title: "Seleccionar presentación",
+            });
+            if (files.length > 0) {
+                handleUrlChange(toEmbedUrl(files[0]));
+            }
+        } catch {
+            toast.error("Error al abrir Google Drive");
+        }
+    };
+
     const handleNotesChange = (val: string) => {
         setNotes(val);
         triggerSave(slidesUrl, val);
@@ -78,12 +98,24 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
                         <p className="text-xs text-text-muted mb-2">
                             Pega el enlace de "Publicar en la web" de Google Slides, Pitch, Canva, etc.
                         </p>
-                        <Input
-                            value={slidesUrl}
-                            onChange={(e) => handleUrlChange(e.target.value)}
-                            placeholder="https://docs.google.com/presentation/d/e/..."
-                            className="bg-surface border-border/50 font-mono text-xs"
-                        />
+                        <div className="flex gap-2">
+                            <Input
+                                value={slidesUrl}
+                                onChange={(e) => handleUrlChange(e.target.value)}
+                                placeholder="https://docs.google.com/presentation/d/e/..."
+                                className="bg-surface border-border/50 font-mono text-xs flex-1"
+                            />
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handlePickFromDrive}
+                                disabled={isDriveLoading}
+                                className="h-9 border-border/50 hover:bg-surface-dark shrink-0"
+                            >
+                                <HardDrive className="size-4 mr-2 text-accent-blue" />
+                                {isDriveLoading ? "..." : "Drive"}
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="space-y-2">

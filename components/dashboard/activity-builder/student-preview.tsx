@@ -148,7 +148,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
 
             <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
                 {/* === SIDEBAR (identical to teacher: mission-builder-sidebar.tsx line 604-753) === */}
-                <ResizablePanel defaultSize={20} minSize={10} maxSize={40} className="bg-background h-full flex flex-col">
+                <ResizablePanel defaultSize={12} minSize={10} maxSize={40} className="bg-background h-full flex flex-col">
                     <div className="p-4 border-b border-border/50 flex items-center justify-between shrink-0">
                         <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">Estructura de Misión</h2>
                     </div>

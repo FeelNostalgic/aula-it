@@ -6,7 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { Link2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Link2, HardDrive } from "lucide-react";
+import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
+import { toEditableUrl } from "@/lib/google-drive-urls";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -27,6 +30,7 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
     const [isSaving, setIsSaving] = useState(false);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
     const togglePreview = () => {
         setIsPreviewCollapsed(!isPreviewCollapsed);
@@ -51,6 +55,18 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
         }, 1000);
     };
 
+    const handlePickFromDrive = async () => {
+        try {
+            const files = await openPicker({ multiSelect: false, title: "Seleccionar plantilla" });
+            if (files.length > 0) {
+                const url = toEditableUrl(files[0]);
+                handleChange("templateUrl", url);
+            }
+        } catch {
+            toast.error("Error al abrir Google Drive");
+        }
+    };
+
     return (
         <div className="flex flex-col h-full w-full bg-background overflow-hidden relative min-h-0">
             <div className="shrink-0 p-6 border-b border-border/50 bg-surface/30">
@@ -73,12 +89,24 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
                         <Link2 className="size-4" /> Plantilla URL (Opcional)
                     </label>
                     <p className="text-xs text-text-muted">Enlace a Google Docs, Packet Tracer, o repositorio de inicio.</p>
-                    <Input
-                        value={content.templateUrl || ""}
-                        onChange={(e) => handleChange("templateUrl", e.target.value)}
-                        placeholder="https://docs.google.com/document/d/.../copy"
-                        className="bg-surface border-border/50 h-9"
-                    />
+                    <div className="flex gap-2">
+                        <Input
+                            value={content.templateUrl || ""}
+                            onChange={(e) => handleChange("templateUrl", e.target.value)}
+                            placeholder="https://docs.google.com/document/d/.../copy"
+                            className="bg-surface border-border/50 h-9 flex-1"
+                        />
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handlePickFromDrive}
+                            disabled={isDriveLoading}
+                            className="h-9 border-border/50 hover:bg-surface-dark shrink-0"
+                        >
+                            <HardDrive className="size-4 mr-2 text-accent-blue" />
+                            {isDriveLoading ? "Cargando..." : "Drive"}
+                        </Button>
+                    </div>
                 </div>
             </div>
 
