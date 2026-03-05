@@ -8,6 +8,7 @@ if (Test-Path $Source) {
     Write-Host "✅ [SUCCESS] $Source has been copied to $Target" -ForegroundColor Green
     Copy-Item $Source $Target2 -Force
     Write-Host "✅ [SUCCESS] $Source has been copied to $Target2" -ForegroundColor Green
+    exit 0
 } else {
     Write-Host "❌ [ERROR] $Source not found!" -ForegroundColor Red
     exit 1
