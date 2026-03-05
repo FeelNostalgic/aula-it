@@ -225,7 +225,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                             />
                         </ResizablePanel>
 
-                        <ResizableHandle className="hover:bg-accent-blue/50 data-[resize-handle-active]:bg-accent-blue transition-colors" />
+                        <ResizableHandle className="hover:bg-accent-blue/50 data-resize-handle-active:bg-accent-blue transition-colors" />
 
                         {/* Central Step Editor */}
                         <ResizablePanel defaultSize={80} className="h-full bg-background relative flex flex-col">

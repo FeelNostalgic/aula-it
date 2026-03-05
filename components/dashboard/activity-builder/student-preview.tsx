@@ -222,7 +222,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                     </div>
                 </ResizablePanel>
 
-                <ResizableHandle className="w-0 border-r border-border/50 hover:border-accent-blue/50 transition-colors data-[resize-handle-active]:border-accent-blue" />
+                <ResizableHandle className="w-0 border-r border-border/50 hover:border-accent-blue/50 transition-colors data-resize-handle-active:border-accent-blue" />
 
                 {/* === MAIN CONTENT AREA === */}
                 <ResizablePanel defaultSize={80} className="h-full bg-background relative flex flex-col min-w-0">
