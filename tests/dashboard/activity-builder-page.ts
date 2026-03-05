@@ -42,7 +42,7 @@ export class ActivityBuilderPage extends BasePage {
         this.settingsPanel = page.getByRole('heading', { name: 'Configuración de la Actividad' }); // Modified to target the header within the panel
 
         // Sidebar
-        this.sidebarContainer = page.locator('.w-\\[320px\\]').filter({ hasText: 'El Mapa' });
+        this.sidebarContainer = page.locator('.w-80').filter({ hasText: 'El Mapa' });
         this.btnAddPhase = page.getByRole('button', { name: 'Añadir Fase' }); // Modified
 
         // Central Editor Tab Name (used when renaming steps)
@@ -155,10 +155,13 @@ export class ActivityBuilderPage extends BasePage {
     // --- Student Preview Methods ---
     async enterStudentPreview(): Promise<void> {
         await this.btnStudentPreview.click();
-        await expect(this.page.getByRole('button', { name: 'Vista Alumno' }).first()).toBeVisible();
+        // The button text changes to "Editor" when preview is active
+        await expect(this.page.getByRole('button', { name: 'Editor' })).toBeVisible();
     }
 
     async exitStudentPreview(): Promise<void> {
         await this.page.getByRole('button', { name: 'Editor' }).click();
+        // Verify we are back in editor mode (Vista Alumno button visible again)
+        await expect(this.btnStudentPreview).toBeVisible();
     }
 }

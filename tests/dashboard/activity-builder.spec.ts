@@ -167,8 +167,8 @@ test.describe("Dashboard Activity Builder", () => {
         await builder.enterStudentPreview();
 
         // Ensure sidebar has the elements
-        await expect(page.locator('div.w-72').getByText('Fase de Prueba')).toBeVisible();
-        await expect(page.locator('div.w-72').getByText('Teoría 1')).toBeVisible();
+        await expect(page.locator('div.w-80').getByText('Fase de Prueba')).toBeVisible();
+        await expect(page.locator('div.w-80').getByText('Teoría 1')).toBeVisible();
 
         // Auto-selects first visible step
         await expect(page.locator('div.flex-1').getByRole('heading', { name: 'Teoría 1' })).toBeVisible();

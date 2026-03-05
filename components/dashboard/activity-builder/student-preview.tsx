@@ -17,6 +17,7 @@ interface StudentPreviewProps {
     onExitPreview: () => void;
     user?: any;
     profile?: any;
+    hideHeader?: boolean;
 }
 
 const getStepIcon = (type: ActivityStepType) => {
@@ -42,7 +43,7 @@ const getTabStepIcon = (type?: ActivityStepType) => {
     }
 };
 
-export function StudentPreview({ activity, phases, onExitPreview, user, profile }: StudentPreviewProps) {
+export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false }: StudentPreviewProps) {
     const allSteps = useMemo(() => {
         return phases.flatMap(p => p.steps.filter(s => s.is_visible !== false));
     }, [phases]);
@@ -108,37 +109,41 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile 
 
     return (
         <div className="flex flex-col h-full bg-background text-foreground overflow-hidden font-sans">
-            {/* === HEADER (identical to teacher: edit/client.tsx line 132) === */}
-            <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between px-6 shrink-0 z-40">
-                <div className="flex items-center gap-4">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className="size-8 rounded-lg border-border/50 hover:bg-accent/10 transition-colors"
-                        onClick={onExitPreview}
-                    >
-                        <ArrowLeft className="size-4" />
-                    </Button>
-                    <DashboardBreadcrumb />
-                </div>
+            {!hideHeader && (
+                <>
+                    {/* === HEADER (identical to teacher: edit/client.tsx line 132) === */}
+                    <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between px-6 shrink-0 z-40">
+                        <div className="flex items-center gap-4">
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                className="size-8 rounded-lg border-border/50 hover:bg-accent/10 transition-colors"
+                                onClick={onExitPreview}
+                            >
+                                <ArrowLeft className="size-4" />
+                            </Button>
+                            <DashboardBreadcrumb />
+                        </div>
 
-                <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-2 px-3 py-1 bg-accent-blue/5 border border-accent-blue/20 rounded-full">
-                        <div className="size-1.5 rounded-full bg-accent-blue animate-pulse" />
-                        <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-accent-blue">
-                            Modo Misión
-                        </span>
-                    </div>
-                    {user && profile && (
-                        <UserNav
-                            userEmail={user.email || ""}
-                            userName={profile?.full_name || user.user_metadata?.full_name || "Usuario"}
-                            isTeacher={false}
-                            userId={user.id}
-                        />
-                    )}
-                </div>
-            </header>
+                        <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-2 px-3 py-1 bg-accent-blue/5 border border-accent-blue/20 rounded-full">
+                                <div className="size-1.5 rounded-full bg-accent-blue animate-pulse" />
+                                <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-accent-blue">
+                                    Modo Misión
+                                </span>
+                            </div>
+                            {user && profile && (
+                                <UserNav
+                                    userEmail={user.email || ""}
+                                    userName={profile?.full_name || user.user_metadata?.full_name || "Usuario"}
+                                    isTeacher={false}
+                                    userId={user.id}
+                                />
+                            )}
+                        </div>
+                    </header>
+                </>
+            )}
 
             <div className="flex-1 flex overflow-hidden">
                 {/* === SIDEBAR (identical to teacher: mission-builder-sidebar.tsx line 604-753) === */}

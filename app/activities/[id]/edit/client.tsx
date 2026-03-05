@@ -143,6 +143,14 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                     </div>
 
                     <div className="flex items-center gap-6">
+                        {isPreviewMode && (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-accent-blue/5 border border-accent-blue/20 rounded-full">
+                                <div className="size-1.5 rounded-full bg-accent-blue animate-pulse" />
+                                <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-accent-blue">
+                                    Modo Misión
+                                </span>
+                            </div>
+                        )}
                         {isTeacher && (
                             <div className="flex items-center gap-2 mr-4">
                                 <Button
@@ -177,10 +185,10 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                                     size="sm"
                                     onClick={() => setIsPreviewMode(!isPreviewMode)}
                                     className="h-8 gap-2 px-3 text-xs"
-                                    title="Vista Alumno"
+                                    title={isPreviewMode ? "Volver al Editor" : "Vista Alumno"}
                                 >
                                     <Eye className="size-4" />
-                                    Vista Alumno
+                                    {isPreviewMode ? "Editor" : "Vista Alumno"}
                                 </Button>
                             </div>
                         )}
@@ -201,6 +209,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                         onExitPreview={() => setIsPreviewMode(false)}
                         user={user}
                         profile={profile}
+                        hideHeader={true}
                     />
                 ) : (
                     <div className="flex-1 flex overflow-hidden">
