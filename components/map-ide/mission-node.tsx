@@ -111,14 +111,14 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
     const getLabelAlignmentClasses = () => {
         switch (title_position) {
             case 'right':
-                return "text-left items-start ml-[8.5rem]";
+                return "text-left items-start ml-10";
             case 'up':
-                return "text-center items-center mb-28";
+                return "text-center items-center mb-0.5";
             case 'left':
-                return "text-right items-end mr-[8.5rem]";
+                return "text-right items-end mr-10";
             case 'down':
             default:
-                return "text-center items-center mt-28";
+                return "text-center items-center mt-0.5";
         }
     };
 

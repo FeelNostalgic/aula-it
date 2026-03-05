@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Zap,
@@ -10,11 +10,13 @@ import {
     Lock,
     Trophy,
     ArrowLeft,
-    Network
+    Network,
+    FileText as FileTextIcon,
+    Download
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
@@ -23,9 +25,10 @@ interface StudentSidebarProps {
     selectedActivity: any | null;
     moduleId: string;
     onStartMission?: (id: string) => void;
+    unitFiles?: any[];
 }
 
-export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMission }: StudentSidebarProps) {
+export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMission, unitFiles = [] }: StudentSidebarProps) {
     const isBlocked = selectedActivity?.status === 'blocked';
 
     const getDifficultyColor = (diff?: string | null) => {
@@ -36,18 +39,20 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
         return 'text-text-muted bg-surface border-border-subtle';
     };
 
+    const hasResources = unitFiles && unitFiles.length > 0;
+
     return (
         <aside className="w-80 h-full bg-[#050A0D]/95 backdrop-blur-xl border-r border-border-strong flex flex-col shrink-0 z-20">
             {/* Header / Back Button */}
             <div className="p-6 border-b border-white/3">
-                <Link href={`/dashboard/units/${unit.id}`}>
+                <Link href={`/dashboard/modules/${unit.module_id}`}>
                     <button className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-text-muted hover:text-white transition-colors group">
                         <ArrowLeft className="size-3 group-hover:-translate-x-1 transition-transform" />
-                        VOLVER A LA UNIDAD
+                        VOLVER AL MÓDULO
                     </button>
                 </Link>
                 <div className="mt-6 flex items-start gap-3">
-                    <div className="size-10 rounded-lg bg-accent-blue/10 border border-accent-blue/20 flex items-center justify-center text-accent-blue">
+                    <div className="size-10 rounded-lg bg-accent-blue/10 border border-accent-blue/20 flex items-center justify-center text-accent-blue min-w-10">
                         <Network className="size-5" />
                     </div>
                     <div>
@@ -59,122 +64,181 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                 </div>
             </div>
 
-            {/* Main Content Area */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
-                <AnimatePresence mode="wait">
-                    {selectedActivity ? (
-                        <motion.div
-                            key={selectedActivity.id}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -10 }}
-                            className="space-y-6"
-                        >
-                            {/* Mission Header */}
-                            <div className="space-y-4">
-                                <div>
-                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-accent-blue mb-2">Misión Actual</div>
-                                    <h3 className="text-2xl font-black text-white leading-tight uppercase italic tracking-tighter">
-                                        {selectedActivity.title}
-                                    </h3>
+            <Tabs defaultValue="map" className="flex-1 flex flex-col h-full w-full min-h-0">
+                <TabsList className="w-full justify-start rounded-none border-b border-white/3 bg-transparent p-0 h-12 shrink-0">
+                    <TabsTrigger
+                        value="map"
+                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none text-text-muted h-full px-6 uppercase tracking-widest text-[10px] font-black"
+                    >
+                        Mapa
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="resources"
+                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none text-text-muted h-full px-6 uppercase tracking-widest text-[10px] font-black"
+                    >
+                        Recursos
+                    </TabsTrigger>
+                </TabsList>
+
+                {/* Main Content Area - Mapa */}
+                <TabsContent value="map" className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8 m-0 outline-none">
+                    <AnimatePresence mode="wait">
+                        {selectedActivity ? (
+                            <motion.div
+                                key={selectedActivity.id}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -10 }}
+                                className="space-y-6"
+                            >
+                                {/* Mission Header */}
+                                <div className="space-y-4">
+                                    <div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-accent-blue mb-2">Misión Actual</div>
+                                        <h3 className="text-2xl font-black text-white leading-tight uppercase italic tracking-tighter">
+                                            {selectedActivity.title}
+                                        </h3>
+                                    </div>
+                                    <p className="text-sm text-text-muted leading-relaxed">
+                                        {selectedActivity.description || "Sin descripción detallada para esta misión."}
+                                    </p>
                                 </div>
-                                <p className="text-sm text-text-muted leading-relaxed">
-                                    {selectedActivity.description || "Sin descripción detallada para esta misión."}
+
+                                {/* Mission Stats */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-surface-dark border border-border-strong p-3 rounded-xl flex flex-col gap-1">
+                                        <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest leading-none">Dificultad</div>
+                                        <div className={cn(
+                                            "text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border self-start mt-1",
+                                            getDifficultyColor(selectedActivity.difficulty)
+                                        )}>
+                                            {selectedActivity.difficulty || 'Normal'}
+                                        </div>
+                                    </div>
+                                    <div className="bg-surface-dark border border-border-strong p-3 rounded-xl flex flex-col gap-1">
+                                        <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest leading-none">Recompensa</div>
+                                        <div className="text-xs font-black text-accent-amber mt-1 flex items-center gap-1">
+                                            <Zap className="size-3 fill-accent-amber" />
+                                            {selectedActivity.xp} XP
+                                        </div>
+                                    </div>
+                                    <div className="bg-surface-dark border border-border-strong p-3 rounded-xl flex flex-col gap-1">
+                                        <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest leading-none">Duración</div>
+                                        <div className="text-xs font-black text-white mt-1 flex items-center gap-1">
+                                            <Clock className="size-3 text-text-muted" />
+                                            {selectedActivity.duration || '15'} MIN
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Start Button */}
+                                <Button
+                                    onClick={() => onStartMission?.(selectedActivity.id)}
+                                    disabled={isBlocked}
+                                    className={cn(
+                                        "w-full h-14 rounded-xl font-black uppercase tracking-[0.15em] text-xs transition-all duration-300",
+                                        isBlocked
+                                            ? "bg-surface-dark border-border-strong text-text-muted/40"
+                                            : "bg-accent-blue hover:bg-accent-blue/90 text-white shadow-[0_8px_20px_-4px_rgba(34,211,238,0.4)] hover:shadow-[0_12px_24px_-4px_rgba(34,211,238,0.6)]"
+                                    )}
+                                >
+                                    {isBlocked ? (
+                                        <div className="flex items-center gap-2">
+                                            <Lock className="size-4" />
+                                            Misión Bloqueada
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-2">
+                                            Abrir actividad
+                                            <ChevronRight className="size-4" />
+                                        </div>
+                                    )}
+                                </Button>
+
+                                {/* Objectives */}
+                                <div className="pt-8 border-t border-white/3 space-y-4">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted">Objetivos de la Unidad</div>
+                                    <div className="space-y-3">
+                                        {[
+                                            "Comprender la encapsulación de datos",
+                                            "Configurar direccionamiento IPv4/IPv6",
+                                            "Análisis de tráfico con Wireshark"
+                                        ].map((obj, i) => (
+                                            <div key={i} className="flex items-start gap-3 group">
+                                                <div className={cn(
+                                                    "size-4 rounded-full border flex items-center justify-center shrink-0 mt-0.5 transition-colors",
+                                                    i === 0 ? "bg-accent-blue/20 border-accent-blue/40" : "bg-transparent border-border-subtle"
+                                                )}>
+                                                    {i === 0 && <CheckCircle2 className="size-2.5 text-accent-blue" />}
+                                                </div>
+                                                <span className={cn(
+                                                    "text-[11px] leading-relaxed transition-colors",
+                                                    i === 0 ? "text-white font-medium" : "text-text-muted group-hover:text-text-muted/80"
+                                                )}>{obj}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </motion.div>
+                        ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-center py-20 px-4">
+                                <div className="size-16 rounded-full bg-surface-dark border border-border-strong flex items-center justify-center mb-6">
+                                    <Trophy className="size-8 text-text-muted/30" />
+                                </div>
+                                <h4 className="text-sm font-black text-white uppercase italic tracking-tighter mb-2">Selecciona un Reto</h4>
+                                <p className="text-xs text-text-muted leading-relaxed">
+                                    Haz clic en un nodo del mapa para ver los detalles de la misión y objetivos.
                                 </p>
                             </div>
+                        )}
+                    </AnimatePresence>
+                </TabsContent>
 
-                            {/* Mission Stats */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="bg-surface-dark border border-border-strong p-3 rounded-xl flex flex-col gap-1">
-                                    <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest leading-none">Dificultad</div>
-                                    <div className={cn(
-                                        "text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border self-start mt-1",
-                                        getDifficultyColor(selectedActivity.difficulty)
-                                    )}>
-                                        {selectedActivity.difficulty || 'Normal'}
-                                    </div>
-                                </div>
-                                <div className="bg-surface-dark border border-border-strong p-3 rounded-xl flex flex-col gap-1">
-                                    <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest leading-none">Recompensa</div>
-                                    <div className="text-xs font-black text-accent-amber mt-1 flex items-center gap-1">
-                                        <Zap className="size-3 fill-accent-amber" />
-                                        {selectedActivity.xp} XP
-                                    </div>
-                                </div>
-                                <div className="bg-surface-dark border border-border-strong p-3 rounded-xl flex flex-col gap-1">
-                                    <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest leading-none">Duración</div>
-                                    <div className="text-xs font-black text-white mt-1 flex items-center gap-1">
-                                        <Clock className="size-3 text-text-muted" />
-                                        {selectedActivity.duration || '15'} MIN
-                                    </div>
-                                </div>
+                <TabsContent value="resources" className="flex-1 overflow-y-auto custom-scrollbar p-6 m-0 outline-none">
+                    <div className="space-y-4">
+                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-accent-blue mb-2">Archivos Adjuntos</div>
+
+                        {!hasResources ? (
+                            <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-surface-dark/50 rounded-xl border border-dashed border-border-strong">
+                                <FileTextIcon className="size-8 text-text-muted/30 mb-3" />
+                                <p className="text-xs text-text-muted">No hay recursos disponibles para esta unidad.</p>
                             </div>
-
-                            {/* Start Button */}
-                            <Button
-                                onClick={() => onStartMission?.(selectedActivity.id)}
-                                disabled={isBlocked}
-                                className={cn(
-                                    "w-full h-14 rounded-xl font-black uppercase tracking-[0.15em] text-xs transition-all duration-300",
-                                    isBlocked
-                                        ? "bg-surface-dark border-border-strong text-text-muted/40"
-                                        : "bg-accent-blue hover:bg-accent-blue/90 text-white shadow-[0_8px_20px_-4px_rgba(34,211,238,0.4)] hover:shadow-[0_12px_24px_-4px_rgba(34,211,238,0.6)]"
-                                )}
-                            >
-                                {isBlocked ? (
-                                    <div className="flex items-center gap-2">
-                                        <Lock className="size-4" />
-                                        Misión Bloqueada
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        Abrir actividad
-                                        <ChevronRight className="size-4" />
-                                    </div>
-                                )}
-                            </Button>
-
-                            {/* Objectives */}
-                            <div className="pt-8 border-t border-white/3 space-y-4">
-                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted">Objetivos de la Unidad</div>
-                                <div className="space-y-3">
-                                    {[
-                                        "Comprender la encapsulación de datos",
-                                        "Configurar direccionamiento IPv4/IPv6",
-                                        "Análisis de tráfico con Wireshark"
-                                    ].map((obj, i) => (
-                                        <div key={i} className="flex items-start gap-3 group">
-                                            <div className={cn(
-                                                "size-4 rounded-full border flex items-center justify-center shrink-0 mt-0.5 transition-colors",
-                                                i === 0 ? "bg-accent-blue/20 border-accent-blue/40" : "bg-transparent border-border-subtle"
-                                            )}>
-                                                {i === 0 && <CheckCircle2 className="size-2.5 text-accent-blue" />}
+                        ) : (
+                            <div className="space-y-2">
+                                {unitFiles.map((file) => (
+                                    <a
+                                        key={file.id}
+                                        href={file.file_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="group flex flex-col gap-2 p-3 bg-surface-dark border border-border-strong rounded-xl hover:border-accent-blue/50 transition-colors"
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className="size-8 rounded bg-accent-blue/10 flex items-center justify-center shrink-0">
+                                                <FileTextIcon className="size-4 text-accent-blue" />
                                             </div>
-                                            <span className={cn(
-                                                "text-[11px] leading-relaxed transition-colors",
-                                                i === 0 ? "text-white font-medium" : "text-text-muted group-hover:text-text-muted/80"
-                                            )}>{obj}</span>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-semibold text-white truncate group-hover:text-accent-blue transition-colors">
+                                                    {file.name}
+                                                </p>
+                                                <p className="text-[10px] text-text-muted truncate mt-0.5">
+                                                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                                                </p>
+                                            </div>
+                                            <Button variant="ghost" size="icon" className="size-6 text-text-muted group-hover:text-white shrink-0 self-center">
+                                                <Download className="size-3" />
+                                            </Button>
                                         </div>
-                                    ))}
-                                </div>
+                                    </a>
+                                ))}
                             </div>
-                        </motion.div>
-                    ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-center py-20 px-4">
-                            <div className="size-16 rounded-full bg-surface-dark border border-border-strong flex items-center justify-center mb-6">
-                                <Trophy className="size-8 text-text-muted/30" />
-                            </div>
-                            <h4 className="text-sm font-black text-white uppercase italic tracking-tighter mb-2">Selecciona un Reto</h4>
-                            <p className="text-xs text-text-muted leading-relaxed">
-                                Haz clic en un nodo del mapa para ver los detalles de la misión y objetivos.
-                            </p>
-                        </div>
-                    )}
-                </AnimatePresence>
-            </div>
+                        )}
+                    </div>
+                </TabsContent>
+            </Tabs>
 
             {/* Footer / Global Stats */}
-            <div className="p-6 border-t border-white/3 bg-surface-dark/30">
+            <div className="p-6 border-t border-white/3 bg-surface-dark/30 shrink-0">
                 <div className="space-y-4">
                     <div className="flex justify-between items-end">
                         <div className="space-y-1">

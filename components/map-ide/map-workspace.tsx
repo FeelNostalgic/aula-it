@@ -49,9 +49,10 @@ interface MapWorkspaceProps {
     role: 'student' | 'teacher';
     user: any;
     profile: any;
+    unitFiles?: any[];
 }
 
-export function MapWorkspace({ unit, activities, role, user, profile }: MapWorkspaceProps) {
+export function MapWorkspace({ unit, activities, role, user, profile, unitFiles = [] }: MapWorkspaceProps) {
     const router = useRouter();
     const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
     const [selectedActivity, setSelectedActivity] = useState<any | null>(null);
@@ -350,6 +351,7 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                 selectedActivity={selectedActivity}
                                 moduleId={unit.module_id}
                                 onStartMission={handleStartMission}
+                                unitFiles={unitFiles}
                             />
                         ) : (
                             <TeacherSidebar

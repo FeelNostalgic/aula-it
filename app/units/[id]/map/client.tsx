@@ -11,6 +11,7 @@ interface MapClientProps {
     role: 'student' | 'teacher';
     user: any;
     profile: any;
+    unitFiles: any[];
 }
 
 function BreadcrumbSetter({ unit }: { unit: any }) {
@@ -39,7 +40,7 @@ function BreadcrumbSetter({ unit }: { unit: any }) {
     return null;
 }
 
-export default function MapClient({ unit, activities, role, user, profile }: MapClientProps) {
+export default function MapClient({ unit, activities, role, user, profile, unitFiles }: MapClientProps) {
     return (
         <BreadcrumbProvider>
             <BreadcrumbSetter unit={unit} />
@@ -50,6 +51,7 @@ export default function MapClient({ unit, activities, role, user, profile }: Map
                     role={role}
                     user={user}
                     profile={profile}
+                    unitFiles={unitFiles}
                 />
             </ReactFlowProvider>
         </BreadcrumbProvider>

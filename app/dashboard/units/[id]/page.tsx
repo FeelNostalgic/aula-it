@@ -44,6 +44,10 @@ export default async function UnitPage({
         if (isDraft) {
             redirect(`/dashboard/modules/${unit.module_id}`);
         }
+
+        if (unit.view_type === 'map') {
+            redirect(`/units/${unit.id}/map`);
+        }
     }
 
     // Fetch parent Module
