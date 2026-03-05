@@ -127,8 +127,9 @@ test.describe("Dashboard Activity Builder", () => {
         await builder.addStep("Fase de Prueba", "Recursos 1", "Recursos");
         await builder.addStep("Fase de Prueba", "Test 1", "Cuestionario");
 
-        await expect(builder.sidebarContainer.getByText("Teoría 1")).toBeVisible();
-        await expect(builder.sidebarContainer.getByText("Recursos 1")).toBeVisible();
+        await builder.verifyStepVisible("Teoría 1");
+        await builder.verifyStepVisible("Recursos 1");
+        await builder.verifyStepVisible("Test 1");
     });
 
     test("User can edit Resource steps with Drag-and-Drop", { tag: ["@e2e", "@activity-builder", "@high", "@AB-E2E-003"] }, async ({ page }) => {
@@ -167,11 +168,11 @@ test.describe("Dashboard Activity Builder", () => {
         await builder.enterStudentPreview();
 
         // Ensure sidebar has the elements
-        await expect(page.locator('div.w-80').getByText('Fase de Prueba')).toBeVisible();
-        await expect(page.locator('div.w-80').getByText('Teoría 1')).toBeVisible();
+        await expect(builder.sidebarContainer.getByText('Fase de Prueba')).toBeVisible();
+        await builder.verifyStepVisible('Teoría 1');
 
         // Auto-selects first visible step
-        await expect(page.locator('div.flex-1').getByRole('heading', { name: 'Teoría 1' })).toBeVisible();
+        await expect(builder.editorContainer.getByRole('heading', { name: 'Teoría 1' })).toBeVisible();
 
         // Navigation buttons
         const btnNext = page.getByRole('button', { name: 'Siguiente Paso' });
@@ -179,7 +180,7 @@ test.describe("Dashboard Activity Builder", () => {
         await btnNext.click();
 
         // Next step should be Recursos 1
-        await expect(page.locator('div.flex-1').getByRole('heading', { name: 'Recursos 1' })).toBeVisible();
+        await expect(builder.editorContainer.getByRole('heading', { name: 'Recursos 1' })).toBeVisible();
 
         await builder.exitStudentPreview();
         // Back to editor

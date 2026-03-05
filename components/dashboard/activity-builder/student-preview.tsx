@@ -146,9 +146,9 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                 </>
             )}
 
-            <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
+            <ResizablePanelGroup id="student-preview-panel-group" direction="horizontal" className="flex-1 overflow-hidden">
                 {/* === SIDEBAR (identical to teacher: mission-builder-sidebar.tsx line 604-753) === */}
-                <ResizablePanel defaultSize={12} minSize={10} maxSize={40} className="bg-background h-full flex flex-col">
+                <ResizablePanel id="sidebar-panel" defaultSize={12} minSize={10} maxSize={40} className="bg-background h-full flex flex-col">
                     <div className="p-4 border-b border-border/50 flex items-center justify-between shrink-0">
                         <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">Estructura de Misión</h2>
                     </div>
@@ -162,6 +162,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                 <div key={phase.id} className="flex flex-col mb-4">
                                     {/* Phase Header — matches SortablePhaseHeader styling */}
                                     <div
+                                        data-phase-title={phase.title}
                                         className="group flex items-center justify-between p-2 rounded-md transition-colors border border-transparent hover:bg-surface-dark cursor-pointer"
                                         onClick={() => togglePhase(phase.id)}
                                     >
@@ -189,6 +190,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                     return (
                                                         <div
                                                             key={step.id}
+                                                            data-step-title={step.title}
                                                             onClick={() => !step.is_locked && handleStepSelect(step.id)}
                                                             className={cn(
                                                                 "group flex items-center gap-2 py-2 px-3 pl-8 text-sm cursor-pointer transition-colors border-l-2",
@@ -225,7 +227,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                 <ResizableHandle className="w-0 border-r border-border/50 hover:border-accent-blue/50 transition-colors data-resize-handle-active:border-accent-blue" />
 
                 {/* === MAIN CONTENT AREA === */}
-                <ResizablePanel defaultSize={80} className="h-full bg-background relative flex flex-col min-w-0">
+                <ResizablePanel id="main-content" defaultSize={80} className="h-full bg-background relative flex flex-col min-w-0">
                     {/* Tabs Bar — matches EditorTabsBar styling (editor-tabs-bar.tsx) */}
                     {openStepIds.length > 0 ? (
                         <div className="h-10 shrink-0 bg-surface-dark border-b border-border/50 flex">

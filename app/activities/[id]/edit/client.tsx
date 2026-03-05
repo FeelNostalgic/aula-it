@@ -213,9 +213,9 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                         hideHeader={true}
                     />
                 ) : (
-                    <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
+                    <ResizablePanelGroup id="activity-builder-layout" direction="horizontal" className="flex-1 overflow-hidden">
                         {/* Left Sidebar - Structure Builder */}
-                        <ResizablePanel defaultSize={12} minSize={10} maxSize={40} className="bg-background h-full flex flex-col">
+                        <ResizablePanel id="sidebar-panel" defaultSize={12} minSize={10} maxSize={40} className="bg-background h-full flex flex-col">
                             <MissionBuilderSidebar
                                 activityId={activity.id}
                                 phases={phases}
@@ -228,7 +228,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                         <ResizableHandle className="hover:bg-accent-blue/50 data-resize-handle-active:bg-accent-blue transition-colors" />
 
                         {/* Central Step Editor */}
-                        <ResizablePanel defaultSize={80} className="h-full bg-background relative flex flex-col">
+                        <ResizablePanel id="editor-panel" defaultSize={80} className="h-full bg-background relative flex flex-col">
                             <EditorTabsBar
                                 openedStepsIds={openedStepsIds}
                                 onOpenedStepsChange={setOpenedStepsIds}

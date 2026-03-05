@@ -17,10 +17,9 @@ export class ActivityBuilderPage extends BasePage {
     readonly inputLogoUrl: Locator;
     readonly settingsPanel: Locator;
 
-    // Sidebar
-    readonly sidebarContainer: Locator;
-
     // Central Editor
+    readonly sidebarContainer: Locator;
+    readonly editorContainer: Locator;
     readonly editorTitleInput: Locator;
 
     constructor(page: Page) {
@@ -42,8 +41,9 @@ export class ActivityBuilderPage extends BasePage {
         this.settingsPanel = page.getByRole('heading', { name: 'Configuración de la Actividad' }); // Modified to target the header within the panel
 
         // Sidebar
-        this.sidebarContainer = page.locator('.w-80').filter({ hasText: 'El Mapa' });
-        this.btnAddPhase = page.getByRole('button', { name: 'Añadir Fase' }); // Modified
+        this.sidebarContainer = page.locator('#sidebar-panel');
+        this.editorContainer = page.locator('#main-content');
+        this.btnAddPhase = this.sidebarContainer.getByRole('button', { name: 'Añadir Fase' });
 
         // Central Editor Tab Name (used when renaming steps)
         this.editorTitleInput = page.locator('input').filter({ has: page.locator('..') }).first(); // Will refine this selector
@@ -110,6 +110,12 @@ export class ActivityBuilderPage extends BasePage {
         const step = this.sidebarContainer.locator(`div[data-step-title="${stepTitle}"]`);
         await step.scrollIntoViewIfNeeded();
         await step.click();
+    }
+
+    async verifyStepVisible(stepTitle: string): Promise<void> {
+        const step = this.sidebarContainer.locator(`div[data-step-title="${stepTitle}"]`);
+        await step.scrollIntoViewIfNeeded();
+        await expect(step).toBeVisible();
     }
 
     async toggleStepVisibility(stepTitle: string): Promise<void> {
