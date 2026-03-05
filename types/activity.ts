@@ -74,9 +74,10 @@ export type ResourceItem = {
     id: string;
     title: string;
     description?: string;
-    url: string;
-    type: 'file' | 'link';
+    url?: string;
+    type: 'file' | 'link' | 'folder';
     mimeType?: string;
+    parentId?: string | null;
 };
 
 export type ResourceContent = {

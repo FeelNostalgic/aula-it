@@ -1,13 +1,21 @@
-import { FileText, Image as ImageIcon, Video, Music, Archive, FileSpreadsheet, Presentation, Link as LinkIcon, FileBadge } from "lucide-react";
+import { FileText, Image as ImageIcon, Video, Music, Archive, FileSpreadsheet, Presentation, Link as LinkIcon, FileBadge, Folder } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ResourceIconProps {
-    type: 'file' | 'link';
+    type: 'file' | 'link' | 'folder';
     mimeType?: string;
     className?: string;
 }
 
 export function ResourceIcon({ type, mimeType, className }: ResourceIconProps) {
+    if (type === 'folder') {
+        return (
+            <div className={cn("size-full rounded-xl flex items-center justify-center bg-blue-600/10 text-blue-600", className)}>
+                <Folder className="size-1/2 fill-current" />
+            </div>
+        );
+    }
+
     if (type === 'link') {
         return (
             <div className={cn("size-full rounded-xl flex items-center justify-center bg-emerald-500/10 text-emerald-500", className)}>

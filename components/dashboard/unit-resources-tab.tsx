@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { updateUnitResources } from "@/app/dashboard/units/[id]/actions";
 import { toast } from "sonner";
-import { Plus, Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical, Search, Loader2 } from "lucide-react";
+import { Plus, Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical, Search, Loader2, FolderPlus, ChevronRight, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { ResourceIcon } from "./resource-icon";
@@ -27,6 +27,13 @@ import {
     useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 interface UnitResourcesTabProps {
     unitId: string;
@@ -35,6 +42,7 @@ interface UnitResourcesTabProps {
 
 export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabProps) {
     const [resources, setResources] = useState<ResourceItem[]>(initialResources || []);
+    const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
@@ -61,13 +69,14 @@ export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabP
         saveToServer(newResources);
     };
 
-    const addResource = (type: 'file' | 'link') => {
+    const addResource = (type: 'file' | 'link' | 'folder') => {
         const newItem: ResourceItem = {
             id: crypto.randomUUID(),
-            title: "",
+            title: type === 'folder' ? "Nueva Carpeta" : "",
             description: "",
-            url: "",
-            type
+            url: type === 'folder' ? undefined : "",
+            type,
+            parentId: currentFolderId
         };
         handleUpdate([...resources, newItem]);
     };
@@ -106,6 +115,7 @@ export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabP
                 url: file.url,
                 type: 'file' as const,
                 mimeType: file.mimeType,
+                parentId: currentFolderId
             }));
 
             handleUpdate([...resources, ...newItems]);
@@ -115,6 +125,20 @@ export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabP
             toast.error("Error al abrir Google Drive Picker");
         }
     };
+
+    const breadcrumbs = [];
+    let tempId = currentFolderId;
+    while (tempId) {
+        const folder = resources.find(r => r.id === tempId);
+        if (folder) {
+            breadcrumbs.unshift(folder);
+            tempId = folder.parentId || null;
+        } else {
+            break;
+        }
+    }
+
+    const filteredResources = resources.filter(r => (r.parentId || null) === currentFolderId);
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -137,10 +161,13 @@ export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabP
 
             <div className="flex flex-wrap gap-4 p-6 bg-surface border border-border-subtle rounded-2xl shadow-sm">
                 <Button onClick={() => addResource('file')} variant="outline" className="h-11 px-5 border-border/50 hover:bg-accent-blue/5 hover:border-accent-blue/30 transition-all rounded-xl">
-                    <FileText className="size-4 mr-2 text-accent-blue" /> Añadir Archivo
+                    <FileText className="size-4 mr-2 text-accent-blue" /> Archivo
                 </Button>
                 <Button onClick={() => addResource('link')} variant="outline" className="h-11 px-5 border-border/50 hover:bg-emerald-500/5 hover:border-emerald-500/30 transition-all rounded-xl">
-                    <LinkIcon className="size-4 mr-2 text-emerald-500" /> Añadir Enlace
+                    <LinkIcon className="size-4 mr-2 text-emerald-500" /> Enlace
+                </Button>
+                <Button onClick={() => addResource('folder')} variant="outline" className="h-11 px-5 border-border/50 hover:bg-blue-600/5 hover:border-blue-600/30 transition-all rounded-xl">
+                    <FolderPlus className="size-4 mr-2 text-blue-600" /> Carpeta
                 </Button>
                 <div className="w-px h-8 bg-border/50 self-center hidden sm:block mx-2" />
                 <Button onClick={openDrivePicker} disabled={isDriveLoading} variant="outline" className="h-11 px-5 border-border/50 hover:bg-accent-amber/5 hover:border-accent-amber/30 transition-all rounded-xl group">
@@ -159,29 +186,59 @@ export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabP
                 </Button>
             </div>
 
+            {/* Breadcrumbs / Navegación */}
+            <div className="flex items-center gap-2 text-sm font-medium">
+                <button
+                    onClick={() => setCurrentFolderId(null)}
+                    className={cn(
+                        "hover:text-accent-blue transition-colors",
+                        currentFolderId === null ? "text-foreground" : "text-text-muted"
+                    )}
+                >
+                    Raíz
+                </button>
+                {breadcrumbs.map((crumb) => (
+                    <div key={crumb.id} className="flex items-center gap-2">
+                        <ChevronRight className="size-4 text-text-muted/50" />
+                        <button
+                            onClick={() => setCurrentFolderId(crumb.id)}
+                            className={cn(
+                                "hover:text-accent-blue transition-colors",
+                                crumb.id === currentFolderId ? "text-foreground" : "text-text-muted"
+                            )}
+                        >
+                            {crumb.title || "Sin título"}
+                        </button>
+                    </div>
+                ))}
+            </div>
+
             <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
                 onDragEnd={handleDragEnd}
             >
                 <SortableContext
-                    items={resources.map(r => r.id)}
+                    items={filteredResources.map(r => r.id)}
                     strategy={verticalListSortingStrategy}
                 >
                     <div className="grid grid-cols-1 gap-4">
-                        {resources.length === 0 ? (
+                        {filteredResources.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-20 bg-surface/30 border border-dashed border-border-subtle rounded-3xl text-center">
                                 <Search className="size-10 text-text-muted/20 mb-4" />
-                                <p className="text-text-muted font-medium">No hay recursos en esta unidad todavía.</p>
-                                <p className="text-xs text-text-muted/60 mt-1">Usa los botones superiores para añadir contenido.</p>
+                                <p className="text-text-muted font-medium">Esta carpeta está vacía.</p>
+                                <p className="text-xs text-text-muted/60 mt-1">Usa los botones superiores para añadir contenido aquí.</p>
                             </div>
                         ) : (
-                            resources.map((item) => (
+                            filteredResources.map((item) => (
                                 <SortableResourceItem
                                     key={item.id}
                                     item={item}
                                     updateItem={updateItem}
                                     removeItem={removeItem}
+                                    onEnterFolder={() => setCurrentFolderId(item.id)}
+                                    availableFolders={resources.filter(r => r.type === 'folder' && r.id !== item.id)}
+                                    allResources={resources}
                                 />
                             ))
                         )}
@@ -196,9 +253,19 @@ interface SortableResourceItemProps {
     item: ResourceItem;
     updateItem: (id: string, updates: Partial<ResourceItem>) => void;
     removeItem: (id: string) => void;
+    onEnterFolder?: () => void;
+    availableFolders: ResourceItem[];
+    allResources: ResourceItem[];
 }
 
-function SortableResourceItem({ item, updateItem, removeItem }: SortableResourceItemProps) {
+function SortableResourceItem({ item, updateItem, removeItem, onEnterFolder, availableFolders, allResources }: SortableResourceItemProps) {
+    const getFolderPath = (folderId: string): string => {
+        const folder = allResources.find(r => r.id === folderId);
+        if (!folder) return "";
+        if (!folder.parentId) return folder.title || "Sin título";
+        return `${getFolderPath(folder.parentId)} > ${folder.title || "Sin título"}`;
+    };
+
     const {
         attributes,
         listeners,
@@ -245,34 +312,68 @@ function SortableResourceItem({ item, updateItem, removeItem }: SortableResource
                         <Input
                             value={item.title}
                             onChange={(e) => updateItem(item.id, { title: e.target.value })}
-                            placeholder="Nombre del recurso..."
+                            placeholder={item.type === 'folder' ? "Nombre de la carpeta..." : "Nombre del recurso..."}
                             className="bg-background border-border-subtle h-10 px-4 rounded-xl focus:ring-accent-blue/20"
                         />
+                    </div>
+                    {item.type !== 'folder' && (
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted ml-1">
+                                {item.type === 'file' ? "Endpoint/URL Archivo" : "URL Destino"}
+                            </label>
+                            <Input
+                                value={item.url || ""}
+                                onChange={(e) => updateItem(item.id, { url: e.target.value })}
+                                placeholder="https://..."
+                                className="bg-background border-border-subtle h-10 px-4 rounded-xl focus:ring-accent-blue/20"
+                            />
+                        </div>
+                    )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted ml-1">Ubicación (Mover a...)</label>
+                        <Select
+                            value={item.parentId || "root"}
+                            onValueChange={(val) => updateItem(item.id, { parentId: val === "root" ? null : val })}
+                        >
+                            <SelectTrigger className="bg-background border-border-subtle h-9 px-4 rounded-xl text-xs text-text-muted focus:ring-accent-blue/20">
+                                <SelectValue placeholder="Raíz" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="root">Raíz</SelectItem>
+                                {availableFolders.map(folder => (
+                                    <SelectItem key={folder.id} value={folder.id}>
+                                        {getFolderPath(folder.id)}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted ml-1">
-                            {item.type === 'file' ? "Endpoint/URL Archivo" : "URL Destino"}
-                        </label>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted ml-1">Descripción Breve</label>
                         <Input
-                            value={item.url}
-                            onChange={(e) => updateItem(item.id, { url: e.target.value })}
-                            placeholder="https://..."
-                            className="bg-background border-border-subtle h-10 px-4 rounded-xl focus:ring-accent-blue/20"
+                            value={item.description || ""}
+                            onChange={(e) => updateItem(item.id, { description: e.target.value })}
+                            placeholder="Explica qué contiene este recurso..."
+                            className="bg-background border-border-subtle h-9 px-4 rounded-xl text-xs text-text-muted focus:ring-accent-blue/20"
                         />
                     </div>
-                </div>
-                <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted ml-1">Descripción Breve</label>
-                    <Input
-                        value={item.description || ""}
-                        onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                        placeholder="Explica qué contiene este recurso..."
-                        className="bg-background border-border-subtle h-9 px-4 rounded-xl text-xs text-text-muted focus:ring-accent-blue/20"
-                    />
                 </div>
             </div>
 
             <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                {item.type === 'folder' && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-9 rounded-xl hover:bg-blue-600/10 hover:text-blue-600 transition-colors"
+                        onClick={onEnterFolder}
+                        title="Entrar en carpeta"
+                    >
+                        <ArrowLeft className="size-4 rotate-180" />
+                    </Button>
+                )}
                 {item.url && (
                     <Button
                         variant="ghost"

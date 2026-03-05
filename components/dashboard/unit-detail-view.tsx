@@ -14,7 +14,10 @@ import {
     Link as LinkIcon,
     Network,
     Zap,
-    ArrowLeft
+    ArrowLeft,
+    List,
+    ChevronRight,
+    Search
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +30,7 @@ import { UnitResourcesTab } from "./unit-resources-tab";
 import Link from "next/link";
 import { StudentUnitView } from "./student-unit-view";
 import { ResourceIcon } from "./resource-icon";
+import { cn } from "@/lib/utils";
 
 // Remove legacy imports
 // import { UnitMapView } from "./unit-map-view";
@@ -86,6 +90,19 @@ export function UnitDetailView({
     userRole
 }: UnitDetailViewProps) {
     const isTeacher = userRole === "teacher";
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+
+    // Persist view mode preference
+    useEffect(() => {
+        const savedMode = localStorage.getItem('resourceViewMode') as 'grid' | 'list';
+        if (savedMode) setViewMode(savedMode);
+    }, []);
+
+    const handleViewModeChange = (mode: 'grid' | 'list') => {
+        setViewMode(mode);
+        localStorage.setItem('resourceViewMode', mode);
+    };
     const { setSegments } = useBreadcrumb();
 
     // Normalize status for robust lookup
@@ -252,41 +269,154 @@ export function UnitDetailView({
                 {!isTeacher && (
                     <TabsContent value="recursos" className="mt-6 px-12 pb-12">
                         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="space-y-1">
-                                <h3 className="text-xl font-bold text-foreground">Recursos de la Unidad</h3>
-                                <p className="text-sm text-text-muted">Material complementario proporcionado por el profesor.</p>
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div className="space-y-1">
+                                    <h3 className="text-xl font-bold text-foreground">Recursos de la Unidad</h3>
+                                    <p className="text-sm text-text-muted">Material complementario proporcionado por el profesor.</p>
+                                </div>
+                                <div className="flex items-center gap-2 p-1 bg-surface border border-border-subtle rounded-xl shadow-sm self-end md:self-center">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleViewModeChange('grid')}
+                                        className={cn(
+                                            "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                            viewMode === 'grid' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                        )}
+                                    >
+                                        <LayoutGrid className="size-3.5 mr-2" />
+                                        Grid
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleViewModeChange('list')}
+                                        className={cn(
+                                            "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                            viewMode === 'list' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                        )}
+                                    >
+                                        <List className="size-3.5 mr-2" />
+                                        Lista
+                                    </Button>
+                                </div>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {(unit.resources && unit.resources.length > 0) ? (
-                                    unit.resources.map((resource: any) => (
-                                        <a
-                                            key={resource.id}
-                                            href={resource.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="group p-6 bg-surface border border-border-subtle rounded-3xl hover:border-accent-blue/30 hover:shadow-xl transition-all duration-300 flex flex-col items-start gap-4"
-                                        >
-                                            <div className="size-12 group-hover:scale-110 transition-transform">
-                                                <ResourceIcon type={resource.type} mimeType={resource.mimeType} className="rounded-2xl" />
-                                            </div>
-                                            <div className="space-y-1 text-left w-full">
-                                                <h4 className="font-bold text-foreground group-hover:text-accent-blue transition-colors truncate w-full">{resource.title || "Sin título"}</h4>
-                                                <p className="text-xs text-text-muted line-clamp-2">{resource.description || "Sin descripción"}</p>
-                                            </div>
-                                            <div className="w-full pt-2 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-text-muted/50">
-                                                <span>{resource.type === 'file' ? 'Archivo' : 'Enlace'}</span>
-                                                <ExternalLink className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                            </div>
-                                        </a>
-                                    ))
-                                ) : (
-                                    <div className="col-span-full py-20 bg-surface/30 border border-dashed border-border-subtle rounded-3xl flex flex-col items-center justify-center text-center">
-                                        <FolderOpen className="size-10 text-text-muted/20 mb-4" />
-                                        <p className="text-text-muted font-medium">No hay recursos publicados todavía.</p>
-                                        <p className="text-xs text-text-muted/60 mt-1">El profesor aún no ha añadido materiales a esta unidad.</p>
+
+                            {/* Breadcrumbs / Navegación */}
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                                <button
+                                    onClick={() => setCurrentFolderId(null)}
+                                    className={cn(
+                                        "hover:text-accent-blue transition-colors",
+                                        currentFolderId === null ? "text-foreground" : "text-text-muted"
+                                    )}
+                                >
+                                    Ficheros
+                                </button>
+                                {(() => {
+                                    const crumbs = [];
+                                    let tempId = currentFolderId;
+                                    const resources = unit.resources || [];
+                                    while (tempId) {
+                                        const folder = resources.find((r: any) => r.id === tempId);
+                                        if (folder) {
+                                            crumbs.unshift(folder);
+                                            tempId = folder.parentId || null;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                    return crumbs.map((crumb: any) => (
+                                        <div key={crumb.id} className="flex items-center gap-2">
+                                            <ChevronRight className="size-4 text-text-muted/50" />
+                                            <button
+                                                onClick={() => setCurrentFolderId(crumb.id)}
+                                                className={cn(
+                                                    "hover:text-accent-blue transition-colors",
+                                                    crumb.id === currentFolderId ? "text-foreground" : "text-text-muted"
+                                                )}
+                                            >
+                                                {crumb.title || "Sin título"}
+                                            </button>
+                                        </div>
+                                    ));
+                                })()}
+                            </div>
+
+                            {(() => {
+                                const currentResources = (unit.resources || [])
+                                    .filter((r: any) => (r.parentId || null) === currentFolderId);
+
+                                if (currentResources.length === 0) {
+                                    return (
+                                        <div className="py-20 bg-surface/30 border border-dashed border-border-subtle rounded-3xl flex flex-col items-center justify-center text-center">
+                                            <Search className="size-10 text-text-muted/20 mb-4" />
+                                            <p className="text-text-muted font-medium">Esta carpeta está vacía.</p>
+                                            <p className="text-xs text-text-muted/60 mt-1">Vuelve atrás o espera a que el profesor añada contenido.</p>
+                                        </div>
+                                    );
+                                }
+
+                                if (viewMode === 'grid') {
+                                    return (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            {currentResources.map((resource: any) => {
+                                                const isFolder = resource.type === 'folder';
+                                                return (
+                                                    <div
+                                                        key={resource.id}
+                                                        onClick={() => isFolder ? setCurrentFolderId(resource.id) : window.open(resource.url, '_blank')}
+                                                        className="group p-6 bg-surface border border-border-subtle rounded-3xl hover:border-accent-blue/30 hover:shadow-xl transition-all duration-300 flex flex-col items-start gap-4 cursor-pointer"
+                                                    >
+                                                        <div className="size-12 group-hover:scale-110 transition-transform">
+                                                            <ResourceIcon type={resource.type} mimeType={resource.mimeType} className="rounded-2xl" />
+                                                        </div>
+                                                        <div className="space-y-1 text-left w-full">
+                                                            <h4 className="font-bold text-foreground group-hover:text-accent-blue transition-colors truncate w-full">{resource.title || "Sin título"}</h4>
+                                                            <p className="text-xs text-text-muted line-clamp-2">{resource.description || "Sin descripción"}</p>
+                                                        </div>
+                                                        <div className="w-full pt-2 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-text-muted/50">
+                                                            <span>{isFolder ? 'Carpeta' : (resource.type === 'file' ? 'Archivo' : 'Enlace')}</span>
+                                                            {!isFolder && <ExternalLink className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <div className="space-y-2">
+                                        {currentResources.map((resource: any) => {
+                                            const isFolder = resource.type === 'folder';
+                                            return (
+                                                <div
+                                                    key={resource.id}
+                                                    onClick={() => isFolder ? setCurrentFolderId(resource.id) : window.open(resource.url, '_blank')}
+                                                    className="group p-4 bg-surface border border-border-subtle rounded-xl hover:border-accent-blue/30 flex items-center gap-4 transition-all cursor-pointer"
+                                                >
+                                                    <div className="size-10 shrink-0">
+                                                        <ResourceIcon type={resource.type} mimeType={resource.mimeType} className="rounded-lg" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h4 className="font-bold text-foreground group-hover:text-accent-blue transition-colors truncate">
+                                                            {resource.title || "Sin título"}
+                                                        </h4>
+                                                        <p className="text-[10px] text-text-muted truncate">
+                                                            {resource.description || (isFolder ? "Carpeta de recursos" : "Sin descripción")}
+                                                        </p>
+                                                    </div>
+                                                    <div className="hidden sm:flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-text-muted/40">
+                                                        <span>{isFolder ? 'Carpeta' : (resource.type === 'file' ? 'Archivo' : 'Enlace')}</span>
+                                                        {!isFolder && <ExternalLink className="size-3" />}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                )}
-                            </div>
+                                );
+                            })()}
                         </div>
                     </TabsContent>
                 )}
