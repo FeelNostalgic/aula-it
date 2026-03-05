@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "playwright test",
-    "sync:agents": "powershell -ExecutionPolicy Bypass -File scripts/sync-agents.ps1"
+    "sync:agents": "powershell -ExecutionPolicy Bypass -File scripts/sync-agents.ps1",
+    "setup:agents": "powershell -ExecutionPolicy Bypass -File scripts/setup-symlinks.ps1"
   },
   "repository": {
     "type": "git",
