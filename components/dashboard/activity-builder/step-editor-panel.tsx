@@ -1,11 +1,22 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { ActivityStepWithClientState } from "@/types/activity";
 import { TheoryEditor } from "./editors/theory-editor";
-import { DeliverableEditor } from "./editors/deliverable-editor";
 import { AnimationEditor } from "./editors/animation-editor";
-import { QuizEditor } from "./editors/quiz-editor";
-import { PresentationEditor } from "./editors/presentation-editor";
+
+const DeliverableEditor = dynamic(
+    () => import("./editors/deliverable-editor").then(m => ({ default: m.DeliverableEditor })),
+    { ssr: false }
+);
+const QuizEditor = dynamic(
+    () => import("./editors/quiz-editor").then(m => ({ default: m.QuizEditor })),
+    { ssr: false }
+);
+const PresentationEditor = dynamic(
+    () => import("./editors/presentation-editor").then(m => ({ default: m.PresentationEditor })),
+    { ssr: false }
+);
 import { Copy } from "lucide-react";
 
 interface StepEditorPanelProps {
