@@ -25,6 +25,7 @@ export type MissionNodeData = {
     isSelected?: boolean;
     title_position?: 'down' | 'right' | 'up' | 'left';
     unitId: string;
+    role?: 'student' | 'teacher';
     onTitlePositionChange?: (newPosition: 'down' | 'right' | 'up' | 'left') => void;
 };
 
@@ -32,7 +33,7 @@ export type MissionNodeData = {
 export type MissionNode = Node<MissionNodeData, 'mission'>;
 
 const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
-    const { status, label, logo_url, title_position = 'down', unitId } = data;
+    const { status, label, logo_url, title_position = 'down', unitId, role } = data;
     const router = useRouter();
 
     const getStatusStyles = () => {
@@ -54,11 +55,11 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
                 };
             case 'blocked':
                 return {
-                    bg: 'bg-surface-dark/80',
-                    border: 'border-border-strong',
+                    bg: 'bg-muted/40 dark:bg-surface-dark/80',
+                    border: 'border-border dark:border-border-strong',
                     glow: '',
-                    icon: <Lock className="size-5 text-text-muted/50" />,
-                    textColor: 'text-text-muted/60',
+                    icon: <Lock className="size-5 text-muted-foreground/30 dark:text-text-muted/50" />,
+                    textColor: 'text-muted-foreground/50 dark:text-text-muted/60',
                 };
             case 'draft':
                 return {
@@ -71,10 +72,10 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
             default:
                 return {
                     bg: 'bg-surface',
-                    border: 'border-border-subtle',
+                    border: 'border-border',
                     glow: '',
                     icon: null,
-                    textColor: 'text-text-muted',
+                    textColor: 'text-muted-foreground',
                 };
         }
     };
@@ -122,142 +123,150 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
         }
     };
 
+    const content = (
+        <div className="group relative flex flex-col items-center">
+            <div className="relative size-16">
+                <Handle
+                    type="source"
+                    position={Position.Top}
+                    id="top"
+                    className="size-3 bg-surface border-2 border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10 transition-all z-20 top-0! left-1/2! -translate-x-1/2!"
+                />
+                <Handle
+                    type="source"
+                    position={Position.Left}
+                    id="left"
+                    className="size-3 bg-surface border-2 border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10 transition-all z-20 left-0! top-1/2! -translate-y-1/2!"
+                />
+                <Handle
+                    type="source"
+                    position={Position.Bottom}
+                    id="bottom"
+                    className="size-3 bg-surface border-2 border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10 transition-all z-20 bottom-0! left-1/2! -translate-x-1/2!"
+                />
+                <Handle
+                    type="source"
+                    position={Position.Right}
+                    id="right"
+                    className="size-3 bg-surface border-2 border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10 transition-all z-20 right-0! top-1/2! -translate-y-1/2!"
+                />
+
+                <motion.div
+                    initial={false}
+                    animate={{
+                        scale: selected ? 1.15 : 1,
+                        y: selected ? -5 : 0
+                    }}
+                    className={cn(
+                        "relative size-16 rounded-full border-2 transition-all duration-300 flex items-center justify-center overflow-visible",
+                        styles.bg,
+                        styles.border,
+                        styles.glow,
+                        selected && "border-primary dark:border-white ring-8 ring-primary/5 dark:ring-white/5",
+                        status === 'blocked' && "grayscale contrast-75 bg-muted dark:bg-surface-dark"
+                    )}
+                >
+                    {/* Logo or Default Icon */}
+                    <div className="size-full rounded-full overflow-hidden flex items-center justify-center p-0.5">
+                        {logo_url ? (
+                            <img src={logo_url} alt={label} className="size-full object-cover rounded-full" />
+                        ) : (
+                            styles.icon
+                        )}
+                    </div>
+
+                    {/* Status Indicator (Top Right) */}
+                    {status === 'published' && !isCompleted && (
+                        <div className="absolute -top-1 -right-1 size-5 rounded-full bg-accent-blue border-2 border-background flex items-center justify-center shadow-sm">
+                            <div className="size-1.5 rounded-full bg-white shadow-sm" />
+                        </div>
+                    )}
+
+                    {isCompleted && (
+                        <div className="absolute -top-1 -right-1 size-6 rounded-full bg-accent-green border-2 border-background flex items-center justify-center">
+                            <CheckCircle2 className="size-3.5 text-white" />
+                        </div>
+                    )}
+
+                    {status === 'blocked' && (
+                        <div className="absolute inset-0 rounded-full bg-background/20 dark:bg-background/40 backdrop-blur-[1px] flex items-center justify-center">
+                            <Lock className="size-5 text-muted-foreground/40 dark:text-text-muted" />
+                        </div>
+                    )}
+
+                    {/* Active glow ring */}
+                    {status === 'active' && (
+                        <motion.div
+                            className="absolute inset-0 rounded-full border-2 border-accent-blue"
+                            animate={{ scale: [1, 1.4], opacity: [0.6, 0] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                        />
+                    )}
+                </motion.div>
+
+                {/* Centered container for label orbital movement */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <motion.div
+                        initial={false}
+                        animate={{
+                            x: title_position === 'right' ? 85 : title_position === 'left' ? -85 : 0,
+                            y: title_position === 'down' ? 60 : title_position === 'up' ? -60 : 0,
+                        }}
+                        transition={{
+                            type: 'spring',
+                            stiffness: 200,
+                            damping: 25,
+                            mass: 0.5
+                        }}
+                        className={cn(
+                            "flex flex-col min-w-[120px] transition-colors duration-500",
+                            getLabelAlignmentClasses()
+                        )}
+                    >
+                        <div className={cn(
+                            "text-[11px] font-black uppercase tracking-wider transition-colors drop-shadow-sm",
+                            styles.textColor,
+                            selected && "text-primary dark:text-white"
+                        )}>
+                            {label}
+                        </div>
+                        {status === 'active' && (
+                            <div className="text-[8px] font-mono text-accent-blue/70 uppercase tracking-[0.2em] mt-0.5">
+                                En Curso
+                            </div>
+                        )}
+                        {status === 'blocked' && (
+                            <div className="text-[8px] font-mono text-muted-foreground/40 dark:text-text-muted/40 uppercase tracking-[0.2em] mt-0.5">
+                                Bloqueado
+                            </div>
+                        )}
+                        {isCompleted && (
+                            <div className="text-[8px] font-mono text-accent-green uppercase tracking-[0.2em] mt-0.5 font-bold">
+                                Completado
+                            </div>
+                        )}
+                    </motion.div>
+                </div>
+            </div>
+        </div>
+    );
+
+    if (role === 'student') {
+        return content;
+    }
+
     return (
         <ContextMenu>
             <ContextMenuTrigger>
-                <div className="group relative flex flex-col items-center">
-                    <div className="relative size-16">
-                        <Handle
-                            type="source"
-                            position={Position.Top}
-                            id="top"
-                            className="size-3 bg-surface border-2 border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10 transition-all z-20 top-0! left-1/2! -translate-x-1/2!"
-                        />
-                        <Handle
-                            type="source"
-                            position={Position.Left}
-                            id="left"
-                            className="size-3 bg-surface border-2 border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10 transition-all z-20 left-0! top-1/2! -translate-y-1/2!"
-                        />
-                        <Handle
-                            type="source"
-                            position={Position.Bottom}
-                            id="bottom"
-                            className="size-3 bg-surface border-2 border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10 transition-all z-20 bottom-0! left-1/2! -translate-x-1/2!"
-                        />
-                        <Handle
-                            type="source"
-                            position={Position.Right}
-                            id="right"
-                            className="size-3 bg-surface border-2 border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10 transition-all z-20 right-0! top-1/2! -translate-y-1/2!"
-                        />
-
-                        <motion.div
-                            initial={false}
-                            animate={{
-                                scale: selected ? 1.15 : 1,
-                                y: selected ? -5 : 0
-                            }}
-                            className={cn(
-                                "relative size-16 rounded-full border-2 transition-all duration-300 flex items-center justify-center overflow-visible",
-                                styles.bg,
-                                styles.border,
-                                styles.glow,
-                                selected && "border-white ring-8 ring-white/5",
-                                status === 'blocked' && "grayscale contrast-75 bg-surface-dark"
-                            )}
-                        >
-                            {/* Logo or Default Icon */}
-                            <div className="size-full rounded-full overflow-hidden flex items-center justify-center p-0.5">
-                                {logo_url ? (
-                                    <img src={logo_url} alt={label} className="size-full object-cover rounded-full" />
-                                ) : (
-                                    styles.icon
-                                )}
-                            </div>
-
-                            {/* Status Indicator (Top Right) */}
-                            {status === 'published' && !isCompleted && (
-                                <div className="absolute -top-1 -right-1 size-5 rounded-full bg-accent-blue border-2 border-background flex items-center justify-center animate-pulse">
-                                    <div className="size-1.5 rounded-full bg-white" />
-                                </div>
-                            )}
-
-                            {isCompleted && (
-                                <div className="absolute -top-1 -right-1 size-6 rounded-full bg-accent-green border-2 border-background flex items-center justify-center">
-                                    <CheckCircle2 className="size-3.5 text-white" />
-                                </div>
-                            )}
-
-                            {status === 'blocked' && (
-                                <div className="absolute inset-0 rounded-full bg-background/40 backdrop-blur-[1px] flex items-center justify-center">
-                                    <Lock className="size-5 text-text-muted" />
-                                </div>
-                            )}
-
-                            {/* Active glow ring */}
-                            {status === 'active' && (
-                                <motion.div
-                                    className="absolute inset-0 rounded-full border-2 border-accent-blue"
-                                    animate={{ scale: [1, 1.4], opacity: [0.6, 0] }}
-                                    transition={{ duration: 2, repeat: Infinity }}
-                                />
-                            )}
-                        </motion.div>
-
-                        {/* Centered container for label orbital movement */}
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <motion.div
-                                initial={false}
-                                animate={{
-                                    x: title_position === 'right' ? 85 : title_position === 'left' ? -85 : 0,
-                                    y: title_position === 'down' ? 60 : title_position === 'up' ? -60 : 0,
-                                }}
-                                transition={{
-                                    type: 'spring',
-                                    stiffness: 200,
-                                    damping: 25,
-                                    mass: 0.5
-                                }}
-                                className={cn(
-                                    "flex flex-col min-w-[120px] transition-colors duration-500",
-                                    getLabelAlignmentClasses()
-                                )}
-                            >
-                                <div className={cn(
-                                    "text-[11px] font-black uppercase tracking-wider transition-colors drop-shadow-sm",
-                                    styles.textColor,
-                                    selected && "text-white"
-                                )}>
-                                    {label}
-                                </div>
-                                {status === 'active' && (
-                                    <div className="text-[8px] font-mono text-accent-blue/70 uppercase tracking-[0.2em] mt-0.5">
-                                        En Curso
-                                    </div>
-                                )}
-                                {status === 'blocked' && (
-                                    <div className="text-[8px] font-mono text-text-muted/40 uppercase tracking-[0.2em] mt-0.5">
-                                        Bloqueado
-                                    </div>
-                                )}
-                                {isCompleted && (
-                                    <div className="text-[8px] font-mono text-accent-green uppercase tracking-[0.2em] mt-0.5 font-bold">
-                                        Completado
-                                    </div>
-                                )}
-                            </motion.div>
-                        </div>
-                    </div>
-                </div>
+                {content}
             </ContextMenuTrigger>
-            <ContextMenuContent className="w-56 bg-surface-dark border-border-strong text-white backdrop-blur-xl">
-                <ContextMenuItem onClick={rotateTitle} className="flex gap-2 items-center hover:bg-white/10 cursor-pointer">
+            <ContextMenuContent className="w-56 bg-popover border-border text-popover-foreground backdrop-blur-xl">
+                <ContextMenuItem onClick={rotateTitle} className="flex gap-2 items-center hover:bg-accent/10 cursor-pointer">
                     <RotateCw className="size-4 text-accent-blue" />
                     <span>Rotar título</span>
                 </ContextMenuItem>
-                <ContextMenuSeparator className="bg-border-subtle" />
-                <ContextMenuItem onClick={openIDE} className="flex gap-2 items-center hover:bg-white/10 cursor-pointer">
+                <ContextMenuSeparator className="bg-border" />
+                <ContextMenuItem onClick={openIDE} className="flex gap-2 items-center hover:bg-accent/10 cursor-pointer">
                     <ExternalLink className="size-4 text-accent-green" />
                     <span>Abrir IDE del reto</span>
                 </ContextMenuItem>

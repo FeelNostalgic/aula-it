@@ -37,7 +37,7 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
     return (
         <aside className="h-full flex shrink-0 z-20 overflow-hidden">
             {/* Narrow Vertical Icon Bar */}
-            <div className="w-[60px] h-full bg-[#030608] border-r border-white/5 flex flex-col items-center py-6 gap-6 relative z-30 shrink-0">
+            <div className="w-[60px] h-full bg-background border-r border-border/50 flex flex-col items-center py-6 gap-6 relative z-30 shrink-0">
                 <div className="flex flex-col gap-3">
                     <Button
                         variant="ghost"
@@ -47,7 +47,7 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                             "size-10 rounded-xl transition-all duration-300 relative group",
                             activeView === 'map'
                                 ? "bg-accent-blue/10 text-accent-blue shadow-[0_0_15px_rgba(34,211,238,0.2)]"
-                                : "text-text-muted hover:text-white hover:bg-white/5"
+                                : "text-muted-foreground hover:text-foreground hover:bg-accent/10"
                         )}
                         title="Mapa de Misiones"
                     >
@@ -65,9 +65,9 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                             "size-10 rounded-xl transition-all duration-300 relative group",
                             activeView === 'resources'
                                 ? "bg-accent-blue/10 text-accent-blue shadow-[0_0_15px_rgba(34,211,238,0.2)]"
-                                : "text-text-muted hover:text-white hover:bg-white/5"
+                                : "text-muted-foreground hover:text-foreground hover:bg-accent/10"
                         )}
-                        title="Recursos de la Unidad"
+                        title="Recursos de la unidad"
                     >
                         <FileTextIcon className="size-5" />
                         {activeView === 'resources' && (
@@ -77,7 +77,7 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                 </div>
 
                 <div className="mt-auto flex flex-col gap-4 items-center">
-                    <div className="size-8 rounded-lg bg-surface-dark border border-border-strong flex items-center justify-center text-text-muted/30">
+                    <div className="size-8 rounded-lg bg-popover/50 border border-border flex items-center justify-center text-muted-foreground/30">
                         <Trophy className="size-4" />
                     </div>
                 </div>
@@ -91,19 +91,19 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                         animate={{ width: 288, opacity: 1 }}
                         exit={{ width: 0, opacity: 0 }}
                         transition={{ duration: 0.2, ease: 'easeInOut' }}
-                        className="h-full bg-[#050A0D]/95 backdrop-blur-xl border-r border-white/5 flex flex-col shrink-0 overflow-hidden"
+                        className="h-full bg-popover/95 backdrop-blur-xl border-r border-border/50 flex flex-col shrink-0 overflow-hidden"
                     >
                         {/* Header */}
-                        <div className="p-6 border-b border-white/3 shrink-0">
+                        <div className="p-6 border-b border-border/50 shrink-0">
                             <div className="flex items-start gap-3">
                                 <div className="size-10 rounded-lg bg-accent-blue/10 border border-accent-blue/20 flex items-center justify-center text-accent-blue min-w-10">
                                     <Network className="size-5" />
                                 </div>
                                 <div className="min-w-0">
                                     <div className="text-[9px] font-black uppercase tracking-[0.2em] text-accent-blue/60 mb-1 truncate">
-                                        Misión Detectada
+                                        Misión detectada
                                     </div>
-                                    <h2 className="text-base font-black text-white leading-tight uppercase italic tracking-tighter truncate">
+                                    <h2 className="text-base font-black text-foreground leading-tight uppercase tracking-tighter truncate">
                                         {selectedActivity.title}
                                     </h2>
                                 </div>
@@ -118,8 +118,8 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
 
                             {/* Quick Stats Grid */}
                             <div className="grid grid-cols-2 gap-2">
-                                <div className="bg-surface-dark border border-border-strong p-2.5 rounded-xl">
-                                    <div className="text-[8px] font-bold text-text-muted uppercase tracking-widest leading-none mb-1.5">Nivel</div>
+                                <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
+                                    <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">Nivel</div>
                                     <div className={cn(
                                         "text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border inline-block",
                                         getDifficultyColor(selectedActivity.difficulty)
@@ -127,8 +127,8 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                                         {selectedActivity.difficulty || 'Normal'}
                                     </div>
                                 </div>
-                                <div className="bg-surface-dark border border-border-strong p-2.5 rounded-xl">
-                                    <div className="text-[8px] font-bold text-text-muted uppercase tracking-widest leading-none mb-1.5">XP</div>
+                                <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
+                                    <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">XP</div>
                                     <div className="text-xs font-black text-accent-amber flex items-center gap-1">
                                         <Zap className="size-3 fill-accent-amber" />
                                         {selectedActivity.xp}
@@ -150,11 +150,11 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                                 {isBlocked ? (
                                     <div className="flex items-center gap-2">
                                         <Lock className="size-3.5" />
-                                        BLOQUEADA
+                                        Bloqueada
                                     </div>
                                 ) : (
                                     <div className="flex items-center gap-2">
-                                        EJECUTAR MISIÓN
+                                        Abrir actividad
                                         <ChevronRight className="size-3.5" />
                                     </div>
                                 )}

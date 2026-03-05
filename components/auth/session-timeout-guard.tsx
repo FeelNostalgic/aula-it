@@ -86,7 +86,7 @@ export function SessionTimeoutGuard({ children }: { children: React.ReactNode })
             <AlertDialog open={showWarning} onOpenChange={setShowWarning}>
                 <AlertDialogContent className="bg-surface-dark border-border-strong text-white">
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="text-xl font-black uppercase italic tracking-tighter text-accent-orange">
+                        <AlertDialogTitle className="text-xl font-black uppercase tracking-tighter text-accent-orange">
                             ¡Sesión a punto de caducar!
                         </AlertDialogTitle>
                         <AlertDialogDescription className="text-text-muted">

@@ -76,7 +76,8 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
                     xp: activity.xp,
                     logo_url: activity.logo_url,
                     title_position: activity.title_position || 'down',
-                    unitId: unit.id
+                    unitId: unit.id,
+                    role: role // Pass role here
                 },
             }));
     }, [activities]);
@@ -95,10 +96,10 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
                 sourceHandle: conn.sourceHandle || 'bottom',
                 targetHandle: conn.targetHandle || 'top',
                 animated: true,
-                style: { stroke: '#22d3ee', strokeWidth: 2 },
+                style: { stroke: 'var(--color-accent-blue)', strokeWidth: 2 },
                 markerEnd: {
                     type: MarkerType.ArrowClosed,
-                    color: '#22d3ee',
+                    color: 'var(--color-accent-blue)',
                 },
             }));
     }, [unit.map_connections, activities]);
@@ -142,8 +143,8 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
             setEdges((eds) => addEdge({
                 ...params,
                 animated: true,
-                style: { stroke: '#22d3ee', strokeWidth: 2 },
-                markerEnd: { type: MarkerType.ArrowClosed, color: '#22d3ee' }
+                style: { stroke: 'var(--color-accent-blue)', strokeWidth: 2 },
+                markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--color-accent-blue)' }
             }, eds));
 
             // Persistence
@@ -276,7 +277,8 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
                         xp: activity.xp,
                         logo_url: activity.logo_url,
                         title_position: activity.title_position || 'down',
-                        unitId: unit.id
+                        unitId: unit.id,
+                        role: role // Pass role here
                     },
                 };
 
@@ -370,19 +372,19 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
 
                     {/* Main Content Area — swaps between map canvas and resources */}
                     {(!isTeacher && activeView === 'resources') ? (
-                        <main className="flex-1 relative overflow-y-auto bg-[#020609] p-12">
+                        <main className="flex-1 relative overflow-y-auto bg-background p-12">
                             <div className="max-w-4xl mx-auto">
                                 <div className="mb-8">
                                     <div className="text-[10px] font-black uppercase tracking-[0.2em] text-accent-blue mb-2">Recursos de la Unidad</div>
-                                    <h2 className="text-2xl font-black text-white leading-tight uppercase italic tracking-tighter">
+                                    <h2 className="text-2xl font-black text-foreground leading-tight uppercase tracking-tighter">
                                         {unit.name}
                                     </h2>
                                 </div>
 
                                 {unitFiles.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-surface-dark/50 rounded-xl border border-dashed border-border-strong">
-                                        <FileText className="size-12 text-text-muted/30 mb-4" />
-                                        <p className="text-sm text-text-muted">No hay recursos disponibles para esta unidad.</p>
+                                    <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-muted/40 dark:bg-surface-dark/50 rounded-xl border border-dashed border-border">
+                                        <FileText className="size-12 text-muted-foreground/30 dark:text-text-muted/30 mb-4" />
+                                        <p className="text-sm text-muted-foreground dark:text-text-muted">No hay recursos disponibles para esta unidad.</p>
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -392,14 +394,14 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
                                                 href={file.file_url}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="group p-4 bg-surface-dark/40 hover:bg-surface-dark border border-white/5 hover:border-accent-blue/30 rounded-xl transition-all"
+                                                className="group p-4 bg-muted/20 hover:bg-muted/40 dark:bg-surface-dark/40 dark:hover:bg-surface-dark border border-border/10 hover:border-accent-blue/30 rounded-xl transition-all"
                                             >
                                                 <div className="flex items-start gap-3">
                                                     <div className="size-10 rounded-lg bg-accent-blue/10 flex items-center justify-center shrink-0">
                                                         <FolderDown className="size-5 text-accent-blue" />
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="text-sm font-bold text-white truncate transition-colors group-hover:text-accent-blue">
+                                                        <div className="text-sm font-bold text-foreground truncate transition-colors group-hover:text-accent-blue">
                                                             {file.name}
                                                         </div>
                                                         <div className="text-xs text-text-muted mt-1 font-mono">
@@ -414,7 +416,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
                             </div>
                         </main>
                     ) : (
-                        <main className="flex-1 relative overflow-hidden bg-[#020609]">
+                        <main className="flex-1 relative overflow-hidden bg-background">
                             <ReactFlow
                                 nodes={enrichedNodes}
                                 edges={edges}
@@ -443,9 +445,9 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
                                 <MiniMap
                                     position="top-right"
                                     style={{
-                                        backgroundColor: 'rgba(2, 6, 9, 0.8)',
+                                        backgroundColor: 'var(--color-background)',
                                         borderRadius: '12px',
-                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        border: '1px solid var(--color-border)',
                                     }}
                                     nodeColor={(n) => {
                                         if (n.type === 'mission') return '#22d3ee';
@@ -462,7 +464,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
                                             "backdrop-blur-xl border rounded-2xl p-4 flex items-center gap-3 shadow-2xl transition-all active:scale-95 group",
                                             isEraserMode
                                                 ? "bg-accent-red/20 border-accent-red/50"
-                                                : "bg-surface-dark/80 border-border-strong hover:border-accent-blue/50"
+                                                : "bg-popover/80 border-border dark:border-border-strong hover:border-accent-blue/50"
                                         )}
                                     >
                                         <div className={cn(
@@ -477,7 +479,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
                                             <div className="text-[8px] font-black text-text-muted uppercase tracking-widest leading-none">Modo</div>
                                             <div className={cn(
                                                 "text-[10px] font-black uppercase mt-0.5 tracking-tight transition-colors",
-                                                isEraserMode ? "text-accent-red" : "text-white"
+                                                isEraserMode ? "text-accent-red" : "text-foreground"
                                             )}>
                                                 {isTeacher ? (isEraserMode ? 'Borrador' : 'Edición') : 'Navegación'}
                                             </div>
@@ -489,7 +491,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
                                 <Controls
                                     showInteractive={false}
                                     position="bottom-right"
-                                    className="bg-surface-dark/80! border-border-strong! rounded-lg! overflow-hidden! [&_button]:border-border-subtle! [&_button]:text-text-muted! hover:[&_button]:text-white! m-6 shadow-2xl"
+                                    className="bg-popover/80! border-border! dark:bg-surface-dark/80! dark:border-border-strong! rounded-lg! overflow-hidden! [&_button]:border-border-subtle! [&_button]:text-muted-foreground! dark:[&_button]:text-text-muted! hover:[&_button]:text-foreground! dark:hover:[&_button]:text-white! m-6 shadow-2xl"
                                 />
                             </ReactFlow>
                         </main>
