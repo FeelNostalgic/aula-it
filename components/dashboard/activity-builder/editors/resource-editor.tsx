@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ResourceIcon } from "../../resource-icon";
+import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import {
     DndContext,
     closestCenter,
@@ -37,6 +38,7 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
     const [content, setContent] = useState<ResourceContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -75,6 +77,27 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
             type
         };
         handleUpdate({ ...content, items: [...content.items, newItem] });
+    };
+
+    const handleAddFromDrive = async () => {
+        try {
+            const files = await openPicker();
+            if (files && files.length > 0) {
+                const newItems: ResourceItem[] = files.map(file => ({
+                    id: crypto.randomUUID(),
+                    title: file.name,
+                    description: "",
+                    url: file.url,
+                    type: 'file',
+                    mimeType: file.mimeType
+                }));
+                handleUpdate({ ...content, items: [...content.items, ...newItems] });
+                toast.success(`${files.length} recurso(s) añadido(s) desde Drive`);
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Error al abrir el selector de Google Drive");
+        }
     };
 
     const updateItem = (id: string, updates: Partial<ResourceItem>) => {
@@ -117,7 +140,15 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
 
             <div className="flex gap-4">
                 <Button onClick={() => addResource('file')} variant="outline" className="border-border/50 hover:bg-surface-dark">
-                    <FileText className="size-4 mr-2 text-accent-blue" /> Añadir Archivo
+                    <Plus className="size-4 mr-2 text-accent-blue" /> Nuevo Archivo
+                </Button>
+                <Button
+                    onClick={handleAddFromDrive}
+                    disabled={isDriveLoading}
+                    variant="outline"
+                    className="border-border/50 hover:bg-surface-dark"
+                >
+                    <FileText className="size-4 mr-2 text-accent-blue" /> {isDriveLoading ? 'Cargando Drive...' : 'Añadir de Drive'}
                 </Button>
                 <Button onClick={() => addResource('link')} variant="outline" className="border-border/50 hover:bg-surface-dark">
                     <LinkIcon className="size-4 mr-2 text-emerald-400" /> Añadir Enlace
@@ -208,7 +239,7 @@ function SortableResourceItem({ item, updateItem, removeItem }: SortableResource
 
             <div className="shrink-0 mt-1.5">
                 <div className="size-9">
-                    <ResourceIcon type={item.type} mimeType={item.mimeType} className="rounded-lg" />
+                    <ResourceIcon type={item.type} mimeType={item.mimeType} url={item.url} className="rounded-lg" />
                 </div>
             </div>
 

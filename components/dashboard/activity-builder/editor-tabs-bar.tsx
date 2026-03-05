@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ActivityStepWithClientState } from "@/types/activity";
 import { cn } from "@/lib/utils";
-import { X, GripVertical, FileText, PlaySquare, PenTool, CheckSquare, Settings, MonitorPlay } from "lucide-react";
+import { X, GripVertical, FileText, PlaySquare, PenTool, CheckSquare, Settings, MonitorPlay, FolderDown } from "lucide-react";
 import {
     DndContext,
     closestCenter,
@@ -40,6 +40,7 @@ const getStepIcon = (type?: ActivityStepType) => {
         case 'animation': return <PlaySquare className="size-3.5 text-pink-400" />;
         case 'quiz': return <CheckSquare className="size-3.5 text-accent-orange" />;
         case 'presentation': return <MonitorPlay className="size-3.5 text-emerald-400" />;
+        case 'resource': return <FolderDown className="size-3.5 text-accent-blue" />;
         default: return <FileText className="size-3.5 text-text-muted" />;
     }
 };

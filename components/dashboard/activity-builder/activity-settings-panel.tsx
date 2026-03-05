@@ -4,9 +4,12 @@ import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Settings, Zap, HardDrive } from "lucide-react";
 import { toast } from "sonner";
 import { updateActivitySettings } from "@/app/activities/[id]/edit/actions";
+import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 
 interface ActivitySettingsPanelProps {
     activity: any;
@@ -20,6 +23,7 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
     const [difficulty, setDifficulty] = useState(activity.difficulty || "Medio");
     const [logoUrl, setLogoUrl] = useState(activity.logo_url || "");
     const [isSaving, setIsSaving] = useState(false);
+    const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -108,13 +112,34 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                         </div>
                         <div className="space-y-2">
                             <label htmlFor="activity-logo" className="text-sm font-semibold text-foreground">URL del Logo / Icono</label>
-                            <Input
-                                id="activity-logo"
-                                value={logoUrl}
-                                onChange={(e) => handleLogoChange(e.target.value)}
-                                placeholder="https://ejemplo.com/logo.png"
-                                className="bg-surface border-border/50"
-                            />
+                            <div className="flex gap-2">
+                                <Input
+                                    id="activity-logo"
+                                    value={logoUrl}
+                                    onChange={(e) => handleLogoChange(e.target.value)}
+                                    placeholder="https://ejemplo.com/logo.png"
+                                    className="bg-surface border-border/50"
+                                />
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={async () => {
+                                        try {
+                                            const files = await openPicker();
+                                            if (files && files.length > 0) {
+                                                handleLogoChange(files[0].url);
+                                            }
+                                        } catch (error) {
+                                            toast.error("Error al abrir Google Drive");
+                                        }
+                                    }}
+                                    disabled={isDriveLoading}
+                                    className="shrink-0 border-border/50 hover:bg-surface-dark"
+                                    title="Seleccionar de Google Drive"
+                                >
+                                    <HardDrive className={cn("size-4", isDriveLoading && "animate-pulse")} />
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>
