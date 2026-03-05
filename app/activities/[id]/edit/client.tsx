@@ -14,6 +14,7 @@ import { UserNav } from "@/components/dashboard/user-nav";
 import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb";
 import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/breadcrumb-context";
 import { EditorTabsBar } from "@/components/dashboard/activity-builder/editor-tabs-bar";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { updateActivityStatus, updateStepTitle, updateActivitySettings } from "./actions";
 import { QuizEditor } from "@/components/dashboard/activity-builder/editors/quiz-editor";
 import { PresentationEditor } from "@/components/dashboard/activity-builder/editors/presentation-editor";
@@ -212,9 +213,9 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                         hideHeader={true}
                     />
                 ) : (
-                    <div className="flex-1 flex overflow-hidden">
+                    <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
                         {/* Left Sidebar - Structure Builder */}
-                        <div className="w-80 shrink-0 border-r border-border/50 bg-background h-full flex flex-col">
+                        <ResizablePanel defaultSize={20} minSize={10} maxSize={40} className="bg-background h-full flex flex-col">
                             <MissionBuilderSidebar
                                 activityId={activity.id}
                                 phases={phases}
@@ -222,10 +223,12 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                                 selectedStepId={selectedStepId}
                                 setSelectedStepId={handleSelectStep}
                             />
-                        </div>
+                        </ResizablePanel>
+
+                        <ResizableHandle className="hover:bg-accent-blue/50 data-[resize-handle-active]:bg-accent-blue transition-colors" />
 
                         {/* Central Step Editor */}
-                        <div className="flex-1 h-full bg-background relative flex flex-col">
+                        <ResizablePanel defaultSize={80} className="h-full bg-background relative flex flex-col">
                             <EditorTabsBar
                                 openedStepsIds={openedStepsIds}
                                 onOpenedStepsChange={setOpenedStepsIds}
@@ -254,8 +257,8 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                                     <p>Selecciona o crea un paso en el mapa de fases.</p>
                                 </div>
                             )}
-                        </div>
-                    </div>
+                        </ResizablePanel>
+                    </ResizablePanelGroup>
                 )}
             </div>
         </BreadcrumbProvider>

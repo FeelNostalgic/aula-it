@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { StepViewer } from "./viewers/step-viewer";
 import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb";
 import { UserNav } from "@/components/dashboard/user-nav";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 
 interface StudentPreviewProps {
     activity: any;
@@ -145,9 +146,9 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                 </>
             )}
 
-            <div className="flex-1 flex overflow-hidden">
+            <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden">
                 {/* === SIDEBAR (identical to teacher: mission-builder-sidebar.tsx line 604-753) === */}
-                <div className="w-80 shrink-0 border-r border-border/50 bg-background h-full flex flex-col">
+                <ResizablePanel defaultSize={20} minSize={10} maxSize={40} className="bg-background h-full flex flex-col">
                     <div className="p-4 border-b border-border/50 flex items-center justify-between shrink-0">
                         <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">Estructura de Misión</h2>
                     </div>
@@ -219,10 +220,12 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                             </div>
                         )}
                     </div>
-                </div>
+                </ResizablePanel>
+
+                <ResizableHandle className="w-0 border-r border-border/50 hover:border-accent-blue/50 transition-colors data-[resize-handle-active]:border-accent-blue" />
 
                 {/* === MAIN CONTENT AREA === */}
-                <div className="flex-1 h-full bg-background relative flex flex-col min-w-0">
+                <ResizablePanel defaultSize={80} className="h-full bg-background relative flex flex-col min-w-0">
                     {/* Tabs Bar — matches EditorTabsBar styling (editor-tabs-bar.tsx) */}
                     {openStepIds.length > 0 ? (
                         <div className="h-10 shrink-0 bg-surface-dark border-b border-border/50 flex">
@@ -335,8 +338,8 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                             <p>Selecciona o abre un paso en la estructura de misión.</p>
                         </div>
                     )}
-                </div>
-            </div>
+                </ResizablePanel>
+            </ResizablePanelGroup>
         </div>
     );
 }

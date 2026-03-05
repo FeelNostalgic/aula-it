@@ -602,7 +602,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
     };
 
     return (
-        <div className="w-[320px] h-full shrink-0 border-r border-border/50 bg-background flex flex-col">
+        <div className="w-full h-full bg-background flex flex-col">
             <div className="p-4 border-b border-border/50 flex items-center justify-between shrink-0">
                 <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">El Mapa (Fases)</h2>
                 <Button variant="ghost" size="icon" aria-label="Añadir Fase" className="size-8 text-text-muted hover:text-foreground" onClick={() => setIsAddingPhase(true)}>

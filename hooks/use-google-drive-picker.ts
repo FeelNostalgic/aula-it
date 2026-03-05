@@ -138,7 +138,9 @@ export function useGoogleDrivePicker() {
                             id: doc.id,
                             name: doc.name,
                             mimeType: doc.mimeType,
-                            url: doc.url,
+                            url: doc.mimeType?.startsWith("image/")
+                                ? `https://lh3.googleusercontent.com/d/${doc.id}`
+                                : doc.url,
                             iconUrl: doc.iconUrl,
                             lastEditedUtc: doc.lastEditedUtc,
                         }));
