@@ -199,6 +199,8 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                         activity={activityData}
                         phases={phases}
                         onExitPreview={() => setIsPreviewMode(false)}
+                        user={user}
+                        profile={profile}
                     />
                 ) : (
                     <div className="flex-1 flex overflow-hidden">

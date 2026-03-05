@@ -26,7 +26,7 @@ import { MapBackground } from './map-background';
 import { StudentSidebar } from './student-sidebar';
 import { TeacherSidebar } from './teacher-sidebar';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Save, MousePointer2, Eraser } from 'lucide-react';
+import { ArrowLeft, Save, MousePointer2, Eraser, FolderDown, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { UserNav } from '@/components/dashboard/user-nav';
@@ -57,6 +57,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
     const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
     const [selectedActivity, setSelectedActivity] = useState<any | null>(null);
     const [isEraserMode, setIsEraserMode] = useState(false);
+    const [activeView, setActiveView] = useState<'map' | 'resources'>('map');
 
     const isTeacher = role === 'teacher';
 
@@ -344,106 +345,155 @@ export function MapWorkspace({ unit, activities, role, user, profile, unitFiles 
 
                 <div className="flex-1 flex overflow-hidden relative">
                     {/* Sidebar */}
-                    <div className="w-80 shrink-0 border-r border-border/50 bg-background h-full flex flex-col z-20">
+                    <div className="shrink-0 bg-background h-full flex z-20">
                         {role === 'student' ? (
                             <StudentSidebar
                                 unit={unit}
                                 selectedActivity={selectedActivity}
                                 moduleId={unit.module_id}
                                 onStartMission={handleStartMission}
-                                unitFiles={unitFiles}
+                                activeView={activeView}
+                                onViewChange={setActiveView}
                             />
                         ) : (
-                            <TeacherSidebar
-                                unit={unit}
-                                activities={activities.filter(a => !nodes.find(n => n.id === a.id))}
-                                onAddActivity={(a) => {
-                                    // Manual add logic could go here if needed
-                                }}
-                            />
+                            <div className="w-80 border-r border-border/50 flex flex-col">
+                                <TeacherSidebar
+                                    unit={unit}
+                                    activities={activities.filter(a => !nodes.find(n => n.id === a.id))}
+                                    onAddActivity={(a) => {
+                                        // Manual add logic could go here if needed
+                                    }}
+                                />
+                            </div>
                         )}
                     </div>
 
-                    {/* Canvas */}
-                    <main className="flex-1 relative overflow-hidden bg-[#020609]">
-                        <ReactFlow
-                            nodes={enrichedNodes}
-                            edges={edges}
-                            onNodesChange={onNodesChange}
-                            onEdgesChange={onEdgesChange}
-                            onConnect={onConnect}
-                            onNodeClick={onNodeClick}
-                            onEdgeClick={onEdgeClick}
-                            onInit={setRfInstance}
-                            onDrop={onDrop}
-                            onDragOver={onDragOver}
-                            onNodeDragStop={onNodeDragStop}
-                            onEdgesDelete={onEdgesDelete}
-                            onNodesDelete={onNodesDelete}
-                            nodeTypes={nodeTypes}
-                            connectionMode={ConnectionMode.Loose}
-                            fitView
-                            nodesDraggable={isTeacher && !isEraserMode}
-                            nodesConnectable={isTeacher && !isEraserMode}
-                            elementsSelectable={isTeacher}
-                            deleteKeyCode={isTeacher ? ["Backspace", "Delete"] : null}
-                            className={cn("bg-transparent", isEraserMode && "cursor-eraser")}
-                        >
-                            <MapBackground />
+                    {/* Main Content Area — swaps between map canvas and resources */}
+                    {(!isTeacher && activeView === 'resources') ? (
+                        <main className="flex-1 relative overflow-y-auto bg-[#020609] p-12">
+                            <div className="max-w-4xl mx-auto">
+                                <div className="mb-8">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-accent-blue mb-2">Recursos de la Unidad</div>
+                                    <h2 className="text-2xl font-black text-white leading-tight uppercase italic tracking-tighter">
+                                        {unit.name}
+                                    </h2>
+                                </div>
 
-                            <MiniMap
-                                position="top-right"
-                                style={{
-                                    backgroundColor: 'rgba(2, 6, 9, 0.8)',
-                                    borderRadius: '12px',
-                                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                                }}
-                                nodeColor={(n) => {
-                                    if (n.type === 'mission') return '#22d3ee';
-                                    return '#1e293b';
-                                }}
-                                maskColor="rgba(0, 0, 0, 0.3)"
-                            />
-
-                            {/* Refined Navigation Status - Bottom Left */}
-                            <Panel position="bottom-left" className="m-6">
-                                <button
-                                    onClick={() => isTeacher && setIsEraserMode(!isEraserMode)}
-                                    className={cn(
-                                        "backdrop-blur-xl border rounded-2xl p-4 flex items-center gap-3 shadow-2xl transition-all active:scale-95 group",
-                                        isEraserMode
-                                            ? "bg-accent-red/20 border-accent-red/50"
-                                            : "bg-surface-dark/80 border-border-strong hover:border-accent-blue/50"
-                                    )}
-                                >
-                                    <div className={cn(
-                                        "size-8 rounded-lg border flex items-center justify-center transition-colors",
-                                        isEraserMode
-                                            ? "bg-accent-red/10 border-accent-red/20 text-accent-red"
-                                            : "bg-accent-blue/10 border-accent-blue/20 text-accent-blue"
-                                    )}>
-                                        {isEraserMode ? <Eraser className="size-4" /> : <MousePointer2 className="size-4" />}
+                                {unitFiles.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-surface-dark/50 rounded-xl border border-dashed border-border-strong">
+                                        <FileText className="size-12 text-text-muted/30 mb-4" />
+                                        <p className="text-sm text-text-muted">No hay recursos disponibles para esta unidad.</p>
                                     </div>
-                                    <div className="text-left">
-                                        <div className="text-[8px] font-black text-text-muted uppercase tracking-widest leading-none">Modo</div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {unitFiles.map((file) => (
+                                            <a
+                                                key={file.id}
+                                                href={file.file_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="group p-4 bg-surface-dark/40 hover:bg-surface-dark border border-white/5 hover:border-accent-blue/30 rounded-xl transition-all"
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    <div className="size-10 rounded-lg bg-accent-blue/10 flex items-center justify-center shrink-0">
+                                                        <FolderDown className="size-5 text-accent-blue" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-sm font-bold text-white truncate transition-colors group-hover:text-accent-blue">
+                                                            {file.name}
+                                                        </div>
+                                                        <div className="text-xs text-text-muted mt-1 font-mono">
+                                                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </main>
+                    ) : (
+                        <main className="flex-1 relative overflow-hidden bg-[#020609]">
+                            <ReactFlow
+                                nodes={enrichedNodes}
+                                edges={edges}
+                                onNodesChange={onNodesChange}
+                                onEdgesChange={onEdgesChange}
+                                onConnect={onConnect}
+                                onNodeClick={onNodeClick}
+                                onEdgeClick={onEdgeClick}
+                                onInit={setRfInstance}
+                                onDrop={onDrop}
+                                onDragOver={onDragOver}
+                                onNodeDragStop={onNodeDragStop}
+                                onEdgesDelete={onEdgesDelete}
+                                onNodesDelete={onNodesDelete}
+                                nodeTypes={nodeTypes}
+                                connectionMode={ConnectionMode.Loose}
+                                fitView
+                                nodesDraggable={isTeacher && !isEraserMode}
+                                nodesConnectable={isTeacher && !isEraserMode}
+                                elementsSelectable={isTeacher}
+                                deleteKeyCode={isTeacher ? ["Backspace", "Delete"] : null}
+                                className={cn("bg-transparent", isEraserMode && "cursor-eraser")}
+                            >
+                                <MapBackground />
+
+                                <MiniMap
+                                    position="top-right"
+                                    style={{
+                                        backgroundColor: 'rgba(2, 6, 9, 0.8)',
+                                        borderRadius: '12px',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                    }}
+                                    nodeColor={(n) => {
+                                        if (n.type === 'mission') return '#22d3ee';
+                                        return '#1e293b';
+                                    }}
+                                    maskColor="rgba(0, 0, 0, 0.3)"
+                                />
+
+                                {/* Refined Navigation Status - Bottom Left */}
+                                <Panel position="bottom-left" className="m-6">
+                                    <button
+                                        onClick={() => isTeacher && setIsEraserMode(!isEraserMode)}
+                                        className={cn(
+                                            "backdrop-blur-xl border rounded-2xl p-4 flex items-center gap-3 shadow-2xl transition-all active:scale-95 group",
+                                            isEraserMode
+                                                ? "bg-accent-red/20 border-accent-red/50"
+                                                : "bg-surface-dark/80 border-border-strong hover:border-accent-blue/50"
+                                        )}
+                                    >
                                         <div className={cn(
-                                            "text-[10px] font-black uppercase mt-0.5 tracking-tight transition-colors",
-                                            isEraserMode ? "text-accent-red" : "text-white"
+                                            "size-8 rounded-lg border flex items-center justify-center transition-colors",
+                                            isEraserMode
+                                                ? "bg-accent-red/10 border-accent-red/20 text-accent-red"
+                                                : "bg-accent-blue/10 border-accent-blue/20 text-accent-blue"
                                         )}>
-                                            {isTeacher ? (isEraserMode ? 'Borrador' : 'Edición') : 'Navegación'}
+                                            {isEraserMode ? <Eraser className="size-4" /> : <MousePointer2 className="size-4" />}
                                         </div>
-                                    </div>
-                                </button>
-                            </Panel>
+                                        <div className="text-left">
+                                            <div className="text-[8px] font-black text-text-muted uppercase tracking-widest leading-none">Modo</div>
+                                            <div className={cn(
+                                                "text-[10px] font-black uppercase mt-0.5 tracking-tight transition-colors",
+                                                isEraserMode ? "text-accent-red" : "text-white"
+                                            )}>
+                                                {isTeacher ? (isEraserMode ? 'Borrador' : 'Edición') : 'Navegación'}
+                                            </div>
+                                        </div>
+                                    </button>
+                                </Panel>
 
-                            {/* Standardized Controls - Bottom Right */}
-                            <Controls
-                                showInteractive={false}
-                                position="bottom-right"
-                                className="bg-surface-dark/80! border-border-strong! rounded-lg! overflow-hidden! [&_button]:border-border-subtle! [&_button]:text-text-muted! hover:[&_button]:text-white! m-6 shadow-2xl"
-                            />
-                        </ReactFlow>
-                    </main>
+                                {/* Standardized Controls - Bottom Right */}
+                                <Controls
+                                    showInteractive={false}
+                                    position="bottom-right"
+                                    className="bg-surface-dark/80! border-border-strong! rounded-lg! overflow-hidden! [&_button]:border-border-subtle! [&_button]:text-text-muted! hover:[&_button]:text-white! m-6 shadow-2xl"
+                                />
+                            </ReactFlow>
+                        </main>
+                    )}
                 </div>
             </motion.div>
         </AnimatePresence>

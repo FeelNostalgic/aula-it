@@ -1,34 +1,29 @@
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Zap,
-    Clock,
     ChevronRight,
-    CheckCircle2,
     Lock,
     Trophy,
-    ArrowLeft,
     Network,
     FileText as FileTextIcon,
-    Download
+    FolderDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
 
 interface StudentSidebarProps {
     unit: any;
     selectedActivity: any | null;
     moduleId: string;
     onStartMission?: (id: string) => void;
-    unitFiles?: any[];
+    activeView: 'map' | 'resources';
+    onViewChange: (view: 'map' | 'resources') => void;
 }
 
-export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMission, unitFiles = [] }: StudentSidebarProps) {
+export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMission, activeView, onViewChange }: StudentSidebarProps) {
     const isBlocked = selectedActivity?.status === 'blocked';
 
     const getDifficultyColor = (diff?: string | null) => {
@@ -39,230 +34,135 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
         return 'text-text-muted bg-surface border-border-subtle';
     };
 
-    const hasResources = unitFiles && unitFiles.length > 0;
-
     return (
-        <aside className="w-80 h-full bg-[#050A0D]/95 backdrop-blur-xl border-r border-border-strong flex flex-col shrink-0 z-20">
-            {/* Header / Back Button */}
-            <div className="p-6 border-b border-white/3">
-                <Link href={`/dashboard/modules/${unit.module_id}`}>
-                    <button className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-text-muted hover:text-white transition-colors group">
-                        <ArrowLeft className="size-3 group-hover:-translate-x-1 transition-transform" />
-                        VOLVER AL MÓDULO
-                    </button>
-                </Link>
-                <div className="mt-6 flex items-start gap-3">
-                    <div className="size-10 rounded-lg bg-accent-blue/10 border border-accent-blue/20 flex items-center justify-center text-accent-blue min-w-10">
+        <aside className="h-full flex shrink-0 z-20 overflow-hidden">
+            {/* Narrow Vertical Icon Bar */}
+            <div className="w-[60px] h-full bg-[#030608] border-r border-white/5 flex flex-col items-center py-6 gap-6 relative z-30 shrink-0">
+                <div className="flex flex-col gap-3">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onViewChange('map')}
+                        className={cn(
+                            "size-10 rounded-xl transition-all duration-300 relative group",
+                            activeView === 'map'
+                                ? "bg-accent-blue/10 text-accent-blue shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+                                : "text-text-muted hover:text-white hover:bg-white/5"
+                        )}
+                        title="Mapa de Misiones"
+                    >
                         <Network className="size-5" />
-                    </div>
-                    <div>
-                        <div className="text-[10px] font-black uppercase tracking-widest text-accent-blue/60 mb-1">Misiones</div>
-                        <h2 className="text-lg font-black text-white leading-none uppercase italic tracking-tighter">
-                            {unit.name}
-                        </h2>
+                        {activeView === 'map' && (
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent-blue rounded-r-full shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+                        )}
+                    </Button>
+
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onViewChange('resources')}
+                        className={cn(
+                            "size-10 rounded-xl transition-all duration-300 relative group",
+                            activeView === 'resources'
+                                ? "bg-accent-blue/10 text-accent-blue shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+                                : "text-text-muted hover:text-white hover:bg-white/5"
+                        )}
+                        title="Recursos de la Unidad"
+                    >
+                        <FileTextIcon className="size-5" />
+                        {activeView === 'resources' && (
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent-blue rounded-r-full shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+                        )}
+                    </Button>
+                </div>
+
+                <div className="mt-auto flex flex-col gap-4 items-center">
+                    <div className="size-8 rounded-lg bg-surface-dark border border-border-strong flex items-center justify-center text-text-muted/30">
+                        <Trophy className="size-4" />
                     </div>
                 </div>
             </div>
 
-            <Tabs defaultValue="map" className="flex-1 flex flex-col h-full w-full min-h-0">
-                <TabsList className="w-full justify-start rounded-none border-b border-white/3 bg-transparent p-0 h-12 shrink-0">
-                    <TabsTrigger
-                        value="map"
-                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none text-text-muted h-full px-6 uppercase tracking-widest text-[10px] font-black"
+            {/* Node Detail Panel — only visible when map view active and a node is selected */}
+            <AnimatePresence>
+                {activeView === 'map' && selectedActivity && (
+                    <motion.div
+                        initial={{ width: 0, opacity: 0 }}
+                        animate={{ width: 288, opacity: 1 }}
+                        exit={{ width: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeInOut' }}
+                        className="h-full bg-[#050A0D]/95 backdrop-blur-xl border-r border-white/5 flex flex-col shrink-0 overflow-hidden"
                     >
-                        Mapa
-                    </TabsTrigger>
-                    <TabsTrigger
-                        value="resources"
-                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none text-text-muted h-full px-6 uppercase tracking-widest text-[10px] font-black"
-                    >
-                        Recursos
-                    </TabsTrigger>
-                </TabsList>
+                        {/* Header */}
+                        <div className="p-6 border-b border-white/3 shrink-0">
+                            <div className="flex items-start gap-3">
+                                <div className="size-10 rounded-lg bg-accent-blue/10 border border-accent-blue/20 flex items-center justify-center text-accent-blue min-w-10">
+                                    <Network className="size-5" />
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-accent-blue/60 mb-1 truncate">
+                                        Misión Detectada
+                                    </div>
+                                    <h2 className="text-base font-black text-white leading-tight uppercase italic tracking-tighter truncate">
+                                        {selectedActivity.title}
+                                    </h2>
+                                </div>
+                            </div>
+                        </div>
 
-                {/* Main Content Area - Mapa */}
-                <TabsContent value="map" className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8 m-0 outline-none">
-                    <AnimatePresence mode="wait">
-                        {selectedActivity ? (
-                            <motion.div
-                                key={selectedActivity.id}
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -10 }}
-                                className="space-y-6"
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar overflow-x-hidden p-6 space-y-6">
+                            <p className="text-xs text-text-muted leading-relaxed line-clamp-4">
+                                {selectedActivity.description || "Inicia la misión para descubrir los objetivos detallados."}
+                            </p>
+
+                            {/* Quick Stats Grid */}
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="bg-surface-dark border border-border-strong p-2.5 rounded-xl">
+                                    <div className="text-[8px] font-bold text-text-muted uppercase tracking-widest leading-none mb-1.5">Nivel</div>
+                                    <div className={cn(
+                                        "text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border inline-block",
+                                        getDifficultyColor(selectedActivity.difficulty)
+                                    )}>
+                                        {selectedActivity.difficulty || 'Normal'}
+                                    </div>
+                                </div>
+                                <div className="bg-surface-dark border border-border-strong p-2.5 rounded-xl">
+                                    <div className="text-[8px] font-bold text-text-muted uppercase tracking-widest leading-none mb-1.5">XP</div>
+                                    <div className="text-xs font-black text-accent-amber flex items-center gap-1">
+                                        <Zap className="size-3 fill-accent-amber" />
+                                        {selectedActivity.xp}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Action Button */}
+                            <Button
+                                onClick={() => onStartMission?.(selectedActivity.id)}
+                                disabled={isBlocked}
+                                className={cn(
+                                    "w-full h-12 rounded-xl font-black uppercase tracking-[0.15em] text-[10px] transition-all duration-300",
+                                    isBlocked
+                                        ? "bg-surface-dark border-border-strong text-text-muted/40"
+                                        : "bg-accent-blue hover:bg-accent-blue/90 text-white shadow-[0_8px_20px_-4px_rgba(34,211,238,0.4)]"
+                                )}
                             >
-                                {/* Mission Header */}
-                                <div className="space-y-4">
-                                    <div>
-                                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-accent-blue mb-2">Misión Actual</div>
-                                        <h3 className="text-2xl font-black text-white leading-tight uppercase italic tracking-tighter">
-                                            {selectedActivity.title}
-                                        </h3>
+                                {isBlocked ? (
+                                    <div className="flex items-center gap-2">
+                                        <Lock className="size-3.5" />
+                                        BLOQUEADA
                                     </div>
-                                    <p className="text-sm text-text-muted leading-relaxed">
-                                        {selectedActivity.description || "Sin descripción detallada para esta misión."}
-                                    </p>
-                                </div>
-
-                                {/* Mission Stats */}
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="bg-surface-dark border border-border-strong p-3 rounded-xl flex flex-col gap-1">
-                                        <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest leading-none">Dificultad</div>
-                                        <div className={cn(
-                                            "text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border self-start mt-1",
-                                            getDifficultyColor(selectedActivity.difficulty)
-                                        )}>
-                                            {selectedActivity.difficulty || 'Normal'}
-                                        </div>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        EJECUTAR MISIÓN
+                                        <ChevronRight className="size-3.5" />
                                     </div>
-                                    <div className="bg-surface-dark border border-border-strong p-3 rounded-xl flex flex-col gap-1">
-                                        <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest leading-none">Recompensa</div>
-                                        <div className="text-xs font-black text-accent-amber mt-1 flex items-center gap-1">
-                                            <Zap className="size-3 fill-accent-amber" />
-                                            {selectedActivity.xp} XP
-                                        </div>
-                                    </div>
-                                    <div className="bg-surface-dark border border-border-strong p-3 rounded-xl flex flex-col gap-1">
-                                        <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest leading-none">Duración</div>
-                                        <div className="text-xs font-black text-white mt-1 flex items-center gap-1">
-                                            <Clock className="size-3 text-text-muted" />
-                                            {selectedActivity.duration || '15'} MIN
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Start Button */}
-                                <Button
-                                    onClick={() => onStartMission?.(selectedActivity.id)}
-                                    disabled={isBlocked}
-                                    className={cn(
-                                        "w-full h-14 rounded-xl font-black uppercase tracking-[0.15em] text-xs transition-all duration-300",
-                                        isBlocked
-                                            ? "bg-surface-dark border-border-strong text-text-muted/40"
-                                            : "bg-accent-blue hover:bg-accent-blue/90 text-white shadow-[0_8px_20px_-4px_rgba(34,211,238,0.4)] hover:shadow-[0_12px_24px_-4px_rgba(34,211,238,0.6)]"
-                                    )}
-                                >
-                                    {isBlocked ? (
-                                        <div className="flex items-center gap-2">
-                                            <Lock className="size-4" />
-                                            Misión Bloqueada
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-2">
-                                            Abrir actividad
-                                            <ChevronRight className="size-4" />
-                                        </div>
-                                    )}
-                                </Button>
-
-                                {/* Objectives */}
-                                <div className="pt-8 border-t border-white/3 space-y-4">
-                                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted">Objetivos de la Unidad</div>
-                                    <div className="space-y-3">
-                                        {[
-                                            "Comprender la encapsulación de datos",
-                                            "Configurar direccionamiento IPv4/IPv6",
-                                            "Análisis de tráfico con Wireshark"
-                                        ].map((obj, i) => (
-                                            <div key={i} className="flex items-start gap-3 group">
-                                                <div className={cn(
-                                                    "size-4 rounded-full border flex items-center justify-center shrink-0 mt-0.5 transition-colors",
-                                                    i === 0 ? "bg-accent-blue/20 border-accent-blue/40" : "bg-transparent border-border-subtle"
-                                                )}>
-                                                    {i === 0 && <CheckCircle2 className="size-2.5 text-accent-blue" />}
-                                                </div>
-                                                <span className={cn(
-                                                    "text-[11px] leading-relaxed transition-colors",
-                                                    i === 0 ? "text-white font-medium" : "text-text-muted group-hover:text-text-muted/80"
-                                                )}>{obj}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </motion.div>
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-center py-20 px-4">
-                                <div className="size-16 rounded-full bg-surface-dark border border-border-strong flex items-center justify-center mb-6">
-                                    <Trophy className="size-8 text-text-muted/30" />
-                                </div>
-                                <h4 className="text-sm font-black text-white uppercase italic tracking-tighter mb-2">Selecciona un Reto</h4>
-                                <p className="text-xs text-text-muted leading-relaxed">
-                                    Haz clic en un nodo del mapa para ver los detalles de la misión y objetivos.
-                                </p>
-                            </div>
-                        )}
-                    </AnimatePresence>
-                </TabsContent>
-
-                <TabsContent value="resources" className="flex-1 overflow-y-auto custom-scrollbar p-6 m-0 outline-none">
-                    <div className="space-y-4">
-                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-accent-blue mb-2">Archivos Adjuntos</div>
-
-                        {!hasResources ? (
-                            <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-surface-dark/50 rounded-xl border border-dashed border-border-strong">
-                                <FileTextIcon className="size-8 text-text-muted/30 mb-3" />
-                                <p className="text-xs text-text-muted">No hay recursos disponibles para esta unidad.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {unitFiles.map((file) => (
-                                    <a
-                                        key={file.id}
-                                        href={file.file_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="group flex flex-col gap-2 p-3 bg-surface-dark border border-border-strong rounded-xl hover:border-accent-blue/50 transition-colors"
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <div className="size-8 rounded bg-accent-blue/10 flex items-center justify-center shrink-0">
-                                                <FileTextIcon className="size-4 text-accent-blue" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-xs font-semibold text-white truncate group-hover:text-accent-blue transition-colors">
-                                                    {file.name}
-                                                </p>
-                                                <p className="text-[10px] text-text-muted truncate mt-0.5">
-                                                    {(file.size / 1024 / 1024).toFixed(2)} MB
-                                                </p>
-                                            </div>
-                                            <Button variant="ghost" size="icon" className="size-6 text-text-muted group-hover:text-white shrink-0 self-center">
-                                                <Download className="size-3" />
-                                            </Button>
-                                        </div>
-                                    </a>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </TabsContent>
-            </Tabs>
-
-            {/* Footer / Global Stats */}
-            <div className="p-6 border-t border-white/3 bg-surface-dark/30 shrink-0">
-                <div className="space-y-4">
-                    <div className="flex justify-between items-end">
-                        <div className="space-y-1">
-                            <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest leading-none">Progreso Total</div>
-                            <div className="text-sm font-black text-white italic tracking-tighter">35%</div>
+                                )}
+                            </Button>
                         </div>
-                        <div className="text-right space-y-1">
-                            <div className="text-[9px] font-bold text-text-muted uppercase tracking-widest leading-none">Siguiente Hito</div>
-                            <div className="text-[10px] font-black text-accent-blue uppercase tracking-tight">Nivel I</div>
-                        </div>
-                    </div>
-                    <Progress value={35} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
-
-                    <div className="flex justify-between items-center pt-2">
-                        <div className="flex flex-col">
-                            <span className="text-[8px] font-bold text-text-muted uppercase tracking-widest">Rango Actual</span>
-                            <span className="text-[10px] font-black text-accent-blue uppercase italic">Arquitecto Junior</span>
-                        </div>
-                        <div className="size-8 rounded-lg bg-accent-blue/10 border border-accent-blue/20 flex items-center justify-center text-accent-blue">
-                            <Trophy className="size-4" />
-                        </div>
-                    </div>
-                </div>
-            </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </aside>
     );
 }

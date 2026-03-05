@@ -20,6 +20,7 @@ export default async function UnitMapPage({
         .from("units")
         .select(`
             *,
+            module:modules(id, name),
             activity_connections (
                 id,
                 source_activity_id,

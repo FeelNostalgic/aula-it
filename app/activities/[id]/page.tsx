@@ -23,11 +23,12 @@ export default async function ActivityPage({
         .from("activities")
         .select(`
           *,
-          unit:units(
-            id,
-            name,
-            module_id
-          )
+            unit:units(
+              id,
+              name,
+              module_id,
+              module:modules(id, name)
+            )
         `)
         .eq("id", id)
         .single();
@@ -36,6 +37,13 @@ export default async function ActivityPage({
         console.error("Activity not found:", error);
         notFound();
     }
+
+    // Fetch user profile
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, full_name")
+        .eq("id", user.id)
+        .single();
 
     // Fetch Activity phases and steps
     const { data: phases, error: phasesError } = await supabase
@@ -59,6 +67,8 @@ export default async function ActivityPage({
         <StudentActivityClient
             activity={activity as any}
             phases={initialPhases as any}
+            user={user}
+            profile={profile}
         />
     );
 }

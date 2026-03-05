@@ -2,18 +2,49 @@
 
 import { StudentPreview } from "@/components/dashboard/activity-builder/student-preview";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { ActivityPhaseWithSteps } from "@/types/activity";
+import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/breadcrumb-context";
 
 interface StudentActivityClientProps {
     activity: any;
     phases: ActivityPhaseWithSteps[];
+    user?: any;
+    profile?: any;
 }
 
-export function StudentActivityClient({ activity, phases }: StudentActivityClientProps) {
+function BreadcrumbSetter({ activity }: { activity: any }) {
+    const { setSegments } = useBreadcrumb();
+
+    useEffect(() => {
+        const segments = [];
+
+        if (activity.unit?.module) {
+            segments.push({
+                label: activity.unit.module.name,
+                href: `/dashboard/modules/${activity.unit.module.id}`
+            });
+        }
+
+        if (activity.unit) {
+            segments.push({
+                label: activity.unit.name,
+                href: `/dashboard/units/${activity.unit.id}`
+            });
+        }
+
+        segments.push({ label: activity.title || "Actividad", href: "" });
+
+        setSegments(segments);
+    }, [activity, setSegments]);
+
+    return null;
+}
+
+export function StudentActivityClient({ activity, phases, user, profile }: StudentActivityClientProps) {
     const router = useRouter();
 
     const handleExit = () => {
-        // Return to the unit map
         if (activity.unit?.id) {
             router.push(`/dashboard/units/${activity.unit.id}/map`);
         } else {
@@ -22,12 +53,17 @@ export function StudentActivityClient({ activity, phases }: StudentActivityClien
     };
 
     return (
-        <main className="h-screen w-full">
-            <StudentPreview
-                activity={activity}
-                phases={phases}
-                onExitPreview={handleExit}
-            />
-        </main>
+        <BreadcrumbProvider>
+            <BreadcrumbSetter activity={activity} />
+            <main className="h-screen w-full">
+                <StudentPreview
+                    activity={activity}
+                    phases={phases}
+                    onExitPreview={handleExit}
+                    user={user}
+                    profile={profile}
+                />
+            </main>
+        </BreadcrumbProvider>
     );
 }
