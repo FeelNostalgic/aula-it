@@ -313,3 +313,34 @@ export async function removeActivityConnection(connectionId: string) {
     revalidatePath('/dashboard/units/[id]', 'page');
     return { success: true };
 }
+
+export async function updateUnitResources(unitId: string, resources: any[]) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+        return { error: "Not authenticated" };
+    }
+
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+    if (profile?.role !== "teacher") {
+        return { error: "Unauthorized: only teachers can update unit resources" };
+    }
+
+    const { error } = await supabase
+        .from("units")
+        .update({ resources })
+        .eq("id", unitId);
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    revalidatePath(`/dashboard/units/${unitId}`);
+    return { success: true };
+}

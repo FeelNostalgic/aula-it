@@ -10,6 +10,7 @@ import rehypeKatex from "rehype-katex";
 import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, Circle, PencilRuler, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ResourceIcon } from "../../resource-icon";
 
 interface StepViewerProps {
     step: ActivityStepWithClientState;
@@ -227,11 +228,8 @@ function ResourceViewer({ content }: { content: ResourceContent }) {
                 ) : (
                     content.items.map((item) => (
                         <div key={item.id} className="p-5 bg-surface border border-white/5 rounded-2xl flex items-center gap-4 group hover:border-accent-blue/30 transition-all hover:bg-surface-light shadow-sm">
-                            <div className={cn(
-                                "size-12 rounded-xl flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform",
-                                item.type === 'file' ? "bg-accent-blue/10 text-accent-blue" : "bg-emerald-400/10 text-emerald-400"
-                            )}>
-                                {item.type === 'file' ? <Download className="size-6" /> : <ExternalLink className="size-6" />}
+                            <div className="size-12 shrink-0 group-hover:scale-110 transition-transform">
+                                <ResourceIcon type={item.type} mimeType={item.mimeType} />
                             </div>
                             <div className="flex-1 min-w-0">
                                 <h4 className="font-bold text-foreground truncate">{item.title}</h4>

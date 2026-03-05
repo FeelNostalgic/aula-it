@@ -8,6 +8,7 @@ import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { Plus, Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ResourceIcon } from "../../resource-icon";
 import {
     DndContext,
     closestCenter,
@@ -206,15 +207,9 @@ function SortableResourceItem({ item, updateItem, removeItem }: SortableResource
             </div>
 
             <div className="shrink-0 mt-1.5">
-                {item.type === 'file' ? (
-                    <div className="size-9 rounded-lg bg-accent-blue/10 flex items-center justify-center">
-                        <FileText className="size-5 text-accent-blue" />
-                    </div>
-                ) : (
-                    <div className="size-9 rounded-lg bg-emerald-400/10 flex items-center justify-center">
-                        <LinkIcon className="size-5 text-emerald-400" />
-                    </div>
-                )}
+                <div className="size-9">
+                    <ResourceIcon type={item.type} mimeType={item.mimeType} className="rounded-lg" />
+                </div>
             </div>
 
             <div className="flex-1 space-y-3">

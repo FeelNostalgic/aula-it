@@ -76,6 +76,7 @@ export type ResourceItem = {
     description?: string;
     url: string;
     type: 'file' | 'link';
+    mimeType?: string;
 };
 
 export type ResourceContent = {

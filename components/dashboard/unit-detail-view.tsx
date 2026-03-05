@@ -10,6 +10,8 @@ import {
     GraduationCap,
     FolderOpen,
     ExternalLink,
+    FileText,
+    Link as LinkIcon,
     Network,
     Zap,
     ArrowLeft
@@ -21,8 +23,10 @@ import { useBreadcrumb } from "./breadcrumb-context";
 import { UnitSettingsTab } from "./unit-settings-tab";
 import { UnitActivitiesTab } from "./unit-activities-tab";
 import { UnitEvaluationTab } from "./unit-evaluation-tab";
+import { UnitResourcesTab } from "./unit-resources-tab";
 import Link from "next/link";
 import { StudentUnitView } from "./student-unit-view";
+import { ResourceIcon } from "./resource-icon";
 
 // Remove legacy imports
 // import { UnitMapView } from "./unit-map-view";
@@ -194,6 +198,16 @@ export function UnitDetailView({
                             </TabsTrigger>
                         )}
 
+                        {isTeacher && (
+                            <TabsTrigger
+                                value="recursos-edit"
+                                className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
+                            >
+                                <FolderOpen className="mr-2 size-3.5" />
+                                RECURSOS
+                            </TabsTrigger>
+                        )}
+
                         {(isTeacher || unit.view_type === 'map') && (
                             <TabsTrigger
                                 value="map"
@@ -237,14 +251,42 @@ export function UnitDetailView({
                 {/* Recursos Tab */}
                 {!isTeacher && (
                     <TabsContent value="recursos" className="mt-6 px-12 pb-12">
-                        <div className="bg-surface border border-dashed border-border-strong rounded-2xl flex flex-col items-center justify-center py-32 text-center">
-                            <div className="size-16 rounded-full bg-accent-blue/5 border border-accent-blue/20 flex items-center justify-center mb-6">
-                                <FolderOpen className="size-8 text-accent-blue/40" />
+                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="space-y-1">
+                                <h3 className="text-xl font-bold text-foreground">Recursos de la Unidad</h3>
+                                <p className="text-sm text-text-muted">Material complementario proporcionado por el profesor.</p>
                             </div>
-                            <h3 className="text-xl font-bold text-foreground mb-2">Recursos de la Unidad</h3>
-                            <p className="text-text-muted text-sm max-w-xs">
-                                Próximamente tendrás acceso a todo el material complementario aquí.
-                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {(unit.resources && unit.resources.length > 0) ? (
+                                    unit.resources.map((resource: any) => (
+                                        <a
+                                            key={resource.id}
+                                            href={resource.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="group p-6 bg-surface border border-border-subtle rounded-3xl hover:border-accent-blue/30 hover:shadow-xl transition-all duration-300 flex flex-col items-start gap-4"
+                                        >
+                                            <div className="size-12 group-hover:scale-110 transition-transform">
+                                                <ResourceIcon type={resource.type} mimeType={resource.mimeType} className="rounded-2xl" />
+                                            </div>
+                                            <div className="space-y-1 text-left w-full">
+                                                <h4 className="font-bold text-foreground group-hover:text-accent-blue transition-colors truncate w-full">{resource.title || "Sin título"}</h4>
+                                                <p className="text-xs text-text-muted line-clamp-2">{resource.description || "Sin descripción"}</p>
+                                            </div>
+                                            <div className="w-full pt-2 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-text-muted/50">
+                                                <span>{resource.type === 'file' ? 'Archivo' : 'Enlace'}</span>
+                                                <ExternalLink className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            </div>
+                                        </a>
+                                    ))
+                                ) : (
+                                    <div className="col-span-full py-20 bg-surface/30 border border-dashed border-border-subtle rounded-3xl flex flex-col items-center justify-center text-center">
+                                        <FolderOpen className="size-10 text-text-muted/20 mb-4" />
+                                        <p className="text-text-muted font-medium">No hay recursos publicados todavía.</p>
+                                        <p className="text-xs text-text-muted/60 mt-1">El profesor aún no ha añadido materiales a esta unidad.</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </TabsContent>
                 )}
@@ -310,6 +352,16 @@ export function UnitDetailView({
                 {isTeacher && (
                     <TabsContent value="configuracion" className="mt-6 px-12 pb-12">
                         <UnitSettingsTab unit={unit} />
+                    </TabsContent>
+                )}
+
+                {/* Edición de Recursos (Teacher) */}
+                {isTeacher && (
+                    <TabsContent value="recursos-edit" className="mt-6 px-12 pb-12">
+                        <UnitResourcesTab
+                            unitId={unit.id}
+                            initialResources={unit.resources || []}
+                        />
                     </TabsContent>
                 )}
             </Tabs>
