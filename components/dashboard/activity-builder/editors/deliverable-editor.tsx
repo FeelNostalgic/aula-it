@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ActivityStepWithClientState, DeliverableContent } from "@/types/activity";
+import { ActivityStepWithClientState, DeliverableContent, DeliveryMode } from "@/types/activity";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Link2, HardDrive } from "lucide-react";
+import { Link2, HardDrive, CheckCircle2, Copy, MousePointer } from "lucide-react";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toEditableUrl } from "@/lib/google-drive-urls";
 import ReactMarkdown from "react-markdown";
@@ -18,6 +18,7 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface DeliverableEditorProps {
     step: ActivityStepWithClientState;
@@ -25,10 +26,11 @@ interface DeliverableEditorProps {
 }
 
 export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
-    const defaultContent = (step.content as DeliverableContent) || { templateUrl: '', instructionsMarkdown: '' };
+    const defaultContent = (step.content as DeliverableContent) || { templateUrl: '', instructionsMarkdown: '', deliveryMode: 'manual' };
     const [content, setContent] = useState<DeliverableContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
+    const [driveConnected, setDriveConnected] = useState<boolean | null>(null);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
@@ -37,11 +39,21 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
     };
 
     useEffect(() => {
-        const newContent = (step.content as DeliverableContent) || { templateUrl: '', instructionsMarkdown: '' };
+        const newContent = (step.content as DeliverableContent) || { templateUrl: '', instructionsMarkdown: '', deliveryMode: 'manual' };
         setContent(newContent);
     }, [step.id, step.content]);
 
-    const handleChange = (field: keyof DeliverableContent, value: string) => {
+    // Check Drive connection status when teacher_copy is selected
+    useEffect(() => {
+        if (content.deliveryMode === 'teacher_copy' && driveConnected === null) {
+            fetch('/api/drive/status')
+                .then(r => r.json())
+                .then(data => setDriveConnected(data.connected))
+                .catch(() => setDriveConnected(false));
+        }
+    }, [content.deliveryMode, driveConnected]);
+
+    const handleChange = (field: keyof DeliverableContent, value: string | DeliveryMode) => {
         const newContent = { ...content, [field]: value };
         setContent(newContent);
         onUpdate({ ...step, content: newContent });
@@ -55,6 +67,13 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
         }, 1000);
     };
 
+    const handleDeliveryModeChange = (mode: DeliveryMode) => {
+        handleChange('deliveryMode', mode);
+        if (mode === 'teacher_copy' && driveConnected === null) {
+            setDriveConnected(null); // trigger re-fetch
+        }
+    };
+
     const handlePickFromDrive = async () => {
         try {
             const files = await openPicker({ multiSelect: false, title: "Seleccionar plantilla" });
@@ -66,6 +85,8 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
             toast.error("Error al abrir Google Drive");
         }
     };
+
+    const deliveryMode: DeliveryMode = content.deliveryMode ?? 'manual';
 
     return (
         <div className="flex flex-col h-full w-full bg-background overflow-hidden relative min-h-0">
@@ -83,6 +104,72 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
                         <span className="text-xs text-text-muted/50">Guardado automáticamente</span>
                     )}
                 </div>
+
+                {/* Delivery Mode Toggle */}
+                <div className="space-y-2 mb-4">
+                    <label className="text-sm font-semibold text-foreground">Modo de entrega</label>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => handleDeliveryModeChange('manual')}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
+                                deliveryMode === 'manual'
+                                    ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
+                                    : "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark"
+                            )}
+                        >
+                            <MousePointer className="size-3.5" />
+                            Entrega manual
+                        </button>
+                        <button
+                            onClick={() => handleDeliveryModeChange('teacher_copy')}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
+                                deliveryMode === 'teacher_copy'
+                                    ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
+                                    : "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark"
+                            )}
+                        >
+                            <Copy className="size-3.5" />
+                            Copia del profesor
+                        </button>
+                    </div>
+                    <p className="text-xs text-text-muted">
+                        {deliveryMode === 'manual'
+                            ? "El alumno pega la URL de su propio documento de Drive."
+                            : "El sistema copia la plantilla en la cuenta de cada alumno. Tú controlas los permisos."}
+                    </p>
+                </div>
+
+                {/* Drive connection status for teacher_copy mode */}
+                {deliveryMode === 'teacher_copy' && (
+                    <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-surface-dark border border-border-strong rounded-xl">
+                        <HardDrive className="size-4 text-accent-blue shrink-0" />
+                        {driveConnected === null && (
+                            <span className="text-xs text-text-muted animate-pulse">Verificando conexión...</span>
+                        )}
+                        {driveConnected === true && (
+                            <span className="text-xs text-emerald-400 flex items-center gap-1.5 font-semibold">
+                                <CheckCircle2 className="size-3.5" /> Drive conectado
+                            </span>
+                        )}
+                        {driveConnected === false && (
+                            <div className="flex items-center gap-3 flex-1">
+                                <span className="text-xs text-text-muted flex-1">
+                                    Drive no conectado —{" "}
+                                    <a
+                                        href="/settings"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-accent-blue hover:underline"
+                                    >
+                                        Conectar en Configuración →
+                                    </a>
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <div className="space-y-2 max-w-2xl">
                     <label className="text-sm font-semibold text-foreground flex items-center gap-2">
