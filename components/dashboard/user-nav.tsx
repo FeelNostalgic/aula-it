@@ -11,6 +11,7 @@ import {
     Check,
     ChevronRight
 } from "lucide-react";
+import NextLink from "next/link";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -85,9 +86,11 @@ export function UserNav({ userEmail, userName, isTeacher, userId }: UserNavProps
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
 
-                    <DropdownMenuItem className="cursor-pointer gap-2 py-2">
-                        <Settings className="size-4" />
-                        <span>Ajustes</span>
+                    <DropdownMenuItem asChild className="cursor-pointer gap-2 py-2">
+                        <NextLink href="/settings" className="flex items-center gap-2 w-full">
+                            <Settings className="size-4" />
+                            <span>Configuración</span>
+                        </NextLink>
                     </DropdownMenuItem>
 
                     {/* Theme Sub-menu */}
