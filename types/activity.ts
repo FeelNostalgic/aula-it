@@ -34,9 +34,12 @@ export type TheoryContent = {
 };
 
 // 2. Deliverable (Práctica/Google Docs)
+export type DeliveryMode = 'manual' | 'teacher_copy';
+
 export type DeliverableContent = {
     templateUrl: string;
     instructionsMarkdown: string;
+    deliveryMode?: DeliveryMode; // undefined = 'manual' (backwards-compat)
 };
 
 // 3. Animation/Interactive
@@ -104,4 +107,19 @@ export type ActivityStepWithClientState = ActivityStep & {
 export type ActivityPhaseWithSteps = ActivityPhase & {
     steps: ActivityStepWithClientState[];
     isExpanded?: boolean;
+};
+
+// Submissions (Phase 2: student deliverable submissions)
+export type SubmissionStatus = 'pending' | 'submitted' | 'graded';
+
+export type ActivitySubmission = {
+    id: string;
+    student_id: string;
+    step_id: string;
+    drive_file_url: string | null;
+    drive_file_id: string | null;
+    status: SubmissionStatus;
+    submitted_at: string | null;
+    created_at: string;
+    updated_at: string;
 };
