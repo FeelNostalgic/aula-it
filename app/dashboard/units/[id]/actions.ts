@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
 
 export async function updateUnitSettings(unitId: string, formData: FormData) {
@@ -312,6 +313,106 @@ export async function removeActivityConnection(connectionId: string) {
 
     revalidatePath('/dashboard/units/[id]', 'page');
     return { success: true };
+}
+
+export type StepSubmissionRow = {
+    id: string;
+    step_id: string;
+    step_title: string;
+    activity_id: string;
+    activity_title: string;
+    student_id: string;
+    student_name: string | null;
+    student_email: string;
+    drive_file_url: string | null;
+    drive_file_id: string | null;
+    status: string;
+    submitted_at: string | null;
+    delivery_mode: 'manual' | 'teacher_copy' | undefined;
+};
+
+export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ data?: StepSubmissionRow[]; error?: string }> {
+    if (activityIds.length === 0) return { data: [] };
+
+    // Verify the caller is authenticated (admin client bypasses RLS below)
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    const supabase = createAdminClient();
+
+    // Step 1: get all phases for these activities
+    const { data: phases, error: phasesError } = await supabase
+        .from("activity_phases")
+        .select("id, activity_id")
+        .in("activity_id", activityIds);
+
+    if (phasesError) return { error: phasesError.message };
+    if (!phases || phases.length === 0) return { data: [] };
+
+    const phaseIds = phases.map(p => p.id);
+    const phaseActivityMap: Record<string, string> = {};
+    for (const p of phases) phaseActivityMap[p.id] = p.activity_id;
+
+    // Step 2: get deliverable steps in those phases
+    const { data: steps, error: stepsError } = await supabase
+        .from("activity_steps")
+        .select("id, title, phase_id, content")
+        .eq("type", "deliverable")
+        .in("phase_id", phaseIds);
+
+    if (stepsError) return { error: stepsError.message };
+    if (!steps || steps.length === 0) return { data: [] };
+
+    const stepIds = steps.map(s => s.id);
+    const stepMeta: Record<string, { title: string; activityId: string; deliveryMode: 'manual' | 'teacher_copy' | undefined }> = {};
+    for (const s of steps) {
+        stepMeta[s.id] = {
+            title: s.title,
+            activityId: phaseActivityMap[s.phase_id] ?? "",
+            deliveryMode: (s.content as any)?.deliveryMode,
+        };
+    }
+
+    // Step 3: get activity titles
+    const { data: activities, error: activitiesError } = await supabase
+        .from("activities")
+        .select("id, title")
+        .in("id", activityIds);
+
+    if (activitiesError) return { error: activitiesError.message };
+    const activityTitles: Record<string, string> = {};
+    for (const a of activities ?? []) activityTitles[a.id] = a.title;
+
+    // Step 4: get submissions for those steps
+    const { data: subs, error: subsError } = await supabase
+        .from("activity_submissions")
+        .select("id, step_id, student_id, drive_file_url, drive_file_id, status, submitted_at, student:profiles(id, full_name)")
+        .in("step_id", stepIds)
+        .order("submitted_at", { ascending: false });
+
+    if (subsError) return { error: subsError.message };
+
+    const rows: StepSubmissionRow[] = (subs || []).map((row: any) => {
+        const meta = stepMeta[row.step_id];
+        return {
+            id: row.id,
+            step_id: row.step_id,
+            step_title: meta?.title ?? "—",
+            activity_id: meta?.activityId ?? "",
+            activity_title: activityTitles[meta?.activityId ?? ""] ?? "—",
+            student_id: row.student_id,
+            student_name: row.student?.full_name ?? null,
+            student_email: row.student_id,
+            drive_file_url: row.drive_file_url,
+            drive_file_id: row.drive_file_id ?? null,
+            status: row.status,
+            submitted_at: row.submitted_at,
+            delivery_mode: meta?.deliveryMode,
+        };
+    });
+
+    return { data: rows };
 }
 
 export async function updateUnitResources(unitId: string, resources: any[]) {
