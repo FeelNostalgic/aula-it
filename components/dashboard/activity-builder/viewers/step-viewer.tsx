@@ -8,7 +8,8 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
-import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, Circle, PencilRuler, Zap } from "lucide-react";
+import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, Circle, PencilRuler, Zap, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ResourceIcon } from "../../resource-icon";
@@ -19,16 +20,17 @@ interface StepViewerProps {
     activityId?: string;
     submission?: ActivitySubmission;
     googleEmail?: string | null;
+    userId?: string | null;
 }
 
-export function StepViewer({ step, activityId, submission, googleEmail }: StepViewerProps) {
+export function StepViewer({ step, activityId, submission, googleEmail, userId }: StepViewerProps) {
     if (!step) return null;
 
     switch (step.type) {
         case 'theory':
             return <TheoryViewer content={step.content as TheoryContent} />;
         case 'quiz':
-            return <QuizViewer content={step.content as QuizContent} />;
+            return <QuizViewer content={step.content as QuizContent} userId={userId} />;
         case 'presentation':
             return <PresentationViewer content={step.content as PresentationContent} />;
         case 'resource':
@@ -135,10 +137,39 @@ function AnimationViewer({ content }: { content: AnimationContent }) {
     );
 }
 
-function QuizViewer({ content }: { content: QuizContent }) {
-    if (content?.googleFormUrl) {
+function QuizViewer({ content, userId }: { content: QuizContent; userId?: string | null }) {
+    const isGoogleFormMode = content?.quizMode === 'google_form' || (!content?.quizMode && !!content?.googleFormUrl);
+
+    if (isGoogleFormMode && content?.googleFormUrl) {
+        const studentId = userId
+            ? `${userId.slice(-8).toUpperCase()}-IT`
+            : null;
+
         return (
             <div className="w-full h-screen min-h-[600px] flex flex-col gap-4">
+                {studentId && (
+                    <div className="flex items-center gap-4 p-4 bg-accent-blue/5 border border-accent-blue/20 rounded-xl">
+                        <div className="flex-1">
+                            <p className="text-xs text-text-muted uppercase tracking-widest font-mono mb-1">
+                                Tu ID de alumno — Introdúcelo en el formulario
+                            </p>
+                            <p className="text-lg font-black font-mono text-foreground tracking-widest">
+                                {studentId}
+                            </p>
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2 shrink-0"
+                            onClick={() => {
+                                navigator.clipboard.writeText(studentId);
+                                toast.success("ID copiado al portapapeles");
+                            }}
+                        >
+                            <Copy className="size-3.5" /> Copiar
+                        </Button>
+                    </div>
+                )}
                 <div className="bg-surface p-4 rounded-xl border border-border/50 flex items-center justify-between">
                     <span className="text-xs text-text-muted flex items-center gap-2">
                         <CheckSquare className="size-3" /> Cuestionario via Google Forms

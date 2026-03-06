@@ -65,11 +65,5 @@ export async function POST(request: NextRequest) {
         }
     }
 
-    // Bulk update all submissions for this step to graded
-    if (submissions && submissions.length > 0) {
-        const ids = submissions.map((s) => s.id);
-        await admin.from("activity_submissions").update({ status: "graded" }).in("id", ids);
-    }
-
     return NextResponse.json({ locked, errors });
 }

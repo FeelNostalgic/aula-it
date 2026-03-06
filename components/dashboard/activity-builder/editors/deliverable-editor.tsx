@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Link2, HardDrive, CheckCircle2, Copy, MousePointer } from "lucide-react";
+import { Link2, HardDrive, CheckCircle2, Copy, MousePointer, ExternalLink } from "lucide-react";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toEditableUrl } from "@/lib/google-drive-urls";
 import ReactMarkdown from "react-markdown";
@@ -76,7 +76,19 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
 
     const handlePickFromDrive = async () => {
         try {
-            const files = await openPicker({ multiSelect: false, title: "Seleccionar plantilla" });
+            let externalAccessToken: string | undefined;
+            if (driveConnected) {
+                try {
+                    const res = await fetch("/api/drive/token");
+                    if (res.ok) {
+                        const data = await res.json();
+                        externalAccessToken = data.access_token;
+                    }
+                } catch {
+                    // fall through to OAuth flow
+                }
+            }
+            const files = await openPicker({ multiSelect: false, title: "Seleccionar plantilla", externalAccessToken });
             if (files.length > 0) {
                 const url = toEditableUrl(files[0]);
                 handleChange("templateUrl", url);
@@ -193,6 +205,19 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
                             <HardDrive className="size-4 mr-2 text-accent-blue" />
                             {isDriveLoading ? "Cargando..." : "Drive"}
                         </Button>
+                        {content.templateUrl && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                asChild
+                                className="h-9 px-2 text-text-muted hover:text-foreground shrink-0"
+                                title="Abrir plantilla en nueva pestaña"
+                            >
+                                <a href={content.templateUrl} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="size-4" />
+                                </a>
+                            </Button>
+                        )}
                     </div>
                 </div>
             </div>

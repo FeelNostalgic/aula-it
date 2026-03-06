@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { updateProfile } from "./actions";
+import { updateProfile, disconnectDrive } from "./actions";
 import { toast } from "sonner";
 import {
     ArrowLeft,
@@ -66,6 +66,8 @@ export function SettingsClient({
     const [fullName, setFullName] = useState(initialFullName);
     const [googleEmail, setGoogleEmail] = useState(initialGoogleEmail);
     const [isPending, startTransition] = useTransition();
+    const [isDriveConnected, setIsDriveConnected] = useState(driveConnected);
+    const [isDisconnecting, startDisconnect] = useTransition();
     const { setSegments } = useBreadcrumb();
     const supabase = createClient();
     const router = useRouter();
@@ -372,12 +374,33 @@ export function SettingsClient({
                                                 garantizando la privacidad y el control de accesos de forma automática.
                                             </p>
 
-                                            {driveConnected ? (
-                                                <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl text-emerald-500 font-mono text-xs font-bold">
-                                                    <div className="size-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                                                        <CheckCircle2 className="size-4" />
+                                            {isDriveConnected ? (
+                                                <div className="flex items-center justify-between gap-4 bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl">
+                                                    <div className="flex items-center gap-3 text-emerald-500 font-mono text-xs font-bold">
+                                                        <div className="size-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                                                            <CheckCircle2 className="size-4" />
+                                                        </div>
+                                                        SISTEMA CONECTADO CORRECTAMENTE
                                                     </div>
-                                                    SISTEMA CONECTADO CORRECTAMENTE
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        disabled={isDisconnecting}
+                                                        onClick={() => {
+                                                            startDisconnect(async () => {
+                                                                const result = await disconnectDrive();
+                                                                if (result.error) {
+                                                                    toast.error(result.error);
+                                                                } else {
+                                                                    toast.success("Drive desconectado.");
+                                                                    setIsDriveConnected(false);
+                                                                }
+                                                            });
+                                                        }}
+                                                        className="border-red-500/30 text-red-400 hover:bg-red-500/10 font-mono text-[10px] uppercase shrink-0"
+                                                    >
+                                                        {isDisconnecting ? "Desconectando..." : "Desconectar"}
+                                                    </Button>
                                                 </div>
                                             ) : (
                                                 <a href="/api/drive/authorize" className="block">

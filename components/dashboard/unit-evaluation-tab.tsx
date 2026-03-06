@@ -2,11 +2,12 @@
 
 import { useMemo, useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { FileText, CheckCircle2, Clock, Circle, ArrowUpRight, Star, ChevronDown, ChevronRight, ExternalLink, Copy, Lock, Send } from "lucide-react";
+import { FileText, CheckCircle2, Clock, Circle, ArrowUpRight, Star, ChevronDown, ChevronRight, ExternalLink, Copy, Lock, Send, PencilLine } from "lucide-react";
 import Link from "next/link";
 import { getUnitStepSubmissions, StepSubmissionRow } from "@/app/dashboard/units/[id]/actions";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { GradingModal } from "@/components/dashboard/grading-modal";
 
 type Student = {
     id: string;
@@ -210,10 +211,16 @@ type StepSubmissionsSectionProps = {
 
 function StepSubmissionsSection({ stepSubmissions, loading, activities }: StepSubmissionsSectionProps) {
     const [expandedActivity, setExpandedActivity] = useState<string | null>(null);
+    const [gradingSubmission, setGradingSubmission] = useState<StepSubmissionRow | null>(null);
+    const [localSubmissions, setLocalSubmissions] = useState<StepSubmissionRow[]>(stepSubmissions);
+
+    useEffect(() => {
+        setLocalSubmissions(stepSubmissions);
+    }, [stepSubmissions]);
 
     const grouped = useMemo(() => {
         const map: Record<string, { activityTitle: string; byStep: Record<string, { stepTitle: string; deliveryMode: 'manual' | 'teacher_copy' | undefined; rows: StepSubmissionRow[] }> }> = {};
-        for (const row of stepSubmissions) {
+        for (const row of localSubmissions) {
             if (!map[row.activity_id]) {
                 map[row.activity_id] = { activityTitle: row.activity_title, byStep: {} };
             }
@@ -223,11 +230,12 @@ function StepSubmissionsSection({ stepSubmissions, loading, activities }: StepSu
             map[row.activity_id].byStep[row.step_id].rows.push(row);
         }
         return map;
-    }, [stepSubmissions]);
+    }, [localSubmissions]);
 
     const activityIds = Object.keys(grouped);
 
     return (
+        <>
         <div className="space-y-4 pt-4 border-t border-border-strong">
             <h2 className="text-xl font-bold text-foreground">Entregas por Paso</h2>
             <p className="text-sm text-text-muted">
@@ -299,7 +307,9 @@ function StepSubmissionsSection({ stepSubmissions, loading, activities }: StepSu
                                                             <th className="pb-2 pr-4 font-bold">Alumno</th>
                                                             <th className="pb-2 pr-4 font-bold">Enlace</th>
                                                             <th className="pb-2 pr-4 font-bold">Estado</th>
-                                                            <th className="pb-2 font-bold">Fecha</th>
+                                                            <th className="pb-2 pr-4 font-bold">Nota</th>
+                                                            <th className="pb-2 pr-4 font-bold">Fecha</th>
+                                                            <th className="pb-2 font-bold"></th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-border-subtle">
@@ -326,10 +336,26 @@ function StepSubmissionsSection({ stepSubmissions, loading, activities }: StepSu
                                                                 <td className="py-2 pr-4">
                                                                     <SubmissionStatusBadge status={row.status} />
                                                                 </td>
-                                                                <td className="py-2 text-xs text-text-muted">
+                                                                <td className="py-2 pr-4 text-xs font-mono font-bold">
+                                                                    {row.score !== null && row.score !== undefined
+                                                                        ? <span className="text-accent-blue">{row.score}/10</span>
+                                                                        : <span className="text-text-muted">—</span>
+                                                                    }
+                                                                </td>
+                                                                <td className="py-2 pr-4 text-xs text-text-muted">
                                                                     {row.submitted_at
                                                                         ? new Date(row.submitted_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
                                                                         : "—"}
+                                                                </td>
+                                                                <td className="py-2">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="h-6 text-xs gap-1 border-accent-blue/30 text-accent-blue hover:bg-accent-blue/10"
+                                                                        onClick={() => setGradingSubmission(row)}
+                                                                    >
+                                                                        <PencilLine className="size-3" /> Evaluar
+                                                                    </Button>
                                                                 </td>
                                                             </tr>
                                                         ))}
@@ -345,6 +371,20 @@ function StepSubmissionsSection({ stepSubmissions, loading, activities }: StepSu
                 })}
             </div>
         </div>
+
+            <GradingModal
+                submission={gradingSubmission}
+                open={!!gradingSubmission}
+                onClose={() => setGradingSubmission(null)}
+                onGraded={(id, score, feedback, completed) => {
+                    setLocalSubmissions(prev => prev.map(s =>
+                        s.id === id
+                            ? { ...s, score, feedback, status: completed ? "graded" : s.status, graded_at: completed ? new Date().toISOString() : s.graded_at }
+                            : s
+                    ));
+                }}
+            />
+        </>
     );
 }
 
@@ -421,7 +461,7 @@ function LockButton({ stepId }: { stepId: string }) {
                 if (!res.ok) {
                     toast.error(data.error ?? "Error al cerrar entregas");
                 } else {
-                    const msg = `Entregas cerradas. ${data.locked} archivos bloqueados.`;
+                    const msg = `Archivo bloqueado. El alumno ya no puede editar. (${data.locked} archivos)`;
                     if (data.errors?.length) {
                         toast.warning(`${msg} Errores: ${data.errors.join(", ")}`);
                     } else {

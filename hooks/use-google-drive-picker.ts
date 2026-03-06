@@ -21,6 +21,7 @@ export interface PickerOptions {
     mimeTypes?: string[];
     multiSelect?: boolean;
     title?: string;
+    externalAccessToken?: string; // Skip OAuth flow when provided (server-side token)
 }
 
 /**
@@ -75,6 +76,13 @@ export function useGoogleDrivePicker() {
             try {
                 // Load scripts if needed
                 if (!pickerInitedRef.current) await initGapi();
+
+                // If caller provides a server-side token, skip OAuth entirely
+                if (options?.externalAccessToken) {
+                    showPicker(options.externalAccessToken, resolve, options);
+                    return;
+                }
+
                 if (!gisInitedRef.current) await initGis();
 
                 // Create the token client (handles OAuth consent)

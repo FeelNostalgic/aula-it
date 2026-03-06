@@ -297,6 +297,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                     activityId={activity.id}
                                     submission={submissionsMap?.[selectedStep.id]}
                                     googleEmail={googleEmail}
+                                    userId={user?.id}
                                 />
 
                                 {/* Navigation footer */}

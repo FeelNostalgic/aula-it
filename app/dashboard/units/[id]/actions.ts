@@ -329,6 +329,9 @@ export type StepSubmissionRow = {
     status: string;
     submitted_at: string | null;
     delivery_mode: 'manual' | 'teacher_copy' | undefined;
+    score: number | null;
+    feedback: string | null;
+    graded_at: string | null;
 };
 
 export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ data?: StepSubmissionRow[]; error?: string }> {
@@ -387,7 +390,7 @@ export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ d
     // Step 4: get submissions for those steps
     const { data: subs, error: subsError } = await supabase
         .from("activity_submissions")
-        .select("id, step_id, student_id, drive_file_url, drive_file_id, status, submitted_at, student:profiles(id, full_name)")
+        .select("id, step_id, student_id, drive_file_url, drive_file_id, status, submitted_at, score, feedback, graded_at, student:profiles(id, full_name)")
         .in("step_id", stepIds)
         .order("submitted_at", { ascending: false });
 
@@ -409,10 +412,46 @@ export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ d
             status: row.status,
             submitted_at: row.submitted_at,
             delivery_mode: meta?.deliveryMode,
+            score: row.score ?? null,
+            feedback: row.feedback ?? null,
+            graded_at: row.graded_at ?? null,
         };
     });
 
     return { data: rows };
+}
+
+export async function gradeSubmission(
+    submissionId: string,
+    data: { score?: number | null; feedback?: string | null; markComplete: boolean }
+): Promise<{ success?: boolean; error?: string }> {
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Solo profesores." };
+
+    const admin = createAdminClient();
+
+    const updates: Record<string, any> = {
+        feedback: data.feedback ?? null,
+    };
+    if (data.score !== undefined) updates.score = data.score;
+    if (data.markComplete) {
+        updates.status = "graded";
+        updates.graded_at = new Date().toISOString();
+    }
+
+    const { error } = await admin
+        .from("activity_submissions")
+        .update(updates)
+        .eq("id", submissionId);
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/dashboard/units/[id]", "page");
+    return { success: true };
 }
 
 export async function updateUnitResources(unitId: string, resources: any[]) {

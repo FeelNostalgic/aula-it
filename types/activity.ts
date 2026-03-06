@@ -61,10 +61,13 @@ export type QuizQuestion = {
     options: QuizOption[];
 };
 
+export type QuizMode = 'builtin' | 'google_form';
+
 export type QuizContent = {
     questions: QuizQuestion[];
     passingScore?: number;
     googleFormUrl?: string; // e.g. embedded Google Form
+    quizMode?: QuizMode; // explicit mode selector; if undefined, inferred from googleFormUrl
 };
 
 export type PresentationContent = {
@@ -122,4 +125,7 @@ export type ActivitySubmission = {
     submitted_at: string | null;
     created_at: string;
     updated_at: string;
+    score: number | null;
+    feedback: string | null;
+    graded_at: string | null;
 };

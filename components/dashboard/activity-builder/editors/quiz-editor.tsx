@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ActivityStepWithClientState, QuizContent, QuizQuestion } from "@/types/activity";
+import { ActivityStepWithClientState, QuizContent, QuizMode, QuizQuestion } from "@/types/activity";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { Plus, Trash2, CheckCircle2, Circle, HardDrive } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Circle, HardDrive, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toFormEmbedUrl, GOOGLE_MIME } from "@/lib/google-drive-urls";
@@ -133,32 +133,40 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                 )}
             </div>
 
-            <div className="flex gap-4 p-1 bg-surface-dark rounded-lg w-fit border border-border/50">
-                <Button
-                    variant={!content.googleFormUrl ? "secondary" : "ghost"}
-                    size="sm"
-                    className="text-xs h-7 px-4"
-                    onClick={() => handleUpdate({ ...content, googleFormUrl: "" })}
-                >
-                    Built-in
-                </Button>
-                <Button
-                    variant={content.googleFormUrl ? "secondary" : "ghost"}
-                    size="sm"
-                    className="text-xs h-7 px-4"
-                    onClick={() => handleUpdate({ ...content, googleFormUrl: content.googleFormUrl || "https://docs.google.com/forms/..." })}
-                >
-                    Google Form
-                </Button>
-            </div>
+            {(() => {
+                const effectiveMode: QuizMode = content.quizMode ?? (content.googleFormUrl ? 'google_form' : 'builtin');
+                return (
+                    <div className="flex gap-4 p-1 bg-surface-dark rounded-lg w-fit border border-border/50">
+                        <Button
+                            variant={effectiveMode === 'builtin' ? "secondary" : "ghost"}
+                            size="sm"
+                            className="text-xs h-7 px-4"
+                            onClick={() => handleUpdate({ ...content, quizMode: 'builtin' })}
+                        >
+                            Built-in
+                        </Button>
+                        <Button
+                            variant={effectiveMode === 'google_form' ? "secondary" : "ghost"}
+                            size="sm"
+                            className="text-xs h-7 px-4"
+                            onClick={() => handleUpdate({ ...content, quizMode: 'google_form' })}
+                        >
+                            Google Form
+                        </Button>
+                    </div>
+                );
+            })()}
 
+            {(() => {
+                const effectiveMode: QuizMode = content.quizMode ?? (content.googleFormUrl ? 'google_form' : 'builtin');
+                return (
             <div className="space-y-6">
-                {content.googleFormUrl ? (
+                {effectiveMode === 'google_form' ? (
                     <div className="p-8 bg-surface-dark border border-white/5 rounded-xl space-y-4">
                         <label className="text-sm font-semibold text-foreground">Google Form Link</label>
                         <div className="flex gap-2">
                             <Input
-                                value={content.googleFormUrl}
+                                value={content.googleFormUrl ?? ""}
                                 onChange={(e) => handleUpdate({ ...content, googleFormUrl: e.target.value })}
                                 placeholder="https://docs.google.com/forms/d/e/.../viewform?embedded=true"
                                 className="bg-surface border-border flex-1"
@@ -173,11 +181,24 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                                 <HardDrive className="size-4 mr-2 text-accent-blue" />
                                 {isDriveLoading ? "..." : "Drive"}
                             </Button>
+                            {content.googleFormUrl?.startsWith("http") && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    asChild
+                                    className="h-9 px-2 text-text-muted hover:text-foreground shrink-0"
+                                    title="Abrir formulario en nueva pestaña"
+                                >
+                                    <a href={content.googleFormUrl} target="_blank" rel="noopener noreferrer">
+                                        <ExternalLink className="size-4" />
+                                    </a>
+                                </Button>
+                            )}
                         </div>
                         <p className="text-xs text-text-muted italic">
                             Asegúrate de que el enlace termine en /viewform o tenga embedded=true para que se vea correctamente en el visor del alumno.
                         </p>
-                        {content.googleFormUrl.includes("http") && (
+                        {content.googleFormUrl?.includes("http") && (
                             <div className="aspect-video w-full border border-border/50 rounded-lg overflow-hidden bg-background mt-4">
                                 <iframe src={content.googleFormUrl} className="size-full" />
                             </div>
@@ -273,6 +294,8 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                     </>
                 )}
             </div>
+                );
+            })()}
         </div>
     );
 }
