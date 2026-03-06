@@ -332,6 +332,9 @@ export type StepSubmissionRow = {
     score: number | null;
     feedback: string | null;
     graded_at: string | null;
+    rubric_scores: Record<string, number> | null;
+    grading_mode: 'score' | 'rubric' | 'complete' | null;
+    step_rubric: import('@/types/activity').RubricCriteria[];
 };
 
 export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ data?: StepSubmissionRow[]; error?: string }> {
@@ -368,12 +371,13 @@ export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ d
     if (!steps || steps.length === 0) return { data: [] };
 
     const stepIds = steps.map(s => s.id);
-    const stepMeta: Record<string, { title: string; activityId: string; deliveryMode: 'manual' | 'teacher_copy' | undefined }> = {};
+    const stepMeta: Record<string, { title: string; activityId: string; deliveryMode: 'manual' | 'teacher_copy' | undefined; rubric: import('@/types/activity').RubricCriteria[] }> = {};
     for (const s of steps) {
         stepMeta[s.id] = {
             title: s.title,
             activityId: phaseActivityMap[s.phase_id] ?? "",
             deliveryMode: (s.content as any)?.deliveryMode,
+            rubric: (s.content as any)?.rubric ?? [],
         };
     }
 
@@ -390,7 +394,7 @@ export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ d
     // Step 4: get submissions for those steps
     const { data: subs, error: subsError } = await supabase
         .from("activity_submissions")
-        .select("id, step_id, student_id, drive_file_url, drive_file_id, status, submitted_at, score, feedback, graded_at, student:profiles(id, full_name)")
+        .select("id, step_id, student_id, drive_file_url, drive_file_id, status, submitted_at, score, feedback, graded_at, rubric_scores, grading_mode, student:profiles(id, full_name)")
         .in("step_id", stepIds)
         .order("submitted_at", { ascending: false });
 
@@ -415,6 +419,9 @@ export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ d
             score: row.score ?? null,
             feedback: row.feedback ?? null,
             graded_at: row.graded_at ?? null,
+            rubric_scores: row.rubric_scores ?? null,
+            grading_mode: row.grading_mode ?? null,
+            step_rubric: meta?.rubric ?? [],
         };
     });
 
@@ -423,7 +430,12 @@ export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ d
 
 export async function gradeSubmission(
     submissionId: string,
-    data: { score?: number | null; feedback?: string | null; markComplete: boolean }
+    data: {
+        gradingMode: 'score' | 'rubric' | 'complete';
+        score?: number | null;
+        rubricScores?: Record<string, number>;
+        feedback?: string | null;
+    }
 ): Promise<{ success?: boolean; error?: string }> {
     const userClient = await createClient();
     const { data: { user }, error: authError } = await userClient.auth.getUser();
@@ -436,11 +448,21 @@ export async function gradeSubmission(
 
     const updates: Record<string, any> = {
         feedback: data.feedback ?? null,
+        grading_mode: data.gradingMode,
+        status: "graded",
+        graded_at: new Date().toISOString(),
     };
-    if (data.score !== undefined) updates.score = data.score;
-    if (data.markComplete) {
-        updates.status = "graded";
-        updates.graded_at = new Date().toISOString();
+
+    if (data.gradingMode === 'score') {
+        updates.score = data.score ?? null;
+        updates.rubric_scores = null;
+    } else if (data.gradingMode === 'rubric') {
+        updates.score = null;
+        updates.rubric_scores = data.rubricScores ?? null;
+    } else {
+        // complete
+        updates.score = null;
+        updates.rubric_scores = null;
     }
 
     const { error } = await admin

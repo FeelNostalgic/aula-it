@@ -8,52 +8,104 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { gradeSubmission, StepSubmissionRow } from "@/app/dashboard/units/[id]/actions";
+import { RubricCriteria } from "@/types/activity";
 import { toast } from "sonner";
-import { ExternalLink, FileText, User, Calendar, CheckCircle2 } from "lucide-react";
+import { ExternalLink, FileText, User, Calendar, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+type GradingMode = 'score' | 'rubric' | 'complete';
 
 interface GradingModalProps {
     submission: StepSubmissionRow | null;
+    rubric?: RubricCriteria[];
     open: boolean;
     onClose: () => void;
-    onGraded: (submissionId: string, score: number | null, feedback: string | null, completed: boolean) => void;
+    onGraded: (
+        submissionId: string,
+        score: number | null,
+        feedback: string | null,
+        completed: boolean,
+        gradingMode: GradingMode
+    ) => void;
 }
 
-export function GradingModal({ submission, open, onClose, onGraded }: GradingModalProps) {
+export function GradingModal({ submission, rubric, open, onClose, onGraded }: GradingModalProps) {
+    const [gradingMode, setGradingMode] = useState<GradingMode>('score');
     const [score, setScore] = useState<string>("");
+    const [rubricScores, setRubricScores] = useState<Record<string, number>>({});
     const [feedback, setFeedback] = useState<string>("");
-    const [markComplete, setMarkComplete] = useState(false);
     const [isPending, startTransition] = useTransition();
 
     useEffect(() => {
         if (submission) {
             setScore(submission.score !== null && submission.score !== undefined ? String(submission.score) : "");
             setFeedback(submission.feedback ?? "");
-            setMarkComplete(submission.status === "graded");
+            setRubricScores(submission.rubric_scores ?? {});
+            // Determine initial mode
+            if (submission.grading_mode) {
+                setGradingMode(submission.grading_mode);
+            } else {
+                setGradingMode(rubric?.length ? 'rubric' : 'score');
+            }
         }
-    }, [submission]);
+    }, [submission, rubric]);
+
+    const rubricTotal = (rubric ?? []).reduce((sum, c) => sum + (rubricScores[c.id] ?? 0), 0);
+    const rubricMax = (rubric ?? []).reduce((sum, c) => sum + c.maxPoints, 0);
 
     function handleSave() {
         if (!submission) return;
-        const scoreNum = score.trim() !== "" ? parseInt(score, 10) : null;
-        if (scoreNum !== null && (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 10)) {
-            toast.error("La nota debe estar entre 0 y 10.");
-            return;
-        }
-        startTransition(async () => {
-            const result = await gradeSubmission(submission.id, {
-                score: scoreNum,
-                feedback: feedback.trim() || null,
-                markComplete,
-            });
-            if (result.error) {
-                toast.error(result.error);
-            } else {
-                toast.success("Evaluación guardada.");
-                onGraded(submission.id, scoreNum, feedback.trim() || null, markComplete);
-                onClose();
+
+        if (gradingMode === 'score') {
+            const scoreNum = score.trim() !== "" ? parseInt(score, 10) : null;
+            if (scoreNum !== null && (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 10)) {
+                toast.error("La nota debe estar entre 0 y 10.");
+                return;
             }
-        });
+            startTransition(async () => {
+                const result = await gradeSubmission(submission.id, {
+                    gradingMode: 'score',
+                    score: scoreNum,
+                    feedback: feedback.trim() || null,
+                });
+                if (result.error) {
+                    toast.error(result.error);
+                } else {
+                    toast.success("Evaluación guardada.");
+                    onGraded(submission.id, scoreNum, feedback.trim() || null, true, 'score');
+                    onClose();
+                }
+            });
+        } else if (gradingMode === 'rubric') {
+            startTransition(async () => {
+                const result = await gradeSubmission(submission.id, {
+                    gradingMode: 'rubric',
+                    rubricScores,
+                    feedback: feedback.trim() || null,
+                });
+                if (result.error) {
+                    toast.error(result.error);
+                } else {
+                    toast.success("Evaluación guardada.");
+                    onGraded(submission.id, null, feedback.trim() || null, true, 'rubric');
+                    onClose();
+                }
+            });
+        } else {
+            startTransition(async () => {
+                const result = await gradeSubmission(submission.id, {
+                    gradingMode: 'complete',
+                    feedback: feedback.trim() || null,
+                });
+                if (result.error) {
+                    toast.error(result.error);
+                } else {
+                    toast.success("Entrega marcada como completada.");
+                    onGraded(submission.id, null, feedback.trim() || null, true, 'complete');
+                    onClose();
+                }
+            });
+        }
     }
 
     const submittedDate = submission?.submitted_at
@@ -65,6 +117,8 @@ export function GradingModal({ submission, open, onClose, onGraded }: GradingMod
             minute: "2-digit",
         })
         : "—";
+
+    const hasRubric = !!(rubric?.length);
 
     return (
         <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -137,23 +191,113 @@ export function GradingModal({ submission, open, onClose, onGraded }: GradingMod
 
                                 <div className="border-t border-border-strong" />
 
-                                {/* Score */}
+                                {/* Mode selector */}
                                 <div className="space-y-2">
-                                    <Label className="text-sm font-semibold text-foreground">
-                                        Nota (0–10)
-                                    </Label>
-                                    <Input
-                                        type="number"
-                                        min={0}
-                                        max={10}
-                                        step={1}
-                                        value={score}
-                                        onChange={(e) => setScore(e.target.value)}
-                                        placeholder="Sin nota"
-                                        className="bg-surface-dark border-border-strong w-32 font-mono text-lg text-center"
-                                    />
-                                    <p className="text-xs text-text-muted">Déjalo vacío para no asignar nota numérica.</p>
+                                    <Label className="text-xs font-bold text-text-muted uppercase tracking-widest">Modo de evaluación</Label>
+                                    <div className="flex gap-1.5">
+                                        {(["score", "rubric", "complete"] as GradingMode[]).map((mode) => {
+                                            const labels: Record<GradingMode, string> = {
+                                                score: "Nota",
+                                                rubric: "Rúbrica",
+                                                complete: "Completado",
+                                            };
+                                            const isDisabled = mode === 'rubric' && !hasRubric;
+                                            return (
+                                                <button
+                                                    key={mode}
+                                                    onClick={() => !isDisabled && setGradingMode(mode)}
+                                                    title={isDisabled ? "Define una rúbrica en el editor del paso" : undefined}
+                                                    disabled={isDisabled}
+                                                    className={cn(
+                                                        "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors",
+                                                        gradingMode === mode
+                                                            ? "bg-accent-blue/10 border-accent-blue/40 text-accent-blue"
+                                                            : "bg-surface-dark border-border-strong text-text-muted hover:text-foreground hover:border-border-subtle",
+                                                        isDisabled && "opacity-40 cursor-not-allowed hover:text-text-muted hover:border-border-strong"
+                                                    )}
+                                                >
+                                                    {labels[mode]}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
+
+                                {/* Mode content */}
+                                {gradingMode === 'score' && (
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-semibold text-foreground">
+                                            Nota (0–10)
+                                        </Label>
+                                        <Input
+                                            type="number"
+                                            min={0}
+                                            max={10}
+                                            step={1}
+                                            value={score}
+                                            onChange={(e) => setScore(e.target.value)}
+                                            placeholder="Sin nota"
+                                            className="bg-surface-dark border-border-strong w-32 font-mono text-lg text-center"
+                                        />
+                                        <p className="text-xs text-text-muted">Déjalo vacío para no asignar nota numérica.</p>
+                                    </div>
+                                )}
+
+                                {gradingMode === 'rubric' && (
+                                    <div className="space-y-3">
+                                        {hasRubric ? (
+                                            <>
+                                                <div className="space-y-2">
+                                                    {rubric!.map((criterion) => (
+                                                        <div key={criterion.id} className="flex items-center gap-3 p-3 rounded-xl bg-surface-dark border border-border-strong">
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-sm font-semibold text-foreground truncate">{criterion.name || "Sin nombre"}</p>
+                                                                {criterion.description && (
+                                                                    <p className="text-xs text-text-muted mt-0.5">{criterion.description}</p>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-2 shrink-0">
+                                                                <Input
+                                                                    type="number"
+                                                                    min={0}
+                                                                    max={criterion.maxPoints}
+                                                                    value={rubricScores[criterion.id] ?? ""}
+                                                                    onChange={(e) => setRubricScores(prev => ({
+                                                                        ...prev,
+                                                                        [criterion.id]: Math.min(criterion.maxPoints, Math.max(0, parseInt(e.target.value) || 0))
+                                                                    }))}
+                                                                    placeholder="0"
+                                                                    className="w-16 h-8 bg-surface border-border-strong font-mono text-sm text-center"
+                                                                />
+                                                                <span className="text-xs text-text-muted font-mono whitespace-nowrap">/ {criterion.maxPoints}</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="flex items-center justify-between px-3 py-2 bg-accent-blue/5 border border-accent-blue/20 rounded-xl">
+                                                    <span className="text-sm font-bold text-foreground">Total</span>
+                                                    <span className="text-sm font-bold font-mono text-accent-blue">{rubricTotal} / {rubricMax} pts</span>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                                                <AlertTriangle className="size-4 text-amber-400 shrink-0 mt-0.5" />
+                                                <p className="text-sm text-amber-200">
+                                                    Sin rúbrica configurada. Ve al editor del paso y añade criterios.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {gradingMode === 'complete' && (
+                                    <div className="flex items-start gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                                        <CheckCircle2 className="size-4 text-emerald-400 shrink-0 mt-0.5" />
+                                        <p className="text-sm text-emerald-200">
+                                            Esta entrega se marcará como completada sin nota numérica.
+                                        </p>
+                                    </div>
+                                )}
 
                                 {/* Feedback */}
                                 <div className="space-y-2">
@@ -164,36 +308,9 @@ export function GradingModal({ submission, open, onClose, onGraded }: GradingMod
                                         value={feedback}
                                         onChange={(e) => setFeedback(e.target.value)}
                                         placeholder="Escribe tus observaciones aquí..."
-                                        rows={6}
+                                        rows={5}
                                         className="bg-surface-dark border-border-strong resize-none text-sm"
                                     />
-                                </div>
-
-                                {/* Mark complete */}
-                                <div
-                                    role="button"
-                                    tabIndex={0}
-                                    onClick={() => setMarkComplete(!markComplete)}
-                                    onKeyDown={(e) => e.key === "Enter" && setMarkComplete(!markComplete)}
-                                    className={cn(
-                                        "flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors select-none",
-                                        markComplete
-                                            ? "bg-emerald-500/10 border-emerald-500/30"
-                                            : "bg-surface-dark border-border-strong hover:border-border-subtle"
-                                    )}
-                                >
-                                    <div className={cn(
-                                        "size-5 rounded-md border-2 shrink-0 mt-0.5 flex items-center justify-center transition-colors",
-                                        markComplete ? "bg-emerald-500 border-emerald-500" : "border-border-strong"
-                                    )}>
-                                        {markComplete && <CheckCircle2 className="size-3 text-white" />}
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-semibold text-foreground">Marcar como corregido</p>
-                                        <p className="text-xs text-text-muted mt-0.5">
-                                            Cambia el estado a "Corregido". El alumno verá que su entrega ha sido evaluada.
-                                        </p>
-                                    </div>
                                 </div>
 
                                 {/* Actions */}

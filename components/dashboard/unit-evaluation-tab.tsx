@@ -337,10 +337,7 @@ function StepSubmissionsSection({ stepSubmissions, loading, activities }: StepSu
                                                                     <SubmissionStatusBadge status={row.status} />
                                                                 </td>
                                                                 <td className="py-2 pr-4 text-xs font-mono font-bold">
-                                                                    {row.score !== null && row.score !== undefined
-                                                                        ? <span className="text-accent-blue">{row.score}/10</span>
-                                                                        : <span className="text-text-muted">—</span>
-                                                                    }
+                                                                    <ScoreDisplay row={row} />
                                                                 </td>
                                                                 <td className="py-2 pr-4 text-xs text-text-muted">
                                                                     {row.submitted_at
@@ -374,12 +371,13 @@ function StepSubmissionsSection({ stepSubmissions, loading, activities }: StepSu
 
             <GradingModal
                 submission={gradingSubmission}
+                rubric={gradingSubmission?.step_rubric}
                 open={!!gradingSubmission}
                 onClose={() => setGradingSubmission(null)}
-                onGraded={(id, score, feedback, completed) => {
+                onGraded={(id, score, feedback, completed, gradingMode) => {
                     setLocalSubmissions(prev => prev.map(s =>
                         s.id === id
-                            ? { ...s, score, feedback, status: completed ? "graded" : s.status, graded_at: completed ? new Date().toISOString() : s.graded_at }
+                            ? { ...s, score, feedback, status: "graded", graded_at: new Date().toISOString(), grading_mode: gradingMode }
                             : s
                     ));
                 }}
@@ -402,6 +400,21 @@ function SubmissionStatusBadge({ status }: { status: string }) {
             {config.label}
         </span>
     );
+}
+
+function ScoreDisplay({ row }: { row: StepSubmissionRow }) {
+    if (row.grading_mode === 'complete') {
+        return <span className="text-emerald-400">✓</span>;
+    }
+    if (row.grading_mode === 'rubric' && row.rubric_scores) {
+        const total = Object.values(row.rubric_scores).reduce((a, b) => a + b, 0);
+        const max = row.step_rubric.reduce((a, c) => a + c.maxPoints, 0);
+        return <span className="text-accent-blue">{total}/{max}</span>;
+    }
+    if (row.score !== null && row.score !== undefined) {
+        return <span className="text-accent-blue">{row.score}/10</span>;
+    }
+    return <span className="text-text-muted">—</span>;
 }
 
 function DistributeButton({ stepId, activityId }: { stepId: string; activityId: string }) {

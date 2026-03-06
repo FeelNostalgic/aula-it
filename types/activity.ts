@@ -36,10 +36,18 @@ export type TheoryContent = {
 // 2. Deliverable (Práctica/Google Docs)
 export type DeliveryMode = 'manual' | 'teacher_copy';
 
+export type RubricCriteria = {
+    id: string;
+    name: string;
+    description?: string;
+    maxPoints: number;
+};
+
 export type DeliverableContent = {
     templateUrl: string;
     instructionsMarkdown: string;
     deliveryMode?: DeliveryMode; // undefined = 'manual' (backwards-compat)
+    rubric?: RubricCriteria[];
 };
 
 // 3. Animation/Interactive
@@ -128,4 +136,6 @@ export type ActivitySubmission = {
     score: number | null;
     feedback: string | null;
     graded_at: string | null;
+    rubric_scores: Record<string, number> | null;
+    grading_mode: 'score' | 'rubric' | 'complete' | null;
 };
