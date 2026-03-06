@@ -354,6 +354,7 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                             userName={profile?.full_name || user.user_metadata?.full_name || "Usuario"}
                             isTeacher={isTeacher}
                             userId={user.id}
+                            userAvatar={user.user_metadata?.avatar_url}
                         />
                     </div>
                 </header>

@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { SettingsClient } from "./settings-client";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { BreadcrumbProvider } from "@/components/dashboard/breadcrumb-context";
 
 export default async function SettingsPage() {
     const supabase = await createClient();
@@ -13,6 +14,10 @@ export default async function SettingsPage() {
         .select("role, full_name, google_email")
         .eq("id", user.id)
         .single();
+
+    const userAvatar = user.user_metadata?.avatar_url || "";
+    // Format ID: Take last 8 chars of UUID and uppercase it for a "tactical" look
+    const userId = `ID: ${user.id.slice(-8).toUpperCase()}-IT`;
 
     const isTeacher = profile?.role === "teacher";
 
@@ -29,12 +34,16 @@ export default async function SettingsPage() {
     }
 
     return (
-        <SettingsClient
-            userEmail={user.email ?? ""}
-            initialFullName={profile?.full_name ?? ""}
-            initialGoogleEmail={profile?.google_email ?? ""}
-            isTeacher={isTeacher}
-            driveConnected={driveConnected}
-        />
+        <BreadcrumbProvider>
+            <SettingsClient
+                userEmail={user.email ?? ""}
+                initialFullName={profile?.full_name ?? ""}
+                initialGoogleEmail={profile?.google_email ?? ""}
+                userAvatar={userAvatar}
+                userId={user.id}
+                isTeacher={isTeacher}
+                driveConnected={driveConnected}
+            />
+        </BreadcrumbProvider>
     );
 }

@@ -64,6 +64,7 @@ export default async function DashboardLayout({
                 userName={user.user_metadata?.full_name || "Usuario"}
                 isTeacher={isTeacher}
                 userId={user.id}
+                userAvatar={user.user_metadata?.avatar_url}
               />
             </div>
           </header>

@@ -34,9 +34,10 @@ interface UserNavProps {
     userName: string;
     isTeacher: boolean;
     userId: string;
+    userAvatar?: string;
 }
 
-export function UserNav({ userEmail, userName, isTeacher, userId }: UserNavProps) {
+export function UserNav({ userEmail, userName, isTeacher, userId, userAvatar }: UserNavProps) {
     const { setTheme, theme } = useTheme();
 
     return (
@@ -59,11 +60,11 @@ export function UserNav({ userEmail, userName, isTeacher, userId }: UserNavProps
                                 {isTeacher ? `Prof. ${userName}` : userName}
                             </span>
                             <span className="text-[10px] font-mono text-muted-foreground/60 uppercase tracking-tight">
-                                ID: {userId.substring(0, 8).toUpperCase()}-IT
+                                ID: {userId.substring(userId.length - 8).toUpperCase()}-IT
                             </span>
                         </div>
                         <Avatar className="size-9 rounded-lg border border-border/50 group-hover:border-primary/50 transition-colors">
-                            <AvatarImage src="" alt={userName} />
+                            <AvatarImage src={userAvatar || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${userName}`} alt={userName} />
                             <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs uppercase rounded-lg">
                                 {userName.substring(0, 2) || "U"}
                             </AvatarFallback>

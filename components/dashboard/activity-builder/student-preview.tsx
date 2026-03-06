@@ -141,6 +141,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                     userName={profile?.full_name || user.user_metadata?.full_name || "Usuario"}
                                     isTeacher={false}
                                     userId={user.id}
+                                    userAvatar={user.user_metadata?.avatar_url}
                                 />
                             )}
                         </div>

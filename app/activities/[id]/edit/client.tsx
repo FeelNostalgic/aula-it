@@ -198,6 +198,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                             userName={profile?.full_name || user.user_metadata?.full_name || "Usuario"}
                             isTeacher={isTeacher}
                             userId={user.id}
+                            userAvatar={user.user_metadata?.avatar_url}
                         />
                     </div>
                 </header>
