@@ -1,6 +1,7 @@
 "use client";
 
-import { ActivityStepWithClientState, TheoryContent, QuizContent, PresentationContent, ResourceContent, DeliverableContent, AnimationContent } from "@/types/activity";
+import { ActivityStepWithClientState, TheoryContent, QuizContent, PresentationContent, ResourceContent, DeliverableContent, AnimationContent, ActivitySubmission } from "@/types/activity";
+import { DeliverableViewer } from "./deliverable-viewer";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -15,9 +16,12 @@ import { toSlidesDownloadUrl } from "@/lib/google-drive-urls";
 
 interface StepViewerProps {
     step: ActivityStepWithClientState;
+    activityId?: string;
+    submission?: ActivitySubmission;
+    googleEmail?: string | null;
 }
 
-export function StepViewer({ step }: StepViewerProps) {
+export function StepViewer({ step, activityId, submission, googleEmail }: StepViewerProps) {
     if (!step) return null;
 
     switch (step.type) {
@@ -30,7 +34,18 @@ export function StepViewer({ step }: StepViewerProps) {
         case 'resource':
             return <ResourceViewer content={step.content as ResourceContent} />;
         case 'deliverable':
-            return <DeliverableViewer content={step.content as DeliverableContent} />;
+            if (activityId) {
+                return (
+                    <DeliverableViewer
+                        content={step.content as DeliverableContent}
+                        stepId={step.id}
+                        activityId={activityId}
+                        initialSubmission={submission}
+                        googleEmail={googleEmail}
+                    />
+                );
+            }
+            return <DeliverableViewerBasic content={step.content as DeliverableContent} />;
         case 'animation':
             return <AnimationViewer content={step.content as AnimationContent} />;
         default:
@@ -58,7 +73,7 @@ function TheoryViewer({ content }: { content: TheoryContent }) {
     );
 }
 
-function DeliverableViewer({ content }: { content: DeliverableContent }) {
+function DeliverableViewerBasic({ content }: { content: DeliverableContent }) {
     return (
         <div className="max-w-4xl mx-auto space-y-8">
             <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-4">

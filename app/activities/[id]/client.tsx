@@ -3,7 +3,7 @@
 import { StudentPreview } from "@/components/dashboard/activity-builder/student-preview";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { ActivityPhaseWithSteps } from "@/types/activity";
+import { ActivityPhaseWithSteps, ActivitySubmission } from "@/types/activity";
 import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/breadcrumb-context";
 
 interface StudentActivityClientProps {
@@ -11,6 +11,7 @@ interface StudentActivityClientProps {
     phases: ActivityPhaseWithSteps[];
     user?: any;
     profile?: any;
+    submissionsMap?: Record<string, ActivitySubmission>;
 }
 
 function BreadcrumbSetter({ activity }: { activity: any }) {
@@ -41,7 +42,7 @@ function BreadcrumbSetter({ activity }: { activity: any }) {
     return null;
 }
 
-export function StudentActivityClient({ activity, phases, user, profile }: StudentActivityClientProps) {
+export function StudentActivityClient({ activity, phases, user, profile, submissionsMap }: StudentActivityClientProps) {
     const router = useRouter();
 
     const handleExit = () => {
@@ -62,6 +63,8 @@ export function StudentActivityClient({ activity, phases, user, profile }: Stude
                     onExitPreview={handleExit}
                     user={user}
                     profile={profile}
+                    submissionsMap={submissionsMap}
+                    googleEmail={profile?.google_email ?? null}
                 />
             </main>
         </BreadcrumbProvider>

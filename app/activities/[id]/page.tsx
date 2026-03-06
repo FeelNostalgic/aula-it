@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { notFound, redirect } from "next/navigation";
 import { StudentActivityClient } from "./client";
+import { getStudentSubmissionsForActivity } from "./actions";
 
 export default async function ActivityPage({
     params,
@@ -41,7 +42,7 @@ export default async function ActivityPage({
     // Fetch user profile
     const { data: profile } = await supabase
         .from("profiles")
-        .select("role, full_name")
+        .select("role, full_name, google_email")
         .eq("id", user.id)
         .single();
 
@@ -63,12 +64,15 @@ export default async function ActivityPage({
         }));
     }
 
+    const submissionsMap = await getStudentSubmissionsForActivity(id);
+
     return (
         <StudentActivityClient
             activity={activity as any}
             phases={initialPhases as any}
             user={user}
             profile={profile}
+            submissionsMap={submissionsMap}
         />
     );
 }

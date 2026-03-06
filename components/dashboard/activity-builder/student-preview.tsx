@@ -1,4 +1,4 @@
-import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType } from "@/types/activity";
+import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType, ActivitySubmission } from "@/types/activity";
 import {
     ArrowLeft, PlayCircle, FileText, Lock, MonitorPlay,
     CheckSquare, FolderDown, PlaySquare, PenTool,
@@ -19,6 +19,8 @@ interface StudentPreviewProps {
     user?: any;
     profile?: any;
     hideHeader?: boolean;
+    submissionsMap?: Record<string, ActivitySubmission>;
+    googleEmail?: string | null;
 }
 
 const getStepIcon = (type: ActivityStepType) => {
@@ -44,7 +46,7 @@ const getTabStepIcon = (type?: ActivityStepType) => {
     }
 };
 
-export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false }: StudentPreviewProps) {
+export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, googleEmail }: StudentPreviewProps) {
     const allSteps = useMemo(() => {
         return phases.flatMap(p => p.steps.filter(s => s.is_visible !== false));
     }, [phases]);
@@ -311,7 +313,12 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                     </h2>
                                 </div>
 
-                                <StepViewer step={selectedStep} />
+                                <StepViewer
+                                    step={selectedStep}
+                                    activityId={activity.id}
+                                    submission={submissionsMap?.[selectedStep.id]}
+                                    googleEmail={googleEmail}
+                                />
 
                                 {/* Navigation footer */}
                                 <div className="flex justify-between items-center pt-8 border-t border-border/50 mt-8">
