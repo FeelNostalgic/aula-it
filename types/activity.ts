@@ -36,12 +36,24 @@ export type TheoryContent = {
 // 2. Deliverable (Práctica/Google Docs)
 export type DeliveryMode = 'manual' | 'teacher_copy';
 
+export type RubricLevel = {
+    id: string;
+    label: string;
+    points: number;
+    description?: string;
+};
+
 export type RubricCriteria = {
     id: string;
     name: string;
     description?: string;
-    maxPoints: number;
+    levels: RubricLevel[];
 };
+
+export function criteriaMaxPoints(c: RubricCriteria): number {
+    if (!c.levels?.length) return 0;
+    return Math.max(...c.levels.map(l => l.points));
+}
 
 export type DeliverableContent = {
     templateUrl: string;

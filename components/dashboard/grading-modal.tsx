@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { gradeSubmission, StepSubmissionRow } from "@/app/dashboard/units/[id]/actions";
-import { RubricCriteria } from "@/types/activity";
+import { RubricCriteria, criteriaMaxPoints } from "@/types/activity";
 import { toast } from "sonner";
 import { ExternalLink, FileText, User, Calendar, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -51,7 +51,7 @@ export function GradingModal({ submission, rubric, open, onClose, onGraded }: Gr
     }, [submission, rubric]);
 
     const rubricTotal = (rubric ?? []).reduce((sum, c) => sum + (rubricScores[c.id] ?? 0), 0);
-    const rubricMax = (rubric ?? []).reduce((sum, c) => sum + c.maxPoints, 0);
+    const rubricMax = (rubric ?? []).reduce((sum, c) => sum + criteriaMaxPoints(c), 0);
 
     function handleSave() {
         if (!submission) return;
@@ -249,29 +249,12 @@ export function GradingModal({ submission, rubric, open, onClose, onGraded }: Gr
                                             <>
                                                 <div className="space-y-2">
                                                     {rubric!.map((criterion) => (
-                                                        <div key={criterion.id} className="flex items-center gap-3 p-3 rounded-xl bg-surface-dark border border-border-strong">
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-sm font-semibold text-foreground truncate">{criterion.name || "Sin nombre"}</p>
-                                                                {criterion.description && (
-                                                                    <p className="text-xs text-text-muted mt-0.5">{criterion.description}</p>
-                                                                )}
-                                                            </div>
-                                                            <div className="flex items-center gap-2 shrink-0">
-                                                                <Input
-                                                                    type="number"
-                                                                    min={0}
-                                                                    max={criterion.maxPoints}
-                                                                    value={rubricScores[criterion.id] ?? ""}
-                                                                    onChange={(e) => setRubricScores(prev => ({
-                                                                        ...prev,
-                                                                        [criterion.id]: Math.min(criterion.maxPoints, Math.max(0, parseInt(e.target.value) || 0))
-                                                                    }))}
-                                                                    placeholder="0"
-                                                                    className="w-16 h-8 bg-surface border-border-strong font-mono text-sm text-center"
-                                                                />
-                                                                <span className="text-xs text-text-muted font-mono whitespace-nowrap">/ {criterion.maxPoints}</span>
-                                                            </div>
-                                                        </div>
+                                                        <CriterionRow
+                                                            key={criterion.id}
+                                                            criterion={criterion}
+                                                            score={rubricScores[criterion.id]}
+                                                            onScore={(pts) => setRubricScores(prev => ({ ...prev, [criterion.id]: pts }))}
+                                                        />
                                                     ))}
                                                 </div>
                                                 <div className="flex items-center justify-between px-3 py-2 bg-accent-blue/5 border border-accent-blue/20 rounded-xl">
@@ -337,5 +320,93 @@ export function GradingModal({ submission, rubric, open, onClose, onGraded }: Gr
                 </ResizablePanelGroup>
             </DialogContent>
         </Dialog>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Per-criterion horizontal level selector
+// ---------------------------------------------------------------------------
+
+function CriterionRow({
+    criterion,
+    score,
+    onScore,
+}: {
+    criterion: RubricCriteria;
+    score: number | undefined;
+    onScore: (points: number) => void;
+}) {
+    const hasLevels = !!(criterion.levels?.length);
+
+    if (!hasLevels) {
+        // Legacy fallback: free-text number input
+        const max = (criterion as any).maxPoints ?? 0;
+        return (
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-dark border border-border-strong">
+                <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{criterion.name || "Sin nombre"}</p>
+                    {criterion.description && (
+                        <p className="text-xs text-text-muted mt-0.5">{criterion.description}</p>
+                    )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                    <Input
+                        type="number"
+                        min={0}
+                        max={max}
+                        value={score ?? ""}
+                        onChange={(e) => onScore(Math.min(max, Math.max(0, parseInt(e.target.value) || 0)))}
+                        placeholder="0"
+                        className="w-16 h-8 bg-surface border-border-strong font-mono text-sm text-center"
+                    />
+                    <span className="text-xs text-text-muted font-mono whitespace-nowrap">/ {max}</span>
+                </div>
+            </div>
+        );
+    }
+
+    const selectedLevel = criterion.levels.find(l => l.points === score) ?? null;
+
+    return (
+        <div className="p-3 rounded-xl bg-surface-dark border border-border-strong space-y-2">
+            <div>
+                <p className="text-sm font-semibold text-foreground">{criterion.name || "Sin nombre"}</p>
+                {criterion.description && (
+                    <p className="text-xs text-text-muted mt-0.5">{criterion.description}</p>
+                )}
+            </div>
+
+            {/* Horizontal level bar */}
+            <div className="flex gap-1">
+                {criterion.levels.map((level) => {
+                    const isActive = score === level.points;
+                    return (
+                        <button
+                            key={level.id}
+                            onClick={() => onScore(level.points)}
+                            className={cn(
+                                "flex-1 flex flex-col items-center py-2 px-1 rounded-lg border text-center transition-colors",
+                                isActive
+                                    ? "bg-accent-blue/15 border-accent-blue/50 text-accent-blue"
+                                    : "bg-surface border-border-strong text-text-muted hover:bg-surface-dark hover:text-foreground"
+                            )}
+                        >
+                            <span className="text-[11px] font-semibold leading-tight w-full text-center truncate">{level.label}</span>
+                            <span className="text-[10px] font-mono mt-0.5 opacity-70">{level.points}pts</span>
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Selected level description */}
+            {selectedLevel && (
+                <div className="px-3 py-1.5 rounded-lg bg-accent-blue/5 border border-accent-blue/15 text-xs flex items-start gap-1.5">
+                    <span className="font-semibold text-accent-blue shrink-0">{selectedLevel.label}</span>
+                    {selectedLevel.description && (
+                        <span className="text-text-muted italic">{selectedLevel.description}</span>
+                    )}
+                </div>
+            )}
+        </div>
     );
 }

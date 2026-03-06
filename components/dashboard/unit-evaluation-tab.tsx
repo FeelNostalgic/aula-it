@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { FileText, CheckCircle2, Clock, Circle, ArrowUpRight, Star, ChevronDown, ChevronRight, ExternalLink, Copy, Lock, Send, PencilLine } from "lucide-react";
 import Link from "next/link";
 import { getUnitStepSubmissions, StepSubmissionRow } from "@/app/dashboard/units/[id]/actions";
+import { criteriaMaxPoints } from "@/types/activity";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { GradingModal } from "@/components/dashboard/grading-modal";
@@ -408,7 +409,7 @@ function ScoreDisplay({ row }: { row: StepSubmissionRow }) {
     }
     if (row.grading_mode === 'rubric' && row.rubric_scores) {
         const total = Object.values(row.rubric_scores).reduce((a, b) => a + b, 0);
-        const max = row.step_rubric.reduce((a, c) => a + c.maxPoints, 0);
+        const max = row.step_rubric.reduce((a, c) => a + criteriaMaxPoints(c), 0);
         return <span className="text-accent-blue">{total}/{max}</span>;
     }
     if (row.score !== null && row.score !== undefined) {

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ActivityStepWithClientState, DeliverableContent, DeliveryMode, RubricCriteria } from "@/types/activity";
+import { ActivityStepWithClientState, DeliverableContent, DeliveryMode } from "@/types/activity";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Link2, HardDrive, CheckCircle2, Copy, MousePointer, ExternalLink, ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { Link2, HardDrive, CheckCircle2, Copy, MousePointer, ExternalLink, ListChecks } from "lucide-react";
+import { RubricBuilderModal } from "@/components/dashboard/rubric-builder-modal";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toEditableUrl } from "@/lib/google-drive-urls";
 import ReactMarkdown from "react-markdown";
@@ -31,10 +32,7 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
     const [isSaving, setIsSaving] = useState(false);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
     const [driveConnected, setDriveConnected] = useState<boolean | null>(null);
-    const [isRubricExpanded, setIsRubricExpanded] = useState(() => {
-        const rubric = (step.content as DeliverableContent)?.rubric;
-        return !!(rubric && rubric.length > 0);
-    });
+    const [rubricModalOpen, setRubricModalOpen] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
@@ -113,19 +111,6 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
             if (res.error) toast.error("Error al guardar la rúbrica");
             setIsSaving(false);
         }, 1000);
-    };
-
-    const addCriteria = () => {
-        const rubric = content.rubric ?? [];
-        handleRubricChange([...rubric, { id: crypto.randomUUID(), name: '', description: '', maxPoints: 10 }]);
-    };
-
-    const removeCriteria = (id: string) => {
-        handleRubricChange((content.rubric ?? []).filter(c => c.id !== id));
-    };
-
-    const updateCriteria = (id: string, field: keyof RubricCriteria, value: string | number) => {
-        handleRubricChange((content.rubric ?? []).map(c => c.id === id ? { ...c, [field]: value } : c));
     };
 
     const deliveryMode: DeliveryMode = content.deliveryMode ?? 'manual';
@@ -252,80 +237,26 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
                 </div>
 
                 {/* Rubric builder */}
-                <div className="mt-4 border border-border/50 rounded-xl overflow-hidden">
-                    <button
-                        onClick={() => setIsRubricExpanded(!isRubricExpanded)}
-                        className="w-full flex items-center justify-between px-4 py-3 bg-surface/50 hover:bg-surface-dark transition-colors text-left"
+                <div className="mt-4">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRubricModalOpen(true)}
+                        className="h-8 text-xs gap-1.5 border-border/50 text-text-muted hover:text-foreground"
                     >
-                        <span className="text-sm font-semibold text-foreground flex items-center gap-2">
-                            {isRubricExpanded ? <ChevronDown className="size-4 text-text-muted" /> : <ChevronRight className="size-4 text-text-muted" />}
-                            Rúbrica de evaluación
-                            {(content.rubric?.length ?? 0) > 0 && (
-                                <span className="text-xs text-accent-blue bg-accent-blue/10 border border-accent-blue/20 px-2 py-0.5 rounded-full">
-                                    {content.rubric!.length} {content.rubric!.length === 1 ? 'criterio' : 'criterios'}
-                                </span>
-                            )}
-                        </span>
-                        <span className="text-xs text-text-muted">Opcional</span>
-                    </button>
-
-                    {isRubricExpanded && (
-                        <div className="p-4 space-y-3 bg-surface-dark/30">
-                            {(content.rubric?.length ?? 0) === 0 ? (
-                                <p className="text-xs text-text-muted italic">
-                                    Sin criterios. Añade criterios para habilitar la evaluación por rúbrica.
-                                </p>
-                            ) : (
-                                <div className="space-y-2">
-                                    <div className="grid grid-cols-[1fr_1fr_80px_32px] gap-2 text-xs text-text-muted font-bold uppercase px-1">
-                                        <span>Criterio</span>
-                                        <span>Descripción</span>
-                                        <span className="text-center">Pts máx.</span>
-                                        <span />
-                                    </div>
-                                    {(content.rubric ?? []).map((criterion) => (
-                                        <div key={criterion.id} className="grid grid-cols-[1fr_1fr_80px_32px] gap-2 items-center">
-                                            <Input
-                                                value={criterion.name}
-                                                onChange={(e) => updateCriteria(criterion.id, 'name', e.target.value)}
-                                                placeholder="Ej: Diseño de red"
-                                                className="bg-surface border-border/50 h-8 text-sm"
-                                            />
-                                            <Input
-                                                value={criterion.description ?? ''}
-                                                onChange={(e) => updateCriteria(criterion.id, 'description', e.target.value)}
-                                                placeholder="Descripción opcional"
-                                                className="bg-surface border-border/50 h-8 text-sm"
-                                            />
-                                            <Input
-                                                type="number"
-                                                min={1}
-                                                max={100}
-                                                value={criterion.maxPoints}
-                                                onChange={(e) => updateCriteria(criterion.id, 'maxPoints', parseInt(e.target.value) || 1)}
-                                                className="bg-surface border-border/50 h-8 text-sm text-center font-mono"
-                                            />
-                                            <button
-                                                onClick={() => removeCriteria(criterion.id)}
-                                                className="flex items-center justify-center size-8 rounded-md text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                                            >
-                                                <Trash2 className="size-3.5" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={addCriteria}
-                                className="h-7 text-xs gap-1.5 border-border/50 text-text-muted hover:text-foreground"
-                            >
-                                <Plus className="size-3" /> Añadir criterio
-                            </Button>
-                        </div>
-                    )}
+                        <ListChecks className="size-3.5" />
+                        {(content.rubric?.length ?? 0) > 0
+                            ? `Rúbrica (${content.rubric!.length} ${content.rubric!.length === 1 ? 'criterio' : 'criterios'})`
+                            : "Configurar rúbrica"}
+                    </Button>
                 </div>
+
+                <RubricBuilderModal
+                    rubric={content.rubric ?? []}
+                    open={rubricModalOpen}
+                    onClose={() => setRubricModalOpen(false)}
+                    onChange={handleRubricChange}
+                />
             </div>
 
             <div className="flex-1 flex overflow-hidden min-h-0">
