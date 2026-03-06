@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { ActivityStepWithClientState } from "@/types/activity";
 import { cn } from "@/lib/utils";
-import { X, GripVertical, FileText, PlaySquare, PenTool, CheckSquare, Settings, MonitorPlay, FolderDown } from "lucide-react";
+import { X, GripVertical, Settings } from "lucide-react";
+import { getTabStepIcon } from "@/lib/constants/step-icons";
 import {
     DndContext,
     closestCenter,
@@ -21,7 +22,6 @@ import {
     useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ActivityStepType } from "@/types/activity";
 
 interface EditorTabsBarProps {
     openedStepsIds: string[];
@@ -33,17 +33,6 @@ interface EditorTabsBarProps {
     onRenameTab: (id: string, newTitle: string) => void;
 }
 
-const getStepIcon = (type?: ActivityStepType) => {
-    switch (type) {
-        case 'theory': return <FileText className="size-3.5 text-accent-blue" />;
-        case 'deliverable': return <PenTool className="size-3.5 text-purple-400" />;
-        case 'animation': return <PlaySquare className="size-3.5 text-pink-400" />;
-        case 'quiz': return <CheckSquare className="size-3.5 text-accent-orange" />;
-        case 'presentation': return <MonitorPlay className="size-3.5 text-emerald-400" />;
-        case 'resource': return <FolderDown className="size-3.5 text-accent-blue" />;
-        default: return <FileText className="size-3.5 text-text-muted" />;
-    }
-};
 
 function SortableTab({
     id,
@@ -83,7 +72,7 @@ function SortableTab({
     if (!step && !isSettings) return null;
 
     const title = isSettings ? "Configuración" : step?.title;
-    const icon = isSettings ? <Settings className="size-3.5 text-text-muted" /> : getStepIcon(step?.type);
+    const icon = isSettings ? <Settings className="size-3.5 text-text-muted" /> : getTabStepIcon(step?.type);
 
     const handleStartRename = (e: React.MouseEvent) => {
         e.stopPropagation();

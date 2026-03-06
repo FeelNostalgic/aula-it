@@ -8,21 +8,22 @@ import {
     PenTool,
     PlaySquare,
     CheckSquare,
+    MonitorPlay,
+    FolderDown,
     Plus,
     MoreVertical,
     GripVertical,
     ChevronDown,
     ChevronRight,
     Trash2,
-    MonitorPlay,
     Eye,
     EyeOff,
     Lock,
     Unlock,
-    FolderDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType } from "@/types/activity";
+import { getStepIcon, STEP_TYPE_LABELS } from "@/lib/constants/step-icons";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -75,27 +76,6 @@ interface MissionBuilderSidebarProps {
     setSelectedStepId: (id: string | null) => void;
 }
 
-const getStepIcon = (type: ActivityStepType) => {
-    switch (type) {
-        case 'theory': return <FileText className="size-4 text-accent-blue" />;
-        case 'deliverable': return <PenTool className="size-4 text-purple-400" />;
-        case 'animation': return <PlaySquare className="size-4 text-pink-400" />;
-        case 'quiz': return <CheckSquare className="size-4 text-accent-orange" />;
-        case 'presentation': return <MonitorPlay className="size-4 text-emerald-400" />;
-        case 'resource': return <FolderDown className="size-4 text-accent-blue" />;
-    }
-};
-
-const getStepTypeName = (type: ActivityStepType) => {
-    switch (type) {
-        case 'theory': return "Texto/Teoría";
-        case 'deliverable': return "Entregable";
-        case 'animation': return "Animación";
-        case 'quiz': return "Cuestionario";
-        case 'presentation': return "Presentación";
-        case 'resource': return "Recursos";
-    }
-};
 
 // Sortable Step Component
 function SortableStepItem({

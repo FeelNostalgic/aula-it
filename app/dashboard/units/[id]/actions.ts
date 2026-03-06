@@ -294,7 +294,7 @@ export async function addActivityConnection(unitId: string, sourceId: string, ta
         return { error: 'No se pudo crear la conexión' };
     }
 
-    revalidatePath('/dashboard/units/[id]', 'page');
+    revalidatePath(`/dashboard/units/${unitId}`);
     return { success: true };
 }
 

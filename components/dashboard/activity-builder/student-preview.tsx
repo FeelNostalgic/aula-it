@@ -1,7 +1,7 @@
 import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType, ActivitySubmission } from "@/types/activity";
+import { getStepIcon, getTabStepIcon } from "@/lib/constants/step-icons";
 import {
-    ArrowLeft, PlayCircle, FileText, Lock, MonitorPlay,
-    CheckSquare, FolderDown, PlaySquare, PenTool,
+    ArrowLeft, FileText, Lock,
     ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,28 +23,6 @@ interface StudentPreviewProps {
     googleEmail?: string | null;
 }
 
-const getStepIcon = (type: ActivityStepType) => {
-    switch (type) {
-        case 'theory': return <FileText className="size-4 text-accent-blue" />;
-        case 'deliverable': return <PenTool className="size-4 text-purple-400" />;
-        case 'animation': return <PlaySquare className="size-4 text-pink-400" />;
-        case 'quiz': return <CheckSquare className="size-4 text-accent-orange" />;
-        case 'presentation': return <MonitorPlay className="size-4 text-emerald-400" />;
-        case 'resource': return <FolderDown className="size-4 text-accent-blue" />;
-    }
-};
-
-const getTabStepIcon = (type?: ActivityStepType) => {
-    switch (type) {
-        case 'theory': return <FileText className="size-3.5 text-accent-blue" />;
-        case 'deliverable': return <PenTool className="size-3.5 text-purple-400" />;
-        case 'animation': return <PlaySquare className="size-3.5 text-pink-400" />;
-        case 'quiz': return <CheckSquare className="size-3.5 text-accent-orange" />;
-        case 'presentation': return <MonitorPlay className="size-3.5 text-emerald-400" />;
-        case 'resource': return <FolderDown className="size-3.5 text-accent-blue" />;
-        default: return <FileText className="size-3.5 text-text-muted" />;
-    }
-};
 
 export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, googleEmail }: StudentPreviewProps) {
     const allSteps = useMemo(() => {
