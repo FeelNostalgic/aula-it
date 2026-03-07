@@ -21,10 +21,30 @@ const ALLOWED_TYPE_OPTIONS: { value: AllowedFileType; label: string }[] = [
     { value: 'pdf', label: 'PDF' },
     { value: 'image', label: 'Imágenes' },
     { value: 'word', label: 'Word (.doc, .docx)' },
+    { value: 'zip', label: 'ZIP (.zip)' },
+    { value: 'pka', label: 'Packet Tracer (.pka)' },
     { value: 'any', label: 'Cualquier archivo' },
 ];
 
-const MAX_SIZE_OPTIONS = [5, 10, 25, 50];
+const PRESET_SIZES = [5, 10, 25, 50];
+
+type SizeUnit = 'MB' | 'GB';
+
+function initCustomSizeState(mb: number): { isCustom: boolean; value: number; unit: SizeUnit } {
+    if (PRESET_SIZES.includes(mb)) return { isCustom: false, value: mb, unit: 'MB' };
+    if (mb >= 1024) return { isCustom: true, value: Math.round(mb / 1024), unit: 'GB' };
+    return { isCustom: true, value: mb, unit: 'MB' };
+}
+
+function toMb(value: number, unit: SizeUnit): number {
+    return unit === 'GB' ? value * 1024 : value;
+}
+
+function utcToLocalInputValue(isoUtc: string): string {
+    const d = new Date(isoUtc);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 interface FileUploadEditorProps {
     step: ActivityStepWithClientState;
@@ -38,11 +58,15 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
         maxFileSizeMb: 10,
         maxFiles: 1,
     };
+    const initCustom = initCustomSizeState(defaultContent.maxFileSizeMb);
     const [content, setContent] = useState<FileUploadContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
     const [rubricModalOpen, setRubricModalOpen] = useState(false);
     const [dueDate, setDueDate] = useState<string | null>(step.due_date ?? null);
+    const [isCustomSize, setIsCustomSize] = useState(initCustom.isCustom);
+    const [customSizeValue, setCustomSizeValue] = useState(initCustom.value);
+    const [customSizeUnit, setCustomSizeUnit] = useState<SizeUnit>(initCustom.unit);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const dueDateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -55,6 +79,10 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
         };
         setContent(newContent);
         setDueDate(step.due_date ?? null);
+        const newCustom = initCustomSizeState((newContent as FileUploadContent).maxFileSizeMb ?? 10);
+        setIsCustomSize(newCustom.isCustom);
+        setCustomSizeValue(newCustom.value);
+        setCustomSizeUnit(newCustom.unit);
     }, [step.id, step.content, step.due_date]);
 
     const saveContent = (newContent: FileUploadContent) => {
@@ -70,11 +98,13 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
     };
 
     const handleDueDateChange = (value: string | null) => {
-        setDueDate(value);
+        // Convert local datetime-local string to UTC ISO before saving
+        const isoUtc = value ? new Date(value).toISOString() : null;
+        setDueDate(isoUtc);
         if (dueDateTimeoutRef.current) clearTimeout(dueDateTimeoutRef.current);
         setIsSaving(true);
         dueDateTimeoutRef.current = setTimeout(async () => {
-            const res = await updateStepDueDate(step.id, value);
+            const res = await updateStepDueDate(step.id, isoUtc);
             if (res.error) toast.error("Error al guardar la fecha límite");
             setIsSaving(false);
         }, 1000);
@@ -134,18 +164,55 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                 </div>
 
                 {/* Tamaño máximo + nº archivos */}
-                <div className="flex gap-6 mb-4">
+                <div className="flex flex-wrap gap-6 mb-4">
                     <div className="space-y-1.5">
                         <label className="text-sm font-semibold text-foreground">Tamaño máximo</label>
-                        <select
-                            value={content.maxFileSizeMb}
-                            onChange={(e) => saveContent({ ...content, maxFileSizeMb: Number(e.target.value) })}
-                            className="h-9 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent-blue"
-                        >
-                            {MAX_SIZE_OPTIONS.map(mb => (
-                                <option key={mb} value={mb}>{mb} MB</option>
-                            ))}
-                        </select>
+                        <div className="flex items-center gap-2">
+                            <select
+                                value={isCustomSize ? "custom" : String(content.maxFileSizeMb)}
+                                onChange={(e) => {
+                                    if (e.target.value === "custom") {
+                                        setIsCustomSize(true);
+                                    } else {
+                                        setIsCustomSize(false);
+                                        saveContent({ ...content, maxFileSizeMb: Number(e.target.value) });
+                                    }
+                                }}
+                                className="h-9 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                            >
+                                {PRESET_SIZES.map(mb => (
+                                    <option key={mb} value={mb}>{mb} MB</option>
+                                ))}
+                                <option value="custom">Personalizado</option>
+                            </select>
+                            {isCustomSize && (
+                                <>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={customSizeValue}
+                                        onChange={(e) => {
+                                            const v = Math.max(1, Number(e.target.value));
+                                            setCustomSizeValue(v);
+                                            saveContent({ ...content, maxFileSizeMb: toMb(v, customSizeUnit) });
+                                        }}
+                                        className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                    />
+                                    <select
+                                        value={customSizeUnit}
+                                        onChange={(e) => {
+                                            const unit = e.target.value as SizeUnit;
+                                            setCustomSizeUnit(unit);
+                                            saveContent({ ...content, maxFileSizeMb: toMb(customSizeValue, unit) });
+                                        }}
+                                        className="h-9 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                    >
+                                        <option value="MB">MB</option>
+                                        <option value="GB">GB</option>
+                                    </select>
+                                </>
+                            )}
+                        </div>
                     </div>
                     <div className="space-y-1.5">
                         <label className="text-sm font-semibold text-foreground">Nº máximo de archivos</label>
@@ -166,7 +233,7 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                     <div className="flex items-center gap-2">
                         <input
                             type="datetime-local"
-                            value={dueDate ? dueDate.slice(0, 16) : ""}
+                            value={dueDate ? utcToLocalInputValue(dueDate) : ""}
                             onChange={(e) => handleDueDateChange(e.target.value || null)}
                             className="flex-1 h-9 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent-blue"
                         />

@@ -12,8 +12,21 @@ const ALLOWED_MIME_MAP: Record<AllowedFileType, string[]> = {
         "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ],
+    zip: [
+        "application/zip",
+        "application/x-zip-compressed",
+        "application/x-zip",
+        "application/octet-stream",
+    ],
+    pka: [
+        "application/octet-stream",
+    ],
     any: [],
 };
+
+function isPkaFile(file: File): boolean {
+    return file.name.toLowerCase().endsWith(".pka");
+}
 
 function getMimeAccepted(allowedTypes: AllowedFileType[]): string[] | null {
     if (!allowedTypes?.length) return null;
@@ -99,13 +112,17 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    // File type check
+    // File type check — with special handling for .pka (octet-stream + extension)
     const accepted = getMimeAccepted(allowedTypes);
-    if (accepted && !accepted.includes(file.type)) {
-        return NextResponse.json(
-            { error: "Tipo de archivo no permitido para este paso." },
-            { status: 400 }
-        );
+    if (accepted !== null) {
+        const mimeOk = accepted.includes(file.type);
+        const pkaAllowed = allowedTypes.includes("pka") && isPkaFile(file) && file.type === "application/octet-stream";
+        if (!mimeOk && !pkaAllowed) {
+            return NextResponse.json(
+                { error: "Tipo de archivo no permitido para este paso." },
+                { status: 400 }
+            );
+        }
     }
 
     // Get student name

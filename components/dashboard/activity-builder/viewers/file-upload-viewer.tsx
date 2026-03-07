@@ -20,8 +20,8 @@ import {
     AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
     AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileUploadContent, ActivitySubmission, SubmissionStatus, AllowedFileType } from "@/types/activity";
-import { submitFileUpload } from "@/app/activities/[id]/actions";
+import { FileUploadContent, ActivitySubmission, SubmissionStatus, AllowedFileType, SubmissionFile } from "@/types/activity";
+import { submitFileUploadMulti } from "@/app/activities/[id]/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +43,8 @@ const ACCEPT_MAP: Record<AllowedFileType, string> = {
     pdf: ".pdf",
     image: ".jpg,.jpeg,.png,.gif,.webp,.svg",
     word: ".doc,.docx",
+    zip: ".zip",
+    pka: ".pka",
     any: "*",
 };
 
@@ -79,17 +81,18 @@ function getMimeIcon(mimeType: string | null): LucideIcon {
 
 export function FileUploadViewer({ content, stepId, activityId, initialSubmission, dueDate }: FileUploadViewerProps) {
     const [submission, setSubmission] = useState<ActivitySubmission | null>(initialSubmission ?? null);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isPending, startTransition] = useTransition();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const dragCounterRef = useRef<number>(0);
 
-    // T6a: sync state when navigating between file_upload steps
     useEffect(() => {
         setSubmission(initialSubmission ?? null);
-        setSelectedFile(null);
+        setSelectedFiles([]);
         setUploading(false);
         if (fileInputRef.current) fileInputRef.current.value = "";
     }, [stepId]);
@@ -100,70 +103,137 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
     const isDeadlinePassed = dueDate ? new Date(dueDate) < new Date() : false;
     const isLocked = status === "graded" || isDeadlinePassed;
 
+    const maxFiles = content?.maxFiles ?? 1;
     const maxSizeMb = content?.maxFileSizeMb ?? 10;
     const maxSizeBytes = maxSizeMb * 1024 * 1024;
     const accept = buildAccept(content?.allowedTypes ?? []);
 
-    function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0] ?? null;
-        if (!file) return;
-
-        if (file.size > maxSizeBytes) {
-            toast.error(`El archivo supera el tamaño máximo (${maxSizeMb} MB).`);
-            return;
+    function validateAndSetFiles(incoming: File[]) {
+        const oversized = incoming.filter(f => f.size > maxSizeBytes);
+        if (oversized.length) {
+            toast.error(`${oversized.length === 1 ? "Un archivo supera" : `${oversized.length} archivos superan`} el tamaño máximo (${maxSizeMb} MB).`);
         }
-        setSelectedFile(file);
+        const valid = incoming.filter(f => f.size <= maxSizeBytes);
+        if (!valid.length) return;
+        setSelectedFiles(prev => {
+            const merged = [...prev];
+            for (const f of valid) {
+                if (!merged.some(p => p.name === f.name && p.size === f.size)) merged.push(f);
+            }
+            if (merged.length > maxFiles) {
+                toast.warning(`Máximo ${maxFiles} archivo${maxFiles === 1 ? "" : "s"}. Se han descartado los sobrantes.`);
+                return merged.slice(0, maxFiles);
+            }
+            return merged;
+        });
+    }
+
+    function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const files = Array.from(e.target.files ?? []);
+        if (!files.length) return;
+        validateAndSetFiles(files);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+
+    function handleDragEnter(e: React.DragEvent<HTMLDivElement>) {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current += 1;
+        if (dragCounterRef.current === 1) setIsDragging(true);
+    }
+
+    function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current -= 1;
+        if (dragCounterRef.current === 0) setIsDragging(false);
+    }
+
+    function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current = 0;
+        setIsDragging(false);
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length) validateAndSetFiles(files);
     }
 
     async function handleUpload() {
-        if (!selectedFile) return;
+        if (!selectedFiles.length) return;
 
         setUploading(true);
         try {
-            const formData = new FormData();
-            formData.append("file", selectedFile);
-            formData.append("stepId", stepId);
-            if (submission?.drive_file_id) {
-                formData.append("existingDriveFileId", submission.drive_file_id);
-            }
+            const existingIds: string[] =
+                submission?.files?.map(f => f.driveFileId) ??
+                (submission?.drive_file_id ? [submission.drive_file_id] : []);
 
-            const res = await fetch("/api/drive/upload", {
-                method: "POST",
-                body: formData,
-            });
-            const json = await res.json();
+            const uploadResults = await Promise.all(
+                selectedFiles.map(async (file, idx) => {
+                    const formData = new FormData();
+                    formData.append("file", file);
+                    formData.append("stepId", stepId);
+                    if (idx === 0 && existingIds[0]) {
+                        formData.append("existingDriveFileId", existingIds[0]);
+                    }
+                    const res = await fetch("/api/drive/upload", {
+                        method: "POST",
+                        body: formData,
+                    });
+                    const json = await res.json();
+                    if (!res.ok || json.error) throw new Error(json.error ?? "Error al subir archivo");
+                    return {
+                        driveFileId: json.driveFileId,
+                        driveFileUrl: json.driveFileUrl,
+                        driveFileName: json.driveFileName,
+                        driveMimeType: json.driveMimeType,
+                    } satisfies SubmissionFile;
+                })
+            );
 
-            if (!res.ok || json.error) {
-                toast.error(json.error ?? "Error al subir el archivo.");
-                return;
+            if (existingIds.length > 1) {
+                await fetch("/api/drive/delete-bulk", {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ driveFileIds: existingIds.slice(1), stepId }),
+                });
             }
 
             startTransition(async () => {
-                const result = await submitFileUpload(stepId, activityId, json.driveFileUrl, json.driveFileId, json.driveFileName, json.driveMimeType);
+                const result = await submitFileUploadMulti(stepId, activityId, uploadResults);
                 if (result.error) {
                     toast.error(result.error);
                 } else {
                     setSubmission(result.data ?? null);
-                    setSelectedFile(null);
+                    setSelectedFiles([]);
                     if (fileInputRef.current) fileInputRef.current.value = "";
-                    toast.success("Archivo entregado correctamente.");
+                    toast.success(uploadResults.length === 1 ? "Archivo entregado correctamente." : `${uploadResults.length} archivos entregados correctamente.`);
                 }
             });
-        } catch {
-            toast.error("Error al subir el archivo.");
+        } catch (err: any) {
+            toast.error(err.message ?? "Error al subir los archivos.");
         } finally {
             setUploading(false);
         }
     }
 
     async function handleDeleteSubmission() {
-        if (!submission?.drive_file_id) return;
+        const driveFileIds: string[] =
+            submission?.files?.map(f => f.driveFileId) ??
+            (submission?.drive_file_id ? [submission.drive_file_id] : []);
+
+        if (!driveFileIds.length) return;
+
         setIsDeleting(true);
         try {
-            const res = await fetch("/api/drive/delete", {
+            const res = await fetch("/api/drive/delete-bulk", {
                 method: "DELETE",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ driveFileId: submission.drive_file_id, stepId, activityId }),
+                body: JSON.stringify({ driveFileIds, stepId }),
             });
             const json = await res.json();
             if (!res.ok || !json.success) {
@@ -179,6 +249,18 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
             setIsDeleting(false);
         }
     }
+
+    const submittedFiles: Array<{ url: string; name: string | null; mimeType: string | null }> =
+        submission?.files?.map(f => ({
+            url: f.driveFileUrl,
+            name: f.driveFileName,
+            mimeType: f.driveMimeType,
+        })) ??
+        (submission?.drive_file_url ? [{
+            url: submission.drive_file_url,
+            name: submission.drive_file_name,
+            mimeType: submission.drive_mime_type,
+        }] : []);
 
     return (
         <div className="max-w-4xl mx-auto space-y-8">
@@ -231,58 +313,62 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
                     </span>
                 </div>
 
-                {/* Already submitted file */}
-                {submission?.drive_file_url && (() => {
-                    const MimeIcon = getMimeIcon(submission.drive_mime_type);
-                    return (
-                        <div className="flex items-center gap-3 p-3 bg-surface border border-white/10 rounded-xl">
-                            <MimeIcon className="size-8 text-text-muted shrink-0" />
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-foreground truncate">
-                                    {submission.drive_file_name ?? "Archivo entregado"}
-                                </p>
-                                <a
-                                    href={submission.drive_file_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-accent-blue hover:underline flex items-center gap-1 mt-0.5"
-                                >
-                                    <ExternalLink className="size-3 shrink-0" />
-                                    Ver en Drive
-                                </a>
-                            </div>
-                            {!isLocked && (
-                                <div className="flex items-center gap-1 shrink-0">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="size-8 text-text-muted hover:text-foreground"
-                                        title="Cambiar archivo"
-                                        onClick={() => fileInputRef.current?.click()}
-                                    >
-                                        <RefreshCw className="size-3.5" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="size-8 text-text-muted hover:text-red-400"
-                                        title="Eliminar entrega"
-                                        onClick={() => setShowDeleteConfirm(true)}
-                                    >
-                                        <X className="size-3.5" />
-                                    </Button>
+                {/* Already submitted files */}
+                {submittedFiles.length > 0 && (
+                    <div className="space-y-2">
+                        {submittedFiles.map((sf, idx) => {
+                            const MimeIcon = getMimeIcon(sf.mimeType);
+                            return (
+                                <div key={idx} className="flex items-center gap-3 p-3 bg-surface border border-white/10 rounded-xl">
+                                    <MimeIcon className="size-7 text-text-muted shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-foreground truncate">
+                                            {sf.name ?? "Archivo entregado"}
+                                        </p>
+                                        <a
+                                            href={sf.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-accent-blue hover:underline flex items-center gap-1 mt-0.5"
+                                        >
+                                            <ExternalLink className="size-3 shrink-0" />
+                                            Ver en Drive
+                                        </a>
+                                    </div>
                                 </div>
-                            )}
-                        </div>
-                    );
-                })()}
+                            );
+                        })}
+                        {!isLocked && (
+                            <div className="flex items-center gap-1 justify-end">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 text-xs text-text-muted hover:text-foreground gap-1.5"
+                                    onClick={() => fileInputRef.current?.click()}
+                                >
+                                    <RefreshCw className="size-3.5" />
+                                    Cambiar
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 text-xs text-text-muted hover:text-red-400 gap-1.5"
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                >
+                                    <X className="size-3.5" />
+                                    Eliminar
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
                     <AlertDialogContent>
                         <AlertDialogHeader>
                             <AlertDialogTitle>¿Eliminar entrega?</AlertDialogTitle>
                             <AlertDialogDescription>
-                                Se eliminará el archivo de Google Drive y el registro de entrega. Esta acción no se puede deshacer.
+                                Se eliminará{submittedFiles.length > 1 ? `n los ${submittedFiles.length} archivos` : " el archivo"} de Google Drive y el registro de entrega. Esta acción no se puede deshacer.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -300,40 +386,63 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
 
                 {!isLocked && (
                     <>
-                        {/* File input zone */}
+                        {/* Drag & drop zone */}
                         <div
                             className={cn(
                                 "border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer",
-                                selectedFile
-                                    ? "border-amber-400/40 bg-amber-400/5"
-                                    : "border-border/50 hover:border-amber-400/30 hover:bg-amber-400/5"
+                                isDragging
+                                    ? "border-amber-400 bg-amber-400/10"
+                                    : selectedFiles.length
+                                        ? "border-amber-400/40 bg-amber-400/5"
+                                        : "border-border/50 hover:border-amber-400/30 hover:bg-amber-400/5"
                             )}
-                            onClick={() => fileInputRef.current?.click()}
+                            onClick={() => !selectedFiles.length && fileInputRef.current?.click()}
+                            onDragEnter={handleDragEnter}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
                         >
                             <input
                                 ref={fileInputRef}
                                 type="file"
                                 accept={accept}
+                                multiple={maxFiles > 1}
                                 className="hidden"
                                 onChange={handleFileChange}
                             />
-                            {selectedFile ? (
-                                <div className="flex items-center justify-center gap-3">
-                                    <Paperclip className="size-5 text-amber-400 shrink-0" />
-                                    <div className="text-left">
-                                        <p className="text-sm font-medium text-foreground truncate max-w-xs">{selectedFile.name}</p>
-                                        <p className="text-xs text-text-muted">{formatBytes(selectedFile.size)}</p>
-                                    </div>
-                                    <button
-                                        className="ml-2 text-text-muted hover:text-foreground"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSelectedFile(null);
-                                            if (fileInputRef.current) fileInputRef.current.value = "";
-                                        }}
-                                    >
-                                        <X className="size-4" />
-                                    </button>
+                            {isDragging ? (
+                                <div>
+                                    <Upload className="size-8 text-amber-400 mx-auto mb-2" />
+                                    <p className="text-sm font-medium text-amber-400">Suelta aquí</p>
+                                </div>
+                            ) : selectedFiles.length > 0 ? (
+                                <div className="space-y-2" onClick={e => e.stopPropagation()}>
+                                    {selectedFiles.map((file, idx) => (
+                                        <div key={`${file.name}-${idx}`} className="flex items-center gap-3 text-left">
+                                            <Paperclip className="size-4 text-amber-400 shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
+                                                <p className="text-xs text-text-muted">{formatBytes(file.size)}</p>
+                                            </div>
+                                            <button
+                                                className="text-text-muted hover:text-red-400 transition-colors shrink-0"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedFiles(prev => prev.filter((_, i) => i !== idx));
+                                                }}
+                                            >
+                                                <X className="size-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {maxFiles > selectedFiles.length && (
+                                        <button
+                                            className="w-full text-xs text-text-muted hover:text-foreground pt-2 border-t border-white/5 transition-colors"
+                                            onClick={() => fileInputRef.current?.click()}
+                                        >
+                                            + Añadir otro archivo ({selectedFiles.length}/{maxFiles})
+                                        </button>
+                                    )}
                                 </div>
                             ) : (
                                 <div>
@@ -342,7 +451,8 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
                                         {submission ? "Cambiar entrega" : "Seleccionar archivo"}
                                     </p>
                                     <p className="text-xs text-text-muted">
-                                        Máx. {maxSizeMb} MB
+                                        Arrastra aquí o haz clic · Máx. {maxSizeMb} MB
+                                        {maxFiles > 1 ? ` · Hasta ${maxFiles} archivos` : ""}
                                     </p>
                                 </div>
                             )}
@@ -350,7 +460,7 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
 
                         <Button
                             onClick={handleUpload}
-                            disabled={!selectedFile || uploading || isPending}
+                            disabled={!selectedFiles.length || uploading || isPending}
                             className="w-full gap-2 bg-amber-500 hover:bg-amber-600 text-white"
                         >
                             {uploading || isPending

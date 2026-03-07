@@ -97,7 +97,14 @@ export type PresentationContent = {
 };
 
 // 7. FileUpload (subida directa de archivos)
-export type AllowedFileType = 'pdf' | 'image' | 'word' | 'any';
+export type AllowedFileType = 'pdf' | 'image' | 'word' | 'zip' | 'pka' | 'any';
+
+export type SubmissionFile = {
+    driveFileId: string;
+    driveFileUrl: string;
+    driveFileName: string;
+    driveMimeType: string;
+};
 
 export type FileUploadContent = {
     instructionsMarkdown: string;
@@ -165,4 +172,5 @@ export type ActivitySubmission = {
     graded_at: string | null;
     rubric_scores: Record<string, number> | null;
     grading_mode: 'score' | 'rubric' | 'complete' | null;
+    files: SubmissionFile[] | null;
 };
