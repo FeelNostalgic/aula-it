@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const stepId = formData.get("stepId") as string | null;
+    const existingDriveFileId = formData.get("existingDriveFileId") as string | null;
 
     if (!file || !stepId) {
         return NextResponse.json({ error: "file y stepId son requeridos" }, { status: 400 });
@@ -142,36 +143,43 @@ export async function POST(request: NextRequest) {
 
     const driveClient = getDriveClient(tokenRow.refresh_token);
 
-    // Ensure folder structure: Aula-it Entregas / {stepTitle}
+    // Delete previous file if re-submitting
+    if (existingDriveFileId) {
+        try {
+            await driveClient.files.delete({ fileId: existingDriveFileId });
+        } catch (err: any) {
+            if (err?.code !== 404 && err?.status !== 404) {
+                console.warn("Drive delete warning:", err?.message);
+            }
+        }
+    }
+
+    // Ensure folder structure: Aula-it Entregas / {stepTitle} / {studentName}
     const rootFolderId = await getOrCreateFolder(driveClient, null, "Aula-it Entregas");
     const stepFolderId = await getOrCreateFolder(driveClient, rootFolderId, step.title ?? "Paso");
+    const studentFolderId = await getOrCreateFolder(driveClient, stepFolderId, studentName);
 
-    // Build filename
-    const ext = file.name.includes(".") ? file.name.split(".").pop() : "";
-    const timestamp = new Date().toISOString().slice(0, 16).replace("T", "_").replace(":", "-");
-    const fileName = ext
-        ? `${studentName} - ${timestamp}.${ext}`
-        : `${studentName} - ${timestamp}`;
-
-    // Upload to Drive
+    // Upload to Drive preserving original filename
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const stream = Readable.from(buffer);
 
     const uploaded = await driveClient.files.create({
         requestBody: {
-            name: fileName,
-            parents: [stepFolderId],
+            name: file.name,
+            parents: [studentFolderId],
         },
         media: {
             mimeType: file.type || "application/octet-stream",
             body: stream,
         },
-        fields: "id,webViewLink",
+        fields: "id,webViewLink,name,mimeType",
     });
 
     const driveFileId = uploaded.data.id!;
     const driveFileUrl = uploaded.data.webViewLink!;
+    const driveFileName = uploaded.data.name!;
+    const driveMimeType = uploaded.data.mimeType!;
 
-    return NextResponse.json({ driveFileUrl, driveFileId });
+    return NextResponse.json({ driveFileUrl, driveFileId, driveFileName, driveMimeType });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import { useState, useRef, useTransition, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -10,8 +10,16 @@ import rehypeKatex from "rehype-katex";
 import {
     Paperclip, CheckCircle2, Clock, Star, ExternalLink,
     Upload, X, AlertTriangle, CalendarClock, RefreshCw,
+    FileText, Image, FileSpreadsheet, FileVideo, FileAudio,
+    FileCode, FileArchive, File,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel,
+    AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+    AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { FileUploadContent, ActivitySubmission, SubmissionStatus, AllowedFileType } from "@/types/activity";
 import { submitFileUpload } from "@/app/activities/[id]/actions";
 import { toast } from "sonner";
@@ -48,12 +56,43 @@ function formatBytes(bytes: number): string {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function getMimeIcon(mimeType: string | null): LucideIcon {
+    if (!mimeType) return File;
+    if (mimeType === "application/pdf") return FileText;
+    if (mimeType.startsWith("image/")) return Image;
+    if (
+        mimeType === "application/vnd.ms-excel" ||
+        mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        mimeType === "application/vnd.google-apps.spreadsheet"
+    ) return FileSpreadsheet;
+    if (
+        mimeType === "application/msword" ||
+        mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        mimeType === "application/vnd.google-apps.document"
+    ) return FileText;
+    if (mimeType.startsWith("video/")) return FileVideo;
+    if (mimeType.startsWith("audio/")) return FileAudio;
+    if (mimeType.startsWith("text/")) return FileCode;
+    if (mimeType.includes("zip") || mimeType.includes("compressed") || mimeType.includes("tar")) return FileArchive;
+    return File;
+}
+
 export function FileUploadViewer({ content, stepId, activityId, initialSubmission, dueDate }: FileUploadViewerProps) {
     const [submission, setSubmission] = useState<ActivitySubmission | null>(initialSubmission ?? null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isPending, startTransition] = useTransition();
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // T6a: sync state when navigating between file_upload steps
+    useEffect(() => {
+        setSubmission(initialSubmission ?? null);
+        setSelectedFile(null);
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    }, [stepId]);
 
     const status: SubmissionStatus = submission?.status ?? "pending";
     const statusConfig = STATUS_CONFIG[status];
@@ -84,6 +123,9 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
             const formData = new FormData();
             formData.append("file", selectedFile);
             formData.append("stepId", stepId);
+            if (submission?.drive_file_id) {
+                formData.append("existingDriveFileId", submission.drive_file_id);
+            }
 
             const res = await fetch("/api/drive/upload", {
                 method: "POST",
@@ -97,7 +139,7 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
             }
 
             startTransition(async () => {
-                const result = await submitFileUpload(stepId, activityId, json.driveFileUrl, json.driveFileId);
+                const result = await submitFileUpload(stepId, activityId, json.driveFileUrl, json.driveFileId, json.driveFileName, json.driveMimeType);
                 if (result.error) {
                     toast.error(result.error);
                 } else {
@@ -111,6 +153,30 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
             toast.error("Error al subir el archivo.");
         } finally {
             setUploading(false);
+        }
+    }
+
+    async function handleDeleteSubmission() {
+        if (!submission?.drive_file_id) return;
+        setIsDeleting(true);
+        try {
+            const res = await fetch("/api/drive/delete", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ driveFileId: submission.drive_file_id, stepId, activityId }),
+            });
+            const json = await res.json();
+            if (!res.ok || !json.success) {
+                toast.error(json.error ?? "Error al eliminar la entrega.");
+            } else {
+                setSubmission(null);
+                setShowDeleteConfirm(false);
+                toast.success("Entrega eliminada correctamente.");
+            }
+        } catch {
+            toast.error("Error al eliminar la entrega.");
+        } finally {
+            setIsDeleting(false);
         }
     }
 
@@ -165,18 +231,72 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
                     </span>
                 </div>
 
-                {/* Already submitted file link */}
-                {submission?.drive_file_url && (
-                    <a
-                        href={submission.drive_file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-sm text-accent-blue hover:underline truncate"
-                    >
-                        <ExternalLink className="size-3.5 shrink-0" />
-                        <span className="truncate">Ver archivo entregado en Drive</span>
-                    </a>
-                )}
+                {/* Already submitted file */}
+                {submission?.drive_file_url && (() => {
+                    const MimeIcon = getMimeIcon(submission.drive_mime_type);
+                    return (
+                        <div className="flex items-center gap-3 p-3 bg-surface border border-white/10 rounded-xl">
+                            <MimeIcon className="size-8 text-text-muted shrink-0" />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate">
+                                    {submission.drive_file_name ?? "Archivo entregado"}
+                                </p>
+                                <a
+                                    href={submission.drive_file_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-accent-blue hover:underline flex items-center gap-1 mt-0.5"
+                                >
+                                    <ExternalLink className="size-3 shrink-0" />
+                                    Ver en Drive
+                                </a>
+                            </div>
+                            {!isLocked && (
+                                <div className="flex items-center gap-1 shrink-0">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-8 text-text-muted hover:text-foreground"
+                                        title="Cambiar archivo"
+                                        onClick={() => fileInputRef.current?.click()}
+                                    >
+                                        <RefreshCw className="size-3.5" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-8 text-text-muted hover:text-red-400"
+                                        title="Eliminar entrega"
+                                        onClick={() => setShowDeleteConfirm(true)}
+                                    >
+                                        <X className="size-3.5" />
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
+
+                <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>¿Eliminar entrega?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Se eliminará el archivo de Google Drive y el registro de entrega. Esta acción no se puede deshacer.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={handleDeleteSubmission}
+                                disabled={isDeleting}
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                            >
+                                {isDeleting ? <><RefreshCw className="size-3.5 animate-spin mr-1.5" />Eliminando...</> : "Eliminar"}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
 
                 {!isLocked && (
                     <>

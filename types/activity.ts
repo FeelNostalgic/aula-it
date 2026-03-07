@@ -154,6 +154,8 @@ export type ActivitySubmission = {
     step_id: string;
     drive_file_url: string | null;
     drive_file_id: string | null;
+    drive_file_name: string | null;
+    drive_mime_type: string | null;
     status: SubmissionStatus;
     submitted_at: string | null;
     created_at: string;

@@ -50,7 +50,9 @@ export async function submitFileUpload(
     stepId: string,
     activityId: string,
     driveFileUrl: string,
-    driveFileId: string
+    driveFileId: string,
+    driveFileName: string,
+    driveMimeType: string
 ) {
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -74,6 +76,8 @@ export async function submitFileUpload(
                 step_id: stepId,
                 drive_file_url: driveFileUrl,
                 drive_file_id: driveFileId,
+                drive_file_name: driveFileName,
+                drive_mime_type: driveMimeType,
                 status: "submitted",
                 submitted_at: new Date().toISOString(),
             },
