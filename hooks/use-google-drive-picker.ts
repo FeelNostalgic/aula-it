@@ -8,6 +8,8 @@ const APP_ID = process.env.NEXT_PUBLIC_GOOGLE_APP_ID!;
 
 const SCOPES = "https://www.googleapis.com/auth/drive.file";
 
+import { toast } from "sonner";
+
 export interface DriveFile {
     id: string;
     name: string;
@@ -165,7 +167,7 @@ export function useGoogleDrivePicker() {
             }
 
             const picker = builder
-                .setCallback((data: any) => {
+                .setCallback(async (data: any) => {
                     console.log("Picker callback data:", data);
 
                     if (data.action === google.picker.Action.PICKED || data.action === 'picked') {
@@ -174,11 +176,47 @@ export function useGoogleDrivePicker() {
                             name: doc.name,
                             mimeType: doc.mimeType,
                             url: doc.mimeType?.startsWith("image/")
-                                ? `https://lh3.googleusercontent.com/d/${doc.id}`
+                                ? `/api/drive-image?id=${doc.id}`
                                 : doc.url,
                             iconUrl: doc.iconUrl,
                             lastEditedUtc: doc.lastEditedUtc,
                         }));
+
+                        // Auto-share the selected files if they are images (required for proxy to work)
+                        if (options?.externalAccessToken || accessTokenRef.current) {
+                            const tokenToUse = options?.externalAccessToken || accessTokenRef.current;
+                            if (tokenToUse) {
+                                await Promise.all(
+                                    files
+                                        .filter((f) => f.mimeType?.startsWith("image/"))
+                                        .map((f) =>
+                                            fetch(`https://www.googleapis.com/drive/v3/files/${f.id}/permissions`, {
+                                                method: "POST",
+                                                headers: {
+                                                    Authorization: `Bearer ${tokenToUse}`,
+                                                    "Content-Type": "application/json",
+                                                },
+                                                body: JSON.stringify({
+                                                    type: "anyone",
+                                                    role: "reader",
+                                                }),
+                                            }).then(async (res) => {
+                                                if (!res.ok) {
+                                                    const errData = await res.json().catch(() => null);
+                                                    console.warn("Could not auto-share Drive file:", errData || res.statusText);
+                                                    toast.warning(
+                                                        `No se pudo hacer pública la imagen "${f.name}". Asegúrate de compartirla manualmente en Google Drive para que tus alumnos puedan verla.`,
+                                                        { duration: 6000 }
+                                                    );
+                                                }
+                                            })
+                                        )
+                                ).catch((err) => {
+                                    console.error("Auto-share error:", err);
+                                });
+                            }
+                        }
+
                         setIsLoading(false);
                         onDone(files);
                     } else if (data.action === google.picker.Action.CANCEL || data.action === 'cancel') {
