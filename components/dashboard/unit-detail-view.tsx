@@ -158,15 +158,6 @@ export function UnitDetailView({
 
     return (
         <div className="flex flex-col gap-8">
-            {/* Top Bar with Back Button */}
-            <div>
-                <Link href={`/dashboard/modules/${module.id}`}>
-                    <Button variant="ghost" className="pl-0 text-text-muted hover:text-foreground">
-                        <ArrowLeft className="mr-2 size-4" />
-                        Volver a {module.name}
-                    </Button>
-                </Link>
-            </div>
 
             {/* Unit Header */}
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
