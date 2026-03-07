@@ -221,6 +221,13 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                         <div
                                             key={stepId}
                                             onClick={() => setSelectedStepId(stepId)}
+                                            onAuxClick={(e) => {
+                                                if (e.button === 1) {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    handleCloseTab(e, stepId);
+                                                }
+                                            }}
                                             className={cn(
                                                 "group flex items-center h-full min-w-32 max-w-64 px-3 border-r border-border/50 text-xs cursor-pointer select-none transition-colors",
                                                 isActive

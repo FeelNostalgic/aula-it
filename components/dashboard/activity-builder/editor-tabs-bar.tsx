@@ -92,6 +92,13 @@ function SortableTab({
             ref={setNodeRef}
             style={style}
             onClick={onSelect}
+            onAuxClick={(e) => {
+                if (e.button === 1) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onClose(e);
+                }
+            }}
             onDoubleClick={handleStartRename}
             className={cn(
                 "group flex items-center h-full min-w-32 max-w-64 px-3 border-r border-border/50 text-xs cursor-pointer select-none transition-colors",
