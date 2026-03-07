@@ -67,6 +67,13 @@ IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the correspon
 3. Apply ALL patterns and rules from the skill
 4. Multiple skills can apply (e.g., react-19 + typescript + tailwind-4)
 
+---
+
+## Spec-Driven Development (SDD)
+Writen in each .md for each AI
+
+---
+
 ## Engram Persistent Memory — Protocol
 
 You have access to Engram, a persistent memory system that survives across sessions and compactions.
