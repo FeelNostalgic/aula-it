@@ -73,8 +73,19 @@ jobs:
       - name: Determine version bump
         id: bump
         run: |
-          # Extraemos todos los mensajes de los commits del push
-          COMMIT_MSGS=$(jq -r '.commits[].message' "$GITHUB_EVENT_PATH")
+          # Extraemos todos los mensajes desde el último tag generado
+          # Para asegurarnos de tener todos los tags, hacemos fetch
+          git fetch --tags origin || true
+          
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$LAST_TAG" ]; then
+            echo "No hay tags anteriores. Evaluando todos los commits."
+            COMMIT_MSGS=$(git log --format=%B)
+          else
+            echo "Evaluando commits desde el tag: $LAST_TAG"
+            COMMIT_MSGS=$(git log ${LAST_TAG}..HEAD --format=%B)
+          fi
           
           echo "Mensajes a evaluar:"
           echo "$COMMIT_MSGS"
