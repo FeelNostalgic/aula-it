@@ -1,4 +1,4 @@
-import { FileText, PenTool, PlaySquare, CheckSquare, MonitorPlay, FolderDown } from "lucide-react";
+import { FileText, PenTool, PlaySquare, CheckSquare, MonitorPlay, FolderDown, Paperclip } from "lucide-react";
 import { ActivityStepType } from "@/types/activity";
 
 /**
@@ -13,6 +13,7 @@ export function getStepIcon(type: ActivityStepType) {
         case 'quiz': return <CheckSquare className="size-4 text-accent-orange" />;
         case 'presentation': return <MonitorPlay className="size-4 text-emerald-400" />;
         case 'resource': return <FolderDown className="size-4 text-accent-blue" />;
+        case 'file_upload': return <Paperclip className="size-4 text-amber-400" />;
     }
 }
 
@@ -28,6 +29,7 @@ export function getTabStepIcon(type?: ActivityStepType) {
         case 'quiz': return <CheckSquare className="size-3.5 text-accent-orange" />;
         case 'presentation': return <MonitorPlay className="size-3.5 text-emerald-400" />;
         case 'resource': return <FolderDown className="size-3.5 text-accent-blue" />;
+        case 'file_upload': return <Paperclip className="size-3.5 text-amber-400" />;
         default: return <FileText className="size-3.5 text-text-muted" />;
     }
 }
@@ -37,9 +39,10 @@ export function getTabStepIcon(type?: ActivityStepType) {
  */
 export const STEP_TYPE_LABELS: Record<ActivityStepType, string> = {
     theory: "Texto/Teoría",
-    deliverable: "Entregable",
+    deliverable: "Memo",
     animation: "Animación",
     quiz: "Cuestionario",
     presentation: "Presentación",
     resource: "Recursos",
+    file_upload: "Entregable",
 };

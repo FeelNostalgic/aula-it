@@ -1,7 +1,8 @@
 "use client";
 
-import { ActivityStepWithClientState, TheoryContent, QuizContent, PresentationContent, ResourceContent, DeliverableContent, AnimationContent, ActivitySubmission } from "@/types/activity";
+import { ActivityStepWithClientState, TheoryContent, QuizContent, PresentationContent, ResourceContent, DeliverableContent, AnimationContent, FileUploadContent, ActivitySubmission } from "@/types/activity";
 import { DeliverableViewer } from "./deliverable-viewer";
+import { FileUploadViewer } from "./file-upload-viewer";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -44,10 +45,24 @@ export function StepViewer({ step, activityId, submission, googleEmail, userId }
                         activityId={activityId}
                         initialSubmission={submission}
                         googleEmail={googleEmail}
+                        dueDate={step.due_date}
                     />
                 );
             }
             return <DeliverableViewerBasic content={step.content as DeliverableContent} />;
+        case 'file_upload':
+            if (activityId) {
+                return (
+                    <FileUploadViewer
+                        content={step.content as FileUploadContent}
+                        stepId={step.id}
+                        activityId={activityId}
+                        initialSubmission={submission}
+                        dueDate={step.due_date}
+                    />
+                );
+            }
+            return null;
         case 'animation':
             return <AnimationViewer content={step.content as AnimationContent} />;
         default:

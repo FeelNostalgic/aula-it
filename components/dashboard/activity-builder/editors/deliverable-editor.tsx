@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { ActivityStepWithClientState, DeliverableContent, DeliveryMode, RubricCriteria } from "@/types/activity";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { updateStepContent } from "@/app/activities/[id]/edit/actions";
+import { updateStepContent, updateStepDueDate } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Link2, HardDrive, CheckCircle2, Copy, MousePointer, ExternalLink, ListChecks } from "lucide-react";
@@ -33,7 +33,9 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
     const [driveConnected, setDriveConnected] = useState<boolean | null>(null);
     const [rubricModalOpen, setRubricModalOpen] = useState(false);
+    const [dueDate, setDueDate] = useState<string | null>(step.due_date ?? null);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const dueDateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
     const togglePreview = () => {
@@ -43,7 +45,8 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
     useEffect(() => {
         const newContent = (step.content as DeliverableContent) || { templateUrl: '', instructionsMarkdown: '', deliveryMode: 'manual' };
         setContent(newContent);
-    }, [step.id, step.content]);
+        setDueDate(step.due_date ?? null);
+    }, [step.id, step.content, step.due_date]);
 
     // Check Drive connection status when teacher_copy is selected
     useEffect(() => {
@@ -109,6 +112,17 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
         timeoutRef.current = setTimeout(async () => {
             const res = await updateStepContent(step.id, newContent);
             if (res.error) toast.error("Error al guardar la rúbrica");
+            setIsSaving(false);
+        }, 1000);
+    };
+
+    const handleDueDateChange = (value: string | null) => {
+        setDueDate(value);
+        if (dueDateTimeoutRef.current) clearTimeout(dueDateTimeoutRef.current);
+        setIsSaving(true);
+        dueDateTimeoutRef.current = setTimeout(async () => {
+            const res = await updateStepDueDate(step.id, value);
+            if (res.error) toast.error("Error al guardar la fecha límite");
             setIsSaving(false);
         }, 1000);
     };
@@ -257,6 +271,30 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
                     onClose={() => setRubricModalOpen(false)}
                     onChange={handleRubricChange}
                 />
+
+                {/* Deadline picker */}
+                <div className="mt-4 space-y-1.5 max-w-xs">
+                    <label className="text-sm font-semibold text-foreground">Fecha límite (opcional)</label>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="datetime-local"
+                            value={dueDate ? dueDate.slice(0, 16) : ""}
+                            onChange={(e) => handleDueDateChange(e.target.value || null)}
+                            className="flex-1 h-9 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                        />
+                        {dueDate && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDueDateChange(null)}
+                                className="h-9 text-xs text-text-muted hover:text-foreground shrink-0"
+                            >
+                                Quitar
+                            </Button>
+                        )}
+                    </div>
+                    <p className="text-xs text-text-muted">El alumno no podrá entregar pasada esta fecha.</p>
+                </div>
             </div>
 
             <div className="flex-1 flex overflow-hidden min-h-0">

@@ -10,8 +10,8 @@ export type ActivityPhase = {
     updated_at: string;
 };
 
-// Los cinco tipos de pasos soportados + resource
-export type ActivityStepType = 'theory' | 'deliverable' | 'animation' | 'quiz' | 'presentation' | 'resource';
+// Los cinco tipos de pasos soportados + resource + file_upload
+export type ActivityStepType = 'theory' | 'deliverable' | 'animation' | 'quiz' | 'presentation' | 'resource' | 'file_upload';
 
 // Definición de un Paso, que pertenece a una Fase
 export type ActivityStep = {
@@ -23,6 +23,7 @@ export type ActivityStep = {
     order_index: number;
     is_visible: boolean;
     is_locked: boolean;
+    due_date?: string | null;
     created_at: string;
     updated_at: string;
 };
@@ -95,6 +96,17 @@ export type PresentationContent = {
     notes?: string;
 };
 
+// 7. FileUpload (subida directa de archivos)
+export type AllowedFileType = 'pdf' | 'image' | 'word' | 'any';
+
+export type FileUploadContent = {
+    instructionsMarkdown: string;
+    allowedTypes: AllowedFileType[];
+    maxFileSizeMb: number;
+    maxFiles: number;
+    rubric?: RubricCriteria[];
+};
+
 // 6. Resource (Files/Links)
 export type ResourceItem = {
     id: string;
@@ -118,13 +130,14 @@ export type ActivityStepContent =
     | QuizContent
     | PresentationContent
     | ResourceContent
+    | FileUploadContent
     | null;
 
 // Tipos para el estado en cliente (inclusiones anidadas para el sidebar)
 export type ActivityStepWithClientState = ActivityStep & {
     isExpanded?: boolean;
     isSelected?: boolean;
-    content: TheoryContent | DeliverableContent | AnimationContent | QuizContent | PresentationContent | ResourceContent; // tipado fuerte
+    content: TheoryContent | DeliverableContent | AnimationContent | QuizContent | PresentationContent | ResourceContent | FileUploadContent; // tipado fuerte
 };
 
 export type ActivityPhaseWithSteps = ActivityPhase & {

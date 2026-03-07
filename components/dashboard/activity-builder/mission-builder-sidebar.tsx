@@ -10,6 +10,7 @@ import {
     CheckSquare,
     MonitorPlay,
     FolderDown,
+    Paperclip,
     Plus,
     MoreVertical,
     GripVertical,
@@ -278,7 +279,10 @@ function SortablePhaseHeader({
                             <PlaySquare className="size-3.5 mr-2 text-pink-400" /> Añadir Animación
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('deliverable'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
-                            <PenTool className="size-3.5 mr-2 text-purple-400" /> Añadir Entregable
+                            <PenTool className="size-3.5 mr-2 text-purple-400" /> Añadir Memo
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('file_upload'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
+                            <Paperclip className="size-3.5 mr-2 text-amber-400" /> Añadir Entregable
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('quiz'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
                             <CheckSquare className="size-3.5 mr-2 text-accent-orange" /> Añadir Cuestionario

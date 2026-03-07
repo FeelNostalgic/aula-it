@@ -7,7 +7,7 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
-import { PencilRuler, ExternalLink, Send, CheckCircle2, Clock, Star, Link, Copy } from "lucide-react";
+import { PencilRuler, ExternalLink, Send, CheckCircle2, Clock, Star, Link, Copy, CalendarClock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DeliverableContent, ActivitySubmission, SubmissionStatus } from "@/types/activity";
@@ -22,6 +22,7 @@ interface DeliverableViewerProps {
     activityId: string;
     initialSubmission?: ActivitySubmission | null;
     googleEmail?: string | null;
+    dueDate?: string | null;
 }
 
 const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.ElementType; className: string }> = {
@@ -42,7 +43,7 @@ const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.Eleme
     },
 };
 
-export function DeliverableViewer({ content, stepId, activityId, initialSubmission, googleEmail: initialGoogleEmail }: DeliverableViewerProps) {
+export function DeliverableViewer({ content, stepId, activityId, initialSubmission, googleEmail: initialGoogleEmail, dueDate }: DeliverableViewerProps) {
     const [submission, setSubmission] = useState<ActivitySubmission | null>(initialSubmission ?? null);
     const [url, setUrl] = useState(initialSubmission?.drive_file_url ?? "");
     const [isPending, startTransition] = useTransition();
@@ -52,6 +53,7 @@ export function DeliverableViewer({ content, stepId, activityId, initialSubmissi
     const status: SubmissionStatus = submission?.status ?? "pending";
     const statusConfig = STATUS_CONFIG[status];
     const StatusIcon = statusConfig.icon;
+    const isDeadlinePassed = dueDate ? new Date(dueDate) < new Date() : false;
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -68,6 +70,25 @@ export function DeliverableViewer({ content, stepId, activityId, initialSubmissi
 
     return (
         <div className="max-w-4xl mx-auto space-y-8">
+            {/* Deadline badge */}
+            {dueDate && (
+                <div className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-medium",
+                    isDeadlinePassed
+                        ? "bg-red-500/10 border-red-500/20 text-red-400"
+                        : "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                )}>
+                    {isDeadlinePassed
+                        ? <AlertTriangle className="size-4 shrink-0" />
+                        : <CalendarClock className="size-4 shrink-0" />
+                    }
+                    {isDeadlinePassed
+                        ? "Plazo cerrado — ya no se aceptan entregas."
+                        : `Fecha límite: ${new Date(dueDate).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })}`
+                    }
+                </div>
+            )}
+
             {/* Instructions */}
             <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-4">
                 <h3 className="text-sm font-bold text-accent-blue flex items-center gap-2 uppercase tracking-widest">
@@ -153,11 +174,11 @@ export function DeliverableViewer({ content, stepId, activityId, initialSubmissi
                                 onChange={(e) => setUrl(e.target.value)}
                                 placeholder="https://docs.google.com/..."
                                 className="flex-1 bg-background border-border/50 text-sm"
-                                disabled={isPending || status === "graded"}
+                                disabled={isPending || status === "graded" || isDeadlinePassed}
                             />
                             <Button
                                 type="submit"
-                                disabled={isPending || !url || status === "graded"}
+                                disabled={isPending || !url || status === "graded" || isDeadlinePassed}
                                 className="gap-2 shrink-0"
                             >
                                 <Send className="size-4" />

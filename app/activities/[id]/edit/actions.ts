@@ -69,6 +69,8 @@ export async function createStep(phaseId: string, title: string, type: ActivityS
         defaultContent = { slidesUrl: '', notes: '' };
     } else if (type === 'resource') {
         defaultContent = { items: [], markdownHeader: '' };
+    } else if (type === 'file_upload') {
+        defaultContent = { instructionsMarkdown: '', allowedTypes: ['pdf', 'image', 'word'], maxFileSizeMb: 10, maxFiles: 1 };
     }
 
     const { data, error } = await supabase
@@ -269,6 +271,21 @@ export async function updateStepVisibility(stepId: string, isVisible: boolean) {
         .single();
     if (error) {
         console.error("Error updating step visibility:", error);
+        return { error: error.message };
+    }
+    return { data };
+}
+
+export async function updateStepDueDate(stepId: string, dueDate: string | null) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from('activity_steps')
+        .update({ due_date: dueDate })
+        .eq('id', stepId)
+        .select()
+        .single();
+    if (error) {
+        console.error("Error updating step due date:", error);
         return { error: error.message };
     }
     return { data };

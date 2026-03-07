@@ -360,11 +360,11 @@ export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ d
     const phaseActivityMap: Record<string, string> = {};
     for (const p of phases) phaseActivityMap[p.id] = p.activity_id;
 
-    // Step 2: get deliverable steps in those phases
+    // Step 2: get deliverable and file_upload steps in those phases
     const { data: steps, error: stepsError } = await supabase
         .from("activity_steps")
         .select("id, title, phase_id, content")
-        .eq("type", "deliverable")
+        .in("type", ["deliverable", "file_upload"])
         .in("phase_id", phaseIds);
 
     if (stepsError) return { error: stepsError.message };

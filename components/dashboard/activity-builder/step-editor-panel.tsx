@@ -9,6 +9,10 @@ const DeliverableEditor = dynamic(
     () => import("./editors/deliverable-editor").then(m => ({ default: m.DeliverableEditor })),
     { ssr: false }
 );
+const FileUploadEditor = dynamic(
+    () => import("./editors/file-upload-editor").then(m => ({ default: m.FileUploadEditor })),
+    { ssr: false }
+);
 const QuizEditor = dynamic(
     () => import("./editors/quiz-editor").then(m => ({ default: m.QuizEditor })),
     { ssr: false }
@@ -55,6 +59,7 @@ export function StepEditorPanel({ step, onUpdateStep }: StepEditorPanelProps) {
             <div className="flex-1 overflow-hidden">
                 {step.type === 'theory' && <TheoryEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === 'deliverable' && <DeliverableEditor step={step} onUpdate={onUpdateStep} />}
+                {step.type === 'file_upload' && <FileUploadEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === 'animation' && <AnimationEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === 'quiz' && <QuizEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === 'presentation' && <PresentationEditor step={step} onUpdate={onUpdateStep} />}
