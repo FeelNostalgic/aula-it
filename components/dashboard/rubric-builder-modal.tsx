@@ -18,9 +18,9 @@ interface RubricBuilderModalProps {
 }
 
 const DEFAULT_LEVELS: Omit<RubricLevel, "id">[] = [
-    { label: "Excelente",    points: 4, description: "" },
-    { label: "Notable",      points: 3, description: "" },
-    { label: "Aprobado",     points: 2, description: "" },
+    { label: "Excelente", points: 4, description: "" },
+    { label: "Notable", points: 3, description: "" },
+    { label: "Aprobado", points: 2, description: "" },
     { label: "Insuficiente", points: 1, description: "" },
 ];
 
@@ -76,7 +76,7 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
 
     return (
         <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-            <DialogContent className="max-w-[95vw] w-[95vw] h-[80vh] p-0 flex flex-col gap-0 overflow-hidden">
+            <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
                 <DialogHeader className="shrink-0 px-6 py-4 border-b border-border-strong">
                     <DialogTitle className="text-base font-bold">Configurar rúbrica</DialogTitle>
                 </DialogHeader>
@@ -165,57 +165,63 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
 
                                     {/* Levels */}
                                     <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
+                                        <div className="flex items-center justify-between mb-4">
                                             <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Niveles</label>
                                             <span className="text-xs text-text-muted">
                                                 {selected.levels?.length ?? 0} nivel{(selected.levels?.length ?? 0) !== 1 ? "es" : ""}
                                             </span>
                                         </div>
 
-                                        {(selected.levels?.length ?? 0) > 0 && (
-                                            <div className="grid grid-cols-[1fr_1.5fr_72px_32px] gap-x-2 gap-y-0 mb-1">
-                                                <span className="text-[10px] font-bold text-text-muted uppercase px-1">Etiqueta</span>
-                                                <span className="text-[10px] font-bold text-text-muted uppercase px-1">Descripción</span>
-                                                <span className="text-[10px] font-bold text-text-muted uppercase px-1 text-center">Pts</span>
-                                                <span />
-                                            </div>
-                                        )}
-
-                                        <div className="space-y-1.5">
+                                        <div className="space-y-3">
                                             {(selected.levels ?? []).map((level) => (
-                                                <div key={level.id} className="grid grid-cols-[1fr_1.5fr_72px_32px] gap-2 items-center">
-                                                    <Input
-                                                        value={level.label}
-                                                        onChange={(e) => updateLevel(selected.id, level.id, { label: e.target.value })}
-                                                        placeholder="Ej: Excelente"
-                                                        className="bg-surface-dark border-border-strong h-8 text-sm"
-                                                    />
-                                                    <Input
-                                                        value={level.description ?? ""}
-                                                        onChange={(e) => updateLevel(selected.id, level.id, { description: e.target.value })}
-                                                        placeholder="Descripción del nivel"
-                                                        className="bg-surface-dark border-border-strong h-8 text-sm"
-                                                    />
-                                                    <Input
-                                                        type="number"
-                                                        min={0}
-                                                        max={100}
-                                                        step={0.5}
-                                                        value={level.points === 0 ? "" : level.points}
-                                                        placeholder="0"
-                                                        onChange={(e) => {
-                                                            const raw = e.target.value;
-                                                            const parsed = parseFloat(raw);
-                                                            updateLevel(selected.id, level.id, { points: isNaN(parsed) ? 0 : parsed });
-                                                        }}
-                                                        className="bg-surface-dark border-border-strong h-8 text-sm text-center font-mono"
-                                                    />
+                                                <div key={level.id} className="bg-surface/30 border border-border-strong rounded-xl p-4 relative group transition-colors hover:border-border-subtle">
                                                     <button
                                                         onClick={() => removeLevel(selected.id, level.id)}
-                                                        className="flex items-center justify-center size-8 rounded-md text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                                        className="absolute top-3 right-3 flex items-center justify-center size-7 rounded-md text-text-muted opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                                        title="Eliminar nivel"
                                                     >
                                                         <Trash2 className="size-3.5" />
                                                     </button>
+
+                                                    <div className="flex gap-4 mb-3 pr-8">
+                                                        <div className="flex-1 space-y-1.5">
+                                                            <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Etiqueta</label>
+                                                            <Input
+                                                                value={level.label}
+                                                                onChange={(e) => updateLevel(selected.id, level.id, { label: e.target.value })}
+                                                                placeholder="Ej: Excelente"
+                                                                className="bg-surface-dark border-border-strong h-8 text-sm"
+                                                            />
+                                                        </div>
+                                                        <div className="w-20 space-y-1.5">
+                                                            <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest text-center block">Puntos</label>
+                                                            <Input
+                                                                type="number"
+                                                                min={0}
+                                                                max={100}
+                                                                step={0.5}
+                                                                value={level.points === 0 ? "" : level.points}
+                                                                placeholder="0"
+                                                                onChange={(e) => {
+                                                                    const raw = e.target.value;
+                                                                    const parsed = parseFloat(raw);
+                                                                    updateLevel(selected.id, level.id, { points: isNaN(parsed) ? 0 : parsed });
+                                                                }}
+                                                                className="bg-surface-dark border-border-strong h-8 text-sm text-center font-mono"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Descripción</label>
+                                                        <Textarea
+                                                            value={level.description ?? ""}
+                                                            onChange={(e) => updateLevel(selected.id, level.id, { description: e.target.value })}
+                                                            placeholder="Describe qué se requiere para alcanzar este nivel"
+                                                            rows={2}
+                                                            className="bg-surface-dark border-border-strong resize-none text-sm"
+                                                        />
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
