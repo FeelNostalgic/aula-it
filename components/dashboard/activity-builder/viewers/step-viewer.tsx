@@ -142,7 +142,7 @@ function QuizViewer({ content, userId }: { content: QuizContent; userId?: string
 
     if (isGoogleFormMode && content?.googleFormUrl) {
         const studentId = userId
-            ? `${userId.slice(-8).toUpperCase()}-IT`
+            ? `${userId.slice(-8).toUpperCase()}`
             : null;
 
         return (

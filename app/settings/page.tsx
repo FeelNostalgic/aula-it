@@ -17,7 +17,7 @@ export default async function SettingsPage() {
 
     const userAvatar = user.user_metadata?.avatar_url || "";
     // Format ID: Take last 8 chars of UUID and uppercase it for a "tactical" look
-    const userId = `ID: ${user.id.slice(-8).toUpperCase()}-IT`;
+    const userId = `ID: ${user.id.slice(-8).toUpperCase()}`;
 
     const isTeacher = profile?.role === "teacher";
 

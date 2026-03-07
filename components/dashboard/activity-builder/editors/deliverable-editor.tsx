@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ActivityStepWithClientState, DeliverableContent, DeliveryMode } from "@/types/activity";
+import { ActivityStepWithClientState, DeliverableContent, DeliveryMode, RubricCriteria } from "@/types/activity";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";

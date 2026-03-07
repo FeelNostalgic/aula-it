@@ -60,7 +60,7 @@ export function UserNav({ userEmail, userName, isTeacher, userId, userAvatar }: 
                                 {isTeacher ? `Prof. ${userName}` : userName}
                             </span>
                             <span className="text-[10px] font-mono text-muted-foreground/60 uppercase tracking-tight">
-                                ID: {userId.substring(userId.length - 8).toUpperCase()}-IT
+                                ID: {userId.substring(userId.length - 8).toUpperCase()}
                             </span>
                         </div>
                         <Avatar className="size-9 rounded-lg border border-border/50 group-hover:border-primary/50 transition-colors">
@@ -78,6 +78,11 @@ export function UserNav({ userEmail, userName, isTeacher, userId, userAvatar }: 
                             <p className="text-xs leading-none text-muted-foreground">
                                 {userEmail}
                             </p>
+                            {!isTeacher && (
+                                <span className="text-[10px] text-accent-amber font-mono font-bold mt-1.5 uppercase tracking-widest bg-amber-500/10 py-0.5 px-2 rounded-full w-fit">
+                                    ALUMNO
+                                </span>
+                            )}
                             {isTeacher && (
                                 <span className="text-[10px] text-primary font-mono font-bold mt-1.5 uppercase tracking-widest bg-primary/5 py-0.5 px-2 rounded-full w-fit">
                                     PROFESOR
