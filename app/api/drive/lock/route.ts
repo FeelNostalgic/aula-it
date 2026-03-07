@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { verifyTeacherOwnsStep } from "@/lib/authorization";
 import { getDriveClient, listPermissions, removePermission, shareFile } from "@/lib/google-drive-api";
 
 export async function POST(request: NextRequest) {
@@ -21,6 +22,10 @@ export async function POST(request: NextRequest) {
     const { stepId } = body as { stepId: string };
     if (!stepId) {
         return NextResponse.json({ error: "stepId es requerido" }, { status: 400 });
+    }
+
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) {
+        return NextResponse.json({ error: "No autorizado." }, { status: 403 });
     }
 
     const admin = createAdminClient();

@@ -1,6 +1,8 @@
 "use server"
 
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
+import { verifyTeacherOwnsActivity, verifyTeacherOwnsPhase, verifyTeacherOwnsStep } from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
 import { ActivityPhase, ActivityStep, ActivityStepType } from "@/types/activity";
 
@@ -32,8 +34,12 @@ export async function getActivityPhases(activityId: string) {
 
 export async function createPhase(activityId: string, title: string, orderIndex: number) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "No autorizado." };
 
-    const { data, error } = await supabase
+    const admin = createAdminClient();
+    const { data, error } = await admin
         .from('activity_phases')
         .insert({
             activity_id: activityId,
@@ -54,6 +60,9 @@ export async function createPhase(activityId: string, title: string, orderIndex:
 
 export async function createStep(phaseId: string, title: string, type: ActivityStepType, orderIndex: number) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "No autorizado." };
 
     // Default content based on type
     let defaultContent = {};
@@ -73,7 +82,8 @@ export async function createStep(phaseId: string, title: string, type: ActivityS
         defaultContent = { instructionsMarkdown: '', allowedTypes: ['pdf', 'image', 'word'], maxFileSizeMb: 10, maxFiles: 1 };
     }
 
-    const { data, error } = await supabase
+    const admin = createAdminClient();
+    const { data, error } = await admin
         .from('activity_steps')
         .insert({
             phase_id: phaseId,
@@ -95,8 +105,12 @@ export async function createStep(phaseId: string, title: string, type: ActivityS
 
 export async function updateStepContent(stepId: string, content: any) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
 
-    const { data, error } = await supabase
+    const admin = createAdminClient();
+    const { data, error } = await admin
         .from('activity_steps')
         .update({ content })
         .eq('id', stepId)
@@ -113,8 +127,12 @@ export async function updateStepContent(stepId: string, content: any) {
 
 export async function updateStepTitle(stepId: string, title: string) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
 
-    const { data, error } = await supabase
+    const admin = createAdminClient();
+    const { data, error } = await admin
         .from('activity_steps')
         .update({ title })
         .eq('id', stepId)
@@ -129,10 +147,14 @@ export async function updateStepTitle(stepId: string, title: string) {
     return { data };
 }
 
-export async function updatePhaseTitle(phaseId: string, title: string) {
+export async function updatePhaseTitle(phaseId: string, activityId: string, title: string) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "No autorizado." };
 
-    const { data, error } = await supabase
+    const admin = createAdminClient();
+    const { data, error } = await admin
         .from('activity_phases')
         .update({ title })
         .eq('id', phaseId)
@@ -147,10 +169,14 @@ export async function updatePhaseTitle(phaseId: string, title: string) {
     return { data };
 }
 
-export async function deletePhase(phaseId: string) {
+export async function deletePhase(phaseId: string, activityId: string) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "No autorizado." };
 
-    const { error } = await supabase
+    const admin = createAdminClient();
+    const { error } = await admin
         .from('activity_phases')
         .delete()
         .eq('id', phaseId);
@@ -165,8 +191,12 @@ export async function deletePhase(phaseId: string) {
 
 export async function deleteStep(stepId: string) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
 
-    const { error } = await supabase
+    const admin = createAdminClient();
+    const { error } = await admin
         .from('activity_steps')
         .delete()
         .eq('id', stepId);
@@ -180,12 +210,16 @@ export async function deleteStep(stepId: string) {
 }
 
 // Reorder functionality
-export async function reorderPhases(updates: { id: string, order_index: number }[]) {
+export async function reorderPhases(activityId: string, updates: { id: string, order_index: number }[]) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "No autorizado." };
 
+    const admin = createAdminClient();
     // Supabase JS doesn't have bulk update out of the box nicely, so we map updates
     const promises = updates.map(update =>
-        supabase
+        admin
             .from('activity_phases')
             .update({ order_index: update.order_index })
             .eq('id', update.id)
@@ -202,11 +236,15 @@ export async function reorderPhases(updates: { id: string, order_index: number }
     return { success: true };
 }
 
-export async function reorderSteps(updates: { id: string, phase_id: string, order_index: number }[]) {
+export async function reorderSteps(activityId: string, updates: { id: string, phase_id: string, order_index: number }[]) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "No autorizado." };
 
+    const admin = createAdminClient();
     const promises = updates.map(update =>
-        supabase
+        admin
             .from('activity_steps')
             .update({ order_index: update.order_index, phase_id: update.phase_id })
             .eq('id', update.id)
@@ -225,8 +263,12 @@ export async function reorderSteps(updates: { id: string, phase_id: string, orde
 
 export async function updateActivitySettings(activityId: string, updates: any) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "No autorizado." };
 
-    const { data, error } = await supabase
+    const admin = createAdminClient();
+    const { data, error } = await admin
         .from('activities')
         .update(updates)
         .eq('id', activityId)
@@ -244,8 +286,12 @@ export async function updateActivitySettings(activityId: string, updates: any) {
 
 export async function updateActivityStatus(activityId: string, status: string) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "No autorizado." };
 
-    const { data, error } = await supabase
+    const admin = createAdminClient();
+    const { data, error } = await admin
         .from('activities')
         .update({ status })
         .eq('id', activityId)
@@ -263,7 +309,12 @@ export async function updateActivityStatus(activityId: string, status: string) {
 
 export async function updateStepVisibility(stepId: string, isVisible: boolean) {
     const supabase = await createClient();
-    const { data, error } = await supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
         .from('activity_steps')
         .update({ is_visible: isVisible })
         .eq('id', stepId)
@@ -278,7 +329,12 @@ export async function updateStepVisibility(stepId: string, isVisible: boolean) {
 
 export async function updateStepDueDate(stepId: string, dueDate: string | null) {
     const supabase = await createClient();
-    const { data, error } = await supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
         .from('activity_steps')
         .update({ due_date: dueDate })
         .eq('id', stepId)
@@ -293,7 +349,12 @@ export async function updateStepDueDate(stepId: string, dueDate: string | null) 
 
 export async function updateStepLock(stepId: string, isLocked: boolean) {
     const supabase = await createClient();
-    const { data, error } = await supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
         .from('activity_steps')
         .update({ is_locked: isLocked })
         .eq('id', stepId)

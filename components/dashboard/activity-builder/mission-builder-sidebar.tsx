@@ -368,7 +368,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
             return;
         }
 
-        const res = await updatePhaseTitle(phaseId, renamedTitle.trim());
+        const res = await updatePhaseTitle(phaseId, activityId, renamedTitle.trim());
         if (res.error) {
             toast.error("Error al renombrar la fase");
         } else {
@@ -412,7 +412,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
     const handleDeletePhase = async (phaseId: string) => {
         if (!confirm("¿Seguro que quieres eliminar esta fase y todos sus pasos?")) return;
 
-        const result = await deletePhase(phaseId);
+        const result = await deletePhase(phaseId, activityId);
         if (result.error) {
             toast.error("Error al eliminar la fase");
         } else {
@@ -544,7 +544,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                 // persist array of phase orders
                 const updates = reorderedWithIndex.map(p => ({ id: p.id, order_index: p.order_index }));
                 // Note: Make sure backend has `reorderPhases`
-                await reorderPhases(updates);
+                await reorderPhases(activityId, updates);
             }
         } else if (activeType === "Step") {
             // Find current phase of the active step
@@ -569,7 +569,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                 setPhases(newPhases);
 
                 const updates = reorderedWithIndex.map(s => ({ id: s.id, phase_id: phase.id, order_index: s.order_index }));
-                await reorderSteps(updates);
+                await reorderSteps(activityId, updates);
             } else {
                 // It was moved during onDragOver, we just need to persist the new order of the phase it ended up in
                 // We ensure everything within the target phase is updated.
@@ -580,7 +580,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                 setPhases(newPhases);
 
                 const updates = reorderedWithIndex.map(s => ({ id: s.id, phase_id: phase.id, order_index: s.order_index }));
-                await reorderSteps(updates);
+                await reorderSteps(activityId, updates);
             }
         }
     };

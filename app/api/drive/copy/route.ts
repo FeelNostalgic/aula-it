@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { verifyTeacherOwnsActivity } from "@/lib/authorization";
 import {
     getDriveClient,
     extractFileIdFromUrl,
@@ -27,6 +28,10 @@ export async function POST(request: NextRequest) {
 
     if (!stepId || !activityId) {
         return NextResponse.json({ error: "stepId y activityId son requeridos" }, { status: 400 });
+    }
+
+    if (!await verifyTeacherOwnsActivity(activityId, user.id)) {
+        return NextResponse.json({ error: "No autorizado." }, { status: 403 });
     }
 
     const admin = createAdminClient();
