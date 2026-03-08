@@ -139,7 +139,7 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label }: Cla
                     {/* Main Cumulative Progress Bar */}
                     <div className="relative pt-8 pb-4">
                         {/* The Markers (Orange Theme) */}
-                        <div className="absolute top-0 left-0 w-full h-full pointer-events-none flex items-start">
+                        <div className="absolute -top-2 left-0 w-full h-full pointer-events-none flex items-start">
                             {visibleMilestones.map((m, idx) => {
                                 // Calculate position for each milestone end point
                                 const milestoneEndXP = visibleMilestones.slice(0, idx + 1).reduce((acc, current) => acc + current.target_points, 0);
@@ -179,7 +179,7 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label }: Cla
                                                     <Gift className={cn("size-4", isFulfilled && "animate-bounce")} />
                                                     {/* Vertical indicator line */}
                                                     <div className={cn(
-                                                        "absolute top-full w-0.5 h-10 mt-1 transition-all duration-1000",
+                                                        "absolute top-full w-0.5 h-6 mt-1 transition-all duration-1000",
                                                         isFulfilled ? "bg-accent-green/40" : isNext ? "bg-amber-500/40" : "bg-white/5"
                                                     )} />
                                                 </motion.button>
@@ -216,18 +216,6 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label }: Cla
                             </motion.div>
                         </div>
 
-                        {/* Progression segments */}
-                        <div className="flex items-center gap-1.5 mt-6 px-1">
-                            {visibleMilestones.map((_, idx) => (
-                                <div
-                                    key={idx}
-                                    className={cn(
-                                        "h-1 rounded-full transition-all duration-1000",
-                                        idx <= currentIndex ? "flex-1 bg-accent-blue/30" : "w-4 bg-white/5"
-                                    )}
-                                />
-                            ))}
-                        </div>
                     </div>
                 </CardContent>
             </Card>

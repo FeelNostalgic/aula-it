@@ -106,7 +106,7 @@ export function StepEditorPanel({ step, onUpdateStep }: StepEditorPanelProps) {
                                                     <p className="font-bold text-foreground">Entregables</p>
                                                     <p className="text-text-muted">200 - 500 XP</p>
                                                 </div>
-                                                <div className="bg-surface/50 p-1.5 rounded border border-border/30 border-accent-blue/30 bg-accent-blue/5">
+                                                <div className="bg-surface/50 p-1.5 rounded border border-border/30">
                                                     <p className="font-bold text-accent-blue">Críticos</p>
                                                     <p className="text-text-muted">500+ XP</p>
                                                 </div>

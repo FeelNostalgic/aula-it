@@ -109,7 +109,7 @@ export default function ModuleStudentsTab({ moduleId, initialStudents }: ModuleS
                                 <div key={student.id} className="grid md:grid-cols-[2fr_1fr_1.5fr_1fr_1fr_auto] gap-4 p-4 items-center hover:bg-surface/20 transition-colors">
                                     {/* Alumno Info */}
                                     <div className="flex items-center gap-3">
-                                        <div className="size-10 rounded-full overflow-hidden bg-accent-orange/10 flex-shrink-0 flex items-center justify-center border border-accent-orange/20">
+                                        <div className="size-10 rounded-full overflow-hidden bg-accent-orange/10 shrink-0 flex items-center justify-center border border-accent-orange/20">
                                             {student.avatar_url ? (
                                                 <img
                                                     src={student.avatar_url}
