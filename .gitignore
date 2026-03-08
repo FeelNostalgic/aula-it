@@ -47,8 +47,8 @@ next-env.d.ts
 /test-results
 .playwright-mcp
 .mcp.json
+test_output*.txt
 
 # agents
 .agents/settings.local.json
 .claude/settings.local.json
-
