@@ -33,6 +33,7 @@ jobs:
       - name: Run Playwright tests
         run: npx playwright test
         env:
+          NODE_OPTIONS: --max-old-space-size=4096
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
