@@ -69,6 +69,13 @@ export default async function DashboardPage() {
     `)
     .eq("student_id", user.id);
 
+  // 1.5 Fetch active class milestone
+  const { data: activeMilestone } = await supabase
+    .from("class_milestones")
+    .select("*")
+    .eq("status", "active")
+    .maybeSingle();
+
   // 2. Fetch all student submissions with their activity_id for progress calculation
   const { data: submissions } = await supabase
     .from("activity_submissions")
@@ -130,6 +137,6 @@ export default async function DashboardPage() {
     })
     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) || [];
 
-  return <StudentDashboard initialModules={enrichedModules} />;
+  return <StudentDashboard initialModules={enrichedModules} activeMilestone={activeMilestone} />;
 }
 

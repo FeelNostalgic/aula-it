@@ -14,9 +14,9 @@ import {
     Network,
     Database,
     Terminal,
-    MoreVertical,
     Clock,
-    Plus
+    Plus,
+    Trophy
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -85,17 +85,22 @@ export function TeacherDashboard({ initialModules, totalStudents }: TeacherDashb
                         </div>
                     </div>
                 </Card>
-                <Card className="bg-surface-dark border-border-subtle shadow-sm flex flex-col justify-between p-6">
-                    <div className="flex items-center gap-4">
-                        <div className="size-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
-                            <Users className="size-5" />
+                <Link href="/dashboard/teacher/gamification" className="block h-full group">
+                    <Card className="bg-surface-dark border-border-subtle shadow-sm flex flex-col justify-between p-6 h-full group-hover:border-primary/50 transition-all">
+                        <div className="flex items-center gap-4">
+                            <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+                                <Trophy className="size-5" />
+                            </div>
+                            <div className="space-y-0.5">
+                                <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Gamificación</p>
+                                <div className="flex items-center gap-1">
+                                    <h3 className="text-sm font-bold text-foreground">Gestionar Hitos</h3>
+                                    <ArrowRight className="size-3 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+                                </div>
+                            </div>
                         </div>
-                        <div className="space-y-0.5">
-                            <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Alumnos Totales</p>
-                            <h3 className="text-2xl font-bold text-foreground font-mono">{totalStudents}</h3>
-                        </div>
-                    </div>
-                </Card>
+                    </Card>
+                </Link>
             </div>
 
             {/* Header Section */}

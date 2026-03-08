@@ -83,37 +83,57 @@ export function StepEditorPanel({ step, onUpdateStep }: StepEditorPanelProps) {
                 <div className="ml-auto flex items-center gap-4 border-l border-border/50 pl-4">
                     <div className="flex items-center gap-2 group">
                         <Zap className="size-4 text-accent-blue/70 group-hover:text-accent-blue transition-colors" />
-                        <div className="space-y-2">
+                        <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2">
-                                <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Experiencia (XP)</label>
+                                <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider">XP RECOMENDADA</label>
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                            <HelpCircle className="size-3.5 text-text-muted hover:text-accent-blue transition-colors cursor-help" />
+                                            <HelpCircle className="size-3 text-text-muted hover:text-accent-blue transition-colors cursor-help" />
                                         </TooltipTrigger>
-                                        <TooltipContent side="right" className="max-w-xs p-4 space-y-2 bg-surface-dark border-border-subtle shadow-xl">
-                                            <p className="font-bold text-accent-blue text-xs uppercase tracking-wider">Guía de XP</p>
-                                            <ul className="text-[11px] space-y-1 text-text-muted list-disc ml-3">
-                                                <li><span className="text-foreground font-semibold">Teoría/Lectura:</span> 10 - 50 XP</li>
-                                                <li><span className="text-foreground font-semibold">Ejercicios Cortos:</span> 50 - 150 XP</li>
-                                                <li><span className="text-foreground font-semibold">Entregables/Prácticas:</span> 200 - 500 XP</li>
-                                                <li><span className="text-foreground font-semibold">Hitos Críticos:</span> 500+ XP</li>
-                                            </ul>
-                                            <p className="text-[10px] italic text-text-muted/80 pt-1 border-t border-border/50">
-                                                Mantén un equilibrio para motivar sin inflar los niveles.
-                                            </p>
+                                        <TooltipContent side="bottom" className="max-w-xs p-4 space-y-2 bg-surface-dark border-border-subtle shadow-xl">
+                                            <p className="font-bold text-accent-blue text-xs uppercase tracking-wider text-center">Guía de Recompensas</p>
+                                            <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                                <div className="bg-surface/50 p-1.5 rounded border border-border/30">
+                                                    <p className="font-bold text-foreground">Teoría</p>
+                                                    <p className="text-text-muted">10 - 50 XP</p>
+                                                </div>
+                                                <div className="bg-surface/50 p-1.5 rounded border border-border/30">
+                                                    <p className="font-bold text-foreground">Ejercicios</p>
+                                                    <p className="text-text-muted">50 - 150 XP</p>
+                                                </div>
+                                                <div className="bg-surface/50 p-1.5 rounded border border-border/30">
+                                                    <p className="font-bold text-foreground">Entregables</p>
+                                                    <p className="text-text-muted">200 - 500 XP</p>
+                                                </div>
+                                                <div className="bg-surface/50 p-1.5 rounded border border-border/30 border-accent-blue/30 bg-accent-blue/5">
+                                                    <p className="font-bold text-accent-blue">Críticos</p>
+                                                    <p className="text-text-muted">500+ XP</p>
+                                                </div>
+                                            </div>
                                         </TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
                             </div>
-                            <Input
-                                id="step-xp"
-                                type="number"
-                                min="0"
-                                value={xp}
-                                onChange={(e) => handleXpChange(e.target.value)}
-                                className="w-20 h-8 text-xs bg-surface border-border-subtle px-2 focus-visible:ring-1 focus-visible:ring-accent-blue font-mono"
-                            />
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    id="step-xp"
+                                    type="number"
+                                    min="0"
+                                    value={xp}
+                                    onChange={(e) => handleXpChange(e.target.value)}
+                                    className={`w-20 h-7 text-xs bg-surface border-border-subtle px-2 focus-visible:ring-1 font-mono ${parseInt(xp) > 500 ? 'text-accent-amber border-accent-amber/50 focus-visible:ring-accent-amber' :
+                                            parseInt(xp) > 0 ? 'text-accent-blue border-border-subtle focus-visible:ring-accent-blue' :
+                                                'text-text-muted opacity-50'
+                                        }`}
+                                />
+                                {parseInt(xp) > 0 && (
+                                    <div className={`size-2 rounded-full animate-pulse ${parseInt(xp) > 500 ? 'bg-accent-amber' :
+                                            parseInt(xp) >= 10 ? 'bg-accent-blue' :
+                                                'bg-text-muted'
+                                        }`} />
+                                )}
+                            </div>
                         </div>
                     </div>
                     <span className="text-[10px] uppercase font-mono tracking-widest bg-surface px-2 py-1 rounded-md text-text-muted border border-border-subtle shrink-0">
