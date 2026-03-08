@@ -186,6 +186,29 @@ test.describe("Dashboard Activity Builder", () => {
         // Back to editor
         await expect(page.getByRole('button', { name: 'Añadir Fase' })).toBeVisible();
     });
+
+    test("no debe crear fase con título vacío", { tag: ["@e2e", "@activity-builder", "@medium", "@AB-E2E-006"] }, async ({ page }) => {
+        const builder = new ActivityBuilderPage(page);
+        await builder.goto(testActivityId);
+
+        // Count phases currently in sidebar
+        const phasesBefore = await builder.sidebarContainer.locator('[data-phase-title]').count();
+
+        // Open the "Nueva Fase" dialog
+        await builder.btnAddPhase.click();
+        const dialog = page.getByRole('dialog', { name: 'Nueva Fase' });
+        await expect(dialog).toBeVisible();
+
+        // Leave title empty — click "Crear Fase" without filling anything
+        await dialog.getByRole('button', { name: 'Crear Fase' }).click();
+
+        // Component guard: empty title → dialog closes silently, no phase created
+        await expect(dialog).toBeHidden({ timeout: 3000 });
+
+        // Sidebar must still have the same number of phases
+        const phasesAfter = await builder.sidebarContainer.locator('[data-phase-title]').count();
+        expect(phasesAfter).toBe(phasesBefore);
+    });
 });
 
 async function loginUser(page: import('@playwright/test').Page, email: string, pass: string) {

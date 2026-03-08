@@ -46,9 +46,29 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
+  test-unit:
+    name: Unit Tests
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npx vitest run
+
   version:
     name: Version Bump
-    needs: test
+    needs: [test, test-unit]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -132,7 +152,7 @@ jobs:
 
   deploy:
     name: Deploy to Vercel
-    needs: [test, version]
+    needs: [test, test-unit, version]
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

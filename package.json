@@ -8,9 +8,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "playwright test",
-    "sync:agents": "powershell -ExecutionPolicy Bypass -File scripts/sync-agents.ps1",
-    "setup:agents": "powershell -ExecutionPolicy Bypass -File scripts/setup-symlinks.ps1"
+    "test:e2e": "playwright test",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:unit:coverage": "vitest run --coverage",
+    "agents:sync": "powershell -ExecutionPolicy Bypass -File scripts/sync-agents.ps1",
+    "agents:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-symlinks.ps1"
   },
   "repository": {
     "type": "git",
@@ -82,7 +85,9 @@
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/node": "^25.3.2",
+    "@vitest/coverage-v8": "^4.0.18",
     "dotenv": "^17.3.1",
-    "supabase": "^2.76.15"
+    "supabase": "^2.76.15",
+    "vitest": "^4.0.18"
   }
 }

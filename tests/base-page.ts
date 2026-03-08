@@ -5,14 +5,23 @@ export class BasePage {
 
     async goto(path: string): Promise<void> {
         await this.page.goto(path);
-        await this.page.waitForLoadState("networkidle");
+        await this.page.waitForLoadState("domcontentloaded");
     }
 
     async waitForNotification(): Promise<void> {
         await this.page.waitForSelector('[role="status"]', { state: "visible", timeout: 5000 }).catch(() => null);
     }
 
-    async verifyUrl(regex: RegExp | string): Promise<void> {
-        await expect(this.page).toHaveURL(regex);
+    async expectToast(text: string | RegExp): Promise<void> {
+        const toast = this.page.locator('[role="status"]').filter({ hasText: text });
+        await expect(toast).toBeVisible({ timeout: 5000 });
+    }
+
+    async verifyUrl(path: string | RegExp): Promise<void> {
+        await expect(this.page).toHaveURL(path);
+    }
+
+    async expectUrl(path: string | RegExp): Promise<void> {
+        await expect(this.page).toHaveURL(path);
     }
 }
