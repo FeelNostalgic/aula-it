@@ -6,7 +6,14 @@
       "mcp__plugin_engram_engram__mem_search",
       "mcp__plugin_engram_engram__mem_save",
       "mcp__plugin_engram_engram__mem_get_observation",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(test -f ~/.agent/skills/sdd-spec/SKILL.md)",
+      "Read(//c/Users/franc/.agent/skills/sdd-spec/**)",
+      "Bash(test -f ~/.claude/skills/sdd-spec/SKILL.md)",
+      "Read(//c/Users/franc/.claude/skills/sdd-spec/**)",
+      "Bash(npx vitest:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node:*)"
     ]
   }
 }
