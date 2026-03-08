@@ -81,6 +81,8 @@ type Activity = {
     duration?: number | null;
     logo_url?: string | null;
     phasesCount?: number;
+    total_steps?: number;
+    completed_steps?: number;
     position_x?: number;
     position_y?: number;
 };
@@ -89,6 +91,7 @@ interface UnitActivitiesTabProps {
     unitId: string;
     initialActivities: Activity[];
     isTeacher?: boolean;
+    submissions: any[];
 }
 
 // Difficulty color helper
@@ -251,14 +254,21 @@ function SortableActivityItem({
                 >
                     {/* Status and Actions */}
                     <div className="flex justify-between items-start mb-5">
-                        <Badge variant="outline" className={cn(
-                            "text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full border",
-                            (activity.status === 'published' || activity.status === 'active') ? "bg-green-500/10 text-green-400 border-green-500/20" :
-                                activity.status === 'blocked' ? "bg-accent-red/10 text-accent-red border-accent-red/20" :
-                                    "bg-accent-orange/10 text-accent-orange border-accent-orange/20"
-                        )}>
-                            {(activity.status === 'published' || activity.status === 'active') ? 'Publicado' : activity.status === 'blocked' ? 'Bloqueado' : 'Borrador'}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                            <Badge variant="outline" className={cn(
+                                "text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full border",
+                                (activity.status === 'published' || activity.status === 'active') ? "bg-green-500/10 text-green-400 border-green-500/20" :
+                                    activity.status === 'blocked' ? "bg-accent-red/10 text-accent-red border-accent-red/20" :
+                                        "bg-accent-orange/10 text-accent-orange border-accent-orange/20"
+                            )}>
+                                {(activity.status === 'published' || activity.status === 'active') ? 'Publicado' : activity.status === 'blocked' ? 'Bloqueado' : 'Borrador'}
+                            </Badge>
+                            {!isTeacher && activity.total_steps! > 0 && activity.completed_steps === activity.total_steps && (
+                                <Badge className="bg-accent-blue text-white text-[10px] uppercase font-black px-2 py-0.5 rounded-full border-none shadow-[0_0_10px_rgba(var(--accent-blue),0.3)]">
+                                    ¡Completado!
+                                </Badge>
+                            )}
+                        </div>
                         {isTeacher && (
                             <div className="flex items-center gap-1">
                                 <div
@@ -317,13 +327,20 @@ function SortableActivityItem({
                     {/* Footer Stats */}
                     <div className="mt-6 pt-4 border-t border-border-subtle flex justify-between items-center text-[10px] font-bold text-text-muted uppercase tracking-wider">
                         <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-1">
-                                <Zap className="size-3 text-accent-orange" />
-                                <span>{activity.xp} XP</span>
+                            <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-500 px-2 py-1 rounded-lg border border-orange-500/20 group-hover:bg-orange-500/20 transition-colors shadow-xs">
+                                <Zap className="size-3 fill-orange-500" />
+                                <span className="text-[11px] font-black tracking-tight">{activity.xp} XP</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                                <BarChart3 className="size-3 text-accent-blue" />
-                                <span>{activity.phasesCount || 0} Pasos</span>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <BarChart3 className="size-3 text-accent-blue shrink-0" />
+                                <span className="truncate">
+                                    {(activity.total_steps || 0) > 0 && !isTeacher ? (
+                                        <span className="text-accent-blue font-black tabular-nums">{activity.completed_steps} / {activity.total_steps}</span>
+                                    ) : (
+                                        <span>{activity.total_steps || activity.phasesCount || 0}</span>
+                                    )}
+                                    <span className="ml-1 opacity-70">Pasos</span>
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -381,6 +398,11 @@ function SortableActivityItem({
                         )}>
                             {(activity.status === 'published' || activity.status === 'active') ? 'Publicado' : activity.status === 'blocked' ? 'Bloqueado' : 'Borrador'}
                         </span>
+                        {!isTeacher && activity.total_steps! > 0 && activity.completed_steps === activity.total_steps && (
+                            <Badge className="bg-accent-blue text-white text-[9px] uppercase font-black px-2 py-0.5 rounded-full border-none shadow-[0_0_10px_rgba(var(--accent-blue),0.3)] h-fit">
+                                ¡Completado!
+                            </Badge>
+                        )}
                         <div className={cn(
                             "flex items-center gap-1 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border leading-none ml-2",
                             diffConfig.bg, diffConfig.color, diffConfig.border
@@ -405,16 +427,20 @@ function SortableActivityItem({
                 <div className="hidden lg:flex items-center gap-4 mr-4">
                     <div className="flex flex-col items-center">
                         <span className="text-[10px] text-text-muted uppercase tracking-tighter mb-0.5">Exp</span>
-                        <div className="flex items-center gap-1 text-accent-orange font-bold text-sm">
-                            <Zap className="size-3" />
-                            <span>{activity.xp}</span>
+                        <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-500 px-2.5 py-1.5 rounded-xl border border-orange-500/20 shadow-xs">
+                            <Zap className="size-3.5 fill-orange-500" />
+                            <span className="font-black text-sm tabular-nums tracking-tight">{activity.xp}</span>
                         </div>
                     </div>
                     <div className="flex flex-col items-center">
                         <span className="text-[10px] text-text-muted uppercase tracking-tighter mb-0.5">Pasos</span>
                         <div className="flex items-center gap-1 text-accent-blue font-bold text-sm">
                             <BarChart3 className="size-3" />
-                            <span>{activity.phasesCount || 0}</span>
+                            {(activity.total_steps || 0) > 0 && !isTeacher ? (
+                                <span className="font-black tabular-nums">{activity.completed_steps} / {activity.total_steps}</span>
+                            ) : (
+                                <span>{activity.total_steps || activity.phasesCount || 0}</span>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -513,26 +539,24 @@ export function UnitActivitiesTab({ unitId, initialActivities, isTeacher = true 
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {isTeacher && (
-                        <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
-                            <Button
-                                variant={viewMode === "grid" ? "secondary" : "ghost"}
-                                size="icon"
-                                className={cn("h-8 w-8", viewMode === 'grid' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
-                                onClick={() => setViewMode('grid')}
-                            >
-                                <LayoutGrid className="size-4" />
-                            </Button>
-                            <Button
-                                variant={viewMode === "list" ? "secondary" : "ghost"}
-                                size="icon"
-                                className={cn("h-8 w-8", viewMode === 'list' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
-                                onClick={() => setViewMode('list')}
-                            >
-                                <List className="size-4" />
-                            </Button>
-                        </div>
-                    )}
+                    <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
+                        <Button
+                            variant={viewMode === "grid" ? "secondary" : "ghost"}
+                            size="icon"
+                            className={cn("h-8 w-8", viewMode === 'grid' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
+                            onClick={() => setViewMode('grid')}
+                        >
+                            <LayoutGrid className="size-4" />
+                        </Button>
+                        <Button
+                            variant={viewMode === "list" ? "secondary" : "ghost"}
+                            size="icon"
+                            className={cn("h-8 w-8", viewMode === 'list' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
+                            onClick={() => setViewMode('list')}
+                        >
+                            <List className="size-4" />
+                        </Button>
+                    </div>
                     {isTeacher && <CreateActivityDialog unitId={unitId} />}
                 </div>
             </div>

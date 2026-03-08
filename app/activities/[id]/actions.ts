@@ -151,17 +151,16 @@ export async function getStudentSubmissionsForActivity(activityId: string): Prom
 
     if (!phases) return {};
 
-    const deliverableStepIds = phases.flatMap((p: any) =>
-        (p.steps || []).filter((s: any) => s.type === "deliverable" || s.type === "file_upload").map((s: any) => s.id)
+    const allStepIds = phases.flatMap((p: any) =>
+        (p.steps || []).map((s: any) => s.id)
     );
-
-    if (deliverableStepIds.length === 0) return {};
+    if (allStepIds.length === 0) return {};
 
     const { data: submissions } = await supabase
         .from("activity_submissions")
         .select("*")
         .eq("student_id", user.id)
-        .in("step_id", deliverableStepIds);
+        .in("step_id", allStepIds);
 
     const map: Record<string, ActivitySubmission> = {};
     for (const sub of submissions || []) {

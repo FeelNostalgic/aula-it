@@ -61,8 +61,11 @@ export default async function UnitPage({
     const { data: activitiesData } = await supabase
         .from("activities")
         .select(`
-            id, unit_id, title, description, type, xp, order_index, status, created_at, duration, difficulty, logo_url, position_x, position_y,
-            activity_phases (count)
+            id, unit_id, title, description, type, order_index, status, created_at, duration, difficulty, logo_url, position_x, position_y,
+            activity_phases (
+                id,
+                activity_steps ( xp )
+            )
         `)
         .eq("unit_id", unitId)
         .order("order_index", { ascending: true });
@@ -72,10 +75,43 @@ export default async function UnitPage({
         .select('*')
         .eq('unit_id', unitId);
 
-    const activities = activitiesData?.map(activity => ({
-        ...activity,
-        phasesCount: (activity.activity_phases as any)?.[0]?.count || 0
-    }));
+    // Fetch Submissions for activities in this unit
+    const activityIds = activitiesData?.map(a => a.id) || [];
+    let submissions: any[] = [];
+    if (activityIds.length > 0) {
+        const { data: subs } = await supabase
+            .from("submissions")
+            .select("*")
+            .in("activity_id", activityIds);
+        submissions = subs || [];
+    }
+
+    const activities = activitiesData?.map(activity => {
+        let totalXp = 0;
+        let stepCount = 0;
+
+        const phases = Array.isArray(activity.activity_phases) ? activity.activity_phases : [];
+
+        phases.forEach((phase: any) => {
+            const steps = Array.isArray(phase.activity_steps) ? phase.activity_steps : [];
+            stepCount += steps.length;
+            steps.forEach((step: any) => {
+                totalXp += (step.xp || 0);
+            });
+        });
+
+        // Calculate completed steps based on submissions for this student
+        const activitySubmissions = submissions.filter(s => s.activity_id === activity.id && (userRole === 'teacher' || s.student_id === user.id));
+        const completedStepIds = new Set(activitySubmissions.map(s => s.step_id));
+
+        return {
+            ...activity,
+            xp: totalXp,
+            phasesCount: stepCount > 0 ? stepCount : phases.length,
+            total_steps: stepCount,
+            completed_steps: completedStepIds.size
+        };
+    });
 
     // Fetch Students enrolled in the Module
     const { data: enrollments } = await supabase
@@ -91,17 +127,6 @@ export default async function UnitPage({
             .select("id, full_name, avatar_url")
             .in("id", studentIds);
         students = profiles || [];
-    }
-
-    // Fetch Submissions for activities in this unit
-    const activityIds = activities?.map(a => a.id) || [];
-    let submissions: any[] = [];
-    if (activityIds.length > 0) {
-        const { data: subs } = await supabase
-            .from("submissions")
-            .select("*")
-            .in("activity_id", activityIds);
-        submissions = subs || [];
     }
 
     return (

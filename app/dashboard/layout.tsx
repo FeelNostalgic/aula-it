@@ -4,10 +4,13 @@ import { Flame } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { APP_VERSION, APP_STATUS } from "@/lib/version";
 import { UserNav } from "@/components/dashboard/user-nav";
+
 import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { BreadcrumbProvider } from "@/components/dashboard/breadcrumb-context";
 import { SessionTimeoutGuard } from "@/components/auth/session-timeout-guard";
+import { LevelBadge } from "@/components/dashboard/level-badge";
+
 
 export default async function DashboardLayout({
   children,
@@ -42,21 +45,7 @@ export default async function DashboardLayout({
             <DashboardBreadcrumb />
 
             <div className="flex items-center gap-6">
-              {!isTeacher && (
-                <div className="flex items-center gap-4 uppercase font-mono tracking-widest text-[10px]">
-                  <Badge variant="outline" className="bg-orange-500/10 border-orange-500/20 text-orange-500 px-4 py-1.5 rounded-lg flex items-center gap-2 hover:bg-orange-500/20 transition-colors cursor-default">
-                    <Flame className="size-3 fill-orange-500" />
-                    <span className="font-bold">14 DÍAS ACTIVO</span>
-                  </Badge>
-
-                  <div className="flex items-center gap-1 bg-card border border-border/50 rounded-lg p-1 pr-3 hover:border-primary/50 transition-all cursor-default group">
-                    <div className="size-8 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold transition-all">
-                      14
-                    </div>
-                    <span className="text-[9px] font-bold text-muted-foreground transition-colors">NVL</span>
-                  </div>
-                </div>
-              )}
+              {!isTeacher && <LevelBadge />}
 
               {/* User Navigation */}
               <UserNav

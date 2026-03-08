@@ -253,6 +253,7 @@ export function UnitDetailView({
                         unitId={unit.id}
                         initialActivities={activities}
                         isTeacher={isTeacher}
+                        submissions={submissions}
                     />
                 </TabsContent>
 

@@ -37,11 +37,36 @@ export default async function UnitMapPage({
     }
 
     // Fetch Activities for this unit
-    const { data: activities } = await supabase
+    const { data: activitiesData } = await supabase
         .from("activities")
-        .select("*")
+        .select(`
+            *,
+            activity_phases (
+                id,
+                activity_steps ( xp )
+            )
+        `)
         .eq("unit_id", id)
         .order("order_index", { ascending: true });
+
+    const activities = activitiesData?.map(activity => {
+        let totalXp = 0;
+
+        const phases = Array.isArray(activity.activity_phases) ? activity.activity_phases : [];
+        phases.forEach((phase: any) => {
+            const steps = Array.isArray(phase.activity_steps) ? phase.activity_steps : [];
+            steps.forEach((step: any) => {
+                totalXp += (step.xp || 0);
+            });
+        });
+
+        // Remove the nested relation to avoid passing unnecessary data to the client
+        const { activity_phases, ...rest } = activity;
+        return {
+            ...rest,
+            xp: totalXp
+        };
+    });
 
     // Get User Role
     const { data: profile } = await supabase

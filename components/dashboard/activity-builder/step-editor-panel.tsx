@@ -21,7 +21,17 @@ const PresentationEditor = dynamic(
     () => import("./editors/presentation-editor").then(m => ({ default: m.PresentationEditor })),
     { ssr: false }
 );
-import { Copy } from "lucide-react";
+import { Copy, Zap, Save, Trash2, X, ChevronRight, GripVertical, Plus, Settings2, Type, FileText, Layout, HelpCircle } from "lucide-react";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useState, useEffect, useRef } from "react";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { updateStepXp } from "@/app/activities/[id]/edit/actions";
 
 interface StepEditorPanelProps {
     step?: ActivityStepWithClientState;
@@ -29,6 +39,27 @@ interface StepEditorPanelProps {
 }
 
 export function StepEditorPanel({ step, onUpdateStep }: StepEditorPanelProps) {
+    const [xp, setXp] = useState<string>(step?.xp?.toString() || "0");
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    useEffect(() => {
+        setXp(step?.xp?.toString() || "0");
+    }, [step?.id, step?.xp]);
+
+    const handleXpChange = (val: string) => {
+        setXp(val);
+        const numVal = parseInt(val, 10);
+        const finalVal = isNaN(numVal) ? 0 : numVal;
+
+        onUpdateStep({ ...step!, xp: finalVal });
+
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(async () => {
+            const res = await updateStepXp(step!.id, finalVal);
+            if (res.error) toast.error("Error al guardar XP");
+        }, 1000);
+    };
+
     if (!step) {
         return (
             <div className="flex flex-col items-center justify-center p-8 text-center h-full text-text-muted">
@@ -47,10 +78,45 @@ export function StepEditorPanel({ step, onUpdateStep }: StepEditorPanelProps) {
     return (
         <div className="flex flex-col h-full w-full">
             {/* Header / Info bar of the step could go here, but editor handles it usually or we define it here */}
-            <div className="shrink-0 h-14 border-b border-border/50 bg-background flex items-center px-6">
+            <div className="shrink-0 h-14 border-b border-border/50 bg-background flex items-center px-6 gap-4">
                 <h2 className="font-bold text-lg text-foreground truncate">{step.title}</h2>
-                <div className="ml-auto flex items-center gap-2">
-                    <span className="text-[10px] uppercase font-mono tracking-widest bg-surface px-2 py-1 rounded-md text-text-muted border border-border-subtle">
+                <div className="ml-auto flex items-center gap-4 border-l border-border/50 pl-4">
+                    <div className="flex items-center gap-2 group">
+                        <Zap className="size-4 text-accent-blue/70 group-hover:text-accent-blue transition-colors" />
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Experiencia (XP)</label>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <HelpCircle className="size-3.5 text-text-muted hover:text-accent-blue transition-colors cursor-help" />
+                                        </TooltipTrigger>
+                                        <TooltipContent side="right" className="max-w-xs p-4 space-y-2 bg-surface-dark border-border-subtle shadow-xl">
+                                            <p className="font-bold text-accent-blue text-xs uppercase tracking-wider">Guía de XP</p>
+                                            <ul className="text-[11px] space-y-1 text-text-muted list-disc ml-3">
+                                                <li><span className="text-foreground font-semibold">Teoría/Lectura:</span> 10 - 50 XP</li>
+                                                <li><span className="text-foreground font-semibold">Ejercicios Cortos:</span> 50 - 150 XP</li>
+                                                <li><span className="text-foreground font-semibold">Entregables/Prácticas:</span> 200 - 500 XP</li>
+                                                <li><span className="text-foreground font-semibold">Hitos Críticos:</span> 500+ XP</li>
+                                            </ul>
+                                            <p className="text-[10px] italic text-text-muted/80 pt-1 border-t border-border/50">
+                                                Mantén un equilibrio para motivar sin inflar los niveles.
+                                            </p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </div>
+                            <Input
+                                id="step-xp"
+                                type="number"
+                                min="0"
+                                value={xp}
+                                onChange={(e) => handleXpChange(e.target.value)}
+                                className="w-20 h-8 text-xs bg-surface border-border-subtle px-2 focus-visible:ring-1 focus-visible:ring-accent-blue font-mono"
+                            />
+                        </div>
+                    </div>
+                    <span className="text-[10px] uppercase font-mono tracking-widest bg-surface px-2 py-1 rounded-md text-text-muted border border-border-subtle shrink-0">
                         TIPO: {step.type}
                     </span>
                 </div>

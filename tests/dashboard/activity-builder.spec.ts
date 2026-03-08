@@ -66,7 +66,6 @@ test.describe("Dashboard Activity Builder", () => {
                 title: originalActivityTitle,
                 description: "Initial description",
                 difficulty: "Fácil",
-                xp: 100,
                 order_index: 0,
                 type: "theory",
                 status: "draft"

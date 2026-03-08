@@ -108,7 +108,6 @@ export async function createActivity(formData: FormData) {
             title,
             description: description || null,
             type,
-            xp,
             difficulty: difficulty || 'Bajo',
             duration,
             order_index: nextOrder,

@@ -25,6 +25,8 @@ export default async function ModulePage({ params }: ModulePageProps) {
         .eq("id", user.id)
         .single();
 
+    let studentModuleXp = 0;
+
     let module = null;
 
     if (profile?.role === "teacher") {
@@ -40,10 +42,12 @@ export default async function ModulePage({ params }: ModulePageProps) {
         // Check enrollment
         const { data: enrollment } = await supabase
             .from("module_enrollments")
-            .select("module_id")
+            .select("module_id, module_xp")
             .eq("module_id", id)
             .eq("student_id", user.id)
             .single();
+
+        studentModuleXp = enrollment?.module_xp || 0;
 
         if (enrollment) {
             // Fetch module info
@@ -60,8 +64,8 @@ export default async function ModulePage({ params }: ModulePageProps) {
         notFound();
     }
 
-    // Fetch units for this module with their activities to find the latest published one
-    let unitsQuery = supabase
+    // Fetch units for this module with their activities and nested steps
+    const { data: unitsData } = await supabase
         .from("units")
         .select(`
             *,
@@ -69,26 +73,66 @@ export default async function ModulePage({ params }: ModulePageProps) {
                 id,
                 title,
                 status,
-                created_at
+                created_at,
+                activity_phases (
+                    activity_steps (
+                        id
+                    )
+                )
             )
         `)
-        .eq("module_id", id);
+        .eq("module_id", id)
+        .in("status", profile?.role === "student" ? ["published", "blocked", "active"] : ["draft", "published", "blocked", "active", "archived"])
+        .order("order_index", { ascending: true });
 
-    // If student, only show published, blocked, or active (legacy) units
+    // Fetch submissions for this module's activities (if student)
+    const activityCompletionMap: Record<string, Set<string>> = {};
     if (profile?.role === "student") {
-        unitsQuery = unitsQuery.in("status", ["published", "blocked", "active"]);
+        const { data: moduleSubmissions } = await supabase
+            .from("activity_submissions")
+            .select(`
+                step_id,
+                step:activity_steps (
+                    phase:activity_phases (
+                        activity_id
+                    )
+                )
+            `)
+            .eq("student_id", user.id);
+
+        moduleSubmissions?.forEach((s: any) => {
+            const actId = s.step?.phase?.activity_id;
+            if (actId) {
+                if (!activityCompletionMap[actId]) activityCompletionMap[actId] = new Set();
+                activityCompletionMap[actId].add(s.step_id);
+            }
+        });
     }
 
-    const { data: unitsData } = await unitsQuery.order("order_index", { ascending: true });
-
-    // Transform units to include the latest published activity
+    // Transform units to include submission data and latest activity
     const units = unitsData?.map(unit => {
-        const latestPublished = (unit.activities as any[])
+        const activitiesWithSubmissions = (unit.activities as any[] || []).map(a => {
+            const totalSteps = a.activity_phases?.reduce((acc: number, phase: any) => {
+                return acc + (phase.activity_steps?.length || 0);
+            }, 0) || 0;
+            const completedSteps = activityCompletionMap[a.id]?.size || 0;
+
+            return {
+                ...a,
+                total_steps: totalSteps,
+                completed_steps: completedSteps,
+                // Legacy compatibility for any child components still using activity_submissions
+                activity_submissions: completedSteps > 0 ? [{ id: 'mock-id', status: 'submitted' }] : []
+            }
+        });
+
+        const latestPublished = activitiesWithSubmissions
             ?.filter(a => a.status === "published" || a.status === "active")
             ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
         return {
             ...unit,
+            activities: activitiesWithSubmissions,
             latest_activity: latestPublished || null
         };
     });
@@ -132,6 +176,7 @@ export default async function ModulePage({ params }: ModulePageProps) {
             initialUnits={units || []}
             initialStudents={enrolledStudents as any[]}
             userRole={profile?.role as "teacher" | "student"}
+            moduleXp={studentModuleXp}
         />
     );
 }

@@ -113,7 +113,7 @@ test.describe("Unit Detail (Creador del Mapa)", () => {
             await expect(unitDetailPage.emptyState).toBeVisible();
 
             // Create First Activity
-            await unitDetailPage.createActivity("A1: Teoría básica", "50", "Lee el documento adjunto.");
+            await unitDetailPage.createActivity("A1: Teoría básica", "Lee el documento adjunto.");
 
             // Verify success toast appears
             await expect(page.getByText("¡Reto creado con éxito!")).toBeVisible();
@@ -125,7 +125,7 @@ test.describe("Unit Detail (Creador del Mapa)", () => {
             await unitDetailPage.verifyActivityExists("A1: Teoría básica");
 
             // Create Second Activity
-            await unitDetailPage.createActivity("A2: Cuestionario de prueba", "150");
+            await unitDetailPage.createActivity("A2: Cuestionario de prueba");
             await page.waitForTimeout(2000);
             await page.waitForLoadState("networkidle");
 

@@ -28,6 +28,10 @@ import { useBreadcrumb } from "./breadcrumb-context";
 import { ModuleStudentsTab } from "./module-students-tab";
 import { ModuleSettingsTab } from "./module-settings-tab";
 import { cn } from "@/lib/utils";
+import { getModuleRankInfo } from "@/lib/gamification";
+import { useModuleGamification } from "@/hooks/use-gamification";
+import { RankBadge } from "./rank-badge";
+
 
 const ICON_MAP: Record<string, any> = {
     BookOpen,
@@ -61,6 +65,13 @@ type Unit = {
         title: string;
         status: string;
     } | null;
+    activities?: {
+        id: string;
+        activity_submissions: {
+            id: string;
+            status: string;
+        }[];
+    }[];
 };
 
 type Student = {
@@ -75,11 +86,19 @@ interface ModuleDetailViewProps {
     initialUnits: Unit[];
     initialStudents: Student[];
     userRole: "teacher" | "student";
+    moduleXp?: number;
 }
 
-export function ModuleDetailView({ module, initialUnits, initialStudents, userRole }: ModuleDetailViewProps) {
+export function ModuleDetailView({ module, initialUnits, initialStudents, userRole, moduleXp = 0 }: ModuleDetailViewProps) {
     const isTeacher = userRole === "teacher";
+    const { moduleXp: liveModuleXp, moduleRank: liveModuleRank } = useModuleGamification(module.id);
+
+    // Use live data for students, prop data for teachers
+    const displayXp = !isTeacher ? liveModuleXp : moduleXp;
+    const rankInfo = !isTeacher ? liveModuleRank : getModuleRankInfo(moduleXp);
+
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
     const ModuleIcon = ICON_MAP[module.icon] || BookOpen;
     const { setSegments } = useBreadcrumb();
 
@@ -141,6 +160,29 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                     <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
                                     {statusConfig.label}
                                 </Badge>
+                            )}
+                            {!isTeacher && (
+                                <div className="flex items-center gap-3">
+                                    <RankBadge
+                                        rank={rankInfo.rank}
+                                        showLabel
+                                        className="py-1.5 shadow-md"
+                                    />
+                                    {rankInfo.nextRank && (
+                                        <div className="flex flex-col gap-1 w-24">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[9px] font-bold text-text-muted uppercase tracking-tighter">Progreso</span>
+                                                <span className="text-[9px] font-bold text-primary">{rankInfo.progressPercentage}%</span>
+                                            </div>
+                                            <div className="h-1 w-full bg-surface-dark border border-border-subtle rounded-full overflow-hidden shadow-inner">
+                                                <div
+                                                    className="h-full bg-primary transition-all duration-500 shadow-[0_0_8px_rgba(var(--primary),0.4)]"
+                                                    style={{ width: `${rankInfo.progressPercentage}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                         <p className="text-sm text-text-muted max-w-xl">
@@ -246,8 +288,18 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                             : "flex flex-col gap-4"
                         }>
                             {initialUnits.map((unit) => {
-                                const hash = unit.id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                                const progress = (hash % 5) * 10 + 60; // Mock progress 60-100%
+                                // Calculate real progress based on completed steps
+                                const unitActivities = unit.activities || [];
+                                const totalActivities = unitActivities.length;
+                                const completedActivities = unitActivities.filter(a => {
+                                    const total = (a as any).total_steps || 0;
+                                    const completed = (a as any).completed_steps || 0;
+                                    return total > 0 && completed === total;
+                                }).length;
+
+                                const progress = totalActivities > 0
+                                    ? Math.round((completedActivities / totalActivities) * 100)
+                                    : 0;
 
                                 // Normalize status for robust lookup
                                 const rawStatus = unit.status?.toLowerCase() || 'draft';

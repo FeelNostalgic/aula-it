@@ -195,23 +195,6 @@ export function CreateActivityDialog({ unitId, trigger }: CreateActivityDialogPr
                             </div>
                         </div>
 
-                        <div className="grid gap-2">
-                            <Label htmlFor="xp" className="text-foreground">Experiencia (XP)</Label>
-                            <div className="relative">
-                                <Input
-                                    id="xp"
-                                    name="xp"
-                                    type="number"
-                                    min="0"
-                                    defaultValue="100"
-                                    className="bg-surface border-border-strong text-foreground focus-visible:ring-accent-blue pl-4 pr-12 h-10"
-                                    required
-                                />
-                                <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-accent-orange font-bold text-xs">
-                                    XP
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
                     <DialogFooter>

@@ -1,8 +1,10 @@
+"use client";
+
 import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType, ActivitySubmission } from "@/types/activity";
 import { getStepIcon, getTabStepIcon } from "@/lib/constants/step-icons";
 import {
     ArrowLeft, FileText, Lock,
-    ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen, X
+    ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen, X, Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -21,6 +23,55 @@ interface StudentPreviewProps {
     hideHeader?: boolean;
     submissionsMap?: Record<string, ActivitySubmission>;
     googleEmail?: string | null;
+}
+
+function StepXpBadge({ xp }: { xp: number }) {
+    if (xp <= 0) return null;
+
+    let colorClass = "text-accent-blue bg-accent-blue/10 border-accent-blue/20";
+    if (xp >= 500) {
+        colorClass = "text-accent-purple bg-accent-purple/10 border-accent-purple/20 shadow-[0_0_8px_rgba(168,85,247,0.2)]";
+    } else if (xp >= 100) {
+        colorClass = "text-accent-amber bg-accent-amber/10 border-accent-amber/20 opacity-90";
+    }
+
+    return (
+        <div className={cn(
+            "flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-mono font-bold tracking-tight shrink-0",
+            colorClass
+        )}>
+            <Zap className="size-2.5 fill-current opacity-70" />
+            {xp}
+        </div>
+    );
+}
+
+function StepStatusBadge({ status, type }: { status?: string; type: ActivityStepType }) {
+    if (!status && (type === 'deliverable' || type === 'file_upload' || type === 'quiz')) {
+        return (
+            <div className="px-1.5 py-0.5 rounded-md border border-border/50 text-[8px] font-bold uppercase tracking-wider text-text-muted shrink-0">
+                Pendiente
+            </div>
+        );
+    }
+
+    if (!status) return null;
+
+    const config = {
+        pending: { label: "Pendiente", class: "text-text-muted bg-surface border-border/50" },
+        submitted: { label: "Enviado", class: "text-accent-blue bg-accent-blue/10 border-accent-blue/20" },
+        graded: { label: "Calificado", class: "text-accent-green bg-accent-green/10 border-accent-green/20" },
+        completed: { label: "Hecho", class: "text-accent-green bg-accent-green/10 border-accent-green/20" },
+    }[status] || { label: status, class: "text-text-muted bg-surface border-border/50" };
+
+    return (
+        <div className={cn(
+            "px-1.5 py-0.5 rounded-md border text-[8px] font-bold uppercase tracking-wider shrink-0",
+            config.class
+        )}>
+            {config.label}
+        </div>
+    );
 }
 
 
@@ -174,19 +225,25 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                             data-step-title={step.title}
                                                             onClick={() => !step.is_locked && handleStepSelect(step.id)}
                                                             className={cn(
-                                                                "group flex items-center gap-2 py-2 px-3 pl-8 text-sm cursor-pointer transition-colors border-l-2",
+                                                                "group flex items-center gap-2.5 py-2.5 px-3 pl-8 text-[13px] cursor-pointer transition-all border-l-2",
                                                                 isActive
-                                                                    ? "bg-surface border-accent-blue text-foreground"
-                                                                    : "border-transparent hover:bg-surface-dark text-text-muted hover:text-foreground",
+                                                                    ? "bg-surface/50 border-accent-blue text-foreground shadow-sm"
+                                                                    : "border-transparent hover:bg-surface-dark/50 text-text-muted hover:text-foreground",
                                                                 step.is_locked && "opacity-40 cursor-not-allowed"
                                                             )}
                                                         >
                                                             {step.is_locked ? (
-                                                                <Lock className="size-4 text-text-muted" />
+                                                                <Lock className="size-3.5 text-text-muted shrink-0" />
                                                             ) : (
-                                                                getStepIcon(step.type)
+                                                                <div className={cn("shrink-0", isActive ? "text-accent-blue" : "text-text-muted group-hover:text-foreground")}>
+                                                                    {getStepIcon(step.type)}
+                                                                </div>
                                                             )}
-                                                            <span className="flex-1 truncate">{step.title}</span>
+                                                            <span className="flex-1 truncate font-medium">{step.title}</span>
+                                                            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                                                                <StepStatusBadge status={submissionsMap?.[step.id]?.status} type={step.type} />
+                                                                <StepXpBadge xp={step.xp || 0} />
+                                                            </div>
                                                         </div>
                                                     );
                                                 })
@@ -288,7 +345,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3">
                                         <div className="px-2 py-0.5 bg-accent-blue/10 border border-accent-blue/20 rounded-md">
-                                            <span className="text-[9px] font-bold text-accent-blue uppercase tracking-widest">
+                                            <span className="text-[9px] font-bold text-accent-blue uppercase tracking-widest px-1">
                                                 {selectedStep.type}
                                             </span>
                                         </div>

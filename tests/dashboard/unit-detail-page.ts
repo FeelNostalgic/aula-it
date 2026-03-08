@@ -67,7 +67,7 @@ export class UnitDetailPage extends BasePage {
         await tabLocator.click();
     }
 
-    async createActivity(title: string, xp: string = "100", description?: string): Promise<void> {
+    async createActivity(title: string, description?: string): Promise<void> {
         await this.addActivityButton.click();
         const dialog = this.page.locator('div[role="dialog"]');
         await expect(dialog).toBeVisible();
@@ -75,10 +75,6 @@ export class UnitDetailPage extends BasePage {
 
         if (description) {
             await dialog.locator('textarea[name="description"]').fill(description);
-        }
-
-        if (xp) {
-            await dialog.locator('input[name="xp"]').fill(xp);
         }
 
         await dialog.locator('button:has-text("Crear Reto")').click();

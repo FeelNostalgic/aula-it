@@ -24,6 +24,7 @@ export type ActivityStep = {
     is_visible: boolean;
     is_locked: boolean;
     due_date?: string | null;
+    xp?: number;
     created_at: string;
     updated_at: string;
 };
