@@ -81,7 +81,7 @@ interface UnitDetailViewProps {
     students: any[];
     submissions: any[];
     userRole: 'teacher' | 'student';
-    milestone: ClassMilestone | null;
+    milestones: ClassMilestone[];
 }
 
 export function UnitDetailView({
@@ -92,11 +92,14 @@ export function UnitDetailView({
     students,
     submissions,
     userRole,
-    milestone
+    milestones
 }: UnitDetailViewProps) {
     const isTeacher = userRole === "teacher";
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+    const sortedMilestones = [...milestones].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+    const activeMilestone = sortedMilestones.find(m => m.status === 'active') ||
+        [...sortedMilestones].reverse().find(m => m.status === 'completed') || null;
 
     // Persist view mode preference
     useEffect(() => {
@@ -166,9 +169,9 @@ export function UnitDetailView({
 
             {/* Unit Header */}
             <div className="flex flex-col gap-6">
-                {milestone && (milestone.status === 'active' || milestone.status === 'completed') && (
+                {(activeMilestone || milestones.some(m => m.status === 'completed')) && (
                     <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-                        <ClassMilestoneWidget milestone={milestone} label="Objetivo de la Unidad" />
+                        <ClassMilestoneWidget milestones={milestones} activeMilestone={activeMilestone} label="Objetivo de la Unidad" />
                     </div>
                 )}
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
@@ -482,7 +485,7 @@ export function UnitDetailView({
                     {/* Hito Tab (Teacher Only) */}
                     {isTeacher && (
                         <TabsContent value="hito" className="mt-6 px-12 pb-12">
-                            <UnitMilestoneTab unitId={unit.id} milestone={milestone} isTeacher={isTeacher} />
+                            <UnitMilestoneTab unitId={unit.id} initialMilestones={milestones} isTeacher={isTeacher} />
                         </TabsContent>
                     )}
 

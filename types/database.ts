@@ -26,6 +26,7 @@ export interface ClassMilestone {
     current_points: number;
     reward: string;
     status: MilestoneStatus;
+    order_index: number;
     created_at: string;
     updated_at: string;
 }

@@ -113,26 +113,12 @@ export default async function UnitPage({
         };
     });
 
-    // Fetch unit milestone
-    let unitMilestone = null;
-    if (userRole === "teacher") {
-        const { data: milestoneData } = await supabase
-            .from("class_milestones")
-            .select("*")
-            .eq("unit_id", unitId)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-        unitMilestone = milestoneData ?? null;
-    } else {
-        const { data: milestoneData } = await supabase
-            .from("class_milestones")
-            .select("*")
-            .eq("unit_id", unitId)
-            .eq("status", "active")
-            .maybeSingle();
-        unitMilestone = milestoneData ?? null;
-    }
+    // Fetch unit milestones (all of them for sequential management)
+    const { data: unitMilestones } = await supabase
+        .from("class_milestones")
+        .select("*")
+        .eq("unit_id", unitId)
+        .order("target_points", { ascending: true });
 
     // Fetch Students enrolled in the Module
     const { data: enrollments } = await supabase
@@ -159,7 +145,7 @@ export default async function UnitPage({
             students={students || []}
             submissions={submissions || []}
             userRole={userRole}
-            milestone={unitMilestone}
+            milestones={unitMilestones || []}
         />
     );
 }

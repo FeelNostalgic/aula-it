@@ -502,6 +502,16 @@ export async function createUnitMilestone(
         return { error: "Unauthorized: only teachers can create milestones" };
     }
 
+    const { data: maxOrder } = await supabase
+        .from("class_milestones")
+        .select("order_index")
+        .eq("unit_id", unitId)
+        .order("order_index", { ascending: false })
+        .limit(1)
+        .single();
+
+    const nextOrder = (maxOrder?.order_index ?? -1) + 1;
+
     const { error } = await supabase
         .from("class_milestones")
         .insert({
@@ -511,6 +521,7 @@ export async function createUnitMilestone(
             target_points: data.target_points,
             reward: data.reward,
             status: data.status,
+            order_index: nextOrder,
         });
 
     if (error) {
@@ -530,6 +541,7 @@ export async function updateUnitMilestone(
         target_points: number;
         reward: string;
         status: 'draft' | 'active' | 'completed' | 'archived';
+        order_index: number;
     }>
 ) {
     const supabase = await createClient();
@@ -560,6 +572,10 @@ export async function updateUnitMilestone(
     if (!existing) {
         return { error: "Milestone not found or does not belong to this unit" };
     }
+
+    // If we are activating this milestone, we no longer need to deactivate others
+    // as multiple active milestones are allowed and they fill sequentially by order_index.
+
 
     const { error } = await supabase
         .from("class_milestones")
@@ -642,6 +658,47 @@ export async function updateUnitResources(unitId: string, resources: any[]) {
 
     if (error) {
         return { error: error.message };
+    }
+
+    revalidatePath(`/dashboard/units/${unitId}`);
+    return { success: true };
+}
+
+export async function reorderUnitMilestones(
+    unitId: string,
+    milestoneIdOrder: string[]
+) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+        return { error: "Not authenticated" };
+    }
+
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+    if (profile?.role !== "teacher") {
+        return { error: "Unauthorized" };
+    }
+
+    // Update each milestone's order_index in a loop
+    const updates = milestoneIdOrder.map((id, index) =>
+        supabase
+            .from("class_milestones")
+            .update({ order_index: index })
+            .eq("id", id)
+            .eq("unit_id", unitId)
+    );
+
+    const results = await Promise.all(updates);
+    const firstError = results.find(r => r.error);
+
+    if (firstError?.error) {
+        return { error: firstError.error.message };
     }
 
     revalidatePath(`/dashboard/units/${unitId}`);
