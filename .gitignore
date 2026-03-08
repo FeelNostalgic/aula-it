@@ -47,3 +47,7 @@ next-env.d.ts
 /test-results
 .playwright-mcp
 .mcp.json
+
+# agents
+.agents/settings.local.json
+
