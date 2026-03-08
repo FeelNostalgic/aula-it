@@ -25,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CreateUnitDialog } from "./create-unit-dialog";
 import { EnrollStudentDialog } from "./enroll-student-dialog";
 import { useBreadcrumb } from "./breadcrumb-context";
-import { ModuleStudentsTab } from "./module-students-tab";
+import ModuleStudentsTab from "./module-students-tab";
 import { ModuleSettingsTab } from "./module-settings-tab";
 import { cn } from "@/lib/utils";
 import { getModuleRankInfo } from "@/lib/gamification";
@@ -98,6 +98,7 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
     const rankInfo = !isTeacher ? liveModuleRank : getModuleRankInfo(moduleXp);
 
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+    const [activeTab, setActiveTab] = useState("dashboard");
 
     const ModuleIcon = ICON_MAP[module.icon] || BookOpen;
     const { setSegments } = useBreadcrumb();
@@ -207,7 +208,7 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
             </div>
 
             {/* Tabs */}
-            <Tabs defaultValue="dashboard" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="bg-surface border border-border-subtle rounded-lg p-1 h-auto">
                     <TabsTrigger
                         value="dashboard"
@@ -529,7 +530,7 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
 
                 {/* Alumnos Tab */}
                 <TabsContent value="alumnos" className="mt-6">
-                    <ModuleStudentsTab moduleId={module.id} students={initialStudents} />
+                    <ModuleStudentsTab moduleId={module.id} initialStudents={initialStudents} />
                 </TabsContent>
 
                 {/* Configuración Tab */}

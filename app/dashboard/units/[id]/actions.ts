@@ -475,6 +475,148 @@ export async function gradeSubmission(
     return { success: true };
 }
 
+export async function createUnitMilestone(
+    unitId: string,
+    data: {
+        title: string;
+        description?: string | null;
+        target_points: number;
+        reward: string;
+        status: 'draft' | 'active' | 'completed' | 'archived';
+    }
+) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+        return { error: "Not authenticated" };
+    }
+
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+    if (profile?.role !== "teacher") {
+        return { error: "Unauthorized: only teachers can create milestones" };
+    }
+
+    const { error } = await supabase
+        .from("class_milestones")
+        .insert({
+            unit_id: unitId,
+            title: data.title,
+            description: data.description ?? null,
+            target_points: data.target_points,
+            reward: data.reward,
+            status: data.status,
+        });
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    revalidatePath(`/dashboard/units/${unitId}`);
+    return { success: true };
+}
+
+export async function updateUnitMilestone(
+    milestoneId: string,
+    unitId: string,
+    data: Partial<{
+        title: string;
+        description: string | null;
+        target_points: number;
+        reward: string;
+        status: 'draft' | 'active' | 'completed' | 'archived';
+    }>
+) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+        return { error: "Not authenticated" };
+    }
+
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+    if (profile?.role !== "teacher") {
+        return { error: "Unauthorized: only teachers can update milestones" };
+    }
+
+    // Verify the milestone belongs to this unit
+    const { data: existing } = await supabase
+        .from("class_milestones")
+        .select("id")
+        .eq("id", milestoneId)
+        .eq("unit_id", unitId)
+        .single();
+
+    if (!existing) {
+        return { error: "Milestone not found or does not belong to this unit" };
+    }
+
+    const { error } = await supabase
+        .from("class_milestones")
+        .update(data)
+        .eq("id", milestoneId);
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    revalidatePath(`/dashboard/units/${unitId}`);
+    return { success: true };
+}
+
+export async function deleteUnitMilestone(milestoneId: string, unitId: string) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+        return { error: "Not authenticated" };
+    }
+
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+    if (profile?.role !== "teacher") {
+        return { error: "Unauthorized: only teachers can delete milestones" };
+    }
+
+    // Verify the milestone belongs to this unit
+    const { data: existing } = await supabase
+        .from("class_milestones")
+        .select("id")
+        .eq("id", milestoneId)
+        .eq("unit_id", unitId)
+        .single();
+
+    if (!existing) {
+        return { error: "Milestone not found or does not belong to this unit" };
+    }
+
+    const { error } = await supabase
+        .from("class_milestones")
+        .delete()
+        .eq("id", milestoneId);
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    revalidatePath(`/dashboard/units/${unitId}`);
+    return { success: true };
+}
+
 export async function updateUnitResources(unitId: string, resources: any[]) {
     const supabase = await createClient();
 

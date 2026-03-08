@@ -3,7 +3,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Target, Gift } from "lucide-react";
-import { useGamification } from "@/hooks/use-gamification";
 
 interface ClassMilestoneWidgetProps {
     milestone: {
@@ -14,9 +13,10 @@ interface ClassMilestoneWidgetProps {
         current_points: number;
         reward: string;
     } | null;
+    label?: string;
 }
 
-export function ClassMilestoneWidget({ milestone }: ClassMilestoneWidgetProps) {
+export function ClassMilestoneWidget({ milestone, label }: ClassMilestoneWidgetProps) {
     if (!milestone) return null;
 
     const progressPercentage = Math.min(
@@ -34,7 +34,7 @@ export function ClassMilestoneWidget({ milestone }: ClassMilestoneWidgetProps) {
                         <div className="space-y-1">
                             <h3 className="text-xs font-mono font-bold text-accent-blue uppercase tracking-widest flex items-center gap-2">
                                 <Target className="size-3" />
-                                Objetivo Global de la Clase
+                                {label ?? "Objetivo Global de la Clase"}
                             </h3>
                             <p className="text-xl font-bold text-foreground tracking-tight">
                                 {milestone.title}

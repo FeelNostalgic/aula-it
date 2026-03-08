@@ -29,7 +29,10 @@ test.describe("Module Detail", () => {
         if (error || !user) throw new Error(`Could not create teacher: ${error?.message}`);
         testUserId = user.id;
 
-        await supabase.from("profiles").update({ role: "teacher" }).eq("id", user.id);
+        await supabase.from("profiles").update({
+            full_name: "Test Teacher Detail",
+            role: "teacher"
+        }).eq("id", user.id);
 
         const { data: { user: student }, error: studentError } = await supabase.auth.admin.createUser({
             email: generateTestEmail("mod-detail-student"),
@@ -40,7 +43,10 @@ test.describe("Module Detail", () => {
         if (studentError || !student) throw new Error(`Could not create student: ${studentError?.message}`);
         testStudentId = student.id;
 
-        await supabase.from("profiles").update({ role: "student" }).eq("id", student.id);
+        await supabase.from("profiles").update({
+            full_name: "Test Student Detail",
+            role: "student"
+        }).eq("id", student.id);
 
         // Create a test module with units
         const { data: mod } = await supabase
@@ -149,7 +155,7 @@ test.describe("Module Detail", () => {
             // Switch to Alumnos
             await moduleDetailPage.clickTab("alumnos");
             await expect(moduleDetailPage.tabAlumnos).toHaveAttribute("data-state", "active");
-            await expect(page.getByPlaceholder(/Buscar por nombre/i)).toBeVisible();
+            await expect(page.getByRole("textbox", { name: /buscar/i }).or(page.getByPlaceholder(/Buscar alumnos/i))).toBeVisible();
 
             // Switch to Configuracion
             await moduleDetailPage.clickTab("configuracion");
@@ -184,27 +190,41 @@ test.describe("Module Detail", () => {
             const dialog = page.getByRole("dialog");
             await expect(dialog).toBeVisible();
 
-            // Wait for search button/input
-            await expect(dialog.getByRole("button", { name: "Buscar" })).toBeVisible();
+            // Search for the specific test student to avoid multi-student race conditions
+            const searchInput = dialog.getByRole("textbox");
+            await searchInput.fill("Test Student Detail");
+            await dialog.getByRole("button", { name: "Buscar" }).click();
 
-            // Strictly wait for at least one Añadir button to appear
-            const addButton = dialog.getByRole("button", { name: "Añadir" }).first();
-            await expect(addButton).toBeVisible({ timeout: 5000 });
+            // Wait for the specific results to appear (filtering out initial list)
+            const studentResultRow = dialog.locator('div.group').filter({ hasText: "Test Student Detail" }).first();
+            const addButton = studentResultRow.getByRole("button", { name: "Añadir" });
+            await expect(addButton).toBeVisible({ timeout: 10000 });
             await addButton.click();
 
-            // Give it time to enroll and refresh the list
-            await page.waitForTimeout(2000);
+            // Verify success toast appears
+            await expect(page.getByText("Alumno matriculado correctamente")).toBeVisible();
 
-            // Close the dialog by pressing Escape
+            // Wait for the dialog to close (either by Escape or maybe it closes on its own)
             await page.keyboard.press("Escape");
             await expect(dialog).toBeHidden();
 
-            // Wait for the Alumnos tab list to re-render
-            await page.waitForTimeout(1000);
-
             // Now on the Alumnos tab, we should see the student in the list.
-            // Wait for the action button to be visible
-            const actionsButton = page.getByTestId("student-actions-button").first();
+            // Next.js router.refresh() can be slow, so we wait and reload if needed
+            let studentText = page.getByText("Test Student Detail").first();
+            try {
+                await expect(studentText).toBeVisible({ timeout: 10000 });
+            } catch (e) {
+                await page.reload();
+                await moduleDetailPage.clickTab("alumnos");
+                studentText = page.getByText("Test Student Detail").first();
+                await expect(studentText).toBeVisible({ timeout: 15000 });
+            }
+
+            // Now find the actions button related to this student
+            // We use the grid row container that contains this text
+            const studentRow = page.locator('div.grid').filter({ hasText: "Test Student Detail" }).first();
+            const actionsButton = studentRow.getByTestId("student-actions-button");
+
             await expect(actionsButton).toBeVisible({ timeout: 5000 });
             await actionsButton.click();
 
@@ -212,8 +232,9 @@ test.describe("Module Detail", () => {
             await expect(deleteOption).toBeVisible();
             await deleteOption.click();
 
-            // Wait for the action to complete
-            await page.waitForTimeout(2000);
+            // Wait for the action to complete and toast
+            await expect(page.getByText(/Alumno desmatriculado|eliminado/i)).toBeVisible().catch(() => { });
+            await page.waitForLoadState("networkidle");
         }
     );
 

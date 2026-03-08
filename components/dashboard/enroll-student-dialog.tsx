@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useTransition } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, Users } from "lucide-react";
 import { enrollStudent, getAvailableStudents } from "@/app/dashboard/modules/[id]/actions";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface EnrollStudentDialogProps {
     moduleId: string;
@@ -26,6 +27,8 @@ export function EnrollStudentDialog({ moduleId, children }: EnrollStudentDialogP
     const [results, setResults] = useState<StudentResult[]>([]);
     const [loading, setLoading] = useState(false);
     const [enrolling, setEnrolling] = useState<string | null>(null);
+    const [isRefreshing, startTransition] = useTransition();
+    const router = useRouter();
 
     const fetchStudents = useCallback(async (query?: string) => {
         setLoading(true);
@@ -56,8 +59,12 @@ export function EnrollStudentDialog({ moduleId, children }: EnrollStudentDialogP
             toast.error(`Error al matricular: ${result.error}`);
         } else {
             toast.success("Alumno matriculado correctamente");
-            // Refresh list after enrollment
+            // Refresh local results for the dialog
             fetchStudents(search);
+            // Refresh the server component to update the parent page
+            startTransition(() => {
+                router.refresh();
+            });
         }
     };
 
@@ -80,7 +87,7 @@ export function EnrollStudentDialog({ moduleId, children }: EnrollStudentDialogP
                             <Input
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Buscar por nombre..."
+                                placeholder="Buscar alumnos..."
                                 className="pl-10 h-10 bg-surface/50 border-border-strong text-foreground placeholder:text-text-muted focus-visible:ring-1 focus-visible:ring-accent-blue focus-visible:border-accent-blue transition-all"
                             />
                         </div>

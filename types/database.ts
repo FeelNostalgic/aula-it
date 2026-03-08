@@ -14,3 +14,18 @@ export type UnitViewType = 'list' | 'map';
 export type ActivityDifficulty = 'Bajo' | 'Medio' | 'Alto';
 
 export type ActivityType = 'mission' | 'challenge' | 'quiz' | 'project';
+
+export type MilestoneStatus = 'draft' | 'active' | 'completed' | 'archived';
+
+export interface ClassMilestone {
+    id: string;
+    unit_id: string | null;
+    title: string;
+    description: string | null;
+    target_points: number;
+    current_points: number;
+    reward: string;
+    status: MilestoneStatus;
+    created_at: string;
+    updated_at: string;
+}

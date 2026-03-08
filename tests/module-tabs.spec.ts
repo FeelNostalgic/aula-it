@@ -63,9 +63,9 @@ test.describe("Module Details Tabs", () => {
         // Click the ALUMNOS tab
         await page.getByRole('tab', { name: 'ALUMNOS' }).click();
 
-        // Verify the filters and empty state
-        await expect(page.getByRole('button', { name: 'Todos los Estados' })).toBeVisible();
-        await expect(page.getByText('No hay alumnos matriculados en este módulo.')).toBeVisible();
+        // Verify the search input and empty state
+        await expect(page.getByPlaceholder('Buscar alumnos...')).toBeVisible();
+        await expect(page.getByText('Aún no hay alumnos matriculados en este módulo.')).toBeVisible();
 
         // Click adding students button
         await page.getByRole('button', { name: 'AÑADIR ALUMNOS', exact: true }).click();

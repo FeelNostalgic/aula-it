@@ -1,112 +1,115 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Search, MoreVertical, Trash2 } from "lucide-react";
+import { useState, useEffect, useTransition } from "react";
+import { Search, MoreVertical, Trash2, GraduationCap, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { unenrollStudent } from "@/app/dashboard/modules/[id]/actions";
+import { toast } from "sonner";
+import { EnrollStudentDialog } from "./enroll-student-dialog";
 
-type Student = {
+interface Student {
     id: string;
     full_name: string | null;
-    email: string;
+    email: string | null;
     avatar_url: string | null;
-};
+    module_xp?: number;
+}
 
 interface ModuleStudentsTabProps {
     moduleId: string;
-    students: Student[];
+    initialStudents: Student[];
 }
 
-export function ModuleStudentsTab({ moduleId, students }: ModuleStudentsTabProps) {
+// Datos de ejemplo para la visualización del progreso (mocked por ahora)
+const getMockData = (studentId: string, name: string | null) => {
+    // Generar datos consistentes basados en el ID para que no cambien en cada render
+    const seed = studentId.split('-')[0];
+    const hash = parseInt(seed, 16) || 0;
+
+    return {
+        progress: 15 + (hash % 70),
+        currentUnit: `Unidad ${(hash % 3) + 1}`,
+        lastActivity: `${(hash % 5) + 1}h ago`,
+        isOnline: hash % 2 === 0
+    };
+};
+
+export default function ModuleStudentsTab({ moduleId, initialStudents }: ModuleStudentsTabProps) {
     const [searchQuery, setSearchQuery] = useState("");
+    const [enrolledStudents, setEnrolledStudents] = useState<Student[]>(initialStudents);
     const [isPending, startTransition] = useTransition();
+
+    // Sincronizar el estado local cuando cambian los props (tras router.refresh)
+    useEffect(() => {
+        setEnrolledStudents(initialStudents);
+    }, [initialStudents]);
 
     const handleUnenroll = (studentId: string) => {
         startTransition(async () => {
             const result = await unenrollStudent(moduleId, studentId);
             if (result.error) {
+                toast.error("Error al desvincular alumno");
                 console.error("Error unenrolling student:", result.error);
+            } else {
+                toast.success("Alumno desvinculado correctamente");
+                setEnrolledStudents(prev => prev.filter(s => s.id !== studentId));
             }
         });
     };
 
-    const filteredStudents = students.filter(student =>
-        student.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
+    const filteredStudents = enrolledStudents?.filter((student) =>
+        student.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        student.email?.toLowerCase().includes(searchQuery.toLowerCase())
     );
-
-    // Mock data generation for visual prototype based on student ID to keep it stable
-    const getMockData = (id: string, name: string | null) => {
-        const hash = id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const progress = (hash % 9) * 10 + 15; // 15 to 95%
-        const isOnline = hash % 3 === 0;
-        const lastActivityOptions = ["Hace 10 minutos", "Ayer, 18:24", "Hace 3 días", "Ahora mismo", "Hace 2 horas"];
-        const currentUnitOptions = ["U4: Gestión de Memoria", "U2: Procesos y Hilos", "U1: Intro S.O.", "U6: Virtualización"];
-
-        return {
-            progress,
-            isOnline,
-            lastActivity: lastActivityOptions[hash % lastActivityOptions.length],
-            currentUnit: currentUnitOptions[hash % currentUnitOptions.length],
-        };
-    };
 
     return (
         <div className="space-y-6">
-            {/* Header / Filters / Action */}
-            <div className="flex flex-col lg:flex-row gap-4 justify-between items-center bg-surface-dark border border-border-strong rounded-xl p-4">
-                <div className="flex flex-col md:flex-row gap-4 w-full lg:w-auto">
-                    <div className="relative w-full md:w-80">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-text-muted" />
-                        <Input
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Buscar por nombre, email o ID..."
-                            className="pl-9 bg-surface border-border-strong text-foreground placeholder:text-text-muted focus-visible:ring-accent-blue"
-                        />
-                    </div>
-                    <div className="flex gap-3 w-full md:w-auto">
-                        <Button variant="outline" className="flex-1 md:flex-none bg-surface border-border-strong text-text-muted hover:text-foreground">
-                            Todos los Estados
-                        </Button>
-                    </div>
+            <div className="flex items-center justify-between">
+                <div className="relative w-full max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-text-muted" />
+                    <Input
+                        placeholder="Buscar alumnos..."
+                        className="pl-9 bg-surface border-border-subtle focus-visible:ring-accent-blue"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
                 </div>
+                <EnrollStudentDialog moduleId={moduleId}>
+                    <Button className="bg-accent-blue hover:bg-accent-blue/90 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2">
+                        <Plus className="size-4" />
+                        Matricular Alumno
+                    </Button>
+                </EnrollStudentDialog>
             </div>
 
-            {/* Students List */}
-            <div className="bg-surface-dark border border-border-strong rounded-xl overflow-hidden">
-                {/* Table Header */}
-                <div className="hidden md:grid grid-cols-[2fr_1fr_1.5fr_1fr_1fr_auto] gap-4 p-4 border-b border-border-strong bg-surface/50 text-xs font-bold text-text-muted uppercase tracking-wider">
+            <div className="bg-surface-dark border border-border-strong rounded-xl overflow-hidden shadow-sm">
+                <div className="grid md:grid-cols-[2fr_1fr_1.5fr_1fr_1fr_auto] gap-4 p-4 border-b border-border-strong bg-surface/30 text-xs font-bold text-text-muted uppercase tracking-wider">
                     <div>Alumno</div>
-                    <div>Progreso %</div>
+                    <div>Progreso</div>
                     <div>Unidad Actual</div>
                     <div>Última Actividad</div>
                     <div>Estado</div>
-                    <div className="text-right pr-2">Acciones</div>
+                    <div className="w-8"></div>
                 </div>
 
-                {/* Table Body */}
                 <div className="divide-y divide-border-subtle">
-                    {filteredStudents.length === 0 ? (
-                        <div className="p-8 text-center text-text-muted">
-                            {searchQuery ? "No hay alumnos matriculados que coincidan con la búsqueda." : "No hay alumnos matriculados en este módulo."}
-                        </div>
-                    ) : (
+                    {filteredStudents && filteredStudents.length > 0 ? (
                         filteredStudents.map((student) => {
                             const mockData = getMockData(student.id, student.full_name);
                             return (
-                                <div key={student.id} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1.5fr_1fr_1fr_auto] gap-4 p-4 items-center hover:bg-surface/30 transition-colors">
-                                    {/* Alumno */}
+                                <div key={student.id} className="grid md:grid-cols-[2fr_1fr_1.5fr_1fr_1fr_auto] gap-4 p-4 items-center hover:bg-surface/20 transition-colors">
+                                    {/* Alumno Info */}
                                     <div className="flex items-center gap-3">
-                                        <div className="size-10 rounded-full bg-accent-orange/10 flex items-center justify-center shrink-0 overflow-hidden">
+                                        <div className="size-10 rounded-full overflow-hidden bg-accent-orange/10 flex-shrink-0 flex items-center justify-center border border-accent-orange/20">
                                             {student.avatar_url ? (
                                                 <img
                                                     src={student.avatar_url}
@@ -121,7 +124,9 @@ export function ModuleStudentsTab({ moduleId, students }: ModuleStudentsTabProps
                                             )}
                                         </div>
                                         <div className="min-w-0">
-                                            <div className="font-bold text-foreground text-sm truncate">{student.full_name || "Usuario Desconocido"}</div>
+                                            <div className="font-bold text-foreground text-sm truncate" title={student.full_name || "Usuario Desconocido"}>
+                                                {student.full_name || "Usuario Desconocido"}
+                                            </div>
                                             <div className="text-xs text-text-muted truncate">{student.email}</div>
                                         </div>
                                     </div>
@@ -164,9 +169,10 @@ export function ModuleStudentsTab({ moduleId, students }: ModuleStudentsTabProps
                                                 <DropdownMenuItem
                                                     className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
                                                     onClick={() => handleUnenroll(student.id)}
+                                                    disabled={isPending}
                                                 >
                                                     <Trash2 className="mr-2 size-4" />
-                                                    <span>Eliminar alumno</span>
+                                                    Eliminar alumno
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
@@ -174,19 +180,16 @@ export function ModuleStudentsTab({ moduleId, students }: ModuleStudentsTabProps
                                 </div>
                             );
                         })
+                    ) : (
+                        <div className="p-12 text-center">
+                            <GraduationCap className="size-12 text-border-strong mx-auto mb-4" />
+                            <h3 className="text-lg font-bold text-foreground mb-1">No hay alumnos</h3>
+                            <p className="text-text-muted text-sm">
+                                {searchQuery ? "No se encontraron alumnos que coincidan con tu búsqueda." : "Aún no hay alumnos matriculados en este módulo."}
+                            </p>
+                        </div>
                     )}
                 </div>
-
-                {/* Footer */}
-                {filteredStudents.length > 0 && (
-                    <div className="p-4 border-t border-border-strong flex items-center justify-between text-sm text-text-muted">
-                        <div>Mostrando {filteredStudents.length} de {students.length} alumnos</div>
-                        <div className="flex gap-2">
-                            <Button variant="outline" size="sm" className="h-8 bg-surface border-border-strong text-text-muted hover:text-foreground" disabled>Anterior</Button>
-                            <Button variant="outline" size="sm" className="h-8 bg-surface border-border-strong text-text-muted hover:text-foreground">Siguiente</Button>
-                        </div>
-                    </div>
-                )}
             </div>
         </div>
     );

@@ -38,11 +38,26 @@ test.describe("Cooperative Gamification: Milestone Progress", () => {
         studentId = studentUser.user.id;
         await supabase.from("profiles").update({ role: "student", global_xp: 0 }).eq("id", studentId);
 
-        // 3. Ensure an active milestone exists
-        await supabase.from("class_milestones").update({ status: "archived" }).eq("status", "active");
+        // 3. Create structural data first (needed for milestone link)
+        const { data: module, error: modErr } = await supabase.from("modules").insert({
+            name: "Coop Module",
+            teacher_id: teacherId,
+            status: "active"
+        }).select("id").single();
+        if (modErr) throw new Error(`Module insert failed: ${modErr.message}`);
+
+        const { data: unit, error: unitErr } = await supabase.from("units").insert({
+            module_id: module.id,
+            name: "Coop Unit"
+        }).select("id").single();
+        if (unitErr) throw new Error(`Unit insert failed: ${unitErr.message}`);
+
+        // 4. Ensure an active milestone exists for THIS unit
+        await supabase.from("class_milestones").update({ status: "archived" }).eq("unit_id", unit.id).eq("status", "active");
 
         const { data: milestone, error: milestoneError } = await supabase.from("class_milestones").insert({
             title: "Test Mega Milestone",
+            unit_id: unit.id,
             target_points: 1000,
             current_points: 0,
             reward: "Pizza Party",
@@ -52,17 +67,7 @@ test.describe("Cooperative Gamification: Milestone Progress", () => {
         if (milestoneError) throw new Error(`Milestone insert failed: ${milestoneError.message}`);
         milestoneId = milestone.id;
 
-        // 4. Create structural data for XP award
-        const { data: module, error: modErr } = await supabase.from("modules").insert({
-            name: "Coop Module",
-            teacher_id: teacherId,
-            status: "active"
-        }).select("id").single();
-        if (modErr) throw new Error(`Module insert failed: ${modErr.message}`);
-
-        const { data: unit, error: unitErr } = await supabase.from("units").insert({ module_id: module.id, name: "Coop Unit" }).select("id").single();
-        if (unitErr) throw new Error(`Unit insert failed: ${unitErr.message}`);
-
+        // 5. Create activity chain
         const { data: activity, error: actErr } = await supabase.from("activities").insert({ unit_id: unit.id, title: "Coop Activity", type: "theory" }).select("id").single();
         if (actErr) throw new Error(`Activity insert failed: ${actErr.message}`);
 

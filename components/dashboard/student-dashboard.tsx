@@ -10,7 +10,6 @@ import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import { useGamification } from "@/hooks/use-gamification";
 import { StudentModuleCard } from "./student-module-card";
-import { ClassMilestoneWidget } from "./class-milestone-widget";
 
 type Module = {
     id: string;
@@ -27,7 +26,6 @@ type Module = {
 
 interface StudentDashboardProps {
     initialModules: Module[];
-    activeMilestone?: any;
 }
 
 const ICON_MAP: Record<string, any> = {
@@ -38,17 +36,12 @@ const ICON_MAP: Record<string, any> = {
     // Add logic for matching icons based on the module icon string
 };
 
-export function StudentDashboard({ initialModules, activeMilestone }: StudentDashboardProps) {
+export function StudentDashboard({ initialModules }: StudentDashboardProps) {
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const { globalXp, globalLevel } = useGamification();
 
     return (
         <div className="flex flex-col gap-10">
-            {/* Global Class Milestone */}
-            {activeMilestone && (
-                <ClassMilestoneWidget milestone={activeMilestone} />
-            )}
-
             {/* User Progress Panel */}
             <Card className="bg-surface-dark border-border-subtle overflow-hidden relative group">
                 <div className="absolute inset-0 bg-accent-blue/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
