@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
     LayoutGrid,
     Settings,
@@ -18,11 +19,13 @@ import {
     List,
     ChevronRight,
     Search,
-    Award
+    Award,
+    Target
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useBreadcrumb } from "./breadcrumb-context";
 import { UnitSettingsTab } from "./unit-settings-tab";
 import { UnitActivitiesTab } from "./unit-activities-tab";
@@ -101,6 +104,8 @@ export function UnitDetailView({
     const isTeacher = userRole === "teacher";
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+    const [isMilestoneExpanded, setIsMilestoneExpanded] = useState(true);
+    const [isBadgesExpanded, setIsBadgesExpanded] = useState(false);
     const sortedMilestones = [...milestones].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
     const activeMilestone = sortedMilestones.find(m => m.status === 'active') ||
         [...sortedMilestones].reverse().find(m => m.status === 'completed') || null;
@@ -171,40 +176,151 @@ export function UnitDetailView({
     return (
         <div className="flex flex-col gap-8">
 
-            {/* Unit Header */}
-            <div className="flex flex-col gap-6">
+            {/* Unit Header - Title First */}
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 px-12">
+                <div className="flex items-start gap-5">
+                    <div className="size-14 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center text-accent-blue shrink-0">
+                        <Map className="size-7" />
+                    </div>
+                    <div className="space-y-1.5">
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-2xl font-bold tracking-tight text-foreground">{unit.name}</h1>
+                            {statusConfig && (
+                                <Badge variant="outline" className={`${statusConfig.border} ${statusConfig.bg} ${statusConfig.color} gap-1.5 py-1 px-3 shadow-sm`}>
+                                    <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
+                                    {statusConfig.label}
+                                </Badge>
+                            )}
+                        </div>
+                        <p className="text-sm text-text-muted max-w-xl">
+                            {unit.description || "Sin descripción proporcionada para esta unidad."}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <motion.div layout className="flex flex-col gap-6">
                 {(activeMilestone || milestones.some(m => m.status === 'completed')) && (
-                    <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-                        <ClassMilestoneWidget milestones={milestones} activeMilestone={activeMilestone} label="Objetivo de la Unidad" />
+                    <div className="px-12 relative">
+                        <AnimatePresence mode="wait">
+                            {isMilestoneExpanded ? (
+                                <motion.div
+                                    key="milestone-expanded"
+                                    layoutId="milestone-section"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    transition={{ duration: 0.3, ease: "easeOut" }}
+                                >
+                                    <ClassMilestoneWidget 
+                                        milestones={milestones} 
+                                        activeMilestone={activeMilestone} 
+                                        label="Objetivo de la Unidad" 
+                                        onToggle={() => setIsMilestoneExpanded(false)}
+                                    />
+                                </motion.div>
+                            ) : (
+                                <motion.div
+                                    key="milestone-collapsed"
+                                    layoutId="milestone-section"
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, y: 10 }}
+                                    className="relative overflow-hidden bg-linear-to-br from-indigo-500/15 via-purple-500/10 to-pink-500/5 backdrop-blur-md border border-white/10 rounded-2xl p-4 flex items-center gap-4 cursor-pointer hover:border-accent-blue/40 transition-all shadow-lg group"
+                                    onClick={() => setIsMilestoneExpanded(true)}
+                                >
+                                    {/* Decorative background flare */}
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
+                                    
+                                    <motion.div 
+                                        layoutId="milestone-icon"
+                                        className="relative z-10 size-10 rounded-xl bg-accent-blue/20 flex items-center justify-center text-accent-blue border border-accent-blue/30 shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+                                    >
+                                        <Target className="size-5" />
+                                    </motion.div>
+                                    <div className="flex-1 relative z-10">
+                                        <h3 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                            {activeMilestone ? "Objetivo Actual" : "Objetivos de Unidad"}
+                                            <span className="size-1 rounded-full bg-accent-blue animate-pulse" />
+                                        </h3>
+                                        <p className="text-[10px] text-text-muted font-bold uppercase tracking-tight opacity-70">Pulsa para ver el progreso del camino</p>
+                                    </div>
+                                    {activeMilestone && (
+                                        <div className="relative z-10 flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-sm group-hover:bg-white/10 transition-colors">
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-[9px] font-black text-accent-blue uppercase tracking-tighter leading-none mb-1">HITO ACTUAL</span>
+                                                <span className="text-xs font-bold text-foreground leading-none">{activeMilestone.title}</span>
+                                            </div>
+                                            <div className="size-6 rounded-lg bg-accent-blue/10 flex items-center justify-center text-accent-blue">
+                                                <ChevronRight className="size-3" />
+                                            </div>
+                                        </div>
+                                    )}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 )}
 
                 {classBadges && classBadges.length > 0 && (
-                    <div className="animate-in fade-in slide-in-from-top-4 duration-500 delay-100">
-                        <ClassBadgesWidget badges={classBadges} studentBadges={studentBadges} isTeacher={isTeacher} />
+                    <div className="px-12 relative mt-2">
+                        <AnimatePresence mode="wait">
+                            {isBadgesExpanded ? (
+                                <motion.div
+                                    key="badges-expanded"
+                                    layoutId="badges-section"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    transition={{ duration: 0.3, ease: "easeOut" }}
+                                >
+                                    <ClassBadgesWidget 
+                                        badges={classBadges} 
+                                        studentBadges={studentBadges} 
+                                        isTeacher={isTeacher} 
+                                        onToggle={() => setIsBadgesExpanded(false)}
+                                    />
+                                </motion.div>
+                            ) : (
+                                <motion.div
+                                    key="badges-collapsed"
+                                    layoutId="badges-section"
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, y: 10 }}
+                                    className="bg-surface border border-border-subtle rounded-2xl p-4 flex items-center gap-4 cursor-pointer hover:border-accent-amber/30 transition-colors shadow-sm"
+                                    onClick={() => setIsBadgesExpanded(true)}
+                                >
+                                    <motion.div 
+                                        layoutId="badges-icon"
+                                        className="size-10 rounded-xl bg-accent-amber/10 flex items-center justify-center text-accent-amber"
+                                    >
+                                        <Award className="size-5" />
+                                    </motion.div>
+                                    <div className="flex-1">
+                                        <h3 className="text-sm font-bold text-foreground uppercase tracking-tight">Insignias Globales</h3>
+                                        <p className="text-xs text-text-muted">Pulsa sobre el icono para expandir</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-bold text-text-muted uppercase">Disponibles:</span>
+                                        <div className="flex -space-x-2">
+                                            {classBadges.slice(0, 3).map((b, i) => (
+                                                <div key={b.id} className="size-6 rounded-full bg-surface border-2 border-background flex items-center justify-center shadow-sm">
+                                                    <Award className="size-3 text-accent-amber" />
+                                                </div>
+                                            ))}
+                                            {classBadges.length > 3 && (
+                                                <div className="size-6 rounded-full bg-surface-dark border-2 border-background flex items-center justify-center text-[8px] font-bold text-text-muted">
+                                                    +{classBadges.length - 3}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 )}
-                <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-                    <div className="flex items-start gap-5">
-                        <div className="size-14 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center text-accent-blue shrink-0">
-                            <Map className="size-7" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <div className="flex items-center gap-3">
-                                <h1 className="text-2xl font-bold tracking-tight text-foreground">{unit.name}</h1>
-                                {statusConfig && (
-                                    <Badge variant="outline" className={`${statusConfig.border} ${statusConfig.bg} ${statusConfig.color} gap-1.5 py-1 px-3 shadow-sm`}>
-                                        <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
-                                        {statusConfig.label}
-                                    </Badge>
-                                )}
-                            </div>
-                            <p className="text-sm text-text-muted max-w-xl">
-                                {unit.description || "Sin descripción proporcionada para esta unidad."}
-                            </p>
-                        </div>
-                    </div>
-                </div>
 
                 {/* Tabs */}
                 <Tabs defaultValue={isTeacher ? "actividades" : (unit.view_type === 'map' ? "map" : "actividades")} className="w-full">
@@ -549,7 +665,7 @@ export function UnitDetailView({
                         </TabsContent>
                     )}
                 </Tabs>
-            </div>
+            </motion.div>
         </div>
     );
 }

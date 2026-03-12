@@ -1,14 +1,17 @@
 import { ClassBadge, StudentBadge } from "@/types/database";
 import { BadgeDisplay } from "./badge-display";
 import { Award } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 interface ClassBadgesWidgetProps {
     badges: ClassBadge[];
     studentBadges: StudentBadge[];
     isTeacher: boolean;
+    onToggle?: () => void;
 }
 
-export function ClassBadgesWidget({ badges, studentBadges, isTeacher }: ClassBadgesWidgetProps) {
+export function ClassBadgesWidget({ badges, studentBadges, isTeacher, onToggle }: ClassBadgesWidgetProps) {
     if (badges.length === 0) return null;
 
     // Filter hidden badges for students (if they haven't earned them yet)
@@ -28,12 +31,21 @@ export function ClassBadgesWidget({ badges, studentBadges, isTeacher }: ClassBad
 
     return (
         <div className="bg-surface border border-border-subtle rounded-2xl p-6 space-y-4 shadow-sm">
-            <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
+            <div 
+                className={cn(
+                    "flex items-center gap-3",
+                    onToggle && "cursor-pointer group/badges"
+                )}
+                onClick={onToggle}
+            >
+                <motion.div 
+                    layoutId="badges-icon"
+                    className="p-2 rounded-lg bg-amber-500/10 text-amber-500 shrink-0 group-hover/badges:bg-amber-500/20 transition-colors"
+                >
                     <Award className="size-5" />
-                </div>
+                </motion.div>
                 <div>
-                   <h3 className="text-lg font-black text-foreground tracking-tight uppercase">
+                   <h3 className="text-lg font-black text-foreground tracking-tight uppercase group-hover/badges:text-foreground/90 transition-colors">
                        Insignias Globales
                    </h3>
                    <p className="text-sm text-text-muted leading-relaxed">

@@ -17,9 +17,10 @@ interface ClassMilestoneWidgetProps {
     milestones: ClassMilestone[];
     activeMilestone: ClassMilestone | null;
     label?: string;
+    onToggle?: () => void;
 }
 
-export function ClassMilestoneWidget({ milestones, activeMilestone, label }: ClassMilestoneWidgetProps) {
+export function ClassMilestoneWidget({ milestones, activeMilestone, label, onToggle }: ClassMilestoneWidgetProps) {
     // Only show active or completed milestones in the progression
     const visibleMilestones = [...milestones]
         .filter(m => m.status === 'active' || m.status === 'completed')
@@ -85,10 +86,18 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label }: Cla
                 <CardContent className="p-6 relative z-10 flex flex-col gap-8">
                     {/* Header Info & Persisent Reward Card */}
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                        <div className="space-y-1.5 flex-1">
+                        <div 
+                            className={cn(
+                                "space-y-1.5 flex-1",
+                                onToggle && "cursor-pointer group/title"
+                            )}
+                            onClick={onToggle}
+                        >
                             <div className="flex items-center gap-3">
-                                <h3 className="text-[10px] font-black text-accent-blue uppercase tracking-[0.2em] flex items-center gap-2">
-                                    <Target className="size-3" />
+                                <h3 className="text-[10px] font-black text-accent-blue uppercase tracking-[0.2em] flex items-center gap-2 group-hover/title:text-accent-blue/80 transition-colors">
+                                    <motion.div layoutId="milestone-icon" className="size-3 flex items-center justify-center">
+                                        <Target className="size-3" />
+                                    </motion.div>
                                     {label ?? "Camino de la Unidad"}
                                 </h3>
                                 <div className="h-px w-8 bg-accent-blue/30" />
@@ -96,7 +105,7 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label }: Cla
                                     {currentIndex + 1} / {totalCount} HITOS
                                 </span>
                             </div>
-                            <h2 className="text-3xl font-black text-foreground tracking-tighter leading-none">
+                            <h2 className="text-3xl font-black text-foreground tracking-tighter leading-none group-hover/title:text-foreground/90 transition-colors">
                                 {currentActive.title}
                             </h2>
                             <div className="flex items-center gap-2 mt-2">
