@@ -104,8 +104,7 @@ test.describe("Dashboard Activity Builder", () => {
         await builder.openSettings();
         await builder.updateSettings({
             title: "Updated Activity Title E2E",
-            description: "Updated Description for Test",
-            logoUrl: "https://example.com/logo.png"
+            description: "Updated Description for Test"
         });
 
         // Verify Title updated

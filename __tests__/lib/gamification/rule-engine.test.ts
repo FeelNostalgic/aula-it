@@ -19,6 +19,8 @@ describe("Gamification Rule Engine - evaluateStudentBadges", () => {
       chain.from = vi.fn().mockImplementation(() => chain);
       chain.select = vi.fn().mockImplementation(() => chain);
       chain.eq = vi.fn().mockImplementation(() => chain);
+      chain.order = vi.fn().mockImplementation(() => chain);
+      chain.single = vi.fn().mockImplementation(() => chain);
       chain.insert = vi.fn().mockImplementation(() => Promise.resolve({ error: null }));
       return chain;
     };
@@ -31,7 +33,9 @@ describe("Gamification Rule Engine - evaluateStudentBadges", () => {
     earnedBadges = [] as any[],
     classBadges = [] as any[],
     submissions = [] as any[],
-    activities = [{ id: "act-1" }] as any[]
+    activities = [{ id: "act-1" }] as any[],
+    unitData = { module_id: "mod-1" } as any,
+    enrollment = { module_xp: 100 } as any
   }) => {
     mockSupabase.from.mockImplementation((table: string) => {
       let data: any = [];
@@ -39,11 +43,15 @@ describe("Gamification Rule Engine - evaluateStudentBadges", () => {
       else if (table === "class_badges") data = classBadges;
       else if (table === "activity_submissions") data = submissions;
       else if (table === "activities") data = activities;
+      else if (table === "units") data = unitData;
+      else if (table === "module_enrollments") data = enrollment;
 
       // Return a new chainable for this table
       const chain: any = Promise.resolve({ data, error: null });
       chain.select = vi.fn().mockImplementation(() => chain);
       chain.eq = vi.fn().mockImplementation(() => chain);
+      chain.order = vi.fn().mockImplementation(() => chain);
+      chain.single = vi.fn().mockImplementation(() => chain);
       chain.insert = mockSupabase.insert; // Share the same insert mock to track calls
       return chain;
     });

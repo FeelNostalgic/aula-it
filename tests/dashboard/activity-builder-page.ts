@@ -14,7 +14,8 @@ export class ActivityBuilderPage extends BasePage {
     readonly inputDescription: Locator;
     readonly inputDuration: Locator;
     readonly selectDifficulty: Locator;
-    readonly inputLogoUrl: Locator;
+    readonly logoContainer: Locator;
+    readonly btnRemoveLogo: Locator;
     readonly settingsPanel: Locator;
 
     // Central Editor
@@ -37,8 +38,9 @@ export class ActivityBuilderPage extends BasePage {
         this.inputDescription = page.getByLabel(/Descripción/i);
         this.inputDuration = page.getByLabel(/Duración/i);
         this.selectDifficulty = page.getByRole('combobox', { name: /Dificultad/i });
-        this.inputLogoUrl = page.getByLabel(/URL del Logo/i);
-        this.settingsPanel = page.getByRole('heading', { name: 'Configuración de la Actividad' }); // Modified to target the header within the panel
+        this.logoContainer = page.getByTestId('activity-logo-container');
+        this.btnRemoveLogo = page.getByTestId('remove-logo');
+        this.settingsPanel = page.getByRole('heading', { name: 'Configuración de la Actividad' }).locator('..').locator('..'); // Target the panel container
 
         // Sidebar
         this.sidebarContainer = page.locator('#sidebar-panel');
@@ -70,7 +72,6 @@ export class ActivityBuilderPage extends BasePage {
             await this.page.getByRole('option', { name: data.difficulty }).click();
         }
         if (data.duration) await this.page.getByLabel('Duración Estimada (min)').fill(data.duration);
-        if (data.logoUrl) await this.page.getByLabel('URL del Logo / Icono').fill(data.logoUrl);
 
         // Wait for debounce/save
         await this.page.waitForTimeout(1500);

@@ -92,9 +92,12 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
             <div className="space-y-6 bg-surface-dark/50 p-6 rounded-xl border border-border/50">
 
                 <div className="grid grid-cols-[120px_1fr] gap-8 items-start">
-                    <div className="aspect-square rounded-2xl bg-surface-dark border border-border/50 flex items-center justify-center overflow-hidden relative group">
+                    <div 
+                        className="aspect-square rounded-2xl bg-surface-dark border border-border/50 flex items-center justify-center overflow-hidden relative group"
+                        data-testid="activity-logo-container"
+                    >
                         {logoUrl ? (
-                            <img src={logoUrl} alt="Logo" className="size-full object-contain p-4" />
+                            <img src={logoUrl} alt="Logo" className="size-full object-contain p-4" data-testid="activity-logo-image" />
                         ) : (
                             <Settings className="size-10 text-text-muted/20" />
                         )}
@@ -103,6 +106,7 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                                 size="icon"
                                 variant="ghost"
                                 className="size-8 text-white hover:bg-white/20"
+                                data-testid="open-drive-picker"
                                 onClick={async () => {
                                     try {
                                         const files = await openPicker();
@@ -122,6 +126,7 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                                     size="icon"
                                     variant="ghost"
                                     className="size-8 text-white hover:bg-white/20"
+                                    data-testid="remove-logo"
                                     onClick={() => handleLogoChange("")}
                                 >
                                     <Trash2 className="size-4" />
