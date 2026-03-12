@@ -11,7 +11,7 @@ export default async function SettingsPage() {
 
     const { data: profile } = await supabase
         .from("profiles")
-        .select("role, full_name, google_email")
+        .select("role, full_name, google_email, is_private")
         .eq("id", user.id)
         .single();
 
@@ -39,6 +39,7 @@ export default async function SettingsPage() {
                 userEmail={user.email ?? ""}
                 initialFullName={profile?.full_name ?? ""}
                 initialGoogleEmail={profile?.google_email ?? ""}
+                initialIsPrivate={profile?.is_private ?? false}
                 userAvatar={userAvatar}
                 userId={user.id}
                 isTeacher={isTeacher}

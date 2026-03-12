@@ -25,17 +25,20 @@ export async function disconnectDrive(): Promise<{ success?: boolean; error?: st
 export async function updateProfile({
     fullName,
     googleEmail,
+    isPrivate,
 }: {
     fullName: string;
     googleEmail: string;
+    isPrivate?: boolean;
 }) {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return { error: "No autenticado." };
 
-    const updates: Record<string, string> = {};
+    const updates: Record<string, any> = {};
     if (fullName.trim()) updates.full_name = fullName.trim();
     updates.google_email = googleEmail.trim() || null as any;
+    if (isPrivate !== undefined) updates.is_private = isPrivate;
 
     const { error } = await supabase
         .from("profiles")

@@ -16,6 +16,7 @@ import {
     GraduationCap,
     Plus,
     Lock,
+    Trophy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -31,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { getModuleRankInfo } from "@/lib/gamification";
 import { useModuleGamification } from "@/hooks/use-gamification";
 import { RankBadge } from "./rank-badge";
+import { ModuleLeaderboard } from "./module-leaderboard";
 
 
 const ICON_MAP: Record<string, any> = {
@@ -91,11 +93,13 @@ interface ModuleDetailViewProps {
 
 export function ModuleDetailView({ module, initialUnits, initialStudents, userRole, moduleXp = 0 }: ModuleDetailViewProps) {
     const isTeacher = userRole === "teacher";
-    const { moduleXp: liveModuleXp, moduleRank: liveModuleRank } = useModuleGamification(module.id);
+    const { moduleXp: liveModuleXp, moduleRank: liveModuleRank, rankPosition } = useModuleGamification(module.id);
 
     // Use live data for students, prop data for teachers
     const displayXp = !isTeacher ? liveModuleXp : moduleXp;
-    const rankInfo = !isTeacher ? liveModuleRank : getModuleRankInfo(moduleXp);
+    
+    // For teachers we can default to F or not show it.
+    const rankLetter = !isTeacher ? liveModuleRank : "F";
 
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const [activeTab, setActiveTab] = useState("dashboard");
@@ -165,23 +169,15 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                             {!isTeacher && (
                                 <div className="flex items-center gap-3">
                                     <RankBadge
-                                        rank={rankInfo.rank}
+                                        rank={rankLetter}
                                         showLabel
                                         className="py-1.5 shadow-md"
                                     />
-                                    {rankInfo.nextRank && (
-                                        <div className="flex flex-col gap-1 w-24">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-[9px] font-bold text-text-muted uppercase tracking-tighter">Progreso</span>
-                                                <span className="text-[9px] font-bold text-primary">{rankInfo.progressPercentage}%</span>
-                                            </div>
-                                            <div className="h-1 w-full bg-surface-dark border border-border-subtle rounded-full overflow-hidden shadow-inner">
-                                                <div
-                                                    className="h-full bg-primary transition-all duration-500 shadow-[0_0_8px_rgba(var(--primary),0.4)]"
-                                                    style={{ width: `${rankInfo.progressPercentage}%` }}
-                                                />
-                                            </div>
-                                        </div>
+                                    {rankPosition && (
+                                        <Badge variant="outline" className="bg-surface border-border/50 text-text-muted px-2.5 py-1.5 h-auto">
+                                            <span className="text-[10px] uppercase font-mono font-bold tracking-widest mr-1 opacity-70">Top</span>
+                                            <span className="font-bold text-foreground">#{rankPosition}</span>
+                                        </Badge>
                                     )}
                                 </div>
                             )}
@@ -216,6 +212,13 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                     >
                         <LayoutGrid className="mr-2 size-3.5" />
                         DASHBOARD
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="ranking"
+                        className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
+                    >
+                        <Trophy className="mr-2 size-3.5" />
+                        RANKING
                     </TabsTrigger>
                     {isTeacher && (
                         <>
@@ -536,6 +539,11 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                 {/* Configuración Tab */}
                 <TabsContent value="configuracion" className="mt-6">
                     <ModuleSettingsTab module={module} />
+                </TabsContent>
+
+                {/* Ranking Tab */}
+                <TabsContent value="ranking" className="mt-6">
+                    <ModuleLeaderboard moduleId={module.id} userRole={userRole} />
                 </TabsContent>
             </Tabs>
         </div>

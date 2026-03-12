@@ -69,7 +69,7 @@ export function StudentModuleCard({ module, viewMode }: StudentModuleCardProps) 
             {/* Module Rank strip / Corner */}
             {viewMode === "grid" && (
                 <div className="absolute top-0 right-0 p-3 z-10">
-                    <RankBadge rank={moduleRank.rank} />
+                    <RankBadge rank={moduleRank} />
                 </div>
             )}
 
@@ -92,7 +92,7 @@ export function StudentModuleCard({ module, viewMode }: StudentModuleCardProps) 
                                 {module.name}
                             </CardTitle>
                             {viewMode === "list" && (
-                                <RankBadge rank={moduleRank.rank} />
+                                <RankBadge rank={moduleRank} />
                             )}
                         </div>
                         {viewMode === "grid" && (
