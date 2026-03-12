@@ -10,6 +10,7 @@ import { Settings, Zap, HardDrive } from "lucide-react";
 import { toast } from "sonner";
 import { updateActivitySettings } from "@/app/activities/[id]/edit/actions";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
+import ClassBadgesManager from "@/components/dashboard/class-badges-manager";
 
 interface ActivitySettingsPanelProps {
     activity: any;
@@ -198,6 +199,15 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                     </div>
                 </div>
 
+            </div>
+
+            {/* Badges Section */}
+            <div className="pt-6 border-t border-border/50">
+                <ClassBadgesManager 
+                    badges={activity.class_badges || []}
+                    unitId={activity.unit_id || activity.unit?.id} 
+                    activityId={activity.id} 
+                />
             </div>
         </div>
     );

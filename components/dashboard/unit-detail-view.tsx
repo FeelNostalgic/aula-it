@@ -17,7 +17,8 @@ import {
     ArrowLeft,
     List,
     ChevronRight,
-    Search
+    Search,
+    Award
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,10 +35,9 @@ import { cn } from "@/lib/utils";
 import { UnitMilestoneTab } from "./unit-milestone-tab";
 import { ClassMilestone } from "@/types/database";
 import { ClassMilestoneWidget } from "./class-milestone-widget";
-
-// Remove legacy imports
-// import { UnitMapView } from "./unit-map-view";
-// import { UnitMapConfigTab } from "./unit-map-config-tab";
+import { ClassBadgesWidget } from "./class-badges-widget";
+import { ClassBadge, StudentBadge } from "@/types/database";
+import ClassBadgesManager from "./class-badges-manager";
 
 type Unit = {
     id: string;
@@ -82,6 +82,8 @@ interface UnitDetailViewProps {
     submissions: any[];
     userRole: 'teacher' | 'student';
     milestones: ClassMilestone[];
+    classBadges: ClassBadge[];
+    studentBadges: StudentBadge[];
 }
 
 export function UnitDetailView({
@@ -92,7 +94,9 @@ export function UnitDetailView({
     students,
     submissions,
     userRole,
-    milestones
+    milestones,
+    classBadges,
+    studentBadges
 }: UnitDetailViewProps) {
     const isTeacher = userRole === "teacher";
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -174,6 +178,12 @@ export function UnitDetailView({
                         <ClassMilestoneWidget milestones={milestones} activeMilestone={activeMilestone} label="Objetivo de la Unidad" />
                     </div>
                 )}
+
+                {classBadges && classBadges.length > 0 && (
+                    <div className="animate-in fade-in slide-in-from-top-4 duration-500 delay-100">
+                        <ClassBadgesWidget badges={classBadges} studentBadges={studentBadges} isTeacher={isTeacher} />
+                    </div>
+                )}
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
                     <div className="flex items-start gap-5">
                         <div className="size-14 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center text-accent-blue shrink-0">
@@ -251,6 +261,16 @@ export function UnitDetailView({
                             )}
 
                             {isTeacher && (
+                                <TabsTrigger
+                                    value="insignias"
+                                    className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
+                                >
+                                    <Award className="mr-2 size-3.5" />
+                                    INSIGNIAS
+                                </TabsTrigger>
+                            )}
+
+                            {isTeacher && (
                                 <>
                                     <TabsTrigger
                                         value="evaluacion"
@@ -278,6 +298,7 @@ export function UnitDetailView({
                             initialActivities={activities}
                             isTeacher={isTeacher}
                             submissions={submissions}
+                            studentBadges={studentBadges}
                         />
                     </TabsContent>
 
@@ -486,6 +507,16 @@ export function UnitDetailView({
                     {isTeacher && (
                         <TabsContent value="hito" className="mt-6 px-12 pb-12">
                             <UnitMilestoneTab unitId={unit.id} initialMilestones={milestones} isTeacher={isTeacher} />
+                        </TabsContent>
+                    )}
+
+                    {/* Insignias Tab (Teacher Only) */}
+                    {isTeacher && (
+                        <TabsContent value="insignias" className="mt-6 px-12 pb-12">
+                            <ClassBadgesManager 
+                                unitId={unit.id} 
+                                badges={classBadges} 
+                            />
                         </TabsContent>
                     )}
 

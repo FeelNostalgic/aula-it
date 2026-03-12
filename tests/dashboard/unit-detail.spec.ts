@@ -148,9 +148,26 @@ test.describe("Unit Detail (Creador del Mapa)", () => {
             await unitDetailPage.goto(testUnitId);
             await page.waitForLoadState("networkidle");
 
-            // Wait for both to be rendered
-            await unitDetailPage.verifyActivityExists("A1: Teoría básica");
-            await unitDetailPage.verifyActivityExists("A2: Cuestionario de prueba");
+            // Ensure activities exist for the drag and drop test
+            await Promise.race([
+                unitDetailPage.emptyState.waitFor({ state: 'visible', timeout: 5000 }),
+                unitDetailPage.activitiesList.first().waitFor({ state: 'visible', timeout: 5000 })
+            ]).catch(() => {});
+
+            const currentActivities = await unitDetailPage.activitiesList.allTextContents();
+            const hasA1 = currentActivities.some(t => t.includes("A1"));
+            const hasA2 = currentActivities.some(t => t.includes("A2"));
+
+            if (!hasA1) {
+                await unitDetailPage.createActivity("A1: Teoría básica");
+            }
+            if (!hasA2) {
+                await unitDetailPage.createActivity("A2: Cuestionario de prueba");
+            }
+
+            // Wait for both to be rendered and in correct initial order
+            await expect(unitDetailPage.activitiesList.nth(0)).toHaveText(/A1/);
+            await expect(unitDetailPage.activitiesList.nth(1)).toHaveText(/A2/);
 
             const firstRowTitle = unitDetailPage.activitiesList.first();
             const secondRowTitle = unitDetailPage.activitiesList.nth(1);

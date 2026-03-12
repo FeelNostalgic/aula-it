@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { evaluateStudentBadges } from "@/lib/gamification/rule-engine";
 
 export async function updateUnitSettings(unitId: string, formData: FormData) {
     const supabase = await createClient();
@@ -471,6 +472,34 @@ export async function gradeSubmission(
 
     if (error) return { error: error.message };
 
+    const { data: submissionData, error: subError } = await admin
+        .from("activity_submissions")
+        .select(`
+            student_id,
+            activity_steps!inner (
+                activity_phases!inner (
+                    activities!inner (
+                        unit_id
+                    )
+                )
+            )
+        `)
+        .eq("id", submissionId)
+        .single();
+
+    if (submissionData) {
+        const sub = submissionData as any;
+        const unitId = sub.activity_steps?.activity_phases?.activities?.unit_id;
+        if (unitId) {
+            // Evaluate badges asynchronously (don't block the response)
+            evaluateStudentBadges(sub.student_id, unitId, submissionId).catch(err => {
+                console.error("[Gamification] Error evaluating badges:", err);
+            });
+            
+            revalidatePath(`/dashboard/units/${unitId}`);
+        }
+    }
+
     revalidatePath("/dashboard/units/[id]", "page");
     return { success: true };
 }
@@ -700,6 +729,97 @@ export async function reorderUnitMilestones(
     if (firstError?.error) {
         return { error: firstError.error.message };
     }
+
+    revalidatePath(`/dashboard/units/${unitId}`);
+    return { success: true };
+}
+
+export async function createClassBadge(
+    unitId: string, // Used for revalidation
+    data: {
+        title: string;
+        description?: string | null;
+        icon_url?: string | null;
+        is_hidden: boolean;
+        condition_payload: any;
+        activity_id?: string | null;
+        xp_reward?: number;
+    }
+) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return { error: "Not authenticated" };
+
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Unauthorized" };
+
+    const { error } = await supabase
+        .from("class_badges")
+        .insert({
+            unit_id: unitId,
+            activity_id: data.activity_id ?? null,
+            title: data.title,
+            description: data.description ?? null,
+            icon_url: data.icon_url ?? null,
+            is_hidden: data.is_hidden,
+            condition_payload: data.condition_payload,
+            xp_reward: data.xp_reward ?? 0,
+        });
+
+    if (error) return { error: error.message };
+
+    revalidatePath(`/dashboard/units/${unitId}`);
+    return { success: true };
+}
+
+export async function updateClassBadge(
+    badgeId: string,
+    unitId: string, // Used for revalidation
+    data: Partial<{
+        title: string;
+        description: string | null;
+        icon_url: string | null;
+        is_hidden: boolean;
+        condition_payload: any;
+        activity_id: string | null;
+        xp_reward: number;
+    }>
+) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return { error: "Not authenticated" };
+
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Unauthorized" };
+
+    const { error } = await supabase
+        .from("class_badges")
+        .update(data)
+        .eq("id", badgeId);
+
+    if (error) return { error: error.message };
+
+    revalidatePath(`/dashboard/units/${unitId}`);
+    return { success: true };
+}
+
+export async function deleteClassBadge(badgeId: string, unitId: string) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return { error: "Not authenticated" };
+
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Unauthorized" };
+
+    const { error } = await supabase
+        .from("class_badges")
+        .delete()
+        .eq("id", badgeId);
+
+    if (error) return { error: error.message };
 
     revalidatePath(`/dashboard/units/${unitId}`);
     return { success: true };

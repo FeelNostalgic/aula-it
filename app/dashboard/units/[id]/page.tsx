@@ -86,6 +86,21 @@ export default async function UnitPage({
         submissions = subs || [];
     }
 
+    // Fetch Badges
+    const { data: classBadges } = await supabase
+        .from("class_badges")
+        .select("*")
+        .order("created_at", { ascending: true });
+
+    let studentBadges: any[] = [];
+    if (userRole === "student") {
+        const { data: earned } = await supabase
+            .from("student_badges")
+            .select("*")
+            .eq("student_id", user.id);
+        studentBadges = earned || [];
+    }
+
     const activities = activitiesData?.map(activity => {
         let totalXp = 0;
         let stepCount = 0;
@@ -109,7 +124,8 @@ export default async function UnitPage({
             xp: totalXp,
             phasesCount: stepCount > 0 ? stepCount : phases.length,
             total_steps: stepCount,
-            completed_steps: completedStepIds.size
+            completed_steps: completedStepIds.size,
+            badges: classBadges?.filter(b => b.activity_id === activity.id) || []
         };
     });
 
@@ -136,6 +152,8 @@ export default async function UnitPage({
         students = profiles || [];
     }
 
+
+
     return (
         <UnitDetailView
             unit={unit}
@@ -146,6 +164,8 @@ export default async function UnitPage({
             submissions={submissions || []}
             userRole={userRole}
             milestones={unitMilestones || []}
+            classBadges={classBadges || []}
+            studentBadges={studentBadges || []}
         />
     );
 }

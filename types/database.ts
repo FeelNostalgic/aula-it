@@ -30,3 +30,24 @@ export interface ClassMilestone {
     created_at: string;
     updated_at: string;
 }
+
+export interface ClassBadge {
+    id: string;
+    unit_id: string;
+    activity_id: string | null;
+    title: string;
+    description: string | null;
+    icon_url: string | null;
+    is_hidden: boolean;
+    condition_payload: any;
+    xp_reward: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface StudentBadge {
+    id: string;
+    student_id: string;
+    badge_id: string;
+    earned_at: string;
+}

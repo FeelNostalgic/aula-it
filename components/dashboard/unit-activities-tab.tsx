@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { BadgeDisplay } from "./badge-display";
 
 // DnD Kit Imports
 import {
@@ -92,6 +93,7 @@ interface UnitActivitiesTabProps {
     initialActivities: Activity[];
     isTeacher?: boolean;
     submissions: any[];
+    studentBadges?: any[];
 }
 
 // Difficulty color helper
@@ -137,13 +139,15 @@ function SortableActivityItem({
     viewMode,
     unitId,
     onDelete,
-    isTeacher
+    isTeacher,
+    studentBadges = []
 }: {
     activity: Activity,
     viewMode: 'grid' | 'list',
     unitId: string,
     onDelete: (id: string) => void,
-    isTeacher?: boolean
+    isTeacher?: boolean,
+    studentBadges?: any[]
 }) {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -324,23 +328,49 @@ function SortableActivityItem({
                         </p>
                     </div>
 
-                    {/* Footer Stats */}
-                    <div className="mt-6 pt-4 border-t border-border-subtle flex justify-between items-center text-[10px] font-bold text-text-muted uppercase tracking-wider">
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-500 px-2 py-1 rounded-lg border border-orange-500/20 group-hover:bg-orange-500/20 transition-colors shadow-xs">
-                                <Zap className="size-3 fill-orange-500" />
-                                <span className="text-[11px] font-black tracking-tight">{activity.xp} XP</span>
+                    {/* Footer Stats & Badges */}
+                    <div className="mt-6 pt-4 border-t border-border-subtle flex flex-col gap-3">
+                        {/* Badges strip */}
+                        {(activity as any).badges && (activity as any).badges.length > 0 && (
+                            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                                {(activity as any).badges
+                                    .filter((b: any) => {
+                                        if (isTeacher) return true;
+                                        const isEarned = studentBadges?.some(sb => sb.badge_id === b.id);
+                                        return isEarned || !b.is_hidden;
+                                    })
+                                    .map((badge: any) => {
+                                        const earnedRecord = studentBadges?.find(sb => sb.badge_id === badge.id);
+                                        return (
+                                            <BadgeDisplay 
+                                                key={badge.id}
+                                                badge={badge}
+                                                isEarned={!!earnedRecord || !!isTeacher}
+                                                earnedAt={earnedRecord?.earned_at}
+                                                variant="compact"
+                                            />
+                                        );
+                                    })}
                             </div>
-                            <div className="flex items-center gap-1.5 min-w-0">
-                                <BarChart3 className="size-3 text-accent-blue shrink-0" />
-                                <span className="truncate">
-                                    {(activity.total_steps || 0) > 0 && !isTeacher ? (
-                                        <span className="text-accent-blue font-black tabular-nums">{activity.completed_steps} / {activity.total_steps}</span>
-                                    ) : (
-                                        <span>{activity.total_steps || activity.phasesCount || 0}</span>
-                                    )}
-                                    <span className="ml-1 opacity-70">Pasos</span>
-                                </span>
+                        )}
+
+                        <div className="flex justify-between items-center text-[10px] font-bold text-text-muted uppercase tracking-wider">
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-500 px-2 py-1 rounded-lg border border-orange-500/20 group-hover:bg-orange-500/20 transition-colors shadow-xs">
+                                    <Zap className="size-3 fill-orange-500" />
+                                    <span className="text-[11px] font-black tracking-tight">{activity.xp} XP</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    <BarChart3 className="size-3 text-accent-blue shrink-0" />
+                                    <span className="truncate">
+                                        {(activity.total_steps || 0) > 0 && !isTeacher ? (
+                                            <span className="text-accent-blue font-black tabular-nums">{activity.completed_steps} / {activity.total_steps}</span>
+                                        ) : (
+                                            <span>{activity.total_steps || activity.phasesCount || 0}</span>
+                                        )}
+                                        <span className="ml-1 opacity-70">Pasos</span>
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -423,26 +453,52 @@ function SortableActivityItem({
                     </div>
                 </div>
 
-                {/* Stats */}
-                <div className="hidden lg:flex items-center gap-4 mr-4">
-                    <div className="flex flex-col items-center">
-                        <span className="text-[10px] text-text-muted uppercase tracking-tighter mb-0.5">Exp</span>
-                        <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-500 px-2.5 py-1.5 rounded-xl border border-orange-500/20 shadow-xs">
-                            <Zap className="size-3.5 fill-orange-500" />
-                            <span className="font-black text-sm tabular-nums tracking-tight">{activity.xp}</span>
+                {/* Stats & Badges */}
+                <div className="hidden lg:flex flex-col items-end justify-center gap-2 mr-4">
+                    <div className="flex items-center gap-4">
+                        <div className="flex flex-col items-center">
+                            <span className="text-[10px] text-text-muted uppercase tracking-tighter mb-0.5">Exp</span>
+                            <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-500 px-2.5 py-1.5 rounded-xl border border-orange-500/20 shadow-xs">
+                                <Zap className="size-3.5 fill-orange-500" />
+                                <span className="font-black text-sm tabular-nums tracking-tight">{activity.xp}</span>
+                            </div>
+                        </div>
+                        <div className="flex flex-col items-center">
+                            <span className="text-[10px] text-text-muted uppercase tracking-tighter mb-0.5">Pasos</span>
+                            <div className="flex items-center gap-1 text-accent-blue font-bold text-sm">
+                                <BarChart3 className="size-3" />
+                                {(activity.total_steps || 0) > 0 && !isTeacher ? (
+                                    <span className="font-black tabular-nums">{activity.completed_steps} / {activity.total_steps}</span>
+                                ) : (
+                                    <span>{activity.total_steps || activity.phasesCount || 0}</span>
+                                )}
+                            </div>
                         </div>
                     </div>
-                    <div className="flex flex-col items-center">
-                        <span className="text-[10px] text-text-muted uppercase tracking-tighter mb-0.5">Pasos</span>
-                        <div className="flex items-center gap-1 text-accent-blue font-bold text-sm">
-                            <BarChart3 className="size-3" />
-                            {(activity.total_steps || 0) > 0 && !isTeacher ? (
-                                <span className="font-black tabular-nums">{activity.completed_steps} / {activity.total_steps}</span>
-                            ) : (
-                                <span>{activity.total_steps || activity.phasesCount || 0}</span>
-                            )}
+                    
+                    {/* Badges strip (List view) */}
+                    {(activity as any).badges && (activity as any).badges.length > 0 && (
+                        <div className="flex items-center justify-end gap-2 max-w-[200px] flex-wrap">
+                            {(activity as any).badges
+                                .filter((b: any) => {
+                                    if (isTeacher) return true;
+                                    const isEarned = studentBadges?.some(sb => sb.badge_id === b.id);
+                                    return isEarned || !b.is_hidden;
+                                })
+                                .map((badge: any) => {
+                                    const earnedRecord = studentBadges?.find(sb => sb.badge_id === badge.id);
+                                    return (
+                                        <BadgeDisplay 
+                                            key={badge.id}
+                                            badge={badge}
+                                            isEarned={!!earnedRecord || !!isTeacher}
+                                            earnedAt={earnedRecord?.earned_at}
+                                            variant="compact"
+                                        />
+                                    );
+                                })}
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 {isTeacher && <ActionsMenu />}
@@ -452,7 +508,7 @@ function SortableActivityItem({
     );
 }
 
-export function UnitActivitiesTab({ unitId, initialActivities, isTeacher = true }: UnitActivitiesTabProps) {
+export function UnitActivitiesTab({ unitId, initialActivities, isTeacher = false, submissions, studentBadges = [] }: UnitActivitiesTabProps) {
     const [activities, setActivities] = useState<Activity[]>(
         [...initialActivities]
             .filter(a => isTeacher || a.status !== 'draft')
@@ -596,6 +652,7 @@ export function UnitActivitiesTab({ unitId, initialActivities, isTeacher = true 
                                     viewMode={viewMode}
                                     unitId={unitId}
                                     isTeacher={isTeacher}
+                                    studentBadges={studentBadges}
                                     onDelete={(id) => setActivities(prev => prev.filter(a => a.id !== id))}
                                 />
                             ))}

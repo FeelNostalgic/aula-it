@@ -41,7 +41,8 @@ export default async function ActivityEditPage({
               id,
               name
             )
-          )
+          ),
+          class_badges(*)
         `)
         .eq("id", id)
         .single();
