@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Award, Plus, Trash2, Edit2, CheckCircle, XCircle, HardDrive, List, LayoutGrid } from "lucide-react";
+import { Award, Plus, Trash2, Edit2, CheckCircle, XCircle, HardDrive, List, LayoutGrid, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +14,23 @@ import {
     DialogFooter
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+    Select, 
+    SelectContent, 
+    SelectItem, 
+    SelectTrigger, 
+    SelectValue 
+} from "@/components/ui/select";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { createClassBadge, updateClassBadge, deleteClassBadge } from "@/app/dashboard/units/[id]/actions";
 import { ClassBadge } from "@/types/database";
 import { BadgeDisplay } from "./badge-display";
@@ -32,6 +49,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
     const [isCreating, setIsCreating] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [badgeToDelete, setBadgeToDelete] = useState<string | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
     
     // Form state
@@ -39,7 +57,8 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
     const [description, setDescription] = useState("");
     const [iconUrl, setIconUrl] = useState("");
     const [isHidden, setIsHidden] = useState(true);
-    const [conditionType, setConditionType] = useState(activityId ? "score" : "unit_completion");
+    const [conditionField, setConditionField] = useState(activityId ? "score" : "unit_completion");
+    const [conditionOperator, setConditionOperator] = useState("eq");
     const [conditionValue, setConditionValue] = useState("100");
     const [xpReward, setXpReward] = useState("0");
     const [activeTab, setActiveTab] = useState("general");
@@ -56,7 +75,8 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
         setDescription("");
         setIconUrl("");
         setIsHidden(true);
-        setConditionType(activityId ? "score" : "unit_completion");
+        setConditionField(activityId ? "score" : "unit_completion");
+        setConditionOperator("eq");
         setConditionValue("100");
         setXpReward("0");
         setIsCreating(false);
@@ -68,15 +88,12 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
         if (!title) return toast.error("El título es obligatorio");
         setIsLoading(true);
         
-        const op = conditionType.includes('_') ? conditionType.split('_')[1] : 'eq';
-        const field = conditionType.split('_')[0];
-
         const payload = {
             allOf: [
                 {
-                    field: field,
-                    operator: op,
-                    value: parseInt(conditionValue, 10) || 100
+                    field: conditionField,
+                    operator: conditionOperator,
+                    value: conditionField === 'specific_activity_completed' ? activityId : (parseInt(conditionValue, 10) || 100)
                 }
             ]
         };
@@ -104,15 +121,12 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
          if (!title) return toast.error("El título es obligatorio");
         setIsLoading(true);
         
-        const op = conditionType.includes('_') ? conditionType.split('_')[1] : 'eq';
-        const field = conditionType.split('_')[0];
-
         const payload = {
             allOf: [
                 {
-                    field: field,
-                    operator: op,
-                    value: parseInt(conditionValue, 10) || 100
+                    field: conditionField,
+                    operator: conditionOperator,
+                    value: conditionField === 'specific_activity_completed' ? activityId : (parseInt(conditionValue, 10) || 100)
                 }
             ]
         };
@@ -136,13 +150,18 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm("¿Eliminar insignia?")) return;
+    const handleDelete = (id: string) => {
+        setBadgeToDelete(id);
+    };
+
+    const confirmDelete = async () => {
+        if (!badgeToDelete) return;
         setIsLoading(true);
         
-        const { error } = await deleteClassBadge(id, unitId);
+        const { error } = await deleteClassBadge(badgeToDelete, unitId);
         
         setIsLoading(false);
+        setBadgeToDelete(null);
         if (error) {
             toast.error(error);
         } else {
@@ -159,26 +178,20 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
         setIsHidden(badge.is_hidden);
         setXpReward(badge.xp_reward?.toString() || "0");
         
-        // Very basic parsing for MVP MVP
         try {
             const payload: any = badge.condition_payload;
-            const condition = payload?.allOf?.[0];
+            const condition = payload?.allOf?.[0] || payload?.all?.[0] || payload?.[0];
             if (condition) {
-                const field = condition.field || condition.fact?.replace('submission.', '');
-                const op = condition.operator || "eq";
-                
-                if (op === 'eq') {
-                    setConditionType(field);
-                } else {
-                    setConditionType(`${field}_${op}`);
-                }
-                
+                setConditionField(condition.field || condition.fact?.replace('submission.', '') || "score");
+                setConditionOperator(condition.operator || "eq");
                 setConditionValue(condition.value?.toString() || "100");
             }
         } catch (e) {
             // default
         }
-    };    const getConditionDescription = (badge: ClassBadge) => {
+    };
+
+    const getConditionDescription = (badge: ClassBadge) => {
         try {
             const payload: any = badge.condition_payload;
             const condition = payload?.allOf?.[0] || payload?.all?.[0] || payload?.[0];
@@ -193,7 +206,14 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
             else if (field === 'average_score') fieldLabel = "Media";
             else if (field === 'unit_completion') fieldLabel = "Progreso";
             else if (field === 'specific_activity_completed') fieldLabel = "Completar actividad";
+            else if (field === 'first_attempt_score') fieldLabel = "Nota 1er Intento";
+            else if (field === 'steps_completed') fieldLabel = "Pasos";
+            else if (field === 'activities_completed') fieldLabel = "Actividades";
+            else if (field === 'total_xp') fieldLabel = "XP";
+            else if (field === 'streak_days') fieldLabel = "Racha";
             else fieldLabel = field;
+            
+            if (field === 'specific_activity_completed') return fieldLabel;
             
             let opLabel = "";
             if (op === 'eq') opLabel = "=";
@@ -201,8 +221,9 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
             else if (op === 'gte') opLabel = "≥";
             else if (op === 'lt') opLabel = "<";
             else if (op === 'lte') opLabel = "≤";
-            
-            return `${fieldLabel} ${opLabel} ${val}${field !== 'specific_activity_completed' ? '%' : ''}`;
+
+            const isPercentage = ['score', 'average_score', 'unit_completion', 'first_attempt_score'].includes(field);
+            return `${fieldLabel} ${opLabel} ${val}${isPercentage ? '%' : ''}`;
         } catch (e) {
             return "Condición personalizada";
         }
@@ -265,15 +286,16 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
                         <DialogDescription>Configura los detalles y las reglas de obtención.</DialogDescription>
                     </DialogHeader>
 
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <div className="px-6 border-b border-border/50">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col h-[480px]">
+                        <div className="px-6 border-b border-border/50 shrink-0">
                             <TabsList className="bg-transparent gap-6 p-0 h-12">
                                 <TabsTrigger value="general" className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:bg-transparent px-2 h-full">General</TabsTrigger>
                                 <TabsTrigger value="obtention" className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:bg-transparent px-2 h-full">Obtención</TabsTrigger>
+                                <TabsTrigger value="preview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:bg-transparent px-2 h-full">Vista Previa</TabsTrigger>
                             </TabsList>
                         </div>
 
-                        <div className="p-6">
+                        <div className="p-6 flex-1 overflow-y-auto">
                             <TabsContent value="general" className="mt-0 space-y-6">
                                 <div className="grid md:grid-cols-[120px_1fr] gap-8">
                                     <div className="space-y-4">
@@ -340,97 +362,137 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
                                                 </div>
                                             </div>
                                         </div>
+                                        <div className="flex justify-end pt-2">
+                                            <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className="text-accent-blue hover:text-accent-blue/80 gap-2 font-bold p-0"
+                                                onClick={() => setActiveTab("preview")}
+                                            >
+                                                Ver Vista Previa →
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
                             </TabsContent>
 
                             <TabsContent value="obtention" className="mt-0 space-y-6">
-                                <div className="grid md:grid-cols-2 gap-8">
-                                    <div className="space-y-6">
-                                        <div className="space-y-4">
-                                            <Label className="text-base font-bold">Regla de Desbloqueo</Label>
-                                            <div className="space-y-4 p-4 border border-border/50 rounded-xl bg-surface-dark/50">
-                                                <div className="space-y-2">
-                                                    <Label className="text-xs text-text-muted">Propiedad a evaluar</Label>
-                                                    <select 
-                                                        value={conditionType.split('_')[0]} 
-                                                        onChange={e => {
-                                                            const prop = e.target.value;
-                                                            const op = conditionType.includes('gte') ? '_gte' : conditionType.includes('gt') ? '_gt' : '';
-                                                            setConditionType(prop + op);
-                                                        }}
-                                                        className="w-full text-sm rounded-lg bg-surface border-border/50 px-3 py-2 outline-none focus:ring-1 focus:ring-accent-blue"
-                                                    >
+                                <div className="space-y-6">
+                                    <div className="space-y-4">
+                                        <Label className="text-base font-bold">Regla de Desbloqueo</Label>
+                                        <div className="space-y-4 p-4 border border-border/50 rounded-xl bg-surface-dark/50">
+                                            <div className="space-y-2">
+                                                <Label className="text-xs text-text-muted">Propiedad a evaluar</Label>
+                                                <Select 
+                                                    value={conditionField} 
+                                                    onValueChange={setConditionField}
+                                                >
+                                                    <SelectTrigger className="w-full bg-surface border-border/50 h-10">
+                                                        <SelectValue placeholder="Selecciona propiedad" />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="bg-surface border-border-strong">
                                                         {activityId ? (
                                                             <>
-                                                                <option value="score">Nota de este Reto (0-100)</option>
-                                                                <option value="specific_activity_completed">Completar este Reto</option>
+                                                                <SelectItem value="score">Nota de este Reto (0-100)</SelectItem>
+                                                                <SelectItem value="first_attempt_score">Nota Primer Intento (0-100)</SelectItem>
+                                                                <SelectItem value="steps_completed">Pasos Completados</SelectItem>
+                                                                <SelectItem value="specific_activity_completed">Completar este Reto</SelectItem>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <option value="average_score">Nota Media Unidad (0-100)</option>
-                                                                <option value="unit_completion">% Completado Unidad (0-100)</option>
+                                                                <SelectItem value="average_score">Nota Media Unidad (0-100)</SelectItem>
+                                                                <SelectItem value="unit_completion">% Completado Unidad (0-100)</SelectItem>
+                                                                <SelectItem value="activities_completed">Actividades completadas</SelectItem>
+                                                                <SelectItem value="total_xp">XP Total Acumulado</SelectItem>
+                                                                <SelectItem value="streak_days">Racha de Días</SelectItem>
                                                             </>
                                                         )}
-                                                    </select>
-                                                </div>
-                                                {conditionType.split('_')[0] !== 'specific_activity_completed' && (
-                                                    <div className="space-y-4 pt-4 border-t border-border/30">
-                                                        <div className="space-y-2">
-                                                            <Label className="text-xs text-text-muted">Operador</Label>
-                                                            <select 
-                                                                value={conditionType.includes('_') ? conditionType.split('_')[1] : 'eq'} 
-                                                                onChange={e => {
-                                                                    const op = e.target.value;
-                                                                    const prop = conditionType.split('_')[0];
-                                                                    setConditionType(op === 'eq' ? prop : `${prop}_${op}`);
-                                                                }}
-                                                                className="w-full text-sm rounded-lg bg-surface border-border/50 px-3 py-2 outline-none focus:ring-1 focus:ring-accent-blue"
-                                                            >
-                                                                <option value="eq">Es igual a</option>
-                                                                <option value="gt">Es mayor que</option>
-                                                                <option value="gte">Es mayor o igual que</option>
-                                                            </select>
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <Label className="text-xs text-text-muted">Valor Requerido</Label>
-                                                            <div className="relative">
-                                                                <Input type="number" min="0" max="100" value={conditionValue} onChange={e => setConditionValue(e.target.value)} className="bg-surface border-border/50 pr-8" />
-                                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-xs">%</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {conditionType.split('_')[0] === 'specific_activity_completed' && (
-                                                    <div className="p-4 bg-accent-blue/5 border border-accent-blue/20 rounded-lg">
-                                                        <p className="text-xs text-accent-blue font-medium leading-relaxed">
-                                                            La insignia se otorgará automáticamente al completar satisfactoriamente este reto.
-                                                        </p>
-                                                    </div>
-                                                )}
+                                                    </SelectContent>
+                                                </Select>
                                             </div>
+
+                                            {conditionField !== 'specific_activity_completed' && (
+                                                <div className="space-y-4 pt-4 border-t border-border/30">
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs text-text-muted">Operador</Label>
+                                                        <Select 
+                                                            value={conditionOperator} 
+                                                            onValueChange={setConditionOperator}
+                                                        >
+                                                            <SelectTrigger className="w-full bg-surface border-border/50 h-10">
+                                                                <SelectValue placeholder="Selecciona operador" />
+                                                            </SelectTrigger>
+                                                            <SelectContent className="bg-surface border-border-strong">
+                                                                <SelectItem value="eq">Es igual a (=)</SelectItem>
+                                                                <SelectItem value="gt">Es mayor que (&gt;)</SelectItem>
+                                                                <SelectItem value="gte">Es mayor o igual que (≥)</SelectItem>
+                                                                <SelectItem value="lt">Es menor que (&lt;)</SelectItem>
+                                                                <SelectItem value="lte">Es menor o igual que (≤)</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs text-text-muted">Valor Requerido</Label>
+                                                        <div className="relative">
+                                                            <Input type="number" min="0" value={conditionValue} onChange={e => setConditionValue(e.target.value)} className="bg-surface border-border/50 pr-8 h-10" />
+                                                            {(['score', 'unit_completion', 'average_score', 'first_attempt_score'].includes(conditionField)) && (
+                                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-xs">%</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {conditionField === 'specific_activity_completed' && (
+                                                <div className="p-4 bg-accent-blue/5 border border-accent-blue/20 rounded-lg">
+                                                    <p className="text-xs text-accent-blue font-medium leading-relaxed">
+                                                        La insignia se otorgará automáticamente al completar satisfactoriamente este reto.
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex justify-end pt-2">
+                                            <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className="text-accent-blue hover:text-accent-blue/80 gap-2 font-bold p-0"
+                                                onClick={() => setActiveTab("preview")}
+                                            >
+                                                Ver Vista Previa →
+                                            </Button>
                                         </div>
                                     </div>
+                                </div>
+                            </TabsContent>
 
-                                    <div className="space-y-4">
-                                        <Label className="text-base font-bold">Vista Previa</Label>
-                                        <div className="bg-surface-dark/50 border border-border/50 rounded-xl p-6 flex flex-col items-center justify-center gap-6 h-[220px]">
-                                            <div className="flex gap-8">
-                                                <div className="text-center space-y-2">
-                                                    <BadgeDisplay 
-                                                        badge={{ id: "preview", title: title || "Vista Previa", description, icon_url: iconUrl || null, is_hidden: isHidden } as any}
-                                                        isEarned={true}
-                                                    />
-                                                    <span className="text-[10px] font-bold text-accent-green uppercase tracking-wider">Desbloqueada</span>
-                                                </div>
-                                                <div className="text-center space-y-2">
-                                                    <BadgeDisplay 
-                                                        badge={{ id: "preview2", title: title || "Vista Previa", description, icon_url: iconUrl || null, is_hidden: isHidden } as any}
-                                                        isEarned={false}
-                                                    />
-                                                    <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Bloqueada</span>
+                            <TabsContent value="preview" className="mt-0 space-y-6">
+                                <div className="space-y-4">
+                                    <Label className="text-base font-bold text-center block">Vista Previa de la Insignia</Label>
+                                    <div className="bg-surface-dark/50 border border-border/50 rounded-xl p-10 flex flex-col items-center justify-center gap-10 min-h-[300px]">
+                                        <div className="flex flex-col sm:flex-row gap-12 sm:gap-20">
+                                            <div className="text-center space-y-3">
+                                                <BadgeDisplay 
+                                                    badge={{ id: "preview", title: title || "Vista Previa", description, icon_url: iconUrl || null, is_hidden: isHidden } as any}
+                                                    isEarned={true}
+                                                />
+                                                <div className="px-3 py-1 bg-accent-green/10 border border-accent-green/20 rounded-full">
+                                                    <span className="text-[10px] font-bold text-accent-green uppercase tracking-wider block">Desbloqueada</span>
                                                 </div>
                                             </div>
+                                            <div className="text-center space-y-3">
+                                                <BadgeDisplay 
+                                                    badge={{ id: "preview2", title: title || "Vista Previa", description, icon_url: iconUrl || null, is_hidden: isHidden } as any}
+                                                    isEarned={false}
+                                                />
+                                                <div className="px-3 py-1 bg-surface border border-border/50 rounded-full">
+                                                    <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block">Bloqueada</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="max-w-md text-center space-y-2">
+                                            <h4 className="font-bold text-foreground">{title || "Sin título"}</h4>
+                                            <p className="text-sm text-text-muted italic">{description || "Sin descripción"}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -551,6 +613,36 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
                     </div>
                 )}
             </div>
+
+            <AlertDialog open={!!badgeToDelete} onOpenChange={(open) => !open && setBadgeToDelete(null)}>
+                <AlertDialogContent className="bg-[#111111] border-border-strong rounded-[32px] p-8 max-w-[500px]">
+                    <AlertDialogHeader className="flex-row items-center gap-4 space-y-0">
+                        <div className="size-10 rounded-full border border-red-500/20 flex items-center justify-center shrink-0">
+                            <AlertCircle className="size-6 text-red-500" />
+                        </div>
+                        <AlertDialogTitle className="text-white text-xl font-bold">
+                            ¿Eliminar esta insignia?
+                        </AlertDialogTitle>
+                    </AlertDialogHeader>
+                    
+                    <AlertDialogDescription className="text-text-muted mt-4 text-base leading-relaxed">
+                        Esta acción no se puede deshacer. Se eliminará permanentemente la insignia
+                        <span className="text-white font-medium"> "{badges.find(b => b.id === badgeToDelete)?.title}"</span> y los alumnos podrían perderla.
+                    </AlertDialogDescription>
+
+                    <AlertDialogFooter className="mt-8 gap-3">
+                        <AlertDialogCancel className="bg-transparent border-accent-blue text-white hover:bg-accent-blue/10 rounded-xl h-11 px-6">
+                            Cancelar
+                        </AlertDialogCancel>
+                        <AlertDialogAction 
+                            onClick={confirmDelete}
+                            className="bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl h-11 px-6"
+                        >
+                            Eliminar Insignia
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

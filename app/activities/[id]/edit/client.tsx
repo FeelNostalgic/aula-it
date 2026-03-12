@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileText, Settings as SettingsIcon, Eye } from "lucide-react";
+import { ArrowLeft, FileText, Settings as SettingsIcon, Eye, Award } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActivityPhaseWithSteps, ActivityStepWithClientState } from "@/types/activity";
 import { toast } from "sonner";
 import { MissionBuilderSidebar } from "@/components/dashboard/activity-builder/mission-builder-sidebar";
 import { StepEditorPanel } from "@/components/dashboard/activity-builder/step-editor-panel";
 import { ActivitySettingsPanel } from "@/components/dashboard/activity-builder/activity-settings-panel";
+import { ActivityBadgesPanel } from "@/components/dashboard/activity-builder/activity-badges-panel";
 import { StudentPreview } from "@/components/dashboard/activity-builder/student-preview";
 import { UserNav } from "@/components/dashboard/user-nav";
 import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb";
@@ -62,6 +63,11 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
     const [openedStepsIds, setOpenedStepsIds] = useState<string[]>([]);
     const [activityData, setActivityData] = useState(activity);
     const [isPreviewMode, setIsPreviewMode] = useState(false);
+
+    // Update local state when activity prop changes (e.g. after server revalidation)
+    useEffect(() => {
+        setActivityData(activity);
+    }, [activity]);
 
     const isTeacher = profile?.role === "teacher";
 
@@ -182,6 +188,15 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                                     <SettingsIcon className="size-4 text-text-muted hover:text-foreground transition-colors" />
                                 </Button>
                                 <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleSelectStep('badges')}
+                                    className="size-8"
+                                    title="Insignias"
+                                >
+                                    <Award className="size-4 text-text-muted hover:text-foreground transition-colors" />
+                                </Button>
+                                <Button
                                     variant={isPreviewMode ? "secondary" : "ghost"}
                                     size="sm"
                                     onClick={() => setIsPreviewMode(!isPreviewMode)}
@@ -247,6 +262,11 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                             />
                             {selectedStepId === 'settings' ? (
                                 <ActivitySettingsPanel
+                                    activity={activityData}
+                                    onUpdate={setActivityData}
+                                />
+                            ) : selectedStepId === 'badges' ? (
+                                <ActivityBadgesPanel
                                     activity={activityData}
                                     onUpdate={setActivityData}
                                 />

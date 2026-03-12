@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ActivityStepWithClientState } from "@/types/activity";
 import { cn } from "@/lib/utils";
-import { X, GripVertical, Settings } from "lucide-react";
+import { X, GripVertical, Settings, Award } from "lucide-react";
 import { getTabStepIcon } from "@/lib/constants/step-icons";
 import {
     DndContext,
@@ -68,11 +68,14 @@ function SortableTab({
     };
 
     const isSettings = id === 'settings';
+    const isBadges = id === 'badges';
 
-    if (!step && !isSettings) return null;
+    if (!step && !isSettings && !isBadges) return null;
 
-    const title = isSettings ? "Configuración" : step?.title;
-    const icon = isSettings ? <Settings className="size-3.5 text-text-muted" /> : getTabStepIcon(step?.type);
+    const title = isSettings ? "Configuración" : isBadges ? "Insignias" : step?.title;
+    const icon = isSettings ? <Settings className="size-3.5 text-text-muted" /> : 
+                 isBadges ? <Award className="size-3.5 text-text-muted" /> :
+                 getTabStepIcon(step?.type);
 
     const handleStartRename = (e: React.MouseEvent) => {
         e.stopPropagation();

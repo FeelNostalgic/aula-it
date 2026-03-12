@@ -6,11 +6,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Settings, Zap, HardDrive } from "lucide-react";
+import { Settings, Zap, HardDrive, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { updateActivitySettings } from "@/app/activities/[id]/edit/actions";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
-import ClassBadgesManager from "@/components/dashboard/class-badges-manager";
 
 interface ActivitySettingsPanelProps {
     activity: any;
@@ -92,123 +91,113 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
 
             <div className="space-y-6 bg-surface-dark/50 p-6 rounded-xl border border-border/50">
 
-                <div className="grid grid-cols-[100px_1fr] gap-6">
-                    <div className="size-20 rounded-xl bg-surface border border-border/50 flex items-center justify-center overflow-hidden shrink-0 mt-2">
+                <div className="grid grid-cols-[120px_1fr] gap-8 items-start">
+                    <div className="aspect-square rounded-2xl bg-surface-dark border border-border/50 flex items-center justify-center overflow-hidden relative group">
                         {logoUrl ? (
-                            <img src={logoUrl} alt="Logo" className="size-full object-cover" />
+                            <img src={logoUrl} alt="Logo" className="size-full object-contain p-4" />
                         ) : (
-                            <Settings className="size-8 text-text-muted/20" />
+                            <Settings className="size-10 text-text-muted/20" />
                         )}
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-8 text-white hover:bg-white/20"
+                                onClick={async () => {
+                                    try {
+                                        const files = await openPicker();
+                                        if (files && files.length > 0) {
+                                            handleLogoChange(files[0].url);
+                                        }
+                                    } catch (error) {
+                                        toast.error("Error al abrir Google Drive");
+                                    }
+                                }}
+                                disabled={isDriveLoading}
+                            >
+                                <HardDrive className={cn("size-4", isDriveLoading && "animate-pulse")} />
+                            </Button>
+                            {logoUrl && (
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="size-8 text-white hover:bg-white/20"
+                                    onClick={() => handleLogoChange("")}
+                                >
+                                    <Trash2 className="size-4" />
+                                </Button>
+                            )}
+                        </div>
                     </div>
                     <div className="space-y-4 flex-1">
                         <div className="space-y-2">
-                            <label htmlFor="activity-title" className="text-sm font-semibold text-foreground">Nombre de la Actividad</label>
+                            <label htmlFor="activity-title" className="text-sm font-semibold text-text-muted">Nombre de la Actividad</label>
+                                <Input
+                                    id="activity-title"
+                                    value={title}
+                                    onChange={(e) => handleTitleChange(e.target.value)}
+                                    placeholder="Ej: Misión 1: Introducción a Next.js"
+                                    className="bg-surface border-border/50 focus:border-accent-blue/50"
+                                />
+                            </div>
+                        </div>
+                    </div>
+    
+                    <div className="space-y-2">
+                        <label htmlFor="activity-description" className="text-sm font-semibold text-foreground">Descripción para el Alumno</label>
+                        <Textarea
+                            id="activity-description"
+                            value={description}
+                            onChange={(e) => handleDescriptionChange(e.target.value)}
+                            placeholder="Describe brevemente qué aprenderá y hará el alumno..."
+                            className="bg-surface border-border/50 resize-none h-32"
+                        />
+                    </div>
+    
+                    <div className="grid grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <label htmlFor="activity-duration" className="text-sm font-semibold text-foreground">Duración Estimada (min)</label>
                             <Input
-                                id="activity-title"
-                                value={title}
-                                onChange={(e) => handleTitleChange(e.target.value)}
-                                placeholder="Ej: Misión 1: Introducción a Next.js"
+                                id="activity-duration"
+                                type="number"
+                                value={duration}
+                                onChange={(e) => handleDurationChange(parseInt(e.target.value) || 0)}
                                 className="bg-surface border-border/50"
                             />
                         </div>
                         <div className="space-y-2">
-                            <label htmlFor="activity-logo" className="text-sm font-semibold text-foreground">URL del Logo / Icono</label>
-                            <div className="flex gap-2">
-                                <Input
-                                    id="activity-logo"
-                                    value={logoUrl}
-                                    onChange={(e) => handleLogoChange(e.target.value)}
-                                    placeholder="https://ejemplo.com/logo.png"
-                                    className="bg-surface border-border/50"
-                                />
-                                <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={async () => {
-                                        try {
-                                            const files = await openPicker();
-                                            if (files && files.length > 0) {
-                                                handleLogoChange(files[0].url);
-                                            }
-                                        } catch (error) {
-                                            toast.error("Error al abrir Google Drive");
-                                        }
-                                    }}
-                                    disabled={isDriveLoading}
-                                    className="shrink-0 border-border/50 hover:bg-surface-dark"
-                                    title="Seleccionar de Google Drive"
-                                >
-                                    <HardDrive className={cn("size-4", isDriveLoading && "animate-pulse")} />
-                                </Button>
-                            </div>
+                            <label htmlFor="activity-difficulty" className="text-sm font-semibold text-foreground">Nivel de Dificultad</label>
+                            <Select value={difficulty} onValueChange={handleDifficultyChange}>
+                                <SelectTrigger id="activity-difficulty" className="bg-surface border-border/50">
+                                    <SelectValue placeholder="Selecciona..." />
+                                </SelectTrigger>
+                                <SelectContent className="bg-surface-dark border-border-strong">
+                                    <SelectItem value="Fácil">
+                                        <div className="flex items-center gap-2 text-accent-green">
+                                            <Zap className="size-3" /> Fácil
+                                        </div>
+                                    </SelectItem>
+                                    <SelectItem value="Medio">
+                                        <div className="flex items-center gap-2 text-accent-amber">
+                                            <Zap className="size-3" /> Medio
+                                        </div>
+                                    </SelectItem>
+                                    <SelectItem value="Difícil">
+                                        <div className="flex items-center gap-2 text-accent-orange">
+                                            <Zap className="size-3" /> Difícil
+                                        </div>
+                                    </SelectItem>
+                                    <SelectItem value="Experto">
+                                        <div className="flex items-center gap-2 text-red-700">
+                                            <Zap className="size-3" /> Experto
+                                        </div>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
+    
                 </div>
-
-                <div className="space-y-2">
-                    <label htmlFor="activity-description" className="text-sm font-semibold text-foreground">Descripción para el Alumno</label>
-                    <Textarea
-                        id="activity-description"
-                        value={description}
-                        onChange={(e) => handleDescriptionChange(e.target.value)}
-                        placeholder="Describe brevemente qué aprenderá y hará el alumno..."
-                        className="bg-surface border-border/50 resize-none h-32"
-                    />
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                        <label htmlFor="activity-duration" className="text-sm font-semibold text-foreground">Duración Estimada (min)</label>
-                        <Input
-                            id="activity-duration"
-                            type="number"
-                            value={duration}
-                            onChange={(e) => handleDurationChange(parseInt(e.target.value) || 0)}
-                            className="bg-surface border-border/50"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <label htmlFor="activity-difficulty" className="text-sm font-semibold text-foreground">Nivel de Dificultad</label>
-                        <Select value={difficulty} onValueChange={handleDifficultyChange}>
-                            <SelectTrigger id="activity-difficulty" className="bg-surface border-border/50">
-                                <SelectValue placeholder="Selecciona..." />
-                            </SelectTrigger>
-                            <SelectContent className="bg-surface-dark border-border-strong">
-                                <SelectItem value="Fácil">
-                                    <div className="flex items-center gap-2 text-accent-green">
-                                        <Zap className="size-3" /> Fácil
-                                    </div>
-                                </SelectItem>
-                                <SelectItem value="Medio">
-                                    <div className="flex items-center gap-2 text-accent-amber">
-                                        <Zap className="size-3" /> Medio
-                                    </div>
-                                </SelectItem>
-                                <SelectItem value="Difícil">
-                                    <div className="flex items-center gap-2 text-accent-orange">
-                                        <Zap className="size-3" /> Difícil
-                                    </div>
-                                </SelectItem>
-                                <SelectItem value="Experto">
-                                    <div className="flex items-center gap-2 text-red-700">
-                                        <Zap className="size-3" /> Experto
-                                    </div>
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-
             </div>
-
-            {/* Badges Section */}
-            <div className="pt-6 border-t border-border/50">
-                <ClassBadgesManager 
-                    badges={activity.class_badges || []}
-                    unitId={activity.unit_id || activity.unit?.id} 
-                    activityId={activity.id} 
-                />
-            </div>
-        </div>
-    );
-}
+        );
+    }

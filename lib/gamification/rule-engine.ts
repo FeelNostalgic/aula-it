@@ -59,10 +59,19 @@ export async function evaluateStudentBadges(studentId: string, unitId: string, s
         // Fetch all activities in the unit to calculate completion
         const { data: activities } = await supabase
             .from('activities')
-            .select('id')
+            .select('id, xp')
             .eq('unit_id', unitId);
             
         const activityIds = activities?.map(a => a.id) || [];
+
+        // Fetch Module Enrollment for total_xp (and to get module_id if we didn't have it)
+        const { data: unitData } = await supabase.from('units').select('module_id').eq('id', unitId).single();
+        const { data: enrollment } = await supabase
+            .from('module_enrollments')
+            .select('module_xp')
+            .eq('student_id', studentId)
+            .eq('module_id', unitData?.module_id)
+            .single();
 
         // Fetch all graded submissions for the student in this unit
         const { data: submissions } = await supabase
@@ -73,6 +82,7 @@ export async function evaluateStudentBadges(studentId: string, unitId: string, s
                 status, 
                 score, 
                 graded_at,
+                created_at,
                 step:activity_steps(
                     phase:activity_phases(
                         activity_id
@@ -80,14 +90,15 @@ export async function evaluateStudentBadges(studentId: string, unitId: string, s
                 )
             `)
             .eq('student_id', studentId)
-            .eq('status', 'graded');
+            .eq('status', 'graded')
+            .order('created_at', { ascending: true }); // Important for first_attempt
             
         // Filter submissions that belong to this unit (via activity_id)
         const unitSubmissions = (submissions || []).filter((s: any) => 
             activityIds.includes(s.step?.phase?.activity_id)
         );
 
-        // Calculate unique completed activities (count each activity only once)
+        // Calculate unique completed activities
         const completedActivityIds = new Set(unitSubmissions.map((s: any) => s.step?.phase?.activity_id));
         const completionRate = activityIds.length > 0 ? (completedActivityIds.size / activityIds.length) * 100 : 0;
 
@@ -95,13 +106,39 @@ export async function evaluateStudentBadges(studentId: string, unitId: string, s
         const scores = unitSubmissions.map((s: any) => s.score).filter((s: any) => s !== null) as number[];
         const avgScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
 
+        // Streak calculation
+        const dates = [...new Set(unitSubmissions.map(s => s.graded_at?.split('T')[0]))].sort().reverse();
+        let streak = 0;
+        if (dates.length > 0) {
+            streak = 1;
+            for (let i = 0; i < dates.length - 1; i++) {
+                const d1 = new Date(dates[i]);
+                const d2 = new Date(dates[i+1]);
+                const diffTime = Math.abs(d1.getTime() - d2.getTime());
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays === 1) streak++;
+                else break;
+            }
+        }
+
+        // First attempts: map of step_id -> first graded submission
+        const firstAttempts = new Map();
+        unitSubmissions.forEach(s => {
+            if (!firstAttempts.has(s.step_id)) {
+                firstAttempts.set(s.step_id, s);
+            }
+        });
+
         context = {
             submissions: unitSubmissions,
             total_submissions: unitSubmissions.length,
             unit_completion: completionRate,
             average_score: avgScore,
             completed_activities_count: completedActivityIds.size,
-            total_activities_count: activityIds.length
+            total_activities_count: activityIds.length,
+            total_xp: enrollment?.module_xp || 0,
+            streak_days: streak,
+            first_attempts: Array.from(firstAttempts.values())
         };
         return context;
     };
@@ -132,18 +169,47 @@ export async function evaluateStudentBadges(studentId: string, unitId: string, s
                     actualValue = ctx.total_submissions;
                     break;
                 case 'score':
-                    if (submissionId) {
+                    if (badge.activity_id) {
+                        const subs = ctx.submissions.filter((s: any) => s.step?.phase?.activity_id === badge.activity_id);
+                        actualValue = subs.length > 0 ? Math.max(...subs.map((s: any) => s.score || 0)) : 0;
+                    } else if (submissionId) {
                         const sub = ctx.submissions.find((s: any) => s.id === submissionId);
                         actualValue = sub?.score || 0;
                     } else {
                         actualValue = Math.max(0, ...ctx.submissions.map((s: any) => s.score || 0));
                     }
                     break;
+                case 'first_attempt_score':
+                    if (badge.activity_id) {
+                        const firstSubs = ctx.first_attempts.filter((s: any) => s.step?.phase?.activity_id === badge.activity_id);
+                        actualValue = firstSubs.length > 0 ? firstSubs[0].score : 0; // Use the first step's first attempt? Or average?
+                        // Let's assume average of first attempts of all steps in the activity
+                        actualValue = firstSubs.length > 0 ? firstSubs.reduce((a: any, b: any) => a + b.score, 0) / firstSubs.length : 0;
+                    } else {
+                        actualValue = ctx.first_attempts.length > 0 ? ctx.first_attempts[0].score : 0;
+                    }
+                    break;
+                case 'steps_completed':
+                    if (badge.activity_id) {
+                        actualValue = ctx.submissions.filter((s: any) => s.step?.phase?.activity_id === badge.activity_id).length;
+                    } else {
+                        actualValue = ctx.submissions.length;
+                    }
+                    break;
+                case 'activities_completed':
+                    actualValue = ctx.completed_activities_count;
+                    break;
                 case 'unit_completion':
                     actualValue = ctx.unit_completion;
                     break;
                 case 'average_score':
                     actualValue = ctx.average_score;
+                    break;
+                case 'total_xp':
+                    actualValue = ctx.total_xp;
+                    break;
+                case 'streak_days':
+                    actualValue = ctx.streak_days;
                     break;
                 case 'specific_activity_completed':
                      const completed = ctx.submissions.some((s: any) => s.step?.phase?.activity_id === cond.value);
