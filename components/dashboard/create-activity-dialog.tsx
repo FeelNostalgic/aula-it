@@ -80,8 +80,8 @@ export function CreateActivityDialog({ unitId, trigger }: CreateActivityDialogPr
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 {trigger ? trigger : (
-                    <Button className="bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-bold gap-2">
-                        <Plus className="size-4" />
+                    <Button className="bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-black uppercase tracking-widest text-[10px] px-4 rounded-xl h-9 gap-2 shadow-lg shadow-accent-blue/20">
+                        <Plus className="size-4" strokeWidth={3} />
                         Añadir Reto
                     </Button>
                 )}
@@ -210,7 +210,7 @@ export function CreateActivityDialog({ unitId, trigger }: CreateActivityDialogPr
                         <Button
                             type="submit"
                             disabled={loading}
-                            className="bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-bold"
+                            className="bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-black uppercase tracking-widest rounded-xl h-11 px-8 shadow-lg shadow-accent-blue/20"
                         >
                             {loading ? (
                                 <>

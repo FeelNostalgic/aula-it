@@ -1,16 +1,25 @@
-"use client";
-
-import { useState } from "react";
-import { Award, Plus, Trash2, Edit2, CheckCircle, XCircle } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Award, Plus, Trash2, Edit2, CheckCircle, XCircle, HardDrive, List, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { 
+    Dialog, 
+    DialogContent, 
+    DialogDescription, 
+    DialogHeader, 
+    DialogTitle,
+    DialogFooter
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createClassBadge, updateClassBadge, deleteClassBadge } from "@/app/dashboard/units/[id]/actions";
 import { ClassBadge } from "@/types/database";
 import { BadgeDisplay } from "./badge-display";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 
 interface ClassBadgesManagerProps {
     badges: ClassBadge[];
@@ -22,40 +31,52 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
     const [isEditing, setIsEditing] = useState<string | null>(null);
     const [isCreating, setIsCreating] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
     
     // Form state
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [iconUrl, setIconUrl] = useState("");
     const [isHidden, setIsHidden] = useState(true);
-    const [conditionType, setConditionType] = useState("SCORE_GREATER_THAN_OR_EQUAL");
+    const [conditionType, setConditionType] = useState(activityId ? "score" : "unit_completion");
     const [conditionValue, setConditionValue] = useState("100");
     const [xpReward, setXpReward] = useState("0");
+    const [activeTab, setActiveTab] = useState("general");
+
+    const filteredBadges = useMemo(() => {
+        if (activityId) {
+            return badges.filter(b => b.activity_id === activityId);
+        }
+        return badges.filter(b => b.activity_id === null);
+    }, [badges, activityId]);
 
     const resetForm = () => {
         setTitle("");
         setDescription("");
         setIconUrl("");
         setIsHidden(true);
-        setConditionType("score");
+        setConditionType(activityId ? "score" : "unit_completion");
         setConditionValue("100");
         setXpReward("0");
         setIsCreating(false);
         setIsEditing(null);
+        setActiveTab("general");
     };
 
     const handleCreate = async () => {
         if (!title) return toast.error("El título es obligatorio");
         setIsLoading(true);
         
+        const op = conditionType.includes('_') ? conditionType.split('_')[1] : 'eq';
+        const field = conditionType.split('_')[0];
+
         const payload = {
             allOf: [
                 {
-                    field: conditionType.includes('unit_completion') ? 'unit_completion' : 
-                          conditionType.includes('average_score') ? 'average_score' : 'score',
-                    operator: conditionType.includes('gte') ? 'gte' : 
-                             conditionType.includes('gt') ? 'gt' : 'eq',
-                    value: parseInt(conditionValue, 10)
+                    field: field,
+                    operator: op,
+                    value: parseInt(conditionValue, 10) || 100
                 }
             ]
         };
@@ -63,10 +84,10 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
         const { error } = await createClassBadge(unitId, {
             title,
             description,
-            icon_url: iconUrl,
+            icon_url: iconUrl || null,
             is_hidden: isHidden,
             condition_payload: payload,
-            activity_id: activityId,
+            activity_id: activityId || null,
             xp_reward: parseInt(xpReward, 10) || 0
         });
 
@@ -83,14 +104,15 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
          if (!title) return toast.error("El título es obligatorio");
         setIsLoading(true);
         
+        const op = conditionType.includes('_') ? conditionType.split('_')[1] : 'eq';
+        const field = conditionType.split('_')[0];
+
         const payload = {
             allOf: [
                 {
-                    field: conditionType.includes('unit_completion') ? 'unit_completion' : 
-                          conditionType.includes('average_score') ? 'average_score' : 'score',
-                    operator: conditionType.includes('gte') ? 'gte' : 
-                             conditionType.includes('gt') ? 'gt' : 'eq',
-                    value: parseInt(conditionValue, 10)
+                    field: field,
+                    operator: op,
+                    value: parseInt(conditionValue, 10) || 100
                 }
             ]
         };
@@ -98,10 +120,10 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
         const { error } = await updateClassBadge(id, unitId, {
             title,
             description,
-            icon_url: iconUrl,
+            icon_url: iconUrl || null,
             is_hidden: isHidden,
             condition_payload: payload,
-            activity_id: activityId,
+            activity_id: activityId || null,
             xp_reward: parseInt(xpReward, 10) || 0
         });
 
@@ -145,14 +167,10 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
                 const field = condition.field || condition.fact?.replace('submission.', '');
                 const op = condition.operator || "eq";
                 
-                let type = "score";
-                if (field === 'unit_completion') type = "unit_completion";
-                else if (field === 'average_score') type = "average_score";
-                
-                if (op === 'gt' || op === 'gte') {
-                    setConditionType(`${type}_${op}`);
+                if (op === 'eq') {
+                    setConditionType(field);
                 } else {
-                    setConditionType(type === 'score' ? 'score' : type);
+                    setConditionType(`${field}_${op}`);
                 }
                 
                 setConditionValue(condition.value?.toString() || "100");
@@ -160,189 +178,379 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
         } catch (e) {
             // default
         }
+    };    const getConditionDescription = (badge: ClassBadge) => {
+        try {
+            const payload: any = badge.condition_payload;
+            const condition = payload?.allOf?.[0] || payload?.all?.[0] || payload?.[0];
+            if (!condition) return "Sin condición";
+            
+            const field = condition.field || condition.fact?.replace('submission.', '');
+            const op = condition.operator;
+            const val = condition.value;
+            
+            let fieldLabel = "";
+            if (field === 'score') fieldLabel = "Nota";
+            else if (field === 'average_score') fieldLabel = "Media";
+            else if (field === 'unit_completion') fieldLabel = "Progreso";
+            else if (field === 'specific_activity_completed') fieldLabel = "Completar actividad";
+            else fieldLabel = field;
+            
+            let opLabel = "";
+            if (op === 'eq') opLabel = "=";
+            else if (op === 'gt') opLabel = ">";
+            else if (op === 'gte') opLabel = "≥";
+            else if (op === 'lt') opLabel = "<";
+            else if (op === 'lte') opLabel = "≤";
+            
+            return `${fieldLabel} ${opLabel} ${val}${field !== 'specific_activity_completed' ? '%' : ''}`;
+        } catch (e) {
+            return "Condición personalizada";
+        }
     };
-
-    // Filter badges based on activityId prop
-    // If activityId is provided, ONLY show badges for that activity.
-    // If activityId is undefined (unit level), we might want to show ONLY unit-level badges,
-    // or we might want to show all unit badges. Let's show ONLY unit-level badges (activity_id is null).
-    const filteredBadges = activityId 
-        ? badges.filter(b => b.activity_id === activityId)
-        : badges.filter(b => !b.activity_id);
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h3 className="text-xl font-bold">
+                    <h3 className="text-xl font-bold tracking-tight">
                         {activityId ? 'Insignias del Reto' : 'Gestión de Insignias Globales'}
                     </h3>
                     <p className="text-sm text-text-muted">
                         {activityId 
                             ? 'Crea insignias específicas para este reto.' 
-                            : 'Crea insignias globales que se pueden obtener en cualquier parte de la unidad.'}
+                            : 'Crea insignias globales para toda la unidad.'}
                     </p>
                 </div>
-                {!isCreating && !isEditing && (
-                    <Button onClick={() => setIsCreating(true)}>
-                        <Plus className="size-4 mr-2" />
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
+                        <Button
+                            variant={viewMode === "grid" ? "secondary" : "ghost"}
+                            size="icon"
+                            className={cn("h-8 w-8", viewMode === 'grid' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
+                            onClick={() => setViewMode('grid')}
+                        >
+                            <LayoutGrid className="size-4" />
+                        </Button>
+                        <Button
+                            variant={viewMode === "list" ? "secondary" : "ghost"}
+                            size="icon"
+                            className={cn("h-8 w-8", viewMode === 'list' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
+                            onClick={() => setViewMode('list')}
+                        >
+                            <List className="size-4" />
+                        </Button>
+                    </div>
+                    <Button 
+                        onClick={() => setIsCreating(true)} 
+                        className="bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-black uppercase tracking-widest text-[10px] px-4 rounded-xl h-9 gap-2 shadow-lg shadow-accent-blue/20"
+                    >
+                        <Plus className="size-4" strokeWidth={3} />
                         Nueva Insignia
                     </Button>
-                )}
+                </div>
             </div>
 
-            {(isCreating || isEditing) && (
-                <Card className="border-accent-blue/30 shadow-sm bg-surface">
-                    <CardHeader>
-                        <CardTitle>{isEditing ? "Editar Insignia" : "Nueva Insignia"}</CardTitle>
-                        <CardDescription>Configura los detalles visuales y la condición para obtenerla.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="grid md:grid-cols-2 gap-6">
-                            <div className="space-y-4">
-                                <div>
-                                    <Label>Título de la Insignia</Label>
-                                    <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Francotirador Visual" />
-                                </div>
-                                <div>
-                                    <Label>Descripción (Opcional)</Label>
-                                    <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Ej: Obtenida al sacar un 100." />
-                                </div>
-                                <div>
-                                    <Label>URL del Icono (Opcional)</Label>
-                                    <Input value={iconUrl} onChange={e => setIconUrl(e.target.value)} placeholder="/badges/custom.png" />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <Label>Recompensa de XP</Label>
-                                        <Input type="number" min="0" value={xpReward} onChange={e => setXpReward(e.target.value)} placeholder="Ej: 500" />
-                                    </div>
-                                    <div className="flex flex-col justify-end p-3 border rounded-md">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex flex-col">
-                                                <Label className="cursor-pointer">Ocultar hasta ganar</Label>
-                                                <span className="text-[10px] text-text-muted">No se verá ni la silueta</span>
+            <Dialog 
+                open={isCreating || !!isEditing} 
+                onOpenChange={(open) => !open && resetForm()}
+                modal={false}
+            >
+                <DialogContent 
+                    className="max-w-3xl bg-surface border-border-strong p-0 overflow-hidden"
+                    onPointerDownOutside={(e) => e.preventDefault()}
+                    onEscapeKeyDown={(e) => e.preventDefault()}
+                >
+                    <DialogHeader className="p-6 pb-0">
+                        <DialogTitle>{isEditing ? "Editar Insignia" : "Nueva Insignia"}</DialogTitle>
+                        <DialogDescription>Configura los detalles y las reglas de obtención.</DialogDescription>
+                    </DialogHeader>
+
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                        <div className="px-6 border-b border-border/50">
+                            <TabsList className="bg-transparent gap-6 p-0 h-12">
+                                <TabsTrigger value="general" className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:bg-transparent px-2 h-full">General</TabsTrigger>
+                                <TabsTrigger value="obtention" className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:bg-transparent px-2 h-full">Obtención</TabsTrigger>
+                            </TabsList>
+                        </div>
+
+                        <div className="p-6">
+                            <TabsContent value="general" className="mt-0 space-y-6">
+                                <div className="grid md:grid-cols-[120px_1fr] gap-8">
+                                    <div className="space-y-4">
+                                        <div className="aspect-square rounded-2xl bg-surface-dark border border-border/50 flex items-center justify-center overflow-hidden relative group">
+                                            {iconUrl ? (
+                                                <img src={iconUrl} alt="Icono" className="size-full object-contain p-4" />
+                                            ) : (
+                                                <Award className="size-12 text-text-muted/20" />
+                                            )}
+                                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                                <Button 
+                                                    size="icon" 
+                                                    variant="ghost" 
+                                                    className="size-8 text-white hover:bg-white/20"
+                                                    onClick={async () => {
+                                                        const files = await openPicker();
+                                                        if (files?.[0]) setIconUrl(files[0].url);
+                                                    }}
+                                                    disabled={isDriveLoading}
+                                                >
+                                                    <HardDrive className="size-4" />
+                                                </Button>
+                                                {iconUrl && (
+                                                    <Button 
+                                                        size="icon" 
+                                                        variant="ghost" 
+                                                        className="size-8 text-white hover:bg-white/20"
+                                                        onClick={() => setIconUrl("")}
+                                                    >
+                                                        <Trash2 className="size-4" />
+                                                    </Button>
+                                                )}
                                             </div>
-                                            <input 
-                                                type="checkbox" 
-                                                className="size-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                                checked={isHidden} 
-                                                onChange={e => setIsHidden(e.target.checked)} 
-                                            />
+                                        </div>
+                                        <div className="text-[10px] text-center text-text-muted leading-tight">
+                                            Usa el icono por defecto o sube uno propio.
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="space-y-2">
+                                            <Label>Título de la Insignia</Label>
+                                            <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Francotirador Visual" className="bg-surface-dark border-border/50" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Descripción</Label>
+                                            <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe qué significa esta insignia..." className="bg-surface-dark border-border/50 resize-none h-24" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label>XP de Recompensa</Label>
+                                                <Input type="number" min="0" value={xpReward} onChange={e => setXpReward(e.target.value)} className="bg-surface-dark border-border/50" />
+                                            </div>
+                                            <div className="flex flex-col justify-end">
+                                                <div className="flex items-center justify-between p-3 bg-surface-dark border border-border/50 rounded-lg h-[40px]">
+                                                    <Label className="text-xs cursor-pointer" htmlFor="hide-badge">Ocultar hasta ganar</Label>
+                                                    <input 
+                                                        id="hide-badge"
+                                                        type="checkbox" 
+                                                        className="size-4 rounded accent-accent-blue"
+                                                        checked={isHidden} 
+                                                        onChange={e => setIsHidden(e.target.checked)} 
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
+                            </TabsContent>
+
+                            <TabsContent value="obtention" className="mt-0 space-y-6">
+                                <div className="grid md:grid-cols-2 gap-8">
+                                    <div className="space-y-6">
+                                        <div className="space-y-4">
+                                            <Label className="text-base font-bold">Regla de Desbloqueo</Label>
+                                            <div className="space-y-4 p-4 border border-border/50 rounded-xl bg-surface-dark/50">
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs text-text-muted">Propiedad a evaluar</Label>
+                                                    <select 
+                                                        value={conditionType.split('_')[0]} 
+                                                        onChange={e => {
+                                                            const prop = e.target.value;
+                                                            const op = conditionType.includes('gte') ? '_gte' : conditionType.includes('gt') ? '_gt' : '';
+                                                            setConditionType(prop + op);
+                                                        }}
+                                                        className="w-full text-sm rounded-lg bg-surface border-border/50 px-3 py-2 outline-none focus:ring-1 focus:ring-accent-blue"
+                                                    >
+                                                        {activityId ? (
+                                                            <>
+                                                                <option value="score">Nota de este Reto (0-100)</option>
+                                                                <option value="specific_activity_completed">Completar este Reto</option>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <option value="average_score">Nota Media Unidad (0-100)</option>
+                                                                <option value="unit_completion">% Completado Unidad (0-100)</option>
+                                                            </>
+                                                        )}
+                                                    </select>
+                                                </div>
+                                                {conditionType.split('_')[0] !== 'specific_activity_completed' && (
+                                                    <div className="space-y-4 pt-4 border-t border-border/30">
+                                                        <div className="space-y-2">
+                                                            <Label className="text-xs text-text-muted">Operador</Label>
+                                                            <select 
+                                                                value={conditionType.includes('_') ? conditionType.split('_')[1] : 'eq'} 
+                                                                onChange={e => {
+                                                                    const op = e.target.value;
+                                                                    const prop = conditionType.split('_')[0];
+                                                                    setConditionType(op === 'eq' ? prop : `${prop}_${op}`);
+                                                                }}
+                                                                className="w-full text-sm rounded-lg bg-surface border-border/50 px-3 py-2 outline-none focus:ring-1 focus:ring-accent-blue"
+                                                            >
+                                                                <option value="eq">Es igual a</option>
+                                                                <option value="gt">Es mayor que</option>
+                                                                <option value="gte">Es mayor o igual que</option>
+                                                            </select>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label className="text-xs text-text-muted">Valor Requerido</Label>
+                                                            <div className="relative">
+                                                                <Input type="number" min="0" max="100" value={conditionValue} onChange={e => setConditionValue(e.target.value)} className="bg-surface border-border/50 pr-8" />
+                                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-xs">%</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {conditionType.split('_')[0] === 'specific_activity_completed' && (
+                                                    <div className="p-4 bg-accent-blue/5 border border-accent-blue/20 rounded-lg">
+                                                        <p className="text-xs text-accent-blue font-medium leading-relaxed">
+                                                            La insignia se otorgará automáticamente al completar satisfactoriamente este reto.
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <Label className="text-base font-bold">Vista Previa</Label>
+                                        <div className="bg-surface-dark/50 border border-border/50 rounded-xl p-6 flex flex-col items-center justify-center gap-6 h-[220px]">
+                                            <div className="flex gap-8">
+                                                <div className="text-center space-y-2">
+                                                    <BadgeDisplay 
+                                                        badge={{ id: "preview", title: title || "Vista Previa", description, icon_url: iconUrl || null, is_hidden: isHidden } as any}
+                                                        isEarned={true}
+                                                    />
+                                                    <span className="text-[10px] font-bold text-accent-green uppercase tracking-wider">Desbloqueada</span>
+                                                </div>
+                                                <div className="text-center space-y-2">
+                                                    <BadgeDisplay 
+                                                        badge={{ id: "preview2", title: title || "Vista Previa", description, icon_url: iconUrl || null, is_hidden: isHidden } as any}
+                                                        isEarned={false}
+                                                    />
+                                                    <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Bloqueada</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </TabsContent>
+                        </div>
+                    </Tabs>
+
+                    <DialogFooter className="p-6 bg-surface-dark/50 border-t border-border/50">
+                        <Button variant="ghost" onClick={resetForm} disabled={isLoading}>Cancelar</Button>
+                        <Button 
+                            onClick={() => isEditing ? handleUpdate(isEditing) : handleCreate()} 
+                            disabled={isLoading || !title}
+                            className="bg-accent-blue hover:bg-accent-blue/90 text-white min-w-[120px]"
+                        >
+                            {isLoading ? "Guardando..." : "Guardar Insignia"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <div className={cn(
+                "grid gap-4",
+                viewMode === 'grid' ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5" : "grid-cols-1"
+            )}>
+                {filteredBadges.map(badge => (
+                    <Card key={badge.id} className={cn(
+                        "group relative overflow-hidden transition-all duration-300 border-border/50 hover:border-accent-blue/30 bg-surface/50 backdrop-blur-sm",
+                        viewMode === 'list' && "hover:bg-surface"
+                    )}>
+                        <CardContent className={cn(
+                            "p-4 h-full flex transition-all duration-300",
+                            viewMode === 'grid' ? "flex-col items-center text-center gap-3" : "flex-row items-center gap-5"
+                        )}>
+                            <div className={cn(
+                                "relative shrink-0",
+                                viewMode === 'grid' ? "mb-0" : ""
+                            )}>
+                                <BadgeDisplay 
+                                    badge={badge} 
+                                    isEarned={true} 
+                                    variant="compact" 
+                                    className={cn(
+                                        "size-12 p-0! bg-transparent! border-0! transition-none opacity-100! grayscale-0!",
+                                        viewMode === 'list' ? "size-10" : ""
+                                    )} 
+                                />
+                                {badge.is_hidden && (
+                                    <div className="absolute -top-1 -right-1 size-4 bg-accent-orange text-white rounded-full flex items-center justify-center shadow-lg border-2 border-surface">
+                                        <XCircle className="size-2.5" />
+                                    </div>
+                                )}
                             </div>
                             
-                            <div className="space-y-4">
-                                <Label>Regla de Obtención</Label>
-                                <div className="space-y-4 p-4 border rounded-md bg-background">
-                                    <div className="space-y-2">
-                                        <Label className="text-xs">Propiedad a evaluar</Label>
-                                        <select 
-                                            value={conditionType.split('_')[0]} // Simplistic sync for property
-                                            onChange={e => {
-                                                const prop = e.target.value;
-                                                if (prop === 'unit') setConditionType('unit_completion');
-                                                else if (prop === 'avg') setConditionType('average_score');
-                                                else setConditionType('score');
-                                            }}
-                                            className="w-full text-sm rounded bg-surface border px-3 py-2"
-                                        >
-                                            <option value="score">Nota del Reto (0-100)</option>
-                                            <option value="avg">Nota Media de la Unidad (0-100)</option>
-                                            <option value="unit">% Completado de la Unidad (0-100)</option>
-                                        </select>
+                            <div className={cn(
+                                "space-y-1 flex-1 min-w-0",
+                                viewMode === 'grid' && "items-center flex flex-col"
+                            )}>
+                                <h4 className="font-bold text-xs truncate w-full group-hover:text-accent-blue transition-colors">{badge.title}</h4>
+                                {badge.description && (
+                                    <p className="text-[10px] text-text-muted line-clamp-1 italic mb-1">
+                                        {badge.description}
+                                    </p>
+                                )}
+                                <div className={cn(
+                                    "flex flex-wrap gap-1.5",
+                                    viewMode === 'grid' ? "justify-center" : "justify-start"
+                                )}>
+                                    <div className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-surface-dark/50 border border-border/30 rounded text-[9px] font-bold text-text-muted">
+                                        <Award className="size-2.5 text-accent-blue" />
+                                        {getConditionDescription(badge)}
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-xs">Operador</Label>
-                                        <select 
-                                            value={conditionType.includes('gt') ? 'gt' : conditionType.includes('gte') ? 'gte' : 'eq'} 
-                                            onChange={e => {
-                                                const op = e.target.value;
-                                                // Keep the property part of conditionType
-                                                const prop = conditionType.includes('unit_completion') ? 'unit_completion' : 
-                                                           conditionType.includes('average_score') ? 'average_score' : 'score';
-                                                
-                                                if (op === 'eq') setConditionType(prop === 'score' ? 'score' : prop); 
-                                                else setConditionType(`${prop}_${op}`);
-                                            }}
-                                            className="w-full text-sm rounded bg-surface border px-3 py-2"
-                                        >
-                                            <option value="eq">Es igual a</option>
-                                            <option value="gt">Es mayor que</option>
-                                            <option value="gte">Es mayor o igual que</option>
-                                        </select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-xs">Valor Requerido (0-100)</Label>
-                                        <Input type="number" min="0" max="100" value={conditionValue} onChange={e => setConditionValue(e.target.value)} />
-                                    </div>
-                                </div>
-
-                                <div className="bg-accent-blue/10 border border-accent-blue/20 p-4 rounded-md flex items-center justify-center gap-4">
-                                   <BadgeDisplay 
-                                        badge={{ id: "preview", title: title || "Vista Previa", description, icon_url: iconUrl || null, is_hidden: isHidden } as any}
-                                        isEarned={true}
-                                   />
-                                   <BadgeDisplay 
-                                        badge={{ id: "preview2", title: title || "Vista Previa", description, icon_url: iconUrl || null, is_hidden: isHidden } as any}
-                                        isEarned={false}
-                                   />
+                                    {badge.xp_reward > 0 && (
+                                        <div className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-accent-purple/5 border border-accent-purple/20 rounded text-[9px] font-black text-accent-purple uppercase tracking-tight">
+                                            +{badge.xp_reward} XP
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="flex justify-end gap-3 pt-4 border-t">
-                            <Button variant="outline" onClick={resetForm} disabled={isLoading}>Cancelar</Button>
-                            <Button onClick={() => isEditing ? handleUpdate(isEditing) : handleCreate()} disabled={isLoading}>
-                                {isLoading ? "Guardando..." : "Guardar Insignia"}
-                            </Button>
+                            <div className={cn(
+                                "flex items-center gap-1",
+                                viewMode === 'grid' ? "absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-1 group-hover:translate-y-0" : "shrink-0 ml-auto"
+                            )}>
+                                <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="size-8 rounded-lg bg-surface/50 backdrop-blur-md border border-border/10 hover:bg-accent-blue/10 hover:text-accent-blue hover:border-accent-blue/20" 
+                                    onClick={() => startEdit(badge)}
+                                >
+                                    <Edit2 className="size-3.5" />
+                                </Button>
+                                <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="size-8 rounded-lg bg-surface/50 backdrop-blur-md border border-border/10 hover:bg-status-offline/10 hover:text-status-offline hover:border-status-offline/20" 
+                                    onClick={() => handleDelete(badge.id)}
+                                >
+                                    <Trash2 className="size-3.5" />
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
+                
+                {filteredBadges.length === 0 && (
+                    <div className="col-span-full py-20 text-center space-y-4 bg-surface-dark/30 rounded-2xl border border-dashed border-border/50">
+                        <div className="size-16 mx-auto bg-surface-dark border border-border/50 rounded-2xl flex items-center justify-center opacity-40">
+                            <Award className="size-8 text-text-muted" />
                         </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {!isCreating && !isEditing && (
-                <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
-                    {filteredBadges.map(badge => (
-                        <Card key={badge.id} className="group relative overflow-hidden bg-surface">
-                            <CardContent className="p-5 flex items-start gap-4">
-                                <BadgeDisplay badge={badge as any} isEarned={true} className="shrink-0" />
-                                <div className="space-y-1 overflow-hidden">
-                                    <h4 className="font-bold text-sm truncate">{badge.title}</h4>
-                                    <p className="text-xs text-text-muted line-clamp-2">{badge.description}</p>
-                                    <div className="pt-2 flex flex-wrap gap-2 text-[10px] font-mono">
-                                        {badge.is_hidden ? (
-                                            <span className="bg-accent-orange/10 text-accent-orange px-2 py-0.5 rounded">Oculta hasta conseguir</span>
-                                        ) : (
-                                            <span className="bg-accent-blue/10 text-accent-blue px-2 py-0.5 rounded">Visible (Silueta)</span>
-                                        )}
-                                        {badge.xp_reward > 0 && (
-                                            <span className="bg-accent-purple/10 text-accent-purple px-2 py-0.5 rounded">+{badge.xp_reward} XP</span>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="absolute top-2 right-2 flex opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Button variant="ghost" size="icon" className="size-8" onClick={() => startEdit(badge as any)}>
-                                        <Edit2 className="size-3.5" />
-                                    </Button>
-                                    <Button variant="ghost" size="icon" className="size-8 text-status-offline hover:text-status-offline" onClick={() => handleDelete(badge.id)}>
-                                        <Trash2 className="size-3.5" />
-                                    </Button>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                    {filteredBadges.length === 0 && (
-                        <div className="col-span-full py-12 text-center text-text-muted bg-surface rounded-lg border border-dashed">
-                            <Award className="size-12 mx-auto mb-3 opacity-20" />
-                            <p>No hay insignias {activityId ? 'para este reto' : 'globales'} creadas todavía.</p>
-                            <p className="text-sm mt-1">Crea una para motivar a tus alumnos.</p>
+                        <div className="space-y-1">
+                            <p className="font-bold text-foreground">No hay insignias {activityId ? 'para este reto' : 'globales'}</p>
+                            <p className="text-sm text-text-muted max-w-[300px] mx-auto">Comienza creando una insignia para motivar el progreso de tus alumnos.</p>
                         </div>
-                    )}
-                </div>
-            )}
+                        <Button onClick={() => setIsCreating(true)} variant="outline" className="border-accent-blue/30 text-accent-blue hover:bg-accent-blue hover:text-white transition-all">
+                            <Plus className="size-4 mr-2" />
+                            Crear Primera Insignia
+                        </Button>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

@@ -470,20 +470,20 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <div className="flex bg-surface-dark border border-border-strong rounded-lg p-0.5">
+                        <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
                             <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setViewMode("grid")}
-                                className={cn("size-8 p-0 rounded-md", viewMode === "grid" ? "bg-surface text-accent-blue" : "text-text-muted")}
+                                variant={viewMode === "grid" ? "secondary" : "ghost"}
+                                size="icon"
+                                className={cn("h-8 w-8", viewMode === 'grid' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
+                                onClick={() => setViewMode('grid')}
                             >
                                 <LayoutGrid className="size-4" />
                             </Button>
                             <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setViewMode("list")}
-                                className={cn("size-8 p-0 rounded-md", viewMode === "list" ? "bg-surface text-accent-blue" : "text-text-muted")}
+                                variant={viewMode === "list" ? "secondary" : "ghost"}
+                                size="icon"
+                                className={cn("h-8 w-8", viewMode === 'list' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
+                                onClick={() => setViewMode('list')}
                             >
                                 <List className="size-4" />
                             </Button>
@@ -509,7 +509,7 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
                         </p>
                         <Button
                             onClick={() => setIsCreateOpen(true)}
-                            className="bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-black uppercase tracking-widest text-xs px-8 rounded-xl h-12"
+                            className="bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-black uppercase tracking-widest text-xs px-8 rounded-xl h-12 gap-2 shadow-lg shadow-accent-blue/20"
                         >
                             Crear mi primer hito
                         </Button>
