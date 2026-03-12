@@ -66,7 +66,8 @@ export type DeliverableContent = {
 
 // 3. Animation/Interactive
 export type AnimationContent = {
-    componentUrl: string; // Puede ser un import identifier o URL de codepen/sandbox
+    componentUrl: string;       // URL para iFrame externo (legacy/externo)
+    animationSlug?: string;     // Slug de animación local del registry (tiene prioridad)
     props?: Record<string, any>;
 };
 

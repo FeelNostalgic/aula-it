@@ -340,6 +340,37 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
 
                     {/* Viewer */}
                     {selectedStep ? (
+                        selectedStep.type === 'animation' ? (
+                            <div className="flex-1 overflow-hidden bg-background flex flex-col">
+                                <div className="flex-1 overflow-hidden p-4">
+                                    <StepViewer
+                                        step={selectedStep}
+                                        activityId={activity.id}
+                                        submission={submissionsMap?.[selectedStep.id]}
+                                        googleEmail={googleEmail}
+                                        userId={user?.id}
+                                    />
+                                </div>
+                                <div className="flex justify-between items-center px-6 py-3 border-t border-border/50 shrink-0">
+                                    <Button
+                                        variant="outline"
+                                        className="border-border/50 hover:bg-surface-dark h-10 px-6 text-sm font-medium"
+                                        onClick={handlePrev}
+                                        disabled={selectedStepIndex <= 0}
+                                    >
+                                        <ChevronLeft className="size-4 mr-2" /> Anterior
+                                    </Button>
+                                    <Button
+                                        className="bg-accent-blue hover:bg-accent-blue/90 text-white px-8 h-10 text-sm font-medium"
+                                        onClick={handleNext}
+                                        disabled={selectedStepIndex >= allSteps.length - 1}
+                                    >
+                                        {selectedStepIndex >= allSteps.length - 1 ? "Completar Misión" : "Siguiente Paso"}
+                                        <ChevronRight className="size-4 ml-2" />
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
                         <div className="flex-1 overflow-y-auto p-12 bg-background relative">
                             <div className="max-w-4xl mx-auto space-y-12">
                                 <div className="space-y-4">
@@ -385,6 +416,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                 </div>
                             </div>
                         </div>
+                        )
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center text-text-muted">
                             <FileText className="size-12 mb-4 opacity-20" />

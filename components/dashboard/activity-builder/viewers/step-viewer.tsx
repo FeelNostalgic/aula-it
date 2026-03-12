@@ -10,6 +10,13 @@ import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, Circle, PencilRuler, Zap, Copy } from "lucide-react";
+import { animationRegistry } from "@/lib/animations/registry";
+import { AnimationPlayer } from "@/components/animations/animation-player";
+import { ArpAnimation } from "@/components/animations/arp-animation";
+
+const animationMap: Record<string, React.ComponentType> = {
+    arp: ArpAnimation,
+};
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -129,6 +136,22 @@ function DeliverableViewerBasic({ content }: { content: DeliverableContent }) {
 }
 
 function AnimationViewer({ content }: { content: AnimationContent }) {
+    // Local animation takes priority over iframe
+    if (content?.animationSlug) {
+        const meta = animationRegistry.find(a => a.slug === content.animationSlug);
+        const AnimationComponent = animationMap[content.animationSlug];
+        if (meta && AnimationComponent) {
+            return (
+                <div className="w-full h-full flex flex-col">
+                    <AnimationPlayer steps={meta.steps} title={meta.title}>
+                        <AnimationComponent />
+                    </AnimationPlayer>
+                </div>
+            );
+        }
+    }
+
+    // Fallback: external iframe
     return (
         <div className="max-w-4xl mx-auto space-y-8">
             <div className="aspect-video w-full rounded-2xl overflow-hidden border border-border shadow-2xl bg-surface-dark flex items-center justify-center relative group">
