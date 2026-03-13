@@ -90,6 +90,7 @@ export default async function UnitPage({
     const { data: classBadges } = await supabase
         .from("class_badges")
         .select("*")
+        .eq("unit_id", unitId)
         .order("created_at", { ascending: true });
 
     let studentBadges: any[] = [];

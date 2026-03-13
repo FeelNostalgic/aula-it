@@ -124,6 +124,7 @@ export class SupabaseMockBuilder {
     signUp?: SupabaseResponse;
     signOut?: SupabaseResponse;
     signInWithOAuth?: SupabaseResponse;
+    exchangeCodeForSession?: SupabaseResponse;
     adminListUsers?: SupabaseResponse;
   } = {};
 
@@ -164,6 +165,11 @@ export class SupabaseMockBuilder {
 
   mockOAuth(response: SupabaseResponse = DEFAULT_RESPONSE): this {
     this.authConfig.signInWithOAuth = response;
+    return this;
+  }
+
+  mockExchangeCode(response: SupabaseResponse = DEFAULT_RESPONSE): this {
+    this.authConfig.exchangeCodeForSession = response;
     return this;
   }
 
@@ -262,6 +268,9 @@ export class SupabaseMockBuilder {
       ),
       signInWithOAuth: vi.fn().mockResolvedValue(
         authConfig.signInWithOAuth ?? DEFAULT_RESPONSE
+      ),
+      exchangeCodeForSession: vi.fn().mockResolvedValue(
+        authConfig.exchangeCodeForSession ?? DEFAULT_RESPONSE
       ),
       admin: {
         listUsers: vi.fn().mockResolvedValue(

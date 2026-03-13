@@ -337,17 +337,17 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
 
                                     <div className="space-y-4">
                                         <div className="space-y-2">
-                                            <Label>Título de la Insignia</Label>
-                                            <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Francotirador Visual" className="bg-surface-dark border-border/50" />
+                                            <Label htmlFor="badge-title">Título de la Insignia</Label>
+                                            <Input id="badge-title" value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Francotirador Visual" className="bg-surface-dark border-border/50" />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Descripción</Label>
-                                            <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe qué significa esta insignia..." className="bg-surface-dark border-border/50 resize-none h-24" />
+                                            <Label htmlFor="badge-description">Descripción</Label>
+                                            <Textarea id="badge-description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe qué significa esta insignia..." className="bg-surface-dark border-border/50 resize-none h-24" />
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="space-y-2">
-                                                <Label>XP de Recompensa</Label>
-                                                <Input type="number" min="0" value={xpReward} onChange={e => setXpReward(e.target.value)} className="bg-surface-dark border-border/50" />
+                                                <Label htmlFor="badge-xp">XP de Recompensa</Label>
+                                                <Input id="badge-xp" type="number" min="0" value={xpReward} onChange={e => setXpReward(e.target.value)} className="bg-surface-dark border-border/50" />
                                             </div>
                                             <div className="flex flex-col justify-end">
                                                 <div className="flex items-center justify-between p-3 bg-surface-dark border border-border/50 rounded-lg h-[40px]">

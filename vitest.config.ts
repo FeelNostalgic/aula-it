@@ -17,6 +17,7 @@ export default defineConfig({
         "app/**/actions.ts",
         "lib/**/*.ts",
         "app/api/**/route.ts",
+        "app/auth/**/route.ts",
       ],
       exclude: ["**/*.d.ts", "**/types/**", "lib/version.ts"],
       thresholds: {

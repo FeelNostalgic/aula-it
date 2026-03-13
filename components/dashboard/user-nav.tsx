@@ -54,7 +54,7 @@ export function UserNav({ userEmail, userName, isTeacher, userId, userAvatar }: 
             {/* Profile Section with Dropdown */}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <div suppressHydrationWarning className="flex items-center gap-3 cursor-pointer group hover:bg-accent/10 p-1 pr-2 rounded-lg transition-colors">
+                    <div data-testid="user-nav-trigger" suppressHydrationWarning className="flex items-center gap-3 cursor-pointer group hover:bg-accent/10 p-1 pr-2 rounded-lg transition-colors">
                         <div className="flex flex-col items-end text-right">
                             <span className="text-sm font-bold text-foreground">
                                 {isTeacher ? `Prof. ${userName}` : userName}
