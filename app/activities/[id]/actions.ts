@@ -169,6 +169,28 @@ export async function getStudentSubmissionsForActivity(activityId: string): Prom
     return map;
 }
 
+export async function markStepViewed(stepId: string, activityId: string) {
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return { error: "No autenticado." };
+
+    const { error } = await supabase
+        .from("step_views")
+        .upsert(
+            {
+                student_id: user.id,
+                step_id: stepId,
+                viewed_at: new Date().toISOString(),
+            },
+            { onConflict: "student_id,step_id", ignoreDuplicates: true }
+        );
+
+    if (error) return { error: error.message };
+
+    revalidatePath(`/activities/${activityId}`);
+    return { success: true };
+}
+
 export async function getStepSubmissions(stepId: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

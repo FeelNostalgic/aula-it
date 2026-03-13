@@ -66,6 +66,22 @@ export default async function ActivityPage({
 
     const submissionsMap = await getStudentSubmissionsForActivity(id);
 
+    // Fetch viewed steps for this student
+    const allStepIds = initialPhases.flatMap((phase: any) =>
+        (phase.steps || []).map((s: any) => s.id)
+    );
+    let viewsMap: Record<string, boolean> = {};
+    if (allStepIds.length > 0) {
+        const { data: views } = await supabase
+            .from('step_views')
+            .select('step_id')
+            .eq('student_id', user.id)
+            .in('step_id', allStepIds);
+        if (views) {
+            views.forEach((v: any) => { viewsMap[v.step_id] = true; });
+        }
+    }
+
     return (
         <StudentActivityClient
             activity={activity as any}
@@ -73,6 +89,7 @@ export default async function ActivityPage({
             user={user}
             profile={profile}
             submissionsMap={submissionsMap}
+            viewsMap={viewsMap}
         />
     );
 }

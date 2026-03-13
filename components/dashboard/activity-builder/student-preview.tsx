@@ -4,12 +4,13 @@ import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType, 
 import { getStepIcon, getTabStepIcon } from "@/lib/constants/step-icons";
 import {
     ArrowLeft, FileText, Lock,
-    ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen, X, Zap
+    ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen, X, Zap, Eye, CheckCircle2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { StepViewer } from "./viewers/step-viewer";
+import { markStepViewed } from "@/app/activities/[id]/actions";
 import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb";
 import { UserNav } from "@/components/dashboard/user-nav";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
@@ -22,6 +23,7 @@ interface StudentPreviewProps {
     profile?: any;
     hideHeader?: boolean;
     submissionsMap?: Record<string, ActivitySubmission>;
+    viewsMap?: Record<string, boolean>;
     googleEmail?: string | null;
 }
 
@@ -75,7 +77,7 @@ function StepStatusBadge({ status, type }: { status?: string; type: ActivityStep
 }
 
 
-export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, googleEmail }: StudentPreviewProps) {
+export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, viewsMap, googleEmail }: StudentPreviewProps) {
     const allSteps = useMemo(() => {
         return phases.flatMap(p => p.steps.filter(s => s.is_visible !== false));
     }, [phases]);
@@ -83,6 +85,8 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
     const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
     const [openStepIds, setOpenStepIds] = useState<string[]>([]);
     const [collapsedPhases, setCollapsedPhases] = useState<string[]>([]);
+    const [localViews, setLocalViews] = useState<Record<string, boolean>>(viewsMap ?? {});
+    const [markingViewed, setMarkingViewed] = useState(false);
     const hasInitialized = useRef(false);
 
     useEffect(() => {
@@ -137,6 +141,16 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
         if (selectedStepIndex < allSteps.length - 1) {
             handleStepSelect(allSteps[selectedStepIndex + 1].id);
         }
+    };
+
+    const handleMarkViewed = async () => {
+        if (!selectedStep || markingViewed) return;
+        setMarkingViewed(true);
+        const result = await markStepViewed(selectedStep.id, activity.id);
+        if (!result?.error) {
+            setLocalViews(prev => ({ ...prev, [selectedStep.id]: true }));
+        }
+        setMarkingViewed(false);
     };
 
     return (
@@ -360,6 +374,25 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                     >
                                         <ChevronLeft className="size-4 mr-2" /> Anterior
                                     </Button>
+                                    {selectedStep.completion_mode === 'viewable' && (
+                                        localViews[selectedStep.id] ? (
+                                            <Button
+                                                className="bg-green-600/50 text-white cursor-not-allowed h-10 px-6 text-sm font-medium"
+                                                disabled
+                                            >
+                                                <CheckCircle2 className="size-4 mr-2" /> Visto
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                className="bg-green-600 hover:bg-green-700 text-white h-10 px-6 text-sm font-medium"
+                                                onClick={handleMarkViewed}
+                                                disabled={markingViewed}
+                                            >
+                                                <Eye className="size-4 mr-2" />
+                                                {markingViewed ? "Guardando..." : "Marcar como visto"}
+                                            </Button>
+                                        )
+                                    )}
                                     <Button
                                         className="bg-accent-blue hover:bg-accent-blue/90 text-white px-8 h-10 text-sm font-medium"
                                         onClick={handleNext}
@@ -405,6 +438,25 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                     >
                                         <ChevronLeft className="size-4 mr-2" /> Anterior
                                     </Button>
+                                    {selectedStep.completion_mode === 'viewable' && (
+                                        localViews[selectedStep.id] ? (
+                                            <Button
+                                                className="bg-green-600/50 text-white cursor-not-allowed h-10 px-6 text-sm font-medium"
+                                                disabled
+                                            >
+                                                <CheckCircle2 className="size-4 mr-2" /> Visto
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                className="bg-green-600 hover:bg-green-700 text-white h-10 px-6 text-sm font-medium"
+                                                onClick={handleMarkViewed}
+                                                disabled={markingViewed}
+                                            >
+                                                <Eye className="size-4 mr-2" />
+                                                {markingViewed ? "Guardando..." : "Marcar como visto"}
+                                            </Button>
+                                        )
+                                    )}
                                     <Button
                                         className="bg-accent-blue hover:bg-accent-blue/90 text-white px-8 h-10 text-sm font-medium"
                                         onClick={handleNext}

@@ -13,6 +13,8 @@ export type ActivityPhase = {
 // Los cinco tipos de pasos soportados + resource + file_upload
 export type ActivityStepType = 'theory' | 'deliverable' | 'animation' | 'quiz' | 'presentation' | 'resource' | 'file_upload';
 
+export type CompletionMode = 'none' | 'required' | 'viewable';
+
 // Definición de un Paso, que pertenece a una Fase
 export type ActivityStep = {
     id: string;
@@ -25,6 +27,7 @@ export type ActivityStep = {
     is_locked: boolean;
     due_date?: string | null;
     xp?: number;
+    completion_mode?: CompletionMode;
     created_at: string;
     updated_at: string;
 };
@@ -175,4 +178,12 @@ export type ActivitySubmission = {
     rubric_scores: Record<string, number> | null;
     grading_mode: 'score' | 'rubric' | 'complete' | null;
     files: SubmissionFile[] | null;
+};
+
+// Step views (tracking de visualización de pasos por estudiante)
+export type StepView = {
+    id: string;
+    student_id: string;
+    step_id: string;
+    viewed_at: string;
 };

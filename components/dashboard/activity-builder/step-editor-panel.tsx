@@ -21,17 +21,19 @@ const PresentationEditor = dynamic(
     () => import("./editors/presentation-editor").then(m => ({ default: m.PresentationEditor })),
     { ssr: false }
 );
-import { Copy, Zap, Save, Trash2, X, ChevronRight, GripVertical, Plus, Settings2, Type, FileText, Layout, HelpCircle } from "lucide-react";
+import { Copy, Zap, Save, Trash2, X, ChevronRight, GripVertical, Plus, Settings2, Type, FileText, Layout, HelpCircle, Minus, ClipboardCheck, Eye } from "lucide-react";
 import {
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { updateStepXp } from "@/app/activities/[id]/edit/actions";
+import { updateStepXp, updateStepCompletionMode } from "@/app/activities/[id]/edit/actions";
+import { CompletionMode } from "@/types/activity";
 
 interface StepEditorPanelProps {
     step?: ActivityStepWithClientState;
@@ -42,9 +44,16 @@ export function StepEditorPanel({ step, onUpdateStep }: StepEditorPanelProps) {
     const [xp, setXp] = useState<string>(step?.xp?.toString() || "0");
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    const [completionMode, setCompletionMode] = useState<CompletionMode>(step?.completion_mode ?? 'none');
+    const completionModeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     useEffect(() => {
         setXp(step?.xp?.toString() || "0");
     }, [step?.id, step?.xp]);
+
+    useEffect(() => {
+        setCompletionMode(step?.completion_mode ?? 'none');
+    }, [step?.id, step?.completion_mode]);
 
     const handleXpChange = (val: string) => {
         setXp(val);
@@ -57,6 +66,17 @@ export function StepEditorPanel({ step, onUpdateStep }: StepEditorPanelProps) {
         timeoutRef.current = setTimeout(async () => {
             const res = await updateStepXp(step!.id, finalVal);
             if (res.error) toast.error("Error al guardar XP");
+        }, 1000);
+    };
+
+    const handleCompletionModeChange = (mode: CompletionMode) => {
+        setCompletionMode(mode);
+        onUpdateStep({ ...step!, completion_mode: mode });
+
+        if (completionModeTimeoutRef.current) clearTimeout(completionModeTimeoutRef.current);
+        completionModeTimeoutRef.current = setTimeout(async () => {
+            const res = await updateStepCompletionMode(step!.id, mode);
+            if (res.error) toast.error("Error al guardar el modo de completado");
         }, 1000);
     };
 
@@ -133,6 +153,40 @@ export function StepEditorPanel({ step, onUpdateStep }: StepEditorPanelProps) {
                                                 'bg-text-muted'
                                         }`} />
                                 )}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 border-l border-border/50 pl-4">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider">COMPLETADO</label>
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    size="sm"
+                                    variant={completionMode === 'none' ? 'default' : 'outline'}
+                                    className="h-7 px-2 text-xs gap-1"
+                                    onClick={() => handleCompletionModeChange('none')}
+                                >
+                                    <Minus className="size-3" />
+                                    Ninguno
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant={completionMode === 'required' ? 'default' : 'outline'}
+                                    className="h-7 px-2 text-xs gap-1"
+                                    onClick={() => handleCompletionModeChange('required')}
+                                >
+                                    <ClipboardCheck className="size-3" />
+                                    Obligatorio
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant={completionMode === 'viewable' ? 'default' : 'outline'}
+                                    className="h-7 px-2 text-xs gap-1"
+                                    onClick={() => handleCompletionModeChange('viewable')}
+                                >
+                                    <Eye className="size-3" />
+                                    Visualizable
+                                </Button>
                             </div>
                         </div>
                     </div>

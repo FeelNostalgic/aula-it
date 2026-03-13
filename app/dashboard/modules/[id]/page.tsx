@@ -79,7 +79,8 @@ export default async function ModulePage({ params }: { params: { id: string } })
                 created_at,
                 activity_phases (
                     activity_steps (
-                        id
+                        id,
+                        completion_mode
                     )
                 )
             )
@@ -90,6 +91,7 @@ export default async function ModulePage({ params }: { params: { id: string } })
 
     // Fetch submissions for this module's activities (if student)
     const activityCompletionMap: Record<string, Set<string>> = {};
+    let viewedStepIds = new Set<string>();
     if (profile?.role === "student") {
         const { data: moduleSubmissions } = await supabase
             .from("activity_submissions")
@@ -110,15 +112,34 @@ export default async function ModulePage({ params }: { params: { id: string } })
                 activityCompletionMap[actId].add(s.step_id);
             }
         });
+
+        const { data: stepViews } = await supabase
+            .from('step_views')
+            .select('step_id')
+            .eq('student_id', user.id);
+        viewedStepIds = new Set(stepViews?.map(v => v.step_id) ?? []);
     }
 
     // Transform units to include submission data and latest activity
     const units = unitsData?.map(unit => {
         const activitiesWithSubmissions = (unit.activities as any[] || []).map(a => {
-            const totalSteps = a.activity_phases?.reduce((acc: number, phase: any) => {
-                return acc + (phase.activity_steps?.length || 0);
-            }, 0) || 0;
-            const completedSteps = activityCompletionMap[a.id]?.size || 0;
+            // Only count steps where completion_mode !== 'none'
+            const countableSteps: Array<{ id: string; completion_mode: string }> = [];
+            a.activity_phases?.forEach((phase: any) => {
+                phase.activity_steps?.forEach((step: any) => {
+                    if (step.completion_mode !== 'none') {
+                        countableSteps.push(step);
+                    }
+                });
+            });
+            const totalSteps = countableSteps.length;
+            const completedSteps = countableSteps.filter(step => {
+                if (step.completion_mode === 'viewable') {
+                    return viewedStepIds.has(step.id);
+                }
+                // 'required': must have a submission entry
+                return activityCompletionMap[a.id]?.has(step.id) ?? false;
+            }).length;
 
             return {
                 ...a,

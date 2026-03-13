@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { verifyTeacherOwnsActivity, verifyTeacherOwnsPhase, verifyTeacherOwnsStep } from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
-import { ActivityPhase, ActivityStep, ActivityStepType } from "@/types/activity";
+import { ActivityPhase, ActivityStep, ActivityStepType, CompletionMode } from "@/types/activity";
 
 export async function getActivityPhases(activityId: string) {
     const supabase = await createClient();
@@ -382,6 +382,26 @@ export async function updateStepXp(stepId: string, xp: number | null) {
         .single();
     if (error) {
         console.error("Error updating step xp:", error);
+        return { error: error.message };
+    }
+    return { data };
+}
+
+export async function updateStepCompletionMode(stepId: string, mode: CompletionMode) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+        .from('activity_steps')
+        .update({ completion_mode: mode })
+        .eq('id', stepId)
+        .select()
+        .single();
+    if (error) {
+        console.error("Error updating step completion mode:", error);
         return { error: error.message };
     }
     return { data };
