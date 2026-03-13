@@ -80,7 +80,9 @@ export default async function ModulePage({ params }: { params: { id: string } })
                 activity_phases (
                     activity_steps (
                         id,
-                        completion_mode
+                        title,
+                        completion_mode,
+                        due_date
                     )
                 )
             )
@@ -121,10 +123,11 @@ export default async function ModulePage({ params }: { params: { id: string } })
     }
 
     // Transform units to include submission data and latest activity
+    const now = new Date();
     const units = unitsData?.map(unit => {
         const activitiesWithSubmissions = (unit.activities as any[] || []).map(a => {
             // Only count steps where completion_mode !== 'none'
-            const countableSteps: Array<{ id: string; completion_mode: string }> = [];
+            const countableSteps: Array<{ id: string; title: string; completion_mode: string; due_date: string | null }> = [];
             a.activity_phases?.forEach((phase: any) => {
                 phase.activity_steps?.forEach((step: any) => {
                     if (step.completion_mode !== 'none') {
@@ -145,9 +148,29 @@ export default async function ModulePage({ params }: { params: { id: string } })
                 ...a,
                 total_steps: totalSteps,
                 completed_steps: completedSteps,
+                countable_steps: countableSteps, // Keep reference for next_due_step
                 // Legacy compatibility for any child components still using activity_submissions
                 activity_submissions: completedSteps > 0 ? [{ id: 'mock-id', status: 'submitted' }] : []
             }
+        });
+
+        // Find next_due_step for the unit
+        let nextDueStep: { title: string; due_date: string } | null = null;
+        let earliestDue: Date | null = null;
+
+        activitiesWithSubmissions.forEach(activity => {
+            activity.countable_steps.forEach(step => {
+                if (step.completion_mode !== 'required' || !step.due_date) return;
+                const d = new Date(step.due_date);
+                if (d > now && (!earliestDue || d < earliestDue)) {
+                    earliestDue = d;
+                    // Format as "{Challenge} - {Activity}"
+                    nextDueStep = { 
+                        title: `${activity.title} - ${step.title || "Sin nombre"}`, 
+                        due_date: step.due_date 
+                    };
+                }
+            });
         });
 
         const latestPublished = activitiesWithSubmissions
@@ -157,7 +180,8 @@ export default async function ModulePage({ params }: { params: { id: string } })
         return {
             ...unit,
             activities: activitiesWithSubmissions,
-            latest_activity: latestPublished || null
+            latest_activity: latestPublished || null,
+            next_due_step: nextDueStep
         };
     });
 

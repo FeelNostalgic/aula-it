@@ -26,8 +26,8 @@ export class ModuleDetailPage extends BasePage {
         this.tabDashboard = page.getByRole("tab", { name: /DASHBOARD/i });
         this.tabAlumnos = page.getByRole("tab", { name: /ALUMNOS/i });
         this.tabConfiguracion = page.getByRole("tab", { name: /CONFIGURACIÓN/i });
-        this.viewModeGrid = page.locator('button[class*="size-8"]').first();
-        this.viewModeList = page.locator('button[class*="size-8"]').last();
+        this.viewModeGrid = page.getByRole("button", { name: "Vista de cuadrícula" });
+        this.viewModeList = page.getByRole("button", { name: "Vista de lista" });
     }
 
     async goto(moduleId: string): Promise<void> {
@@ -46,7 +46,7 @@ export class ModuleDetailPage extends BasePage {
     }
 
     async verifyUnitExists(name: string): Promise<void> {
-        await expect(this.page.locator(`text=${name}`)).toBeVisible();
+        await expect(this.page.locator('h3, div').filter({ hasText: name }).first()).toBeVisible({ timeout: 10000 });
     }
 
     async verifyBreadcrumbModuleName(name: string): Promise<void> {

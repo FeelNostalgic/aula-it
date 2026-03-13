@@ -33,6 +33,24 @@ import { getModuleRankInfo } from "@/lib/gamification";
 import { useModuleGamification } from "@/hooks/use-gamification";
 import { RankBadge } from "./rank-badge";
 import { ModuleLeaderboard } from "./module-leaderboard";
+import { 
+    DndContext, 
+    DragEndEvent, 
+    PointerSensor, 
+    useSensor, 
+    useSensors, 
+    closestCenter 
+} from "@dnd-kit/core";
+import { 
+    arrayMove, 
+    SortableContext, 
+    verticalListSortingStrategy, 
+    rectSortingStrategy 
+} from "@dnd-kit/sortable";
+import { reorderUnits } from "@/app/dashboard/actions";
+import { toast } from "sonner";
+import { useTransition } from "react";
+import { SortableUnitListItem, SortableUnitGridItem } from "./sortable-unit-item";
 
 
 const ICON_MAP: Record<string, any> = {
@@ -62,6 +80,10 @@ type Unit = {
     order_index: number;
     created_at: string;
     status?: string | null;
+    next_due_step?: {
+        title: string;
+        due_date: string;
+    } | null;
     latest_activity?: {
         id: string;
         title: string;
@@ -103,9 +125,48 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
 
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const [activeTab, setActiveTab] = useState("dashboard");
+    const [units, setUnits] = useState<Unit[]>(
+        [...initialUnits].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+    );
+    const [, startTransition] = useTransition();
+
+    // Sync units state with initialUnits prop when it changes (e.g. after revalidation)
+    useEffect(() => {
+        setUnits([...initialUnits].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)));
+    }, [initialUnits]);
 
     const ModuleIcon = ICON_MAP[module.icon] || BookOpen;
     const { setSegments } = useBreadcrumb();
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: { distance: 8 },
+        })
+    );
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id || !isTeacher) return;
+
+        const oldIndex = units.findIndex(u => u.id === active.id);
+        const newIndex = units.findIndex(u => u.id === over.id);
+        const reordered = arrayMove(units, oldIndex, newIndex);
+
+        // Optimistic update
+        const snapshot = units;
+        setUnits(reordered);
+
+        startTransition(async () => {
+            const result = await reorderUnits(
+                module.id,
+                reordered.map((u, index) => ({ id: u.id, order_index: index }))
+            );
+            if (result?.error) {
+                toast.error("Error al reordenar las unidades");
+                setUnits(snapshot);
+            }
+        });
+    };
 
     const statusConfig = {
         active: {
@@ -255,6 +316,7 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                 variant={viewMode === "grid" ? "secondary" : "ghost"}
                                 size="icon"
                                 onClick={() => setViewMode("grid")}
+                                aria-label="Vista de cuadrícula"
                                 className={`size-8 rounded-md ${viewMode === "grid" ? "bg-background shadow-sm text-foreground" : "text-text-muted"}`}
                             >
                                 <LayoutGrid className="size-4" />
@@ -263,6 +325,7 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                 variant={viewMode === "list" ? "secondary" : "ghost"}
                                 size="icon"
                                 onClick={() => setViewMode("list")}
+                                aria-label="Vista de lista"
                                 className={`size-8 rounded-md ${viewMode === "list" ? "bg-background shadow-sm text-foreground" : "text-text-muted"}`}
                             >
                                 <List className="size-4" />
@@ -270,7 +333,7 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                         </div>
                     </div>
 
-                    {initialUnits.length === 0 ? (
+                    {units.length === 0 ? (
                         <Card className="bg-surface-dark border-border-subtle border-dashed p-12 text-center flex flex-col items-center gap-4">
                             <div className="size-12 rounded-full bg-accent-blue/10 flex items-center justify-center">
                                 <BookOpen className="size-6 text-accent-blue" />
@@ -287,247 +350,58 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                             {isTeacher && <CreateUnitDialog moduleId={module.id} />}
                         </Card>
                     ) : (
-                        <div className={viewMode === "grid"
-                            ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                            : "flex flex-col gap-4"
-                        }>
-                            {initialUnits.map((unit) => {
-                                // Calculate real progress based on completed steps
-                                const unitActivities = unit.activities || [];
-                                const totalActivities = unitActivities.length;
-                                const completedActivities = unitActivities.filter(a => {
-                                    const total = (a as any).total_steps || 0;
-                                    const completed = (a as any).completed_steps || 0;
-                                    return total > 0 && completed === total;
-                                }).length;
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleDragEnd}
+                        >
+                            <SortableContext
+                                items={units.map(u => u.id)}
+                                strategy={viewMode === "list" ? verticalListSortingStrategy : rectSortingStrategy}
+                            >
+                                {viewMode === "list" ? (
+                                    <div className="flex flex-col gap-4" data-testid="units-list-container">
+                                        {units.map((unit) => (
+                                            <SortableUnitListItem key={unit.id} unit={unit} userRole={userRole} />
+                                        ))}
 
-                                const progress = totalActivities > 0
-                                    ? Math.round((completedActivities / totalActivities) * 100)
-                                    : 0;
-
-                                // Normalize status for robust lookup
-                                const rawStatus = unit.status?.toLowerCase() || 'draft';
-                                const normalizedStatus = (rawStatus === 'active' || rawStatus === 'activo') ? 'published' :
-                                    (rawStatus === 'bloqueado' ? 'blocked' :
-                                        (rawStatus === 'borrador' ? 'draft' : rawStatus));
-
-                                const unitStatusConfig = {
-                                    published: {
-                                        color: "text-accent-green",
-                                        bg: "bg-accent-green/10",
-                                        border: "border-accent-green/30",
-                                        label: "PUBLICADO",
-                                        dotBg: "bg-accent-green",
-                                    },
-                                    blocked: {
-                                        color: "text-accent-red",
-                                        bg: "bg-accent-red/10",
-                                        border: "border-accent-red/30",
-                                        label: "BLOQUEADO",
-                                        dotBg: "bg-accent-red",
-                                    },
-                                    draft: {
-                                        color: "text-accent-orange",
-                                        bg: "bg-accent-orange/10",
-                                        border: "border-accent-orange/30",
-                                        label: "BORRADOR",
-                                        dotBg: "bg-accent-orange",
-                                    },
-                                }[normalizedStatus as 'published' | 'blocked' | 'draft'] || {
-                                    color: "text-accent-orange",
-                                    bg: "bg-accent-orange/10",
-                                    border: "border-accent-orange/30",
-                                    label: "BORRADOR",
-                                    dotBg: "bg-accent-orange",
-                                };
-
-                                const isLocked = !isTeacher && normalizedStatus === 'blocked';
-
-                                const unitContent = (viewMode: "list" | "grid") => {
-                                    if (viewMode === "list") {
-                                        return (
-                                            <>
-                                                {/* Col 1: Order + Name */}
-                                                <div className="flex items-center gap-4 w-full md:w-[20%] md:max-w-[400px] shrink-0">
-                                                    <div className={cn(
-                                                        "size-10 rounded-lg bg-surface border shadow-[0_0_10px_rgba(34,211,238,0.05)] flex items-center justify-center shrink-0 transition-colors",
-                                                        isLocked ? "border-border-subtle" : "border-accent-blue/20"
-                                                    )}>
-                                                        {isLocked ? (
-                                                            <Lock className="size-4 text-text-muted" />
-                                                        ) : (
-                                                            <span className="text-sm font-bold text-accent-blue font-mono">{unit.order_index + 1}</span>
-                                                        )}
+                                        {isTeacher && (
+                                            <CreateUnitDialog moduleId={module.id}>
+                                                <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-xl p-4 flex items-center gap-4 cursor-pointer transition-all group hover:bg-accent-blue/5">
+                                                    <div className="size-10 rounded-lg bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all shrink-0">
+                                                        <Plus className="size-4 text-text-muted group-hover:text-accent-blue transition-colors" />
                                                     </div>
-                                                    <div className="min-w-0">
-                                                        <h3 className="font-bold text-foreground truncate group-hover:text-accent-blue transition-colors tracking-tight">
-                                                            {unit.name}
-                                                        </h3>
-                                                        <p className="text-xs text-text-muted truncate">
-                                                            {unit.description || "Sin descripción"}
-                                                        </p>
+                                                    <div className="text-left">
+                                                        <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nueva Unidad</p>
+                                                        <p className="text-xs text-text-muted">Crear contenido didáctico</p>
                                                     </div>
-                                                </div>
-
-                                                {/* Col 2: Last activity (moved to middle) */}
-                                                <div className="w-full md:flex-1 min-w-[200px] shrink-0 flex items-center gap-3">
-                                                    <div className="size-8 rounded-full bg-surface border border-border-subtle flex items-center justify-center shrink-0">
-                                                        <Terminal className="size-3.5 text-text-muted" />
-                                                    </div>
-                                                    <div className="space-y-0.5 min-w-0">
-                                                        <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted leading-none text-nowrap">Última actividad</div>
-                                                        <div className="text-sm font-bold text-foreground leading-none truncate group-hover:text-accent-blue/90 transition-colors">
-                                                            {unit.latest_activity?.title || "Sin actividades publicadas"}
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Col 3: Progress */}
-                                                <div className="w-full md:w-[250px] shrink-0">
-                                                    <div className="flex justify-between items-center mb-1.5">
-                                                        <span className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Progreso</span>
-                                                        <span className="text-xs font-bold text-foreground">{progress}%</span>
-                                                    </div>
-                                                    <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
-                                                </div>
-
-                                                {/* Col 4: Status Badge */}
-                                                <div className="w-full md:w-[120px] shrink-0 flex md:justify-end mt-2 md:mt-0">
-                                                    <Badge variant="outline" className={`${unitStatusConfig.border} ${unitStatusConfig.bg} ${unitStatusConfig.color} gap-1.5 py-1 px-3 shadow-sm`}>
-                                                        <span className={`size-1.5 rounded-full ${unitStatusConfig.dotBg}`} />
-                                                        {unitStatusConfig.label}
-                                                    </Badge>
-                                                </div>
-                                            </>
-                                        );
-                                    }
-
-                                    return (
-                                        <Card
-                                            className={cn(
-                                                "bg-surface-dark border-border-subtle transition-all group overflow-hidden flex flex-col h-full rounded-2xl",
-                                                !isLocked && "hover:border-accent-blue/50 hover:shadow-lg hover:shadow-accent-blue/5",
-                                                isLocked && "opacity-50 grayscale saturate-50"
-                                            )}
-                                        >
-                                            <div className="p-6 flex flex-col h-full">
-                                                {/* Header */}
-                                                <div className="flex items-start gap-4 mb-5">
-                                                    <div className={cn(
-                                                        "size-12 rounded-xl bg-surface border shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center shrink-0 transition-all",
-                                                        isLocked ? "border-border-subtle" : "border-accent-blue/20 group-hover:scale-110 group-hover:bg-accent-blue/10"
-                                                    )}>
-                                                        {isLocked ? (
-                                                            <Lock className="size-5 text-text-muted" />
-                                                        ) : (
-                                                            <span className="text-lg font-bold text-accent-blue font-mono">{unit.order_index + 1}</span>
-                                                        )}
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <h3 className="text-lg font-bold text-foreground tracking-tight group-hover:text-accent-blue transition-colors line-clamp-1">
-                                                            {unit.name}
-                                                        </h3>
-                                                        <p className="text-sm text-text-muted mt-1.5 line-clamp-2">
-                                                            {unit.description || "Sin descripción proporcionada para esta unidad."}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                {/* Footer Area */}
-                                                <div className="mt-auto space-y-4 pt-4 border-t border-border-subtle/50 relative">
-                                                    <div className="flex items-end justify-between mb-2">
-                                                        <Badge variant="outline" className={`${unitStatusConfig.border} ${unitStatusConfig.bg} ${unitStatusConfig.color} gap-1.5 shadow-sm`}>
-                                                            <span className={`size-1.5 rounded-full ${unitStatusConfig.dotBg}`} />
-                                                            {unitStatusConfig.label}
-                                                        </Badge>
-                                                        <div className="flex items-baseline gap-1 font-bold text-foreground">
-                                                            <span className="text-xl leading-none">{progress}</span>
-                                                            <span className="text-sm text-text-muted">%</span>
-                                                        </div>
-                                                    </div>
-
-                                                    <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
-
-                                                    {/* Last activity Inner Box */}
-                                                    <div className="bg-[#050A0D] border border-border-subtle rounded-xl p-3 flex items-center gap-3 mt-4 group-hover:border-accent-blue/30 transition-colors">
-                                                        <div className="size-8 rounded-lg bg-surface flex items-center justify-center shrink-0">
-                                                            <Terminal className="size-4 text-text-muted group-hover:text-accent-blue transition-colors" />
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted mb-0.5">Última actividad abierta</div>
-                                                            <div className="text-xs font-bold text-foreground truncate group-hover:text-accent-blue/90 transition-colors">
-                                                                {unit.latest_activity?.title || "Sin actividades publicadas"}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </Card>
-                                    );
-                                };
-
-                                if (viewMode === "list") {
-                                    return isLocked ? (
-                                        <div
-                                            key={unit.id}
-                                            className={cn(
-                                                "bg-surface-dark border border-border-subtle rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 opacity-50 grayscale saturate-50 cursor-not-allowed",
-                                            )}
-                                        >
-                                            {unitContent("list")}
-                                        </div>
-                                    ) : (
-                                        <Link
-                                            key={unit.id}
-                                            href={`/dashboard/units/${unit.id}`}
-                                            className="bg-surface-dark border border-border-subtle hover:border-accent-blue/50 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 group transition-all shadow-sm hover:shadow-md cursor-pointer"
-                                        >
-                                            {unitContent("list")}
-                                        </Link>
-                                    );
-                                }
-
-                                // Grid View
-                                return isLocked ? (
-                                    <div key={unit.id} className="block h-full cursor-not-allowed">
-                                        {unitContent("grid")}
+                                                </button>
+                                            </CreateUnitDialog>
+                                        )}
                                     </div>
                                 ) : (
-                                    <Link key={unit.id} href={`/dashboard/units/${unit.id}`} className="block h-full group">
-                                        {unitContent("grid")}
-                                    </Link>
-                                );
-                            })}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="units-grid-container">
+                                        {units.map((unit) => (
+                                            <SortableUnitGridItem key={unit.id} unit={unit} userRole={userRole} />
+                                        ))}
 
-                            {/* Nueva Unidad Card */}
-                            {isTeacher && (
-                                viewMode === "grid" ? (
-                                    <CreateUnitDialog moduleId={module.id}>
-                                        <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all group min-h-[180px] hover:bg-accent-blue/5">
-                                            <div className="size-12 rounded-full bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all">
-                                                <Plus className="size-5 text-text-muted group-hover:text-accent-blue transition-colors" />
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nueva Unidad</p>
-                                                <p className="text-xs text-text-muted mt-0.5">Crear contenido didáctico</p>
-                                            </div>
-                                        </button>
-                                    </CreateUnitDialog>
-                                ) : (
-                                    <CreateUnitDialog moduleId={module.id}>
-                                        <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-xl p-4 flex items-center gap-4 cursor-pointer transition-all group hover:bg-accent-blue/5">
-                                            <div className="size-10 rounded-lg bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all shrink-0">
-                                                <Plus className="size-4 text-text-muted group-hover:text-accent-blue transition-colors" />
-                                            </div>
-                                            <div className="text-left">
-                                                <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nueva Unidad</p>
-                                                <p className="text-xs text-text-muted">Crear contenido didáctico</p>
-                                            </div>
-                                        </button>
-                                    </CreateUnitDialog>
-                                )
-                            )}
-                        </div>
+                                        {isTeacher && (
+                                            <CreateUnitDialog moduleId={module.id}>
+                                                <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all group min-h-[180px] hover:bg-accent-blue/5">
+                                                    <div className="size-12 rounded-full bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all">
+                                                        <Plus className="size-5 text-text-muted group-hover:text-accent-blue transition-colors" />
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nueva Unidad</p>
+                                                        <p className="text-xs text-text-muted mt-0.5">Crear contenido didáctico</p>
+                                                    </div>
+                                                </button>
+                                            </CreateUnitDialog>
+                                        )}
+                                    </div>
+                                )}
+                            </SortableContext>
+                        </DndContext>
                     )}
                 </TabsContent>
 

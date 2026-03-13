@@ -115,7 +115,13 @@ export default async function DashboardPage() {
         .filter(Boolean);
 
       // Flatten all steps for this module
-      const moduleSteps: { id: string; completion_mode: string; due_date: string | null; activity_name: string }[] = [];
+      const moduleSteps: { 
+        id: string; 
+        completion_mode: string; 
+        due_date: string | null; 
+        activity_name: string;
+        step_title: string;
+      }[] = [];
       for (const unit of (mod.units || []) as any[]) {
         for (const activity of (unit.activities || []) as any[]) {
           for (const phase of (activity.phases || []) as any[]) {

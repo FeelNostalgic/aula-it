@@ -148,7 +148,7 @@ test.describe("Student Activity Flow", () => {
         await expect(page.getByRole("heading", { name: "Unidades Didácticas" })).toBeVisible({ timeout: 10000 });
 
         // Click the unit
-        const unitCard = page.locator(`a:has-text("E2E Student Unit")`).first();
+        const unitCard = page.getByRole("heading", { name: "E2E Student Unit" }).first();
         await expect(unitCard).toBeVisible({ timeout: 10000 });
         await unitCard.click();
         await page.waitForURL(/\/dashboard\/units\//, { timeout: 15000 });
