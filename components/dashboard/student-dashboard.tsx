@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Search, MoreVertical, Terminal, Database, Globe, Command, ArrowRight, BookOpen, Clock, CheckCircle2, LayoutGrid, List } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, MoreVertical, Terminal, Database, Globe, Command, ArrowRight, BookOpen, Clock, CheckCircle2, LayoutGrid, List, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import { useGamification } from "@/hooks/use-gamification";
 import { StudentModuleCard } from "./student-module-card";
+import { cn } from "@/lib/utils";
 
 type Module = {
     id: string;
@@ -22,6 +23,7 @@ type Module = {
     total_units?: number;
     completed_units?: number;
     module_xp?: number;
+    next_due_step?: { title: string; due_date: string } | null;
 };
 
 interface StudentDashboardProps {
@@ -39,6 +41,15 @@ const ICON_MAP: Record<string, any> = {
 export function StudentDashboard({ initialModules }: StudentDashboardProps) {
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const { globalXp, globalLevel } = useGamification();
+
+    const [statsOpen, setStatsOpen] = useState(() => {
+        if (typeof window === 'undefined') return true;
+        const saved = localStorage.getItem('aula-it:student-dashboard:stats-open');
+        return saved === null ? true : saved === 'true';
+    });
+    useEffect(() => {
+        localStorage.setItem('aula-it:student-dashboard:stats-open', String(statsOpen));
+    }, [statsOpen]);
 
     return (
         <div className="flex flex-col gap-10">
@@ -85,45 +96,56 @@ export function StudentDashboard({ initialModules }: StudentDashboardProps) {
                 </CardContent>
             </Card>
 
-            {/* Stats Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
-                <Card className="bg-surface-dark border-border-subtle shadow-sm flex flex-col justify-between p-6">
-                    <div className="flex items-center gap-4">
-                        <div className="size-10 rounded-lg bg-accent-blue/10 flex items-center justify-center text-accent-blue">
-                            <BookOpen className="size-5" />
-                        </div>
-                        <div className="space-y-0.5">
-                            <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Módulos Matriculados</p>
-                            <h3 className="text-2xl font-bold text-foreground font-mono">{initialModules.length}</h3>
-                        </div>
+            {/* Stats */}
+            <div>
+                <button
+                    onClick={() => setStatsOpen(!statsOpen)}
+                    className="flex items-center gap-2 text-xs font-bold text-text-muted hover:text-foreground transition-colors mb-4 group"
+                >
+                    <ChevronDown className={cn("size-4 transition-transform", !statsOpen && "-rotate-90")} />
+                    <span className="uppercase tracking-widest">Estadísticas</span>
+                </button>
+                {statsOpen && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
+                        <Card className="bg-surface-dark border-border-subtle shadow-sm flex flex-col justify-between p-6">
+                            <div className="flex items-center gap-4">
+                                <div className="size-10 rounded-lg bg-accent-blue/10 flex items-center justify-center text-accent-blue">
+                                    <BookOpen className="size-5" />
+                                </div>
+                                <div className="space-y-0.5">
+                                    <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Módulos Matriculados</p>
+                                    <h3 className="text-2xl font-bold text-foreground font-mono">{initialModules.length}</h3>
+                                </div>
+                            </div>
+                        </Card>
+                        <Card className="bg-surface-dark border-border-subtle shadow-sm flex flex-col justify-between p-6">
+                            <div className="flex items-center gap-4">
+                                <div className="size-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500">
+                                    <Clock className="size-5" />
+                                </div>
+                                <div className="space-y-0.5">
+                                    <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Módulos en Curso</p>
+                                    <h3 className="text-2xl font-bold text-foreground font-mono">
+                                        {initialModules.filter(m => m.status === 'active').length}
+                                    </h3>
+                                </div>
+                            </div>
+                        </Card>
+                        <Card className="bg-surface-dark border-border-subtle shadow-sm flex flex-col justify-between p-6">
+                            <div className="flex items-center gap-4">
+                                <div className="size-10 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-500">
+                                    <CheckCircle2 className="size-5" />
+                                </div>
+                                <div className="space-y-0.5">
+                                    <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Módulos Completados</p>
+                                    <h3 className="text-2xl font-bold text-foreground font-mono">
+                                        {initialModules.filter(m => m.status === 'completed').length}
+                                    </h3>
+                                </div>
+                            </div>
+                        </Card>
                     </div>
-                </Card>
-                <Card className="bg-surface-dark border-border-subtle shadow-sm flex flex-col justify-between p-6">
-                    <div className="flex items-center gap-4">
-                        <div className="size-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500">
-                            <Clock className="size-5" />
-                        </div>
-                        <div className="space-y-0.5">
-                            <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Módulos en Curso</p>
-                            <h3 className="text-2xl font-bold text-foreground font-mono">
-                                {initialModules.filter(m => m.status === 'active' || !m.status).length}
-                            </h3>
-                        </div>
-                    </div>
-                </Card>
-                <Card className="bg-surface-dark border-border-subtle shadow-sm flex flex-col justify-between p-6">
-                    <div className="flex items-center gap-4">
-                        <div className="size-10 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-500">
-                            <CheckCircle2 className="size-5" />
-                        </div>
-                        <div className="space-y-0.5">
-                            <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Módulos Completados</p>
-                            <h3 className="text-2xl font-bold text-foreground font-mono">
-                                {initialModules.filter(m => m.status === 'completed').length}
-                            </h3>
-                        </div>
-                    </div>
-                </Card>
+                )}
             </div>
 
             {/* Seccion: Modulos Activos */}

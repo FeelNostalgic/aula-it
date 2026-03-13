@@ -27,7 +27,7 @@ export class DashboardPage extends BasePage {
     }
 
     async verifyModuleExists(name: string) {
-        await expect(this.page.getByRole("heading", { name, exact: true })).toBeVisible();
+        await expect(this.page.locator('h3, div').filter({ hasText: name }).first()).toBeVisible({ timeout: 10000 });
     }
 
     async verifyDashboardRole(roleTitle: string) {

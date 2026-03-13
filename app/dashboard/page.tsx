@@ -40,6 +40,7 @@ export default async function DashboardPage() {
           id,
           activities (
             id,
+            title,
             phases:activity_phases (
               steps:activity_steps (
                 id,
@@ -114,7 +115,7 @@ export default async function DashboardPage() {
         .filter(Boolean);
 
       // Flatten all steps for this module
-      const moduleSteps: { id: string; completion_mode: string; due_date: string | null }[] = [];
+      const moduleSteps: { id: string; completion_mode: string; due_date: string | null; activity_name: string }[] = [];
       for (const unit of (mod.units || []) as any[]) {
         for (const activity of (unit.activities || []) as any[]) {
           for (const phase of (activity.phases || []) as any[]) {
@@ -123,6 +124,8 @@ export default async function DashboardPage() {
                 id: step.id,
                 completion_mode: step.completion_mode || "none",
                 due_date: step.due_date || null,
+                activity_name: activity.title || "Sin nombre",
+                step_title: step.title || "Sin nombre",
               });
             }
           }
@@ -158,7 +161,7 @@ export default async function DashboardPage() {
         const d = new Date(step.due_date);
         if (d > now && (!earliestDue || d < earliestDue)) {
           earliestDue = d;
-          nextDueStep = { title: step.id, due_date: step.due_date };
+          nextDueStep = { title: step.step_title, due_date: step.due_date };
         }
       }
 
@@ -208,10 +211,13 @@ export default async function DashboardPage() {
           status,
           activities (
             id,
+            title,
             activity_phases (
               activity_steps (
                 id,
-                completion_mode
+                title,
+                completion_mode,
+                due_date
               )
             )
           )
@@ -264,7 +270,7 @@ export default async function DashboardPage() {
 
         const allActivitiesDone = unitActivities.every((activity: any) => {
           // Only count steps where completion_mode !== 'none'
-          const countableSteps: Array<{ id: string; completion_mode: string }> = [];
+          const countableSteps: Array<{ id: string; title: string; completion_mode: string }> = [];
           activity.activity_phases?.forEach((phase: any) => {
             phase.activity_steps?.forEach((step: any) => {
               if (step.completion_mode !== 'none') {
@@ -291,11 +297,32 @@ export default async function DashboardPage() {
         }
       });
 
+      // Find next_due_step for student
+      const now = new Date();
+      let nextDueStep: { title: string; due_date: string } | null = null;
+      let earliestDue: Date | null = null;
+
+      for (const unit of (m.units || [])) {
+        for (const activity of (unit.activities || [])) {
+          for (const phase of (activity.activity_phases || [])) {
+            for (const step of (phase.activity_steps || [])) {
+              if (step.completion_mode !== 'required' || !step.due_date) continue;
+              const d = new Date(step.due_date);
+              if (d > now && (!earliestDue || d < earliestDue)) {
+                earliestDue = d;
+                nextDueStep = { title: step.title || activity.title || "Sin nombre", due_date: step.due_date };
+              }
+            }
+          }
+        }
+      }
+
       return {
         ...m,
         module_xp: e.module_xp || 0,
         total_units: validUnits.length,
-        completed_units: completedUnitsCount
+        completed_units: completedUnitsCount,
+        next_due_step: nextDueStep,
       };
     })
     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) || [];

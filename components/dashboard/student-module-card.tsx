@@ -12,6 +12,7 @@ import { useModuleGamification } from "@/hooks/use-gamification";
 import { cn } from "@/lib/utils";
 import { ModuleRank } from "@/lib/gamification";
 import { RankBadge } from "./rank-badge";
+import { NextDueDisplay } from "./next-due-display";
 
 const ICON_MAP: Record<string, any> = {
     BookOpen,
@@ -35,13 +36,13 @@ type EnrichedModule = {
     total_units?: number;
     completed_units?: number;
     module_xp?: number;
+    next_due_step?: { title: string; due_date: string } | null;
 };
 
 interface StudentModuleCardProps {
     module: EnrichedModule;
     viewMode: "grid" | "list";
 }
-
 
 export function StudentModuleCard({ module, viewMode }: StudentModuleCardProps) {
     const { moduleXp, moduleRank } = useModuleGamification(module.id);
@@ -113,6 +114,10 @@ export function StudentModuleCard({ module, viewMode }: StudentModuleCardProps) 
                             </div>
                             <Progress value={progressPercent} className="h-1 shadow-inner bg-surface" />
                         </div>
+                        {/* Próxima entrega */}
+                        <div className="hidden lg:block">
+                            <NextDueDisplay nextDueStep={module.next_due_step} viewMode="list" />
+                        </div>
                         <div className="w-24 text-right">
                             <Badge variant="outline" className={`${statusConfig.bg} ${statusConfig.border} ${statusConfig.color} text-[9px] shadow-sm`}>
                                 {statusConfig.label}
@@ -144,6 +149,11 @@ export function StudentModuleCard({ module, viewMode }: StudentModuleCardProps) 
                                 {statusConfig.label}
                             </Badge>
                         )}
+                    </div>
+
+                    {/* Próxima entrega */}
+                    <div className="border-t border-border-subtle pt-3 mt-3">
+                        <NextDueDisplay nextDueStep={module.next_due_step} viewMode="grid" />
                     </div>
                 </div>
             )}

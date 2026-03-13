@@ -33,6 +33,7 @@ import {
     SortableContext,
     useSortable,
     verticalListSortingStrategy,
+    rectSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ import { CreateModuleDialog } from "./create-module-dialog";
 import { reorderModules } from "@/app/dashboard/actions";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { NextDueDisplay } from "./next-due-display";
 
 const ICON_MAP: Record<string, any> = {
     BookOpen,
@@ -165,12 +167,12 @@ function SortableModuleListItem({ module }: { module: Module }) {
             <button
                 {...attributes}
                 {...listeners}
-                className="hidden md:flex items-center justify-center size-8 rounded-lg text-text-muted/30 hover:text-text-muted hover:bg-surface transition-colors cursor-grab active:cursor-grabbing shrink-0"
+                className="flex items-center justify-center size-8 rounded-lg text-text-muted hover:text-foreground hover:bg-surface transition-colors cursor-grab active:cursor-grabbing shrink-0 touch-none"
                 tabIndex={-1}
                 aria-label="Arrastrar para reordenar"
                 onClick={(e) => e.stopPropagation()}
             >
-                <GripVertical className="size-4" />
+                <GripVertical className="size-5" />
             </button>
 
             {/* Clickable content — navigates without Link to avoid DnD conflict */}
@@ -198,6 +200,11 @@ function SortableModuleListItem({ module }: { module: Module }) {
                         <span className="text-xs font-bold text-foreground">{progress}%</span>
                     </div>
                     <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
+                </div>
+
+                {/* Col: Próxima entrega */}
+                <div className="hidden lg:block">
+                    <NextDueDisplay nextDueStep={module.next_due_step} viewMode="list" />
                 </div>
 
                 {/* Col 3: Students */}
@@ -234,6 +241,129 @@ function SortableModuleListItem({ module }: { module: Module }) {
                     )}
                 </div>
             </div>
+        </div>
+    );
+}
+
+// ─── SortableModuleGridItem ───────────────────────────────────────────────────
+
+function SortableModuleGridItem({ module }: { module: Module }) {
+    const router = useRouter();
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: module.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : undefined,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    const Icon = ICON_MAP[module.icon] || BookOpen;
+    const progress = module.progress ?? 0;
+    const studentsCount = module.enrolled_students?.length || 0;
+    const studentAvatars = module.enrolled_students
+        ?.map(e => e.student?.avatar_url)
+        .filter(Boolean)
+        .slice(0, 3) || [];
+    const statusConfig = STATUS_CONFIG[module.status || "pending"];
+
+    return (
+        <div ref={setNodeRef} style={style} className={cn("h-full", isDragging && "scale-[1.01]")}>
+            <Card className="bg-surface-dark border-border-subtle hover:border-accent-blue/50 hover:shadow-lg hover:shadow-accent-blue/5 transition-all group overflow-hidden cursor-pointer flex flex-col h-full rounded-2xl">
+                <div className="p-6 flex flex-col h-full">
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-5">
+                        <div className="size-12 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center text-accent-blue group-hover:scale-110 group-hover:bg-accent-blue/10 transition-all">
+                            <Icon className="size-6" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {statusConfig && (
+                                <Badge
+                                    variant="outline"
+                                    className={`${statusConfig.border} ${statusConfig.bg} ${statusConfig.color} gap-1.5 shadow-sm`}
+                                >
+                                    <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
+                                    {statusConfig.label}
+                                </Badge>
+                            )}
+                            {/* Drag handle */}
+                            <button
+                                {...attributes}
+                                {...listeners}
+                                className="flex items-center justify-center size-7 rounded-lg text-text-muted hover:text-foreground hover:bg-surface transition-colors cursor-grab active:cursor-grabbing shrink-0 touch-none"
+                                tabIndex={-1}
+                                aria-label="Arrastrar para reordenar"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <GripVertical className="size-4" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Content */}
+                    <div
+                        className="flex flex-col flex-1 cursor-pointer"
+                        onClick={() => router.push(`/dashboard/modules/${module.id}`)}
+                    >
+                        <div className="mb-6">
+                            <h3 className="text-lg font-bold text-foreground tracking-tight group-hover:text-accent-blue transition-colors line-clamp-1">
+                                {module.name}
+                            </h3>
+                            <p className="text-sm text-text-muted mt-1.5 line-clamp-2">
+                                {module.description || "Sin descripción proporcionada para este módulo."}
+                            </p>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="mt-auto space-y-4 pt-4 border-t border-border-subtle/50">
+                            <div className="flex items-end justify-between">
+                                <div className="space-y-1.5">
+                                    <div className="text-[10px] uppercase tracking-widest font-mono font-bold text-text-muted">
+                                        Progreso Global
+                                    </div>
+                                    <div className="flex items-baseline gap-1 font-bold text-foreground">
+                                        <span className="text-2xl leading-none">{progress}</span>
+                                        <span className="text-sm text-text-muted">%</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col items-end gap-1.5">
+                                    <div className="flex -space-x-2">
+                                        {studentAvatars.length > 0 ? (
+                                            studentAvatars.map((url, i) => (
+                                                <div key={i} className="size-6 rounded-full bg-surface-dark border-2 border-border-subtle flex items-center justify-center overflow-hidden z-20">
+                                                    <img src={url!} alt="Student" className="size-full object-cover" />
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="size-6 rounded-full bg-surface-dark border-2 border-border-subtle flex items-center justify-center z-10">
+                                                <Users className="size-3 text-text-muted opacity-50" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <span className="text-[10px] font-bold text-text-muted tracking-wider uppercase">
+                                        {studentsCount} {studentsCount === 1 ? "Alumno" : "Alumnos"}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
+
+                            {/* Next delivery box — always rendered */}
+                            <div className="mt-4">
+                                <NextDueDisplay nextDueStep={module.next_due_step} viewMode="grid" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </Card>
         </div>
     );
 }
@@ -450,8 +580,7 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats }
                     <CreateModuleDialog />
                 </Card>
 
-            ) : viewMode === "list" ? (
-                // ── List view with DnD ────────────────────────────────────────────
+            ) : (
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -459,141 +588,49 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats }
                 >
                     <SortableContext
                         items={modules.map(m => m.id)}
-                        strategy={verticalListSortingStrategy}
+                        strategy={viewMode === "list" ? verticalListSortingStrategy : rectSortingStrategy}
                     >
-                        <div className="flex flex-col gap-4">
-                            {modules.map((module) => (
-                                <SortableModuleListItem key={module.id} module={module} />
-                            ))}
+                        {viewMode === "list" ? (
+                            // ── List view ────────────────────────────────────────────
+                            <div className="flex flex-col gap-4">
+                                {modules.map((module) => (
+                                    <SortableModuleListItem key={module.id} module={module} />
+                                ))}
 
-                            <CreateModuleDialog>
-                                <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-xl p-4 flex items-center gap-4 cursor-pointer transition-all group hover:bg-accent-blue/5">
-                                    <div className="size-10 rounded-lg bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all shrink-0">
-                                        <Plus className="size-4 text-text-muted group-hover:text-accent-blue transition-colors" />
-                                    </div>
-                                    <div className="text-left">
-                                        <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nuevo Módulo</p>
-                                        <p className="text-xs text-text-muted">Crear módulo formativo</p>
-                                    </div>
-                                </button>
-                            </CreateModuleDialog>
-                        </div>
+                                <CreateModuleDialog>
+                                    <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-xl p-4 flex items-center gap-4 cursor-pointer transition-all group hover:bg-accent-blue/5">
+                                        <div className="size-10 rounded-lg bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all shrink-0">
+                                            <Plus className="size-4 text-text-muted group-hover:text-accent-blue transition-colors" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nuevo Módulo</p>
+                                            <p className="text-xs text-text-muted">Crear módulo formativo</p>
+                                        </div>
+                                    </button>
+                                </CreateModuleDialog>
+                            </div>
+                        ) : (
+                            // ── Grid view ────────────────────────────────────────────
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {modules.map((module) => (
+                                    <SortableModuleGridItem key={module.id} module={module} />
+                                ))}
+
+                                <CreateModuleDialog>
+                                    <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all group min-h-[180px] hover:bg-accent-blue/5">
+                                        <div className="size-12 rounded-full bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all">
+                                            <Plus className="size-5 text-text-muted group-hover:text-accent-blue transition-colors" />
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nuevo Módulo</p>
+                                            <p className="text-xs text-text-muted mt-0.5">Crear módulo formativo</p>
+                                        </div>
+                                    </button>
+                                </CreateModuleDialog>
+                            </div>
+                        )}
                     </SortableContext>
                 </DndContext>
-
-            ) : (
-                // ── Grid view (no DnD) ────────────────────────────────────────────
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {modules.map((module) => {
-                        const Icon = ICON_MAP[module.icon] || BookOpen;
-                        const progress = module.progress ?? 0;
-                        const studentsCount = module.enrolled_students?.length || 0;
-                        const studentAvatars = module.enrolled_students
-                            ?.map(e => e.student?.avatar_url)
-                            .filter(Boolean)
-                            .slice(0, 3) || [];
-                        const statusConfig = STATUS_CONFIG[module.status || "pending"];
-
-                        return (
-                            <Link href={`/dashboard/modules/${module.id}`} key={module.id} className="block h-full">
-                                <Card className="bg-surface-dark border-border-subtle hover:border-accent-blue/50 hover:shadow-lg hover:shadow-accent-blue/5 transition-all group overflow-hidden cursor-pointer flex flex-col h-full rounded-2xl">
-                                    <div className="p-6 flex flex-col h-full">
-                                        {/* Header */}
-                                        <div className="flex items-start justify-between mb-5">
-                                            <div className="size-12 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center text-accent-blue group-hover:scale-110 group-hover:bg-accent-blue/10 transition-all">
-                                                <Icon className="size-6" />
-                                            </div>
-                                            {statusConfig && (
-                                                <Badge
-                                                    variant="outline"
-                                                    className={`${statusConfig.border} ${statusConfig.bg} ${statusConfig.color} gap-1.5 shadow-sm`}
-                                                >
-                                                    <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
-                                                    {statusConfig.label}
-                                                </Badge>
-                                            )}
-                                        </div>
-
-                                        {/* Content */}
-                                        <div className="mb-6">
-                                            <h3 className="text-lg font-bold text-foreground tracking-tight group-hover:text-accent-blue transition-colors line-clamp-1">
-                                                {module.name}
-                                            </h3>
-                                            <p className="text-sm text-text-muted mt-1.5 line-clamp-2">
-                                                {module.description || "Sin descripción proporcionada para este módulo."}
-                                            </p>
-                                        </div>
-
-                                        {/* Footer */}
-                                        <div className="mt-auto space-y-4 pt-4 border-t border-border-subtle/50 relative">
-                                            <div className="flex items-end justify-between">
-                                                <div className="space-y-1.5">
-                                                    <div className="text-[10px] uppercase tracking-widest font-mono font-bold text-text-muted">
-                                                        Progreso Global
-                                                    </div>
-                                                    <div className="flex items-baseline gap-1 font-bold text-foreground">
-                                                        <span className="text-2xl leading-none">{progress}</span>
-                                                        <span className="text-sm text-text-muted">%</span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex flex-col items-end gap-1.5">
-                                                    <div className="flex -space-x-2">
-                                                        {studentAvatars.length > 0 ? (
-                                                            studentAvatars.map((url, i) => (
-                                                                <div key={i} className="size-6 rounded-full bg-surface-dark border-2 border-border-subtle flex items-center justify-center overflow-hidden z-20">
-                                                                    <img src={url!} alt="Student" className="size-full object-cover" />
-                                                                </div>
-                                                            ))
-                                                        ) : (
-                                                            <div className="size-6 rounded-full bg-surface-dark border-2 border-border-subtle flex items-center justify-center z-10">
-                                                                <Users className="size-3 text-text-muted opacity-50" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <span className="text-[10px] font-bold text-text-muted tracking-wider uppercase">
-                                                        {studentsCount} {studentsCount === 1 ? "Alumno" : "Alumnos"}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
-
-                                            {/* Next delivery box — only rendered when next_due_step exists */}
-                                            {module.next_due_step && (
-                                                <div className="bg-[#050A0D] border border-border-subtle rounded-xl p-3 flex items-center gap-3 mt-4 group-hover:border-accent-blue/30 transition-colors">
-                                                    <div className="size-8 rounded-lg bg-surface flex items-center justify-center shrink-0">
-                                                        <Terminal className="size-4 text-text-muted group-hover:text-accent-blue transition-colors" />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="text-[10px] uppercase tracking-widest font-bold text-text-muted mb-0.5">
-                                                            Próxima entrega
-                                                        </div>
-                                                        <div className="text-xs font-bold text-foreground truncate group-hover:text-accent-blue/90 transition-colors">
-                                                            {module.next_due_step.title}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </Card>
-                            </Link>
-                        );
-                    })}
-
-                    <CreateModuleDialog>
-                        <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all group min-h-[180px] hover:bg-accent-blue/5">
-                            <div className="size-12 rounded-full bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all">
-                                <Plus className="size-5 text-text-muted group-hover:text-accent-blue transition-colors" />
-                            </div>
-                            <div className="text-center">
-                                <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nuevo Módulo</p>
-                                <p className="text-xs text-text-muted mt-0.5">Crear módulo formativo</p>
-                            </div>
-                        </button>
-                    </CreateModuleDialog>
-                </div>
             )}
         </div>
     );
