@@ -20,7 +20,7 @@ export class ModuleDetailPage extends BasePage {
         this.breadcrumbInicio = page.locator('header a:has-text("Inicio")');
         this.breadcrumbModuleName = page.locator("header");
         this.addUnitButton = page.locator('button:has-text("AÑADIR UNIDAD DIDÁCTICA")').first();
-        this.addStudentsButton = page.locator('button:has-text("AÑADIR ALUMNOS")');
+        this.addStudentsButton = page.locator('button:has-text("MATRICULAR ALUMNO")');
         this.unitCards = page.locator('[class*="bg-surface-dark"][class*="border-border-subtle"]').filter({ has: page.locator("h3") });
         this.emptyState = page.locator('text=No hay unidades registradas');
         this.tabDashboard = page.getByRole("tab", { name: /DASHBOARD/i });

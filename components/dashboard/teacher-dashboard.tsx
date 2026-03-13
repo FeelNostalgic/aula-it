@@ -435,6 +435,35 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats }
     return (
         <div className="flex flex-col gap-10">
 
+            {/* ── Header Section ─────────────────────────────────────────────────── */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div className="space-y-1">
+                    <h2 className="text-2xl font-bold tracking-tight text-foreground">Gestión de Módulos</h2>
+                    <p className="text-sm font-medium text-text-muted">Supervisión general de tus cursos y contenidos.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
+                        <Button
+                            variant={viewMode === "grid" ? "secondary" : "ghost"}
+                            size="icon"
+                            onClick={() => setViewMode("grid")}
+                            className={`size-8 rounded-md ${viewMode === "grid" ? "bg-background shadow-sm text-foreground" : "text-text-muted"}`}
+                        >
+                            <LayoutGrid className="size-4" />
+                        </Button>
+                        <Button
+                            variant={viewMode === "list" ? "secondary" : "ghost"}
+                            size="icon"
+                            onClick={() => setViewMode("list")}
+                            className={`size-8 rounded-md ${viewMode === "list" ? "bg-background shadow-sm text-foreground" : "text-text-muted"}`}
+                        >
+                            <List className="size-4" />
+                        </Button>
+                    </div>
+                    <CreateModuleDialog />
+                </div>
+            </div>
+
             {/* ── Stats Collapsible ──────────────────────────────────────────────── */}
             <div className="bg-surface-dark border border-border-subtle rounded-2xl overflow-hidden shadow-sm">
                 <button
@@ -536,35 +565,6 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats }
 
                     </div>
                 )}
-            </div>
-
-            {/* ── Header Section ─────────────────────────────────────────────────── */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div className="space-y-1">
-                    <h2 className="text-2xl font-bold tracking-tight text-foreground">Gestión de Módulos</h2>
-                    <p className="text-sm font-medium text-text-muted">Supervisión general de tus cursos y contenidos.</p>
-                </div>
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
-                        <Button
-                            variant={viewMode === "grid" ? "secondary" : "ghost"}
-                            size="icon"
-                            onClick={() => setViewMode("grid")}
-                            className={`size-8 rounded-md ${viewMode === "grid" ? "bg-background shadow-sm text-foreground" : "text-text-muted"}`}
-                        >
-                            <LayoutGrid className="size-4" />
-                        </Button>
-                        <Button
-                            variant={viewMode === "list" ? "secondary" : "ghost"}
-                            size="icon"
-                            onClick={() => setViewMode("list")}
-                            className={`size-8 rounded-md ${viewMode === "list" ? "bg-background shadow-sm text-foreground" : "text-text-muted"}`}
-                        >
-                            <List className="size-4" />
-                        </Button>
-                    </div>
-                    <CreateModuleDialog />
-                </div>
             </div>
 
             {/* ── Module List / Grid ──────────────────────────────────────────────── */}

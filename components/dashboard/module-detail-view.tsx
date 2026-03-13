@@ -248,20 +248,6 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                         </p>
                     </div>
                 </div>
-                {isTeacher && (
-                    <div className="flex items-center gap-3">
-                        <EnrollStudentDialog moduleId={module.id}>
-                            <Button
-                                variant="outline"
-                                className="font-mono font-bold tracking-widest text-[10px] h-9 px-4 border-border-subtle text-text-muted hover:text-foreground"
-                            >
-                                <Users className="mr-2 size-4" />
-                                AÑADIR ALUMNOS
-                            </Button>
-                        </EnrollStudentDialog>
-                        <CreateUnitDialog moduleId={module.id} />
-                    </div>
-                )}
             </div>
 
             {/* Tabs */}
@@ -311,25 +297,35 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                 {initialUnits.length}
                             </Badge>
                         </div>
-                        <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
-                            <Button
-                                variant={viewMode === "grid" ? "secondary" : "ghost"}
-                                size="icon"
-                                onClick={() => setViewMode("grid")}
-                                aria-label="Vista de cuadrícula"
-                                className={`size-8 rounded-md ${viewMode === "grid" ? "bg-background shadow-sm text-foreground" : "text-text-muted"}`}
-                            >
-                                <LayoutGrid className="size-4" />
-                            </Button>
-                            <Button
-                                variant={viewMode === "list" ? "secondary" : "ghost"}
-                                size="icon"
-                                onClick={() => setViewMode("list")}
-                                aria-label="Vista de lista"
-                                className={`size-8 rounded-md ${viewMode === "list" ? "bg-background shadow-sm text-foreground" : "text-text-muted"}`}
-                            >
-                                <List className="size-4" />
-                            </Button>
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
+                                <Button
+                                    variant={viewMode === "grid" ? "secondary" : "ghost"}
+                                    size="icon"
+                                    onClick={() => setViewMode("grid")}
+                                    aria-label="Vista de cuadrícula"
+                                    className={`size-8 rounded-md ${viewMode === "grid" ? "bg-background shadow-sm text-foreground" : "text-text-muted"}`}
+                                >
+                                    <LayoutGrid className="size-4" />
+                                </Button>
+                                <Button
+                                    variant={viewMode === "list" ? "secondary" : "ghost"}
+                                    size="icon"
+                                    onClick={() => setViewMode("list")}
+                                    aria-label="Vista de lista"
+                                    className={`size-8 rounded-md ${viewMode === "list" ? "bg-background shadow-sm text-foreground" : "text-text-muted"}`}
+                                >
+                                    <List className="size-4" />
+                                </Button>
+                            </div>
+                            {isTeacher && (
+                                <CreateUnitDialog moduleId={module.id}>
+                                    <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4">
+                                        <Plus className="mr-2 size-4" />
+                                        AÑADIR UNIDAD DIDÁCTICA
+                                    </Button>
+                                </CreateUnitDialog>
+                            )}
                         </div>
                     </div>
 

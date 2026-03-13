@@ -159,7 +159,7 @@ export default async function ModulePage({ params }: { params: { id: string } })
         let earliestDue: Date | null = null;
 
         activitiesWithSubmissions.forEach(activity => {
-            activity.countable_steps.forEach(step => {
+            (activity.countable_steps as any[]).forEach(step => {
                 if (step.completion_mode !== 'required' || !step.due_date) return;
                 const d = new Date(step.due_date);
                 if (d > now && (!earliestDue || d < earliestDue)) {

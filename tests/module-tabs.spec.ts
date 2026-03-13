@@ -68,7 +68,7 @@ test.describe("Module Details Tabs", () => {
         await expect(page.getByText('Aún no hay alumnos matriculados en este módulo.')).toBeVisible();
 
         // Click adding students button
-        await page.getByRole('button', { name: 'AÑADIR ALUMNOS', exact: true }).click();
+        await page.getByRole('button', { name: 'MATRICULAR ALUMNO', exact: true }).click();
 
         // Verify the dialog
         const dialog = page.getByRole('dialog');

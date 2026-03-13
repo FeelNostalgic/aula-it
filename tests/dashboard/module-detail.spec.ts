@@ -186,7 +186,7 @@ test.describe("Module Detail", () => {
             await expect(moduleDetailPage.tabAlumnos).toHaveAttribute("data-state", "active");
 
             // Open the Enroll Student Dialog
-            await page.getByRole("button", { name: /Añadir Alumnos/i }).click();
+            await moduleDetailPage.addStudentsButton.click();
             const dialog = page.getByRole("dialog");
             await expect(dialog).toBeVisible();
 

@@ -167,7 +167,7 @@ export default async function DashboardPage() {
         const d = new Date(step.due_date);
         if (d > now && (!earliestDue || d < earliestDue)) {
           earliestDue = d;
-          nextDueStep = { title: step.step_title, due_date: step.due_date };
+          nextDueStep = { title: `${step.activity_name} - ${step.step_title}`, due_date: step.due_date };
         }
       }
 
@@ -316,7 +316,7 @@ export default async function DashboardPage() {
               const d = new Date(step.due_date);
               if (d > now && (!earliestDue || d < earliestDue)) {
                 earliestDue = d;
-                nextDueStep = { title: step.title || activity.title || "Sin nombre", due_date: step.due_date };
+                nextDueStep = { title: `${activity.title} - ${step.title || "Sin nombre"}`, due_date: step.due_date };
               }
             }
           }

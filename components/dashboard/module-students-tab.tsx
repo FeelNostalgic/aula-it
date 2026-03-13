@@ -84,9 +84,9 @@ export default function ModuleStudentsTab({ moduleId, initialStudents }: ModuleS
                     />
                 </div>
                 <EnrollStudentDialog moduleId={moduleId}>
-                    <Button className="bg-accent-blue hover:bg-accent-blue/90 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2">
-                        <Plus className="size-4" />
-                        Matricular Alumno
+                    <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4">
+                        <Plus className="mr-2 size-4" />
+                        MATRICULAR ALUMNO
                     </Button>
                 </EnrollStudentDialog>
             </div>
