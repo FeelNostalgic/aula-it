@@ -3,7 +3,8 @@
 import Link from "next/link";
 import {
     BookOpen, Terminal, Database, Globe, Network, Brain, Code,
-    Crown, Gem, Star, Medal, Shield, Target, Hexagon, Zap
+    Crown, Gem, Star, Medal, Shield, Target, Hexagon, Zap,
+    Cpu, Smartphone, Monitor, Cloud
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,11 @@ const ICON_MAP: Record<string, any> = {
     Network,
     Brain,
     Code,
+    Cpu,
+    Shield,
+    Smartphone,
+    Monitor,
+    Cloud,
 };
 
 
@@ -30,6 +36,8 @@ type EnrichedModule = {
     name: string;
     description: string | null;
     icon: string;
+    icon_style?: string;
+    custom_icon_url?: string | null;
     created_at: string;
     teacher_id: string;
     status: "active" | "completed" | "pending";
@@ -42,6 +50,32 @@ type EnrichedModule = {
 interface StudentModuleCardProps {
     module: EnrichedModule;
     viewMode: "grid" | "list";
+}
+
+function ModuleIcon({ module, className, viewMode }: { module: any; className?: string; viewMode: "grid" | "list" }) {
+    const Icon = ICON_MAP[module.icon] || BookOpen;
+
+    if (module.custom_icon_url) {
+        return (
+            <div className={cn(
+                "rounded-lg overflow-hidden flex items-center justify-center shrink-0 bg-surface border border-border-subtle",
+                viewMode === "list" ? "size-10" : "size-12",
+                className
+            )}>
+                <img src={module.custom_icon_url} alt={module.name} className="size-full object-cover" />
+            </div>
+        );
+    }
+
+    return (
+        <div className={cn(
+            "size-12 rounded-xl bg-surface border border-border-subtle flex items-center justify-center text-accent-blue group-hover:bg-accent-blue/10 transition-colors shrink-0",
+            viewMode === "list" && "size-10 rounded-lg",
+            className
+        )}>
+            <Icon className={viewMode === "list" ? "size-4" : "size-5"} />
+        </div>
+    );
 }
 
 export function StudentModuleCard({ module, viewMode }: StudentModuleCardProps) {
@@ -80,12 +114,7 @@ export function StudentModuleCard({ module, viewMode }: StudentModuleCardProps) 
             )}>
                 {/* Left side: Icon & Text */}
                 <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className={cn(
-                        "size-12 rounded-xl bg-surface border border-border-subtle flex items-center justify-center text-accent-blue group-hover:bg-accent-blue/10 transition-colors shrink-0",
-                        viewMode === "list" && "size-10 rounded-lg"
-                    )}>
-                        <Icon className={viewMode === "list" ? "size-4" : "size-5"} />
-                    </div>
+                    <ModuleIcon module={module} viewMode={viewMode} />
 
                     <div className="flex flex-col gap-1 min-w-0">
                         <div className="flex items-center gap-2">

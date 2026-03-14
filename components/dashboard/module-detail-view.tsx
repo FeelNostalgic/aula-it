@@ -11,6 +11,12 @@ import {
     Network,
     Database,
     Terminal,
+    Globe,
+    Cpu,
+    Shield,
+    Smartphone,
+    Monitor,
+    Cloud,
     Users,
     Settings,
     GraduationCap,
@@ -60,6 +66,12 @@ const ICON_MAP: Record<string, any> = {
     Network,
     Database,
     Terminal,
+    Globe,
+    Cpu,
+    Shield,
+    Smartphone,
+    Monitor,
+    Cloud,
 };
 
 type Module = {
@@ -67,6 +79,7 @@ type Module = {
     name: string;
     description: string | null;
     icon: string;
+    custom_icon_url?: string | null;
     created_at: string;
     teacher_id: string;
     status?: "active" | "completed" | "pending" | null;
@@ -215,9 +228,15 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
             {/* Module Header */}
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
                 <div className="flex items-start gap-5">
-                    <div className="size-14 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center text-accent-blue shrink-0">
-                        <ModuleIcon className="size-7" />
-                    </div>
+                    {module.custom_icon_url ? (
+                        <div className="size-14 rounded-xl overflow-hidden flex items-center justify-center shrink-0 bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]">
+                            <img src={module.custom_icon_url} alt={module.name} className="size-full object-cover p-2" />
+                        </div>
+                    ) : (
+                        <div className="size-14 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center text-accent-blue shrink-0">
+                            <ModuleIcon className="size-7" />
+                        </div>
+                    )}
                     <div className="space-y-1.5">
                         <div className="flex items-center gap-3">
                             <h1 className="text-2xl font-bold tracking-tight text-foreground">{module.name}</h1>
@@ -331,8 +350,12 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
 
                     {units.length === 0 ? (
                         <Card className="bg-surface-dark border-border-subtle border-dashed p-12 text-center flex flex-col items-center gap-4">
-                            <div className="size-12 rounded-full bg-accent-blue/10 flex items-center justify-center">
-                                <BookOpen className="size-6 text-accent-blue" />
+                            <div className="size-12 rounded-full bg-accent-blue/10 flex items-center justify-center overflow-hidden">
+                                {module.custom_icon_url ? (
+                                    <img src={module.custom_icon_url} alt={module.name} className="size-full object-cover p-2" />
+                                ) : (
+                                    <ModuleIcon className="size-6 text-accent-blue" />
+                                )}
                             </div>
                             <div className="space-y-1">
                                 <h3 className="font-bold text-foreground">No hay unidades registradas</h3>

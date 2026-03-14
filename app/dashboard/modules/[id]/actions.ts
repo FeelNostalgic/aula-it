@@ -184,6 +184,9 @@ export async function updateModuleSettings(moduleId: string, formData: FormData)
     const name = formData.get("name") as string;
     const description = formData.get("description") as string;
     const status = formData.get("status") as string;
+    const icon = formData.get("icon") as string;
+    const icon_style = formData.get("icon_style") as string;
+    const custom_icon_url = formData.get("custom_icon_url") as string;
 
     if (!name?.trim()) {
         return { error: "Module name cannot be empty" };
@@ -194,7 +197,10 @@ export async function updateModuleSettings(moduleId: string, formData: FormData)
         .update({
             name: name.trim(),
             description: description ? description.trim() : null,
-            status: (status as any) || 'pending'
+            status: (status as any) || 'pending',
+            icon: icon || 'BookOpen',
+            icon_style: icon_style || 'default',
+            custom_icon_url: custom_icon_url || null,
         })
         .eq("id", moduleId)
         .eq("teacher_id", user.id);

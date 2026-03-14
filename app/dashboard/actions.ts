@@ -27,6 +27,8 @@ export async function createModule(prevState: any, formData: FormData) {
     const name = formData.get("name") as string;
     const description = formData.get("description") as string;
     const icon = formData.get("icon") as string || "BookOpen";
+    const icon_style = formData.get("icon_style") as string || "default";
+    const custom_icon_url = formData.get("custom_icon_url") as string || null;
 
     if (!name) {
         return { error: "Module name is required" };
@@ -38,8 +40,32 @@ export async function createModule(prevState: any, formData: FormData) {
             name,
             description,
             icon,
+            icon_style,
+            custom_icon_url,
             teacher_id: user.id
         });
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    revalidatePath("/dashboard");
+    return { success: true };
+}
+
+export async function updateDashboardSettings(gridColumns: number) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return { error: "Not authenticated" };
+
+    const { error } = await supabase
+        .from("app_settings")
+        .upsert({
+            teacher_id: user.id,
+            grid_columns: gridColumns,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'teacher_id' });
 
     if (error) {
         return { error: error.message };

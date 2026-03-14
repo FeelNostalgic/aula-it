@@ -2,23 +2,28 @@
 
 import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
     LayoutGrid,
     List,
     Users,
     BookOpen,
-    Brain,
-    Code,
-    Network,
-    Database,
-    Terminal,
     Clock,
     Plus,
     GripVertical,
     ChevronDown,
     AlertTriangle,
     CalendarClock,
+    Globe,
+    Cpu,
+    Shield,
+    Smartphone,
+    Monitor,
+    Cloud,
+    Brain,
+    Code,
+    Network,
+    Database,
+    Terminal
 } from "lucide-react";
 import {
     DndContext,
@@ -37,22 +42,36 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CreateModuleDialog } from "./create-module-dialog";
-import { reorderModules } from "@/app/dashboard/actions";
+import { reorderModules, updateDashboardSettings } from "@/app/dashboard/actions";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { NextDueDisplay } from "./next-due-display";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
-const ICON_MAP: Record<string, any> = {
+export const ICON_MAP: Record<string, any> = {
     BookOpen,
     Brain,
     Code,
     Network,
     Database,
     Terminal,
+    Globe,
+    Cpu,
+    Shield,
+    Smartphone,
+    Monitor,
+    Cloud,
 };
 
 type Module = {
@@ -60,6 +79,7 @@ type Module = {
     name: string;
     description: string | null;
     icon: string;
+    custom_icon_url?: string | null;
     order_index?: number | null;
     created_at: string;
     teacher_id: string;
@@ -86,9 +106,8 @@ interface TeacherDashboardProps {
     initialModules: Module[];
     totalStudents: number;
     teacherStats?: TeacherStats;
+    gridColumns?: number;
 }
-
-// ─── Status config helper ─────────────────────────────────────────────────────
 
 const STATUS_CONFIG = {
     active: {
@@ -125,7 +144,29 @@ const STATUS_CONFIG = {
     },
 } as const;
 
-// ─── SortableModuleListItem ───────────────────────────────────────────────────
+function ModuleIcon({ module, className }: { module: Module; className?: string }) {
+    const Icon = ICON_MAP[module.icon] || BookOpen;
+
+    if (module.custom_icon_url) {
+        return (
+            <div className={cn(
+                "size-10 rounded-lg overflow-hidden flex items-center justify-center shrink-0 bg-surface border border-accent-blue/20",
+                className
+            )}>
+                <img src={module.custom_icon_url} alt={module.name} className="size-full object-cover" />
+            </div>
+        );
+    }
+
+    return (
+        <div className={cn(
+            "size-10 rounded-lg bg-surface border border-accent-blue/20 shadow-[0_0_10px_rgba(34,211,238,0.05)] flex items-center justify-center text-accent-blue group-hover:scale-110 transition-transform shrink-0",
+            className
+        )}>
+            <Icon className="size-5" />
+        </div>
+    );
+}
 
 function SortableModuleListItem({ module }: { module: Module }) {
     const router = useRouter();
@@ -145,7 +186,6 @@ function SortableModuleListItem({ module }: { module: Module }) {
         opacity: isDragging ? 0.5 : 1,
     };
 
-    const Icon = ICON_MAP[module.icon] || BookOpen;
     const progress = module.progress ?? 0;
     const studentsCount = module.enrolled_students?.length || 0;
     const studentAvatars = module.enrolled_students
@@ -163,7 +203,6 @@ function SortableModuleListItem({ module }: { module: Module }) {
                 isDragging && "scale-[1.01] shadow-xl border-accent-blue/50"
             )}
         >
-            {/* Drag handle — ONLY element with listeners, outside the clickable area */}
             <button
                 {...attributes}
                 {...listeners}
@@ -175,16 +214,12 @@ function SortableModuleListItem({ module }: { module: Module }) {
                 <GripVertical className="size-5" />
             </button>
 
-            {/* Clickable content — navigates without Link to avoid DnD conflict */}
             <div
                 className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6 flex-1 cursor-pointer"
                 onClick={() => router.push(`/dashboard/modules/${module.id}`)}
             >
-                {/* Col 1: Icon + Text */}
                 <div className="flex items-center gap-4 min-w-[280px] flex-1">
-                    <div className="size-10 rounded-lg bg-surface border border-accent-blue/20 shadow-[0_0_10px_rgba(34,211,238,0.05)] flex items-center justify-center text-accent-blue group-hover:scale-110 transition-transform shrink-0">
-                        <Icon className="size-5" />
-                    </div>
+                    <ModuleIcon module={module} />
                     <div className="min-w-0">
                         <h3 className="font-bold text-foreground truncate group-hover:text-accent-blue transition-colors tracking-tight">
                             {module.name}
@@ -193,7 +228,6 @@ function SortableModuleListItem({ module }: { module: Module }) {
                     </div>
                 </div>
 
-                {/* Col 2: Progress */}
                 <div className="w-full md:w-[180px] shrink-0">
                     <div className="flex justify-between items-center mb-1.5">
                         <span className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Progreso</span>
@@ -202,12 +236,10 @@ function SortableModuleListItem({ module }: { module: Module }) {
                     <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
                 </div>
 
-                {/* Col: Próxima entrega */}
                 <div className="hidden lg:block">
                     <NextDueDisplay nextDueStep={module.next_due_step} viewMode="list" />
                 </div>
 
-                {/* Col 3: Students */}
                 <div className="w-full md:w-[120px] shrink-0 flex items-center gap-3">
                     <div className="flex -space-x-2 shrink-0">
                         {studentAvatars.length > 0 ? (
@@ -228,7 +260,6 @@ function SortableModuleListItem({ module }: { module: Module }) {
                     </div>
                 </div>
 
-                {/* Col 4: Status Badge */}
                 <div className="w-full md:w-[130px] shrink-0 flex md:justify-end mt-2 md:mt-0">
                     {statusConfig && (
                         <Badge
@@ -244,8 +275,6 @@ function SortableModuleListItem({ module }: { module: Module }) {
         </div>
     );
 }
-
-// ─── SortableModuleGridItem ───────────────────────────────────────────────────
 
 function SortableModuleGridItem({ module }: { module: Module }) {
     const router = useRouter();
@@ -265,7 +294,6 @@ function SortableModuleGridItem({ module }: { module: Module }) {
         opacity: isDragging ? 0.5 : 1,
     };
 
-    const Icon = ICON_MAP[module.icon] || BookOpen;
     const progress = module.progress ?? 0;
     const studentsCount = module.enrolled_students?.length || 0;
     const studentAvatars = module.enrolled_students
@@ -278,11 +306,8 @@ function SortableModuleGridItem({ module }: { module: Module }) {
         <div ref={setNodeRef} style={style} className={cn("h-full", isDragging && "scale-[1.01]")}>
             <Card className="bg-surface-dark border-border-subtle hover:border-accent-blue/50 hover:shadow-lg hover:shadow-accent-blue/5 transition-all group overflow-hidden cursor-pointer flex flex-col h-full rounded-2xl">
                 <div className="p-6 flex flex-col h-full">
-                    {/* Header */}
                     <div className="flex items-start justify-between mb-5">
-                        <div className="size-12 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center text-accent-blue group-hover:scale-110 group-hover:bg-accent-blue/10 transition-all">
-                            <Icon className="size-6" />
-                        </div>
+                        <ModuleIcon module={module} className="size-12" />
                         <div className="flex items-center gap-2">
                             {statusConfig && (
                                 <Badge
@@ -293,7 +318,6 @@ function SortableModuleGridItem({ module }: { module: Module }) {
                                     {statusConfig.label}
                                 </Badge>
                             )}
-                            {/* Drag handle */}
                             <button
                                 {...attributes}
                                 {...listeners}
@@ -307,7 +331,6 @@ function SortableModuleGridItem({ module }: { module: Module }) {
                         </div>
                     </div>
 
-                    {/* Content */}
                     <div
                         className="flex flex-col flex-1 cursor-pointer"
                         onClick={() => router.push(`/dashboard/modules/${module.id}`)}
@@ -321,7 +344,6 @@ function SortableModuleGridItem({ module }: { module: Module }) {
                             </p>
                         </div>
 
-                        {/* Footer */}
                         <div className="mt-auto space-y-4 pt-4 border-t border-border-subtle/50">
                             <div className="flex items-end justify-between">
                                 <div className="space-y-1.5">
@@ -356,7 +378,6 @@ function SortableModuleGridItem({ module }: { module: Module }) {
 
                             <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
 
-                            {/* Next delivery box — always rendered */}
                             <div className="mt-4">
                                 <NextDueDisplay nextDueStep={module.next_due_step} viewMode="grid" />
                             </div>
@@ -368,16 +389,37 @@ function SortableModuleGridItem({ module }: { module: Module }) {
     );
 }
 
-// ─── TeacherDashboard ─────────────────────────────────────────────────────────
-
-export function TeacherDashboard({ initialModules, totalStudents, teacherStats }: TeacherDashboardProps) {
-    const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-    const [modules, setModules] = useState<Module[]>(
-        [...initialModules].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-    );
+export function TeacherDashboard({ initialModules, totalStudents, teacherStats, gridColumns: initialGridColumns }: TeacherDashboardProps) {
+    const [viewMode, setViewMode] = useState<"grid" | "list" | null>(null);
+    const [gridCols, setGridCols] = useState(initialGridColumns || 3);
+    const [modules, setModules] = useState<Module[]>([]);
     const [, startTransition] = useTransition();
 
-    // Stats collapsible state — persisted in localStorage
+    // Sync state with props when they change (e.g. after revalidatePath)
+    useEffect(() => {
+        setModules([...initialModules].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)));
+    }, [initialModules]);
+
+    useEffect(() => {
+        const saved = (localStorage.getItem("aula-it:dashboard:view-mode") as "grid" | "list") || "grid";
+        setViewMode(saved);
+    }, []);
+
+    useEffect(() => {
+        if (viewMode) {
+            localStorage.setItem("aula-it:dashboard:view-mode", viewMode);
+        }
+    }, [viewMode]);
+
+    const handleGridColsChange = async (cols: string) => {
+        const val = parseInt(cols);
+        setGridCols(val);
+        const result = await updateDashboardSettings(val);
+        if (result?.error) {
+            toast.error("Error al guardar la configuración de columnas");
+        }
+    };
+
     const [statsOpen, setStatsOpen] = useState(() => {
         if (typeof window === "undefined") return true;
         const saved = localStorage.getItem("aula-it:teacher-dashboard:stats-open");
@@ -388,12 +430,19 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats }
         localStorage.setItem("aula-it:teacher-dashboard:stats-open", String(statsOpen));
     }, [statsOpen]);
 
-    // DnD sensors — distance:8 prevents accidental drag on click
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: { distance: 8 },
         })
     );
+
+    if (viewMode === null) {
+        return (
+            <div className="animate-in fade-in duration-500">
+                <TeacherDashboardSkeleton />
+            </div>
+        );
+    }
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
@@ -403,7 +452,6 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats }
         const newIndex = modules.findIndex(m => m.id === over.id);
         const reordered = arrayMove(modules, oldIndex, newIndex);
 
-        // Optimistic update
         const snapshot = modules;
         setModules(reordered);
 
@@ -432,16 +480,37 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats }
         modules.filter(m => m.status === "active" || !m.status).length;
     const pendingSubmissions = teacherStats?.pendingSubmissions ?? 0;
 
+    const gridColsClass = {
+        2: "md:grid-cols-2 lg:grid-cols-2",
+        3: "md:grid-cols-2 lg:grid-cols-3",
+        4: "md:grid-cols-3 lg:grid-cols-4",
+        5: "md:grid-cols-4 lg:grid-cols-5",
+    }[gridCols as 2 | 3 | 4 | 5] || "md:grid-cols-2 lg:grid-cols-3";
+
     return (
         <div className="flex flex-col gap-10">
-
-            {/* ── Header Section ─────────────────────────────────────────────────── */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
                     <h2 className="text-2xl font-bold tracking-tight text-foreground">Gestión de Módulos</h2>
                     <p className="text-sm font-medium text-text-muted">Supervisión general de tus cursos y contenidos.</p>
                 </div>
                 <div className="flex items-center gap-3">
+                    {viewMode === "grid" && (
+                        <div className="flex items-center gap-2 mr-2">
+                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest hidden lg:inline">Columnas:</span>
+                            <Select value={gridCols.toString()} onValueChange={handleGridColsChange}>
+                                <SelectTrigger className="w-[60px] h-8 bg-surface border-border-subtle focus:ring-accent-blue text-xs">
+                                    <SelectValue placeholder="3" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-surface border-border-subtle">
+                                    <SelectItem value="2">2</SelectItem>
+                                    <SelectItem value="3">3</SelectItem>
+                                    <SelectItem value="4">4</SelectItem>
+                                    <SelectItem value="5">5</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
                     <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
                         <Button
                             variant={viewMode === "grid" ? "secondary" : "ghost"}
@@ -464,7 +533,6 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats }
                 </div>
             </div>
 
-            {/* ── Stats Collapsible ──────────────────────────────────────────────── */}
             <div className="bg-surface-dark border border-border-subtle rounded-2xl overflow-hidden shadow-sm">
                 <button
                     onClick={() => setStatsOpen(prev => !prev)}
@@ -483,21 +551,15 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats }
 
                 {statsOpen && (
                     <div className="px-6 pb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 border-t border-border-subtle/50">
-
-                        {/* 1 — Total Módulos */}
                         <div className="flex items-center gap-4 pt-6">
                             <div className="size-10 rounded-lg bg-accent-blue/10 flex items-center justify-center text-accent-blue shrink-0">
                                 <BookOpen className="size-5" />
                             </div>
                             <div className="space-y-0.5">
                                 <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Total Módulos</p>
-                                <h3 className="text-2xl font-bold text-foreground font-mono">
-                                    {teacherStats?.totalModules ?? modules.length}
-                                </h3>
+                                <h3 className="text-2xl font-bold text-foreground font-mono">{teacherStats?.totalModules ?? modules.length}</h3>
                             </div>
                         </div>
-
-                        {/* 2 — Módulos Activos */}
                         <div className="flex items-center gap-4 pt-6">
                             <div className="size-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500 shrink-0">
                                 <Clock className="size-5" />
@@ -507,67 +569,37 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats }
                                 <h3 className="text-2xl font-bold text-foreground font-mono">{activeCount}</h3>
                             </div>
                         </div>
-
-                        {/* 3 — Total Alumnos */}
                         <div className="flex items-center gap-4 pt-6">
                             <div className="size-10 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400 shrink-0">
                                 <Users className="size-5" />
                             </div>
                             <div className="space-y-0.5">
                                 <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Total Alumnos</p>
-                                <h3 className="text-2xl font-bold text-foreground font-mono">
-                                    {teacherStats?.totalStudents ?? 0}
-                                </h3>
+                                <h3 className="text-2xl font-bold text-foreground font-mono">{teacherStats?.totalStudents ?? 0}</h3>
                             </div>
                         </div>
-
-                        {/* 4 — Entregas Pendientes */}
                         <div className="flex items-center gap-4 pt-6">
-                            <div
-                                className={cn(
-                                    "size-10 rounded-lg flex items-center justify-center shrink-0",
-                                    pendingSubmissions > 0
-                                        ? "bg-amber-500/10 text-amber-400"
-                                        : "bg-surface text-text-muted"
-                                )}
-                            >
+                            <div className={cn("size-10 rounded-lg flex items-center justify-center shrink-0", pendingSubmissions > 0 ? "bg-amber-500/10 text-amber-400" : "bg-surface text-text-muted")}>
                                 <AlertTriangle className="size-5" />
                             </div>
                             <div className="space-y-0.5">
-                                <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">
-                                    Entregas Pendientes
-                                </p>
-                                <h3
-                                    className={cn(
-                                        "text-2xl font-bold font-mono",
-                                        pendingSubmissions > 0 ? "text-amber-400" : "text-foreground"
-                                    )}
-                                >
-                                    {pendingSubmissions}
-                                </h3>
+                                <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Entregas Pendientes</p>
+                                <h3 className={cn("text-2xl font-bold font-mono", pendingSubmissions > 0 ? "text-amber-400" : "text-foreground")}>{pendingSubmissions}</h3>
                             </div>
                         </div>
-
-                        {/* 5 — Próxima Entrega */}
                         <div className="flex items-center gap-4 pt-6">
                             <div className="size-10 rounded-lg bg-accent-blue/10 flex items-center justify-center text-accent-blue shrink-0">
                                 <CalendarClock className="size-5" />
                             </div>
                             <div className="space-y-0.5">
-                                <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">
-                                    Próxima Entrega
-                                </p>
-                                <h3 className="text-sm font-bold text-foreground font-mono leading-tight">
-                                    {formatDate(teacherStats?.nextDueDate ?? null)}
-                                </h3>
+                                <p className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Próxima Entrega</p>
+                                <h3 className="text-sm font-bold text-foreground font-mono leading-tight">{formatDate(teacherStats?.nextDueDate ?? null)}</h3>
                             </div>
                         </div>
-
                     </div>
                 )}
             </div>
 
-            {/* ── Module List / Grid ──────────────────────────────────────────────── */}
             {modules.length === 0 ? (
                 <Card className="bg-surface-dark border-border-subtle border-dashed p-12 text-center flex flex-col items-center gap-4">
                     <div className="size-12 rounded-full bg-accent-blue/10 flex items-center justify-center">
@@ -579,24 +611,14 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats }
                     </div>
                     <CreateModuleDialog />
                 </Card>
-
             ) : (
-                <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                >
-                    <SortableContext
-                        items={modules.map(m => m.id)}
-                        strategy={viewMode === "list" ? verticalListSortingStrategy : rectSortingStrategy}
-                    >
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={modules.map(m => m.id)} strategy={viewMode === "list" ? verticalListSortingStrategy : rectSortingStrategy}>
                         {viewMode === "list" ? (
-                            // ── List view ────────────────────────────────────────────
                             <div className="flex flex-col gap-4">
                                 {modules.map((module) => (
                                     <SortableModuleListItem key={module.id} module={module} />
                                 ))}
-
                                 <CreateModuleDialog>
                                     <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-xl p-4 flex items-center gap-4 cursor-pointer transition-all group hover:bg-accent-blue/5">
                                         <div className="size-10 rounded-lg bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all shrink-0">
@@ -610,12 +632,10 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats }
                                 </CreateModuleDialog>
                             </div>
                         ) : (
-                            // ── Grid view ────────────────────────────────────────────
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div className={cn("grid gap-6", gridColsClass)}>
                                 {modules.map((module) => (
                                     <SortableModuleGridItem key={module.id} module={module} />
                                 ))}
-
                                 <CreateModuleDialog>
                                     <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all group min-h-[180px] hover:bg-accent-blue/5">
                                         <div className="size-12 rounded-full bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all">
@@ -631,6 +651,46 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats }
                         )}
                     </SortableContext>
                 </DndContext>
+            )}
+        </div>
+    );
+}
+
+function TeacherDashboardSkeleton() {
+    let initialView: "grid" | "list" = "grid";
+    if (typeof window !== "undefined") {
+        initialView = (localStorage.getItem("aula-it:dashboard:view-mode") as "grid" | "list") || "grid";
+    }
+
+    return (
+        <div className="flex flex-col gap-10">
+            <div className="bg-surface-dark border border-border-subtle rounded-2xl h-24" />
+            
+            {initialView === "list" ? (
+                <div className="flex flex-col gap-4">
+                    {[...Array(4)].map((_, i) => (
+                        <div key={i} className="bg-surface-dark border border-border-subtle rounded-xl p-4 flex items-center gap-6">
+                            <Skeleton className="size-10 rounded-lg bg-surface" />
+                            <div className="flex-1 space-y-2">
+                                <Skeleton className="h-4 w-1/4 bg-surface" />
+                                <Skeleton className="h-3 w-1/2 bg-surface" />
+                            </div>
+                            <Skeleton className="h-8 w-24 rounded-lg bg-surface" />
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[...Array(3)].map((_, i) => (
+                        <Card key={i} className="bg-surface-dark border-border-subtle h-64">
+                            <CardContent className="p-6 space-y-4">
+                                <Skeleton className="size-12 rounded-xl bg-surface" />
+                                <Skeleton className="h-6 w-3/4 bg-surface" />
+                                <Skeleton className="h-4 w-full bg-surface" />
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
             )}
         </div>
     );

@@ -196,11 +196,19 @@ export default async function DashboardPage() {
       nextDueDate: globalEarliestDue,
     };
 
+    // Fetch dashboard settings for teacher
+    const { data: settings } = await supabase
+      .from("app_settings")
+      .select("grid_columns")
+      .eq("teacher_id", user.id)
+      .single();
+
     return (
       <TeacherDashboard
         initialModules={enrichedModules as any}
         totalStudents={totalStudents}
         teacherStats={teacherStats}
+        gridColumns={settings?.grid_columns || 3}
       />
     );
   }
@@ -212,6 +220,7 @@ export default async function DashboardPage() {
       module_xp,
       modules (
         *,
+        teacher_id,
         units (
           id,
           status,
@@ -231,6 +240,20 @@ export default async function DashboardPage() {
       )
     `)
     .eq("student_id", user.id);
+
+  // Fetch settings from the teacher of the first module found (as a fallback/standard)
+  let gridColumns = 3;
+  if (enrollments && enrollments.length > 0) {
+    const teacherId = (enrollments[0].modules as any)?.teacher_id;
+    if (teacherId) {
+      const { data: settings } = await supabase
+        .from("app_settings")
+        .select("grid_columns")
+        .eq("teacher_id", teacherId)
+        .single();
+      if (settings) gridColumns = settings.grid_columns;
+    }
+  }
 
   // 2. Fetch all student submissions with their activity_id for progress calculation
   const { data: submissions } = await supabase

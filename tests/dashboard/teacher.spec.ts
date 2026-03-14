@@ -105,10 +105,13 @@ test.describe("Teacher Dashboard - Error Paths", () => {
         await expect(dialog).toBeVisible();
 
         // Submit without filling the name (leave it empty)
-        await dialog.locator('input[name="description"]').fill("Some description");
-        await dialog.locator('button:has-text("CREAR MÓDULO")').click();
+        await dialog.locator('textarea[name="description"]').fill("Some description");
+        
+        // Verify the button is disabled because 'name' is empty
+        const submitBtn = dialog.locator('button:has-text("Crear Módulo")');
+        await expect(submitBtn).toBeDisabled();
 
-        // Dialog must remain open — HTML5 required validation or server-side error prevents closure
+        // Dialog must remain open
         await expect(dialog).toBeVisible();
     });
 });

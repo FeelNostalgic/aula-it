@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, MoreVertical, Terminal, Database, Globe, Command, ArrowRight, BookOpen, Clock, CheckCircle2, LayoutGrid, List, ChevronDown } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Terminal, BookOpen, Clock, CheckCircle2, LayoutGrid, List, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import Link from "next/link";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useGamification } from "@/hooks/use-gamification";
 import { StudentModuleCard } from "./student-module-card";
 import { cn } from "@/lib/utils";
@@ -28,36 +26,55 @@ type Module = {
 
 interface StudentDashboardProps {
     initialModules: Module[];
+    gridColumns?: number;
 }
 
-const ICON_MAP: Record<string, any> = {
-    BookOpen,
-    Terminal,
-    Database,
-    Globe,
-    // Add logic for matching icons based on the module icon string
-};
+export function StudentDashboard({ initialModules, gridColumns = 3 }: StudentDashboardProps) {
+    const [viewMode, setViewMode] = useState<"grid" | "list" | null>(null);
+    const { globalLevel } = useGamification();
 
-export function StudentDashboard({ initialModules }: StudentDashboardProps) {
-    const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-    const { globalXp, globalLevel } = useGamification();
+    useEffect(() => {
+        const saved = (localStorage.getItem("aula-it:dashboard:view-mode") as "grid" | "list") || "grid";
+        setViewMode(saved);
+    }, []);
+
+    useEffect(() => {
+        if (viewMode) {
+            localStorage.setItem("aula-it:dashboard:view-mode", viewMode);
+        }
+    }, [viewMode]);
+
+    const gridColsClass = {
+        2: "md:grid-cols-2 lg:grid-cols-2",
+        3: "md:grid-cols-2 lg:grid-cols-3",
+        4: "md:grid-cols-3 lg:grid-cols-4",
+        5: "md:grid-cols-4 lg:grid-cols-5",
+    }[gridColumns as 2 | 3 | 4 | 5] || "md:grid-cols-2 lg:grid-cols-3";
 
     const [statsOpen, setStatsOpen] = useState(() => {
         if (typeof window === 'undefined') return true;
         const saved = localStorage.getItem('aula-it:student-dashboard:stats-open');
         return saved === null ? true : saved === 'true';
     });
+
     useEffect(() => {
         localStorage.setItem('aula-it:student-dashboard:stats-open', String(statsOpen));
     }, [statsOpen]);
 
+    if (viewMode === null) {
+        return (
+            <div className="animate-in fade-in duration-500">
+                <StudentDashboardSkeleton />
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col gap-10">
-            {/* User Progress Panel */}
+            {/* user progress panel */}
             <Card className="bg-surface-dark border-border-subtle overflow-hidden relative group">
                 <div className="absolute inset-0 bg-accent-blue/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                 <CardContent className="p-6 flex flex-col md:flex-row items-center gap-8 relative z-10">
-                    {/* Level Hexagon */}
                     <div className="relative shrink-0">
                         <div className="size-20 bg-surface border-2 border-accent-blue/30 rounded-2xl rotate-45 flex items-center justify-center relative overflow-hidden group-hover:border-accent-blue transition-colors">
                             <div className="absolute inset-0 bg-accent-blue/10 animate-pulse" />
@@ -68,7 +85,6 @@ export function StudentDashboard({ initialModules }: StudentDashboardProps) {
                         </div>
                     </div>
 
-                    {/* XP Progress */}
                     <div className="flex-1 w-full space-y-4">
                         <div className="flex items-end justify-between">
                             <div className="space-y-1">
@@ -174,7 +190,7 @@ export function StudentDashboard({ initialModules }: StudentDashboardProps) {
                     </div>
                 </div>
 
-                <div className={`grid gap-4 ${viewMode === 'list' ? 'flex flex-col' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+                <div className={cn("grid gap-4", viewMode === 'list' ? "flex flex-col" : gridColsClass)}>
                     {initialModules.length === 0 ? (
                         <Card className="bg-surface-dark border-border-subtle border-dashed p-12 text-center flex flex-col items-center gap-4">
                             <div className="size-12 rounded-full bg-accent-blue/10 flex items-center justify-center">
@@ -191,6 +207,38 @@ export function StudentDashboard({ initialModules }: StudentDashboardProps) {
                         ))
                     )}
                 </div>
+            </div>
+        </div>
+    );
+}
+
+function StudentDashboardSkeleton() {
+    return (
+        <div className="flex flex-col gap-10">
+            <Card className="bg-surface-dark border-border-subtle h-32">
+                <CardContent className="p-6 flex items-center gap-8">
+                    <Skeleton className="size-20 rounded-2xl rotate-45 bg-surface" />
+                    <div className="flex-1 space-y-4">
+                        <Skeleton className="h-4 w-32 bg-surface" />
+                        <Skeleton className="h-2 w-full bg-surface" />
+                    </div>
+                </CardContent>
+            </Card>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-24 rounded-xl bg-surface-dark border border-border-subtle" />
+                ))}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[...Array(3)].map((_, i) => (
+                    <Card key={i} className="bg-surface-dark border-border-subtle h-64">
+                        <CardContent className="p-6 space-y-4">
+                            <Skeleton className="size-12 rounded-xl bg-surface" />
+                            <Skeleton className="h-6 w-3/4 bg-surface" />
+                            <Skeleton className="h-4 w-full bg-surface" />
+                        </CardContent>
+                    </Card>
+                ))}
             </div>
         </div>
     );

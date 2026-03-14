@@ -12,8 +12,8 @@ export class DashboardPage extends BasePage {
         super(page);
         this.createNewModuleButton = page.locator('button:has-text("CREAR NUEVO MÓDULO")').first();
         this.moduleNameInput = page.locator('input[name="name"]');
-        this.moduleDescriptionInput = page.locator('input[name="description"]');
-        this.createModuleSubmitButton = page.locator('button:has-text("CREAR MÓDULO")');
+        this.moduleDescriptionInput = page.locator('textarea[name="description"]');
+        this.createModuleSubmitButton = page.locator('button:has-text("Crear Módulo")');
         this.modulesGrid = page.locator("h2"); // Using H2 as reference for now
     }
 
@@ -22,8 +22,8 @@ export class DashboardPage extends BasePage {
         const dialog = this.page.locator('div[role="dialog"]');
         await expect(dialog).toBeVisible();
         await dialog.locator('input[name="name"]').fill(name);
-        await dialog.locator('input[name="description"]').fill(description);
-        await dialog.locator('button:has-text("CREAR MÓDULO")').click();
+        await dialog.locator('textarea[name="description"]').fill(description);
+        await dialog.locator('button:has-text("Crear Módulo")').click();
     }
 
     async verifyModuleExists(name: string) {
