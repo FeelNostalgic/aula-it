@@ -368,11 +368,8 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                                 Archivar Módulo
                             </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent 
+                        <AlertDialogContent
                             className="bg-surface border-border-strong text-foreground max-w-md p-6 rounded-[32px]"
-                            onPointerDownOutside={(e) => {
-                                if (isPickerLoading) e.preventDefault();
-                            }}
                         >
                             <AlertDialogHeader>
                                 <AlertDialogTitle className="text-xl font-bold">¿Deseas archivar este módulo?</AlertDialogTitle>
@@ -416,11 +413,8 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                                 Eliminar Módulo
                             </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent 
+                        <AlertDialogContent
                             className="bg-surface border-border-strong text-foreground max-w-md p-6 rounded-[32px]"
-                            onPointerDownOutside={(e) => {
-                                if (isPickerLoading) e.preventDefault();
-                            }}
                         >
                             <AlertDialogHeader>
                                 <AlertDialogTitle className="text-xl font-bold text-red-500">¿Estás completamente seguro?</AlertDialogTitle>
