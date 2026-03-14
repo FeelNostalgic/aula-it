@@ -150,7 +150,7 @@ export function CreateModuleDialog({ children }: CreateModuleDialogProps = {}) {
                 </DialogHeader>
 
                 <div className="p-6">
-                    <form onSubmit={handleSubmit} className="space-y-6">
+                    <form id="create-module-form" onSubmit={handleSubmit} className="space-y-6">
                         <div className="grid md:grid-cols-[140px_1fr] gap-8">
                             {/* Icon Section */}
                             <div className="space-y-4">
@@ -273,7 +273,8 @@ export function CreateModuleDialog({ children }: CreateModuleDialogProps = {}) {
                         Cancelar
                     </Button>
                     <Button 
-                        onClick={handleSubmit} 
+                        type="submit"
+                        form="create-module-form"
                         disabled={isLoading || !name}
                         className="bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-bold min-w-[140px] rounded-xl h-11 uppercase tracking-wider text-xs"
                     >

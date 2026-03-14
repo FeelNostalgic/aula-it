@@ -228,12 +228,17 @@ test.describe("Module Detail", () => {
             await expect(actionsButton).toBeVisible({ timeout: 5000 });
             await actionsButton.click();
 
-            const deleteOption = page.getByRole("menuitem", { name: "Eliminar alumno" });
+            const deleteOption = page.getByRole("menuitem", { name: "Desvincular Alumno" });
             await expect(deleteOption).toBeVisible();
             await deleteOption.click();
 
+            // Handle AlertDialog
+            const alertDialog = page.getByRole("alertdialog");
+            await expect(alertDialog).toBeVisible();
+            await alertDialog.getByRole("button", { name: "Desvincular" }).click();
+
             // Wait for the action to complete and toast
-            await expect(page.getByText(/Alumno desmatriculado|eliminado/i)).toBeVisible().catch(() => { });
+            await expect(page.getByText(/desviculado|eliminado|desvinculado/i)).toBeVisible().catch(() => { });
             await page.waitForLoadState("networkidle");
         }
     );

@@ -10,6 +10,8 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { BreadcrumbProvider } from "@/components/dashboard/breadcrumb-context";
 import { SessionTimeoutGuard } from "@/components/auth/session-timeout-guard";
 import { LevelBadge } from "@/components/dashboard/level-badge";
+import { QueryParamHandler } from "@/components/dashboard/query-param-handler";
+import { Suspense } from "react";
 
 
 export default async function DashboardLayout({
@@ -39,6 +41,9 @@ export default async function DashboardLayout({
   return (
     <BreadcrumbProvider>
       <SessionTimeoutGuard>
+        <Suspense fallback={null}>
+          <QueryParamHandler />
+        </Suspense>
         <div className="h-screen bg-background text-foreground flex flex-col font-sans overflow-hidden">
           {/* Top Nav Bar */}
           <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between px-6 shrink-0 z-40">

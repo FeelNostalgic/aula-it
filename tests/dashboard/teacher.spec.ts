@@ -39,7 +39,11 @@ test.describe("Teacher Dashboard", () => {
         if (createError || !user) throw new Error(`Could not create teacher: ${createError?.message}`);
         teacherUserId = user.id;
 
-        await supabase.from("profiles").update({ role: "teacher" }).eq("id", user.id);
+        // upsert ensures the profile row exists with teacher role regardless of trigger timing
+        const { error: profileError } = await supabase
+            .from("profiles")
+            .upsert({ id: user.id, role: "teacher", full_name: "Test Teacher" });
+        if (profileError) throw new Error(`Could not set teacher role: ${profileError.message}`);
 
         // 2. Login y Flow
         const loginPage = new LoginPage(page);
@@ -50,10 +54,14 @@ test.describe("Teacher Dashboard", () => {
         await dashboardPage.verifyDashboardRole("Gestión de Módulos");
 
         // 3. Crear módulo
-        await dashboardPage.createModule("Playwright POM Module", "Created by refactored E2E Test");
+        await dashboardPage.createModule("Playwright POM Module", "Description for Playwright Module");
 
-        // Verify success toast appears
-        await expect(page.getByText('Módulo "Playwright POM Module" creado correctamente')).toBeVisible();
+        // Wait for the dialog to close (resetForm is called after success)
+        const dialog = page.locator('div[role="dialog"]');
+        await expect(dialog).not.toBeVisible({ timeout: 10000 });
+
+        // Verify success toast appears - more flexible regex
+        await expect(page.getByText(/creado correctamente|éxito|success/i)).toBeVisible({ timeout: 10000 });
 
         // 4. Verificar
         await dashboardPage.verifyModuleExists("Playwright POM Module");

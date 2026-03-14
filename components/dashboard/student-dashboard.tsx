@@ -10,6 +10,14 @@ import { useGamification } from "@/hooks/use-gamification";
 import { StudentModuleCard } from "./student-module-card";
 import { cn } from "@/lib/utils";
 
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+
 type Module = {
     id: string;
     name: string;
@@ -17,7 +25,7 @@ type Module = {
     icon: string;
     created_at: string;
     teacher_id: string;
-    status: "active" | "completed" | "pending";
+    status: "active" | "completed" | "draft";
     total_units?: number;
     completed_units?: number;
     module_xp?: number;
@@ -29,13 +37,16 @@ interface StudentDashboardProps {
     gridColumns?: number;
 }
 
-export function StudentDashboard({ initialModules, gridColumns = 3 }: StudentDashboardProps) {
+export function StudentDashboard({ initialModules, gridColumns: initialGridColumns }: StudentDashboardProps) {
     const [viewMode, setViewMode] = useState<"grid" | "list" | null>(null);
+    const [gridCols, setGridCols] = useState(initialGridColumns || 3);
     const { globalLevel } = useGamification();
 
     useEffect(() => {
-        const saved = (localStorage.getItem("aula-it:dashboard:view-mode") as "grid" | "list") || "grid";
-        setViewMode(saved);
+        const savedView = (localStorage.getItem("aula-it:dashboard:view-mode") as "grid" | "list") || "grid";
+        const savedCols = parseInt(localStorage.getItem("aula-it:dashboard:grid-cols") || "3", 10);
+        setViewMode(savedView);
+        setGridCols(savedCols);
     }, []);
 
     useEffect(() => {
@@ -44,12 +55,16 @@ export function StudentDashboard({ initialModules, gridColumns = 3 }: StudentDas
         }
     }, [viewMode]);
 
+    useEffect(() => {
+        localStorage.setItem("aula-it:dashboard:grid-cols", gridCols.toString());
+    }, [gridCols]);
+
     const gridColsClass = {
         2: "md:grid-cols-2 lg:grid-cols-2",
         3: "md:grid-cols-2 lg:grid-cols-3",
         4: "md:grid-cols-3 lg:grid-cols-4",
         5: "md:grid-cols-4 lg:grid-cols-5",
-    }[gridColumns as 2 | 3 | 4 | 5] || "md:grid-cols-2 lg:grid-cols-3";
+    }[gridCols as 2 | 3 | 4 | 5] || "md:grid-cols-2 lg:grid-cols-3";
 
     const [statsOpen, setStatsOpen] = useState(() => {
         if (typeof window === 'undefined') return true;
@@ -164,11 +179,26 @@ export function StudentDashboard({ initialModules, gridColumns = 3 }: StudentDas
                 )}
             </div>
 
-            {/* Seccion: Modulos Activos */}
             <div className="flex flex-col gap-6">
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-bold">Módulos Activos</h2>
                     <div className="flex items-center gap-4">
+                        {viewMode === 'grid' && (
+                            <div className="flex items-center gap-2 mr-2">
+                                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest hidden lg:inline">Columnas:</span>
+                                <Select value={gridCols.toString()} onValueChange={(val) => setGridCols(parseInt(val))}>
+                                    <SelectTrigger className="w-[60px] h-8 bg-surface border-border-subtle focus:ring-accent-blue text-xs">
+                                        <SelectValue placeholder="3" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-surface border-border-subtle">
+                                        <SelectItem value="2">2</SelectItem>
+                                        <SelectItem value="3">3</SelectItem>
+                                        <SelectItem value="4">4</SelectItem>
+                                        <SelectItem value="5">5</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
                         <div className="flex items-center bg-surface border border-border-subtle rounded-md p-1">
                             <Button
                                 variant="ghost"

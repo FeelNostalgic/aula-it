@@ -40,7 +40,7 @@ type EnrichedModule = {
     custom_icon_url?: string | null;
     created_at: string;
     teacher_id: string;
-    status: "active" | "completed" | "pending";
+    status: "active" | "completed" | "draft" | "archived";
     total_units?: number;
     completed_units?: number;
     module_xp?: number;
@@ -82,12 +82,15 @@ export function StudentModuleCard({ module, viewMode }: StudentModuleCardProps) 
     const { moduleXp, moduleRank } = useModuleGamification(module.id);
     const Icon = ICON_MAP[module.icon] || BookOpen;
 
-    const statusConfig = {
+    const statusConfigMap = {
         active: { color: "text-accent-green", bg: "bg-accent-green/10", border: "border-accent-green/20", label: "ACTIVO" },
-        pending: { color: "text-accent-orange", bg: "bg-accent-orange/10", border: "border-accent-orange/20", label: "PENDIENTE" },
+        draft: { color: "text-accent-orange", bg: "bg-accent-orange/10", border: "border-accent-orange/20", label: "BORRADOR" },
+        pending: { color: "text-accent-orange", bg: "bg-accent-orange/10", border: "border-accent-orange/20", label: "BORRADOR" },
         completed: { color: "text-accent-blue", bg: "bg-accent-blue/10", border: "border-accent-blue/20", label: "COMPLETADO" },
         archived: { color: "text-text-muted", bg: "bg-surface", border: "border-border-strong border-dashed", label: "ARCHIVADO" }
-    }[module.status || "pending"];
+    };
+
+    const statusConfig = statusConfigMap[module.status as keyof typeof statusConfigMap || "draft"];
 
     // Use initial data if hook is still loading the first time, to prevent flicker
     const displayXp = moduleXp > 0 ? moduleXp : (module.module_xp || 0);

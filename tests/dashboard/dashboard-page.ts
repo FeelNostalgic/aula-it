@@ -10,10 +10,10 @@ export class DashboardPage extends BasePage {
 
     constructor(page: any) {
         super(page);
-        this.createNewModuleButton = page.locator('button:has-text("CREAR NUEVO MÓDULO")').first();
+        this.createNewModuleButton = page.getByRole('button', { name: 'CREAR NUEVO MÓDULO', exact: true }).first();
         this.moduleNameInput = page.locator('input[name="name"]');
         this.moduleDescriptionInput = page.locator('textarea[name="description"]');
-        this.createModuleSubmitButton = page.locator('button:has-text("Crear Módulo")');
+        this.createModuleSubmitButton = page.getByRole('button', { name: 'Crear Módulo', exact: true });
         this.modulesGrid = page.locator("h2"); // Using H2 as reference for now
     }
 
@@ -23,7 +23,8 @@ export class DashboardPage extends BasePage {
         await expect(dialog).toBeVisible();
         await dialog.locator('input[name="name"]').fill(name);
         await dialog.locator('textarea[name="description"]').fill(description);
-        await dialog.locator('button:has-text("Crear Módulo")').click();
+
+        await dialog.getByRole('button', { name: 'Crear Módulo', exact: true }).click();
     }
 
     async verifyModuleExists(name: string) {

@@ -59,6 +59,14 @@ import { useTransition } from "react";
 import { SortableUnitListItem, SortableUnitGridItem } from "./sortable-unit-item";
 
 
+import { 
+    Select, 
+    SelectContent, 
+    SelectItem, 
+    SelectTrigger, 
+    SelectValue 
+} from "@/components/ui/select";
+
 const ICON_MAP: Record<string, any> = {
     BookOpen,
     Brain,
@@ -82,7 +90,7 @@ type Module = {
     custom_icon_url?: string | null;
     created_at: string;
     teacher_id: string;
-    status?: "active" | "completed" | "pending" | null;
+    status?: "active" | "completed" | "draft" | null;
 };
 
 type Unit = {
@@ -116,6 +124,9 @@ type Student = {
     full_name: string | null;
     email: string;
     avatar_url: string | null;
+    total_steps?: number;
+    completed_steps?: number;
+    last_activity?: string | null;
 };
 
 interface ModuleDetailViewProps {
@@ -137,11 +148,31 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
     const rankLetter = !isTeacher ? liveModuleRank : "F";
 
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+    const [gridCols, setGridCols] = useState(3);
     const [activeTab, setActiveTab] = useState("dashboard");
-    const [units, setUnits] = useState<Unit[]>(
-        [...initialUnits].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-    );
+    const [units, setUnits] = useState<Unit[]>([]);
     const [, startTransition] = useTransition();
+
+    // Persistence: load from localStorage
+    useEffect(() => {
+        const savedView = (localStorage.getItem("aula-it:module-view:view-mode") as "grid" | "list");
+        const savedCols = localStorage.getItem("aula-it:module-view:grid-cols");
+        if (savedView) setViewMode(savedView);
+        if (savedCols) setGridCols(parseInt(savedCols, 10));
+    }, []);
+
+    // Persistence: save to localStorage
+    useEffect(() => {
+        if (viewMode) {
+            localStorage.setItem("aula-it:module-view:view-mode", viewMode);
+        }
+    }, [viewMode]);
+
+    useEffect(() => {
+        if (isTeacher) {
+            localStorage.setItem("aula-it:module-view:grid-cols", gridCols.toString());
+        }
+    }, [gridCols, isTeacher]);
 
     // Sync units state with initialUnits prop when it changes (e.g. after revalidation)
     useEffect(() => {
@@ -181,7 +212,7 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
         });
     };
 
-    const statusConfig = {
+    const statusConfigMap = {
         active: {
             color: "text-accent-green",
             bg: "bg-accent-green/10",
@@ -190,11 +221,19 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
             dotBg: "bg-accent-green",
             dotAnim: "animate-pulse"
         },
-        pending: {
+        draft: {
             color: "text-accent-orange",
             bg: "bg-accent-orange/10",
             border: "border-accent-orange/30",
-            label: "PENDIENTE",
+            label: "BORRADOR",
+            dotBg: "bg-accent-orange",
+            dotAnim: ""
+        },
+        pending: { // Fallback for legacy data
+            color: "text-accent-orange",
+            bg: "bg-accent-orange/10",
+            border: "border-accent-orange/30",
+            label: "BORRADOR",
             dotBg: "bg-accent-orange",
             dotAnim: ""
         },
@@ -214,7 +253,16 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
             dotBg: "bg-text-muted",
             dotAnim: ""
         }
-    }[module.status || "pending"];
+    };
+
+    const statusConfig = statusConfigMap[module.status as keyof typeof statusConfigMap || "draft"];
+
+    const gridColsClass = {
+        2: "md:grid-cols-2 lg:grid-cols-2",
+        3: "md:grid-cols-2 lg:grid-cols-3",
+        4: "md:grid-cols-3 lg:grid-cols-4",
+        5: "md:grid-cols-4 lg:grid-cols-5",
+    }[gridCols as 2 | 3 | 4 | 5] || "md:grid-cols-2 lg:grid-cols-3";
 
     // Set breadcrumb segments for the top nav
     useEffect(() => {
@@ -317,6 +365,22 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                             </Badge>
                         </div>
                         <div className="flex items-center gap-3">
+                            {viewMode === "grid" && (
+                                <div className="flex items-center gap-2 mr-2">
+                                    <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest hidden lg:inline">Columnas:</span>
+                                    <Select value={gridCols.toString()} onValueChange={(val) => setGridCols(parseInt(val))}>
+                                        <SelectTrigger className="w-[60px] h-8 bg-surface border-border-subtle focus:ring-accent-blue text-xs">
+                                            <SelectValue placeholder="3" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-surface border-border-subtle">
+                                            <SelectItem value="2">2</SelectItem>
+                                            <SelectItem value="3">3</SelectItem>
+                                            <SelectItem value="4">4</SelectItem>
+                                            <SelectItem value="5">5</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
                             <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
                                 <Button
                                     variant={viewMode === "grid" ? "secondary" : "ghost"}
@@ -399,7 +463,7 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                         )}
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="units-grid-container">
+                                    <div className={cn("grid gap-6", gridColsClass)} data-testid="units-grid-container">
                                         {units.map((unit) => (
                                             <SortableUnitGridItem key={unit.id} unit={unit} userRole={userRole} />
                                         ))}

@@ -101,13 +101,13 @@ test.describe("Module Details Tabs", () => {
 
         // Verify that the select exists and contains the default state
         const statusSelect = page.getByRole('combobox').first();
-        await expect(statusSelect).toContainText('Pendiente');
+        await expect(statusSelect).toContainText('Borrador');
 
         const nameInput = page.locator('input[name="name"]');
         await expect(nameInput).toHaveValue("Redes Locales Tabs E2E");
 
         await nameInput.fill("Redes Locales Tabs E2E (Editado)");
-        const submitBtn = page.getByRole('button', { name: 'Guardar cambios' });
+        const submitBtn = page.getByRole('button', { name: 'GUARDAR CAMBIOS' });
 
         await submitBtn.click();
         // Since it's a form action, wait for some response (in this test, we just check button state if needed)
@@ -125,7 +125,7 @@ test.describe("Module Details Tabs", () => {
         await page.getByRole('option', { name: 'Activo' }).click();
 
         // Submit form
-        const submitBtn = page.getByRole('button', { name: 'Guardar cambios' });
+        const submitBtn = page.getByRole('button', { name: 'GUARDAR CAMBIOS' });
         await submitBtn.click();
 
         // Let save complete
@@ -144,7 +144,7 @@ test.describe("Module Details Tabs", () => {
         await archiveBtn.click();
 
         // Find dialog and confirm
-        const dialog = page.getByRole('dialog');
+        const dialog = page.getByRole('alertdialog');
         await expect(dialog).toBeVisible();
         await expect(dialog.getByRole('heading', { name: '¿Deseas archivar este módulo?' })).toBeVisible();
 
@@ -156,12 +156,6 @@ test.describe("Module Details Tabs", () => {
 
         // Archiving redirects to dashboard. Let's ensure we are there.
         await expect(page.getByRole('heading', { name: 'Gestión de Módulos' })).toBeVisible({ timeout: 10000 });
-
-        // Note: Playwright test handles serial execution, so the next test needs to navigate back
-        // but since teacherModuleId is reused, subsequent test won't run correctly if the module is archived/deleted
-        // Wait, the hook re-navigates to the module page:
-        // await moduleCard.click(); It might not be visible if 'archived' filter is applied to the teacher dashboard!
-        // Is 'archived' filtered in teacher dashboard? 
     });
 
     test("settings tab allows deleting a module", async ({ page }) => {
@@ -171,7 +165,7 @@ test.describe("Module Details Tabs", () => {
         await expect(deleteBtn).toBeVisible();
         await deleteBtn.click();
 
-        const dialog = page.getByRole('dialog');
+        const dialog = page.getByRole('alertdialog');
         await expect(dialog).toBeVisible();
 
         await dialog.getByRole('button', { name: 'Sí, eliminar módulo' }).click();

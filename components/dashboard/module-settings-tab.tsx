@@ -40,19 +40,21 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog";
-import {
     Popover,
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { cn } from "@/lib/utils";
 
@@ -77,7 +79,7 @@ type Module = {
     description: string | null;
     icon: string;
     custom_icon_url?: string | null;
-    status?: "active" | "completed" | "pending" | "archived" | null;
+    status?: "active" | "completed" | "draft" | "archived" | null;
 };
 
 export function ModuleSettingsTab({ module }: { module: Module }) {
@@ -278,7 +280,7 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
 
                                 <div className="space-y-2">
                                     <Label htmlFor="status" className="text-foreground text-[10px] font-mono font-bold uppercase tracking-widest text-text-muted">Estado del Módulo</Label>
-                                    <Select name="status" defaultValue={module.status || "pending"}>
+                                    <Select name="status" defaultValue={module.status === 'pending' ? 'draft' : (module.status || "draft")}>
                                         <SelectTrigger className="bg-surface-dark border-border-strong text-foreground focus:ring-accent-blue h-11">
                                             <SelectValue placeholder="Selecciona un estado" />
                                         </SelectTrigger>
@@ -289,10 +291,10 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                                                     <span>Activo</span>
                                                 </div>
                                             </SelectItem>
-                                            <SelectItem value="pending" className="focus:bg-accent-blue/10 focus:text-accent-blue">
+                                            <SelectItem value="draft" className="focus:bg-accent-blue/10 focus:text-accent-blue">
                                                 <div className="flex items-center gap-2">
                                                     <Clock className="size-4 text-accent-orange" />
-                                                    <span>Pendiente</span>
+                                                    <span>Borrador</span>
                                                 </div>
                                             </SelectItem>
                                             <SelectItem value="completed" className="focus:bg-accent-blue/10 focus:text-accent-blue">
@@ -353,43 +355,46 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                         <p className="text-xs text-text-muted mr-4">El módulo dejará de ser visible para los alumnos matriculados, pero conservarás sus datos.</p>
                     </div>
 
-                    <Dialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen} modal={false}>
-                        <DialogTrigger asChild>
+                    <AlertDialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
+                        <AlertDialogTrigger asChild>
                             <Button variant="outline" className="border-border-strong text-foreground hover:bg-surface shrink-0 gap-2 h-10 rounded-xl px-4 text-xs font-bold uppercase tracking-wider">
                                 <Archive className="size-4" />
                                 Archivar Módulo
                             </Button>
-                        </DialogTrigger>
-                        <DialogContent 
+                        </AlertDialogTrigger>
+                        <AlertDialogContent 
                             className="bg-surface border-border-strong text-foreground max-w-md p-6 rounded-[32px]"
                             onPointerDownOutside={(e) => {
                                 if (isPickerLoading) e.preventDefault();
                             }}
                         >
-                            <DialogHeader>
-                                <DialogTitle className="text-xl font-bold">¿Deseas archivar este módulo?</DialogTitle>
-                                <DialogDescription className="text-text-muted pt-2 text-sm leading-relaxed">
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="text-xl font-bold">¿Deseas archivar este módulo?</AlertDialogTitle>
+                                <AlertDialogDescription className="text-text-muted pt-2 text-sm leading-relaxed">
                                     Los alumnos dejarán de ver este módulo inmediatamente en su panel principal. Puedes restaurarlo más tarde desde la configuración.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <DialogFooter className="mt-8 gap-3 sm:gap-0">
-                                <Button
-                                    variant="ghost"
-                                    onClick={() => setIsArchiveDialogOpen(false)}
-                                    className="text-text-muted hover:text-foreground"
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button
-                                    onClick={handleArchive}
-                                    disabled={archiveLoading}
-                                    className="bg-accent-orange hover:bg-accent-orange/90 text-surface-dark font-black uppercase tracking-widest text-[10px] px-6 rounded-xl h-11"
-                                >
-                                    {archiveLoading ? "Archivando..." : "Sí, archivar módulo"}
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter className="mt-8 gap-3 sm:gap-0">
+                                <AlertDialogCancel asChild>
+                                    <Button
+                                        variant="ghost"
+                                        className="text-text-muted hover:text-foreground"
+                                    >
+                                        Cancelar
+                                    </Button>
+                                </AlertDialogCancel>
+                                <AlertDialogAction asChild>
+                                    <Button
+                                        onClick={handleArchive}
+                                        disabled={archiveLoading}
+                                        className="bg-accent-orange hover:bg-accent-orange/90 text-surface-dark font-black uppercase tracking-widest text-[10px] px-6 rounded-xl h-11"
+                                    >
+                                        {archiveLoading ? "Archivando..." : "Sí, archivar módulo"}
+                                    </Button>
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </div>
 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-4 mt-2">
@@ -398,44 +403,47 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                         <p className="text-xs text-text-muted mr-4">Esta acción eliminará permanentemente el módulo, sus unidades y todas las matriculaciones de alumnos asociados.</p>
                     </div>
 
-                    <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen} modal={false}>
-                        <DialogTrigger asChild>
+                    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                        <AlertDialogTrigger asChild>
                             <Button variant="outline" className="border-red-500/30 text-red-500 hover:bg-red-500/10 shrink-0 gap-2 h-10 rounded-xl px-4 text-xs font-bold uppercase tracking-wider">
                                 <Trash2 className="size-4" />
                                 Eliminar Módulo
                             </Button>
-                        </DialogTrigger>
-                        <DialogContent 
+                        </AlertDialogTrigger>
+                        <AlertDialogContent 
                             className="bg-surface border-border-strong text-foreground max-w-md p-6 rounded-[32px]"
                             onPointerDownOutside={(e) => {
                                 if (isPickerLoading) e.preventDefault();
                             }}
                         >
-                            <DialogHeader>
-                                <DialogTitle className="text-xl font-bold text-red-500">¿Estás completamente seguro?</DialogTitle>
-                                <DialogDescription className="text-text-muted pt-2 text-sm leading-relaxed">
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="text-xl font-bold text-red-500">¿Estás completamente seguro?</AlertDialogTitle>
+                                <AlertDialogDescription className="text-text-muted pt-2 text-sm leading-relaxed">
                                     Esta acción no se puede deshacer. Se eliminará el módulo <span className="text-foreground font-bold">"{module.name}"</span> y todos sus datos asociados permanentemente de nuestros servidores.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <DialogFooter className="mt-8 gap-3 sm:gap-0">
-                                <Button
-                                    variant="ghost"
-                                    onClick={() => setIsDeleteDialogOpen(false)}
-                                    className="text-text-muted hover:text-foreground"
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button
-                                    variant="destructive"
-                                    onClick={handleDelete}
-                                    disabled={deleteLoading}
-                                    className="bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-widest text-[10px] px-6 rounded-xl h-11"
-                                >
-                                    {deleteLoading ? "Eliminando..." : "Sí, eliminar módulo"}
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter className="mt-8 gap-3 sm:gap-0">
+                                <AlertDialogCancel asChild>
+                                    <Button
+                                        variant="ghost"
+                                        className="text-text-muted hover:text-foreground"
+                                    >
+                                        Cancelar
+                                    </Button>
+                                </AlertDialogCancel>
+                                <AlertDialogAction asChild>
+                                    <Button
+                                        variant="destructive"
+                                        onClick={handleDelete}
+                                        disabled={deleteLoading}
+                                        className="bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-widest text-[10px] px-6 rounded-xl h-11"
+                                    >
+                                        {deleteLoading ? "Eliminando..." : "Sí, eliminar módulo"}
+                                    </Button>
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </div>
             </div>
         </div>

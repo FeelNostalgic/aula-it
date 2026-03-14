@@ -220,6 +220,7 @@ export default async function DashboardPage() {
       module_xp,
       modules (
         *,
+        order_index,
         teacher_id,
         units (
           id,
@@ -240,20 +241,6 @@ export default async function DashboardPage() {
       )
     `)
     .eq("student_id", user.id);
-
-  // Fetch settings from the teacher of the first module found (as a fallback/standard)
-  let gridColumns = 3;
-  if (enrollments && enrollments.length > 0) {
-    const teacherId = (enrollments[0].modules as any)?.teacher_id;
-    if (teacherId) {
-      const { data: settings } = await supabase
-        .from("app_settings")
-        .select("grid_columns")
-        .eq("teacher_id", teacherId)
-        .single();
-      if (settings) gridColumns = settings.grid_columns;
-    }
-  }
 
   // 2. Fetch all student submissions with their activity_id for progress calculation
   const { data: submissions } = await supabase
@@ -286,7 +273,7 @@ export default async function DashboardPage() {
   });
 
   const enrichedModules = enrollments
-    ?.filter(e => e.modules && (e.modules as any).status !== "archived")
+    ?.filter(e => e.modules && !["archived", "draft", "pending"].includes((e.modules as any).status))
     .map(e => {
       const m = e.modules as any;
       const validUnits = (m.units || []).filter((u: any) => ["published", "blocked", "active"].includes(u.status || "draft"));
@@ -354,7 +341,7 @@ export default async function DashboardPage() {
         next_due_step: nextDueStep,
       };
     })
-    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) || [];
+    .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0)) || [];
 
   return <StudentDashboard initialModules={enrichedModules} />;
 }

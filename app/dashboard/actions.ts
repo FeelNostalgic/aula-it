@@ -42,7 +42,8 @@ export async function createModule(prevState: any, formData: FormData) {
             icon,
             icon_style,
             custom_icon_url,
-            teacher_id: user.id
+            teacher_id: user.id,
+            status: 'draft'
         });
 
     if (error) {

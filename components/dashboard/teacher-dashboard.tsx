@@ -83,7 +83,7 @@ type Module = {
     order_index?: number | null;
     created_at: string;
     teacher_id: string;
-    status?: "active" | "completed" | "pending" | null;
+    status?: "active" | "completed" | "draft" | null;
     progress?: number;
     next_due_step?: { title: string; due_date: string } | null;
     enrolled_students?: {
@@ -118,11 +118,19 @@ const STATUS_CONFIG = {
         dotBg: "bg-accent-green",
         dotAnim: "animate-pulse",
     },
-    pending: {
+    draft: {
         color: "text-accent-orange",
         bg: "bg-accent-orange/10",
         border: "border-accent-orange/30",
-        label: "PENDIENTE",
+        label: "BORRADOR",
+        dotBg: "bg-accent-orange",
+        dotAnim: "",
+    },
+    pending: { // Fallback
+        color: "text-accent-orange",
+        bg: "bg-accent-orange/10",
+        border: "border-accent-orange/30",
+        label: "BORRADOR",
         dotBg: "bg-accent-orange",
         dotAnim: "",
     },
@@ -192,7 +200,7 @@ function SortableModuleListItem({ module }: { module: Module }) {
         ?.map(e => e.student?.avatar_url)
         .filter(Boolean)
         .slice(0, 3) || [];
-    const statusConfig = STATUS_CONFIG[module.status || "pending"];
+    const statusConfig = STATUS_CONFIG[module.status as keyof typeof STATUS_CONFIG || "draft"];
 
     return (
         <div

@@ -67,6 +67,11 @@ export default async function ModulePage({ params }: { params: { id: string } })
         notFound();
     }
 
+    // Access Control: Block students if module is draft or pending
+    if (profile?.role === "student" && (module.status === "draft" || module.status === "pending")) {
+        redirect("/dashboard?error=module_not_available");
+    }
+
     // Fetch units for this module with their activities and nested steps
     const { data: unitsData } = await supabase
         .from("units")
@@ -185,6 +190,17 @@ export default async function ModulePage({ params }: { params: { id: string } })
         };
     });
 
+    // Countable steps for the entire module
+    const allCountableSteps: Array<{ id: string; completion_mode: string }> = [];
+    units?.forEach(u => {
+        u.activities?.forEach((a: any) => {
+            a.countable_steps?.forEach((s: any) => {
+                allCountableSteps.push({ id: s.id, completion_mode: s.completion_mode });
+            });
+        });
+    });
+    const totalCountableSteps = allCountableSteps.length;
+
     // Fetch enrolled students
     const { data: enrollments } = await supabase
         .from("module_enrollments")
@@ -205,17 +221,71 @@ export default async function ModulePage({ params }: { params: { id: string } })
         const { createAdminClient } = await import("@/utils/supabase/admin");
         const adminSupabase = createAdminClient();
         const { data: usersData } = await adminSupabase.auth.admin.listUsers();
-        if (usersData?.users) {
-            const authMap = new Map(usersData.users.map(u => [u.id, { email: u.email, avatar_url: u.user_metadata?.avatar_url }]));
-            enrolledStudents = enrolledStudents.map((s: any) => {
-                const authData = authMap.get(s.id);
-                return {
-                    ...s,
-                    email: authData?.email || "sin_email@aula.it",
-                    avatar_url: s.avatar_url || authData?.avatar_url || null,
-                };
-            });
+        
+        const authMap = new Map(usersData?.users?.map(u => [u.id, { email: u.email, avatar_url: u.user_metadata?.avatar_url }]) || []);
+        
+        // Enrichment for Teacher: fetch all submissions/views for enrolled students
+        let allSubmissions: any[] = [];
+        let allViews: any[] = [];
+
+        if (profile?.role === "teacher") {
+            const studentIds = enrolledStudents.map((s: any) => s.id);
+            const requiredStepIds = allCountableSteps.filter(s => s.completion_mode === 'required').map(s => s.id);
+            const viewableStepIds = allCountableSteps.filter(s => s.completion_mode === 'viewable').map(s => s.id);
+
+            if (requiredStepIds.length > 0) {
+                const { data } = await supabase
+                    .from("activity_submissions")
+                    .select("student_id, step_id, submitted_at")
+                    .in("student_id", studentIds)
+                    .in("step_id", requiredStepIds);
+                allSubmissions = data || [];
+            }
+
+            if (viewableStepIds.length > 0) {
+                const { data } = await supabase
+                    .from("step_views")
+                    .select("student_id, step_id, created_at")
+                    .in("student_id", studentIds)
+                    .in("step_id", viewableStepIds);
+                allViews = data || [];
+            }
         }
+
+        enrolledStudents = enrolledStudents.map((s: any) => {
+            const authData = authMap.get(s.id);
+            
+            let enrichedData = {};
+            if (profile?.role === "teacher") {
+                const studentSubmissions = allSubmissions.filter(sub => sub.student_id === s.id);
+                const studentViews = allViews.filter(v => v.student_id === s.id);
+                
+                const completedCount = studentSubmissions.length + studentViews.length;
+                
+                const lastSub = [...studentSubmissions].sort((a, b) => new Date(b.submitted_at!).getTime() - new Date(a.submitted_at!).getTime())[0];
+                const lastView = [...studentViews].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+                
+                let lastActivity = null;
+                if (lastSub && lastView) {
+                    lastActivity = new Date(lastSub.submitted_at!) > new Date(lastView.created_at) ? lastSub.submitted_at : lastView.created_at;
+                } else {
+                    lastActivity = lastSub?.submitted_at || lastView?.created_at || null;
+                }
+
+                enrichedData = {
+                    total_steps: totalCountableSteps,
+                    completed_steps: completedCount,
+                    last_activity: lastActivity
+                };
+            }
+
+            return {
+                ...s,
+                email: authData?.email || "sin_email@aula.it",
+                avatar_url: s.avatar_url || authData?.avatar_url || null,
+                ...enrichedData
+            };
+        });
     }
 
     return (

@@ -197,7 +197,7 @@ export async function updateModuleSettings(moduleId: string, formData: FormData)
         .update({
             name: name.trim(),
             description: description ? description.trim() : null,
-            status: (status as any) || 'pending',
+            status: (status as any) || 'draft',
             icon: icon || 'BookOpen',
             icon_style: icon_style || 'default',
             custom_icon_url: custom_icon_url || null,
