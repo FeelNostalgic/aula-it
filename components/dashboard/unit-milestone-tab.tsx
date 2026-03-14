@@ -251,10 +251,10 @@ function MilestoneForm({
                 <Button
                     type="submit"
                     disabled={isPending}
-                    className="bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-black uppercase tracking-widest px-8 rounded-xl h-11"
+                    className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8"
                 >
                     {isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-                    {milestoneId ? "Actualizar" : "Crear Hito"}
+                    {milestoneId ? "ACTUALIZAR" : "CREAR HITO"}
                 </Button>
             </div>
         </form>
@@ -490,10 +490,10 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
                         </div>
                         <Button
                             onClick={() => setIsCreateOpen(true)}
-                            className="bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-black uppercase tracking-widest text-[10px] px-4 rounded-xl h-9 gap-2 shadow-lg shadow-accent-blue/20"
+                            className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase"
                         >
-                            <Plus className="size-4" strokeWidth={3} />
-                            Añadir Hito
+                            <Plus className="mr-2 size-4" />
+                            AÑADIR HITO
                         </Button>
                     </div>
                 </div>
@@ -509,9 +509,9 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
                         </p>
                         <Button
                             onClick={() => setIsCreateOpen(true)}
-                            className="bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-black uppercase tracking-widest text-xs px-8 rounded-xl h-12 gap-2 shadow-lg shadow-accent-blue/20"
+                            className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8 uppercase"
                         >
-                            Crear mi primer hito
+                            CREAR MI PRIMER HITO
                         </Button>
                     </div>
                 ) : (

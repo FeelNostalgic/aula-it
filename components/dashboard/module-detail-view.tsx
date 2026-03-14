@@ -403,7 +403,7 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                             </div>
                             {isTeacher && (
                                 <CreateUnitDialog moduleId={module.id}>
-                                    <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4">
+                                    <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
                                         <Plus className="mr-2 size-4" />
                                         AÑADIR UNIDAD DIDÁCTICA
                                     </Button>

@@ -824,3 +824,253 @@ export async function deleteClassBadge(badgeId: string, unitId: string) {
     revalidatePath(`/dashboard/units/${unitId}`);
     return { success: true };
 }
+
+export async function deleteUnit(unitId: string) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return { error: "Not authenticated" };
+
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Unauthorized" };
+
+    // Get module_id for revalidation before deletion
+    const { data: unit } = await supabase
+        .from("units")
+        .select("module_id")
+        .eq("id", unitId)
+        .single();
+
+    const { error } = await supabase
+        .from("units")
+        .delete()
+        .eq("id", unitId);
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    if (unit?.module_id) {
+        revalidatePath(`/dashboard/modules/${unit.module_id}`);
+    }
+    revalidatePath("/dashboard");
+    return { success: true };
+}
+
+export async function duplicateActivity(unitId: string, activityId: string) {
+    const userClient = await createClient();
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+    if (userError || !user) return { error: "Not authenticated" };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Unauthorized" };
+
+    const supabase = createAdminClient();
+
+    // 1. Get original activity with phases and steps
+    const { data: activity, error: activityError } = await supabase
+        .from("activities")
+        .select(`
+            *,
+            activity_phases (
+                *,
+                activity_steps (*)
+            )
+        `)
+        .eq("id", activityId)
+        .single();
+
+    if (activityError || !activity) return { error: "Activity not found" };
+
+    // 2. Insert new activity
+    const { data: newActivity, error: newActivityError } = await supabase
+        .from("activities")
+        .insert({
+            unit_id: unitId,
+            title: `${activity.title} - copia`,
+            description: activity.description,
+            type: activity.type,
+            xp: activity.xp,
+            duration: activity.duration,
+            difficulty: activity.difficulty,
+            status: 'draft',
+            order_index: (activity.order_index ?? 0) + 1,
+            position_x: (activity.position_x ?? 0) + 20,
+            position_y: (activity.position_y ?? 0) + 20,
+            logo_url: activity.logo_url
+        })
+        .select()
+        .single();
+
+    if (newActivityError) return { error: newActivityError.message };
+
+    // 3. Duplicate phases and steps
+    for (const phase of (activity.activity_phases || [])) {
+        const { data: newPhase, error: newPhaseError } = await supabase
+            .from("activity_phases")
+            .insert({
+                activity_id: newActivity.id,
+                title: phase.title,
+                description: phase.description,
+                order_index: phase.order_index
+            })
+            .select()
+            .single();
+
+        if (newPhaseError) continue;
+
+        for (const step of (phase.activity_steps || [])) {
+            await supabase
+                .from("activity_steps")
+                .insert({
+                    phase_id: newPhase.id,
+                    title: step.title,
+                    content: step.content,
+                    type: step.type,
+                    order_index: step.order_index,
+                    xp_reward: step.xp_reward,
+                    completion_mode: step.completion_mode,
+                    config: step.config
+                });
+        }
+    }
+
+    revalidatePath(`/dashboard/units/${unitId}`);
+    return { success: true };
+}
+
+export async function duplicateUnit(moduleId: string, unitId: string) {
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "Not authenticated" };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Unauthorized" };
+
+    const supabase = createAdminClient();
+
+    // 1. Get original unit with all related data
+    const { data: unit, error: unitError } = await supabase
+        .from("units")
+        .select(`
+            *,
+            activities (
+                *,
+                activity_phases (
+                    *,
+                    activity_steps (*)
+                )
+            ),
+            class_milestones (*),
+            class_badges (*)
+        `)
+        .eq("id", unitId)
+        .single();
+
+    if (unitError || !unit) return { error: "Unit not found" };
+
+    // 2. Insert new unit
+    const { data: newUnit, error: newUnitError } = await supabase
+        .from("units")
+        .insert({
+            module_id: moduleId,
+            name: `${unit.name} - copia`,
+            description: unit.description,
+            status: 'draft',
+            view_type: unit.view_type || 'list',
+            order_index: (unit.order_index ?? 0) + 1,
+            resources: unit.resources
+        })
+        .select()
+        .single();
+
+    if (newUnitError) return { error: newUnitError.message };
+
+    // 3. Duplicate activities
+    for (const activity of (unit.activities || [])) {
+        const { data: newActivity, error: newActivityError } = await supabase
+            .from("activities")
+            .insert({
+                unit_id: newUnit.id,
+                title: activity.title,
+                description: activity.description,
+                type: activity.type,
+                xp: activity.xp,
+                duration: activity.duration,
+                difficulty: activity.difficulty,
+                status: 'draft',
+                order_index: activity.order_index,
+                position_x: activity.position_x,
+                position_y: activity.position_y,
+                logo_url: activity.logo_url
+            })
+            .select()
+            .single();
+
+        if (newActivityError) continue;
+
+        for (const phase of (activity.activity_phases || [])) {
+            const { data: newPhase, error: newPhaseError } = await supabase
+                .from("activity_phases")
+                .insert({
+                    activity_id: newActivity.id,
+                    title: phase.title,
+                    description: phase.description,
+                    order_index: phase.order_index
+                })
+                .select()
+                .single();
+
+            if (newPhaseError) continue;
+
+            for (const step of (phase.activity_steps || [])) {
+                await supabase
+                    .from("activity_steps")
+                    .insert({
+                        phase_id: newPhase.id,
+                        title: step.title,
+                        content: step.content,
+                        type: step.type,
+                        order_index: step.order_index,
+                        xp_reward: step.xp_reward,
+                        completion_mode: step.completion_mode,
+                        config: step.config
+                    });
+            }
+        }
+    }
+
+    // 4. Duplicate milestones
+    for (const milestone of (unit.class_milestones || [])) {
+        await supabase
+            .from("class_milestones")
+            .insert({
+                unit_id: newUnit.id,
+                title: milestone.title,
+                description: milestone.description,
+                target_points: milestone.target_points,
+                reward: milestone.reward,
+                status: 'draft',
+                order_index: milestone.order_index
+            });
+    }
+
+    // 5. Duplicate badges
+    for (const badge of (unit.class_badges || [])) {
+        await supabase
+            .from("class_badges")
+            .insert({
+                unit_id: newUnit.id,
+                title: badge.title,
+                description: badge.description,
+                icon_url: badge.icon_url,
+                is_hidden: badge.is_hidden,
+                condition_payload: badge.condition_payload,
+                xp_reward: badge.xp_reward
+            });
+    }
+
+    revalidatePath(`/dashboard/modules/${moduleId}`);
+    return { success: true };
+}
+

@@ -129,7 +129,7 @@ export function CreateModuleDialog({ children }: CreateModuleDialogProps = {}) {
         >
             <DialogTrigger asChild>
                 {children ?? (
-                    <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4">
+                    <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
                         <Plus className="mr-2 size-4" />
                         CREAR NUEVO MÓDULO
                     </Button>
@@ -276,9 +276,9 @@ export function CreateModuleDialog({ children }: CreateModuleDialogProps = {}) {
                         type="submit"
                         form="create-module-form"
                         disabled={isLoading || !name}
-                        className="bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-bold min-w-[140px] rounded-xl h-11 uppercase tracking-wider text-xs"
+                        className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8 uppercase"
                     >
-                        {isLoading ? "Creando..." : "Crear Módulo"}
+                        {isLoading ? "CREANDO..." : "CREAR MÓDULO"}
                     </Button>
                 </DialogFooter>
             </DialogContent>

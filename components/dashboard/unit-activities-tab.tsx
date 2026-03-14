@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,15 +13,20 @@ import {
     Gamepad2,
     HelpCircle,
     Trophy,
-    Loader2
+    Loader2,
+    Trash2,
+    AlertCircle,
+    LayoutGrid,
+    List,
+    Plus,
+    Clock,
+    Zap,
+    BarChart3,
+    Copy
 } from "lucide-react";
-import { reorderMultipleActivities, deleteActivity } from "@/app/dashboard/units/[id]/actions";
+import { reorderMultipleActivities, deleteActivity, duplicateActivity } from "@/app/dashboard/units/[id]/actions";
 import { CreateActivityDialog } from "./create-activity-dialog";
 import { toast } from "sonner";
-import {
-    Trash2,
-    AlertCircle
-} from "lucide-react";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -38,17 +43,16 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import {
-    LayoutGrid,
-    List,
-    Plus,
-    Clock,
-    Zap,
-    BarChart3
-} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { BadgeDisplay } from "./badge-display";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 // DnD Kit Imports
 import {
@@ -94,6 +98,10 @@ interface UnitActivitiesTabProps {
     isTeacher?: boolean;
     submissions: any[];
     studentBadges?: any[];
+    gridCols?: number;
+    setGridCols?: (cols: number) => void;
+    viewModeExternal?: 'grid' | 'list' | null;
+    setViewModeExternal?: (mode: 'grid' | 'list') => void;
 }
 
 // Difficulty color helper
@@ -140,17 +148,19 @@ function SortableActivityItem({
     unitId,
     onDelete,
     isTeacher,
-    studentBadges = []
+    studentBadges = [],
+    submission
 }: {
     activity: Activity,
     viewMode: 'grid' | 'list',
     unitId: string,
     onDelete: (id: string) => void,
     isTeacher?: boolean,
-    studentBadges?: any[]
+    studentBadges?: any[],
+    submission?: any
 }) {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
+    const [isPending, setIsPending] = useState(false);
 
     const {
         attributes,
@@ -171,7 +181,7 @@ function SortableActivityItem({
     const diffConfig = getDifficultyConfig(activity.difficulty);
 
     const handleDelete = async () => {
-        setIsDeleting(true);
+        setIsPending(true);
         try {
             await toast.promise(
                 (async () => {
@@ -191,9 +201,30 @@ function SortableActivityItem({
         } catch (err) {
             console.error("Delete error:", err);
         } finally {
-            setIsDeleting(false);
+            setIsPending(false);
             setIsDeleteDialogOpen(false);
         }
+    };
+
+    const handleDuplicate = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsPending(true);
+        
+        toast.promise(
+            (async () => {
+                const result = await duplicateActivity(unitId, activity.id);
+                if (result?.error) throw new Error(result.error);
+                router.refresh();
+                return result;
+            })(),
+            {
+                loading: 'Duplicando reto...',
+                success: 'Reto duplicado correctamente',
+                error: (err) => `Error al duplicar: ${err.message}`,
+            }
+        );
+        
+        setIsPending(false);
     };
 
     const ActionsMenu = () => (
@@ -204,6 +235,13 @@ function SortableActivityItem({
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-surface-dark border-border-strong text-foreground w-48">
+                <DropdownMenuItem
+                    className="focus:bg-accent-blue/10 focus:text-accent-blue cursor-pointer"
+                    onClick={handleDuplicate}
+                >
+                    <Copy className="size-4 mr-2" />
+                    Duplicar
+                </DropdownMenuItem>
                 <DropdownMenuItem
                     className="text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer"
                     onClick={(e) => {
@@ -235,9 +273,9 @@ function SortableActivityItem({
                     <AlertDialogAction
                         onClick={handleDelete}
                         className="bg-red-500 hover:bg-red-600 text-white border-none"
-                        disabled={isDeleting}
+                        disabled={isPending}
                     >
-                        {isDeleting ? "Eliminando..." : "Eliminar Reto"}
+                        {isPending ? "Eliminando..." : "Eliminar Reto"}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
@@ -508,14 +546,31 @@ function SortableActivityItem({
     );
 }
 
-export function UnitActivitiesTab({ unitId, initialActivities, isTeacher = false, submissions, studentBadges = [] }: UnitActivitiesTabProps) {
+export function UnitActivitiesTab({
+    unitId,
+    initialActivities,
+    isTeacher = false,
+    submissions,
+    studentBadges = [],
+    gridCols = 3,
+    setGridCols,
+    viewModeExternal,
+    setViewModeExternal
+}: UnitActivitiesTabProps) {
+    const router = useRouter();
     const [activities, setActivities] = useState<Activity[]>(
         [...initialActivities]
             .filter(a => isTeacher || a.status !== 'draft')
             .sort((a, b) => a.order_index - b.order_index)
     );
     const [isReordering, setIsReordering] = useState(false);
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [viewModeInternal, setViewModeInternal] = useState<'grid' | 'list'>('grid');
+
+    const viewMode = viewModeExternal || viewModeInternal;
+    const handleViewModeChange = (mode: 'grid' | 'list') => {
+        if (setViewModeExternal) setViewModeExternal(mode);
+        else setViewModeInternal(mode);
+    };
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -574,33 +629,57 @@ export function UnitActivitiesTab({ unitId, initialActivities, isTeacher = false
         }
     };
 
+    const gridColsClass = {
+        2: "md:grid-cols-2 lg:grid-cols-2",
+        3: "md:grid-cols-2 lg:grid-cols-3",
+        4: "md:grid-cols-3 lg:grid-cols-4",
+        5: "md:grid-cols-4 lg:grid-cols-5",
+    }[gridCols as 2 | 3 | 4 | 5] || "md:grid-cols-2 lg:grid-cols-3";
+
     return (
         <div className="space-y-6 w-full">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                 <div className="flex items-center gap-3">
-                    <div>
-                        <h2 className="text-xl font-bold text-foreground">Retos de la Unidad</h2>
-                        <div className="flex items-center gap-2 mt-1">
-                            <p className="text-sm text-text-muted">
-                                {activities.length} {activities.length === 1 ? 'Actividad' : 'Actividades'} configuradas
-                            </p>
-                            {isReordering && (
-                                <div className="bg-surface px-2 py-0.5 rounded-full border border-border-subtle flex items-center gap-1.5 animate-in fade-in transition-all">
-                                    <Loader2 className="size-2.5 animate-spin text-accent-blue" />
-                                    <span className="text-[9px] font-mono font-bold tracking-widest text-text-muted uppercase">Guardando...</span>
-                                </div>
-                            )}
-                        </div>
+                    <h2 className="text-xl font-bold text-foreground">Retos de la Unidad</h2>
+                    <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className="border-border-subtle text-text-muted text-[10px] font-mono font-bold">
+                            {activities.length}
+                        </Badge>
                     </div>
+                    {isReordering && (
+                        <div className="bg-surface px-2 py-0.5 rounded-full border border-border-subtle flex items-center gap-1.5 animate-in fade-in transition-all">
+                            <Loader2 className="size-2.5 animate-spin text-accent-blue" />
+                            <span className="text-[9px] font-mono font-bold tracking-widest text-text-muted uppercase">Guardando...</span>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-3">
+                    {/* Grid Column Selector */}
+                    {viewMode === "grid" && setGridCols && (
+                        <div className="flex items-center gap-2 mr-2">
+                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest hidden lg:inline">Columnas:</span>
+                            <Select value={gridCols.toString()} onValueChange={(val) => setGridCols(parseInt(val))}>
+                                <SelectTrigger className="w-[60px] h-8 bg-surface border-border-subtle focus:ring-accent-blue text-xs">
+                                    <SelectValue placeholder="3" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-surface border-border-subtle">
+                                    <SelectItem value="2">2</SelectItem>
+                                    <SelectItem value="3">3</SelectItem>
+                                    <SelectItem value="4">4</SelectItem>
+                                    <SelectItem value="5">5</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
+                    {/* View Mode Toggle */}
                     <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
                         <Button
                             variant={viewMode === "grid" ? "secondary" : "ghost"}
                             size="icon"
                             className={cn("h-8 w-8", viewMode === 'grid' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
-                            onClick={() => setViewMode('grid')}
+                            onClick={() => handleViewModeChange('grid')}
                         >
                             <LayoutGrid className="size-4" />
                         </Button>
@@ -608,12 +687,20 @@ export function UnitActivitiesTab({ unitId, initialActivities, isTeacher = false
                             variant={viewMode === "list" ? "secondary" : "ghost"}
                             size="icon"
                             className={cn("h-8 w-8", viewMode === 'list' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
-                            onClick={() => setViewMode('list')}
+                            onClick={() => handleViewModeChange('list')}
                         >
                             <List className="size-4" />
                         </Button>
                     </div>
-                    {isTeacher && <CreateActivityDialog unitId={unitId} />}
+
+                    {isTeacher && (
+                        <CreateActivityDialog unitId={unitId}>
+                            <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
+                                <Plus className="mr-2 size-4" />
+                                AÑADIR RETO
+                            </Button>
+                        </CreateActivityDialog>
+                    )}
                 </div>
             </div>
 
@@ -628,7 +715,14 @@ export function UnitActivitiesTab({ unitId, initialActivities, isTeacher = false
                             ? "Comienza a construir el recorrido de aprendizaje añadiendo el primer reto para esta unidad."
                             : "Vuelve más tarde para descubrir los retos de esta unidad."}
                     </p>
-                    {isTeacher && <CreateActivityDialog unitId={unitId} />}
+                    {isTeacher && (
+                        <CreateActivityDialog unitId={unitId}>
+                            <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8 uppercase">
+                                <Plus className="mr-2 size-4" />
+                                AÑADIR RETO
+                            </Button>
+                        </CreateActivityDialog>
+                    )}
                 </div>
             ) : (
                 <DndContext
@@ -642,7 +736,7 @@ export function UnitActivitiesTab({ unitId, initialActivities, isTeacher = false
                     >
                         <div className={cn(
                             viewMode === 'grid'
-                                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                                ? cn("grid gap-6", gridColsClass)
                                 : "space-y-3"
                         )}>
                             {activities.map((activity) => (
@@ -654,6 +748,11 @@ export function UnitActivitiesTab({ unitId, initialActivities, isTeacher = false
                                     isTeacher={isTeacher}
                                     studentBadges={studentBadges}
                                     onDelete={(id) => setActivities(prev => prev.filter(a => a.id !== id))}
+                                    submission={
+                                        !isTeacher
+                                            ? submissions.find(s => s.activity_steps?.activity_phases?.activity_id === activity.id)
+                                            : null
+                                    }
                                 />
                             ))}
 
@@ -698,4 +797,3 @@ export function UnitActivitiesTab({ unitId, initialActivities, isTeacher = false
         </div>
     );
 }
-

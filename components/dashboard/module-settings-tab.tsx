@@ -331,7 +331,7 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                             </div>
 
                             <div className="pt-4 flex justify-end">
-                                <Button type="submit" disabled={loading} className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-bold">
+                                <Button type="submit" disabled={loading} className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8 uppercase">
                                     {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
                                     GUARDAR CAMBIOS
                                 </Button>

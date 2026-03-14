@@ -21,7 +21,11 @@ import { toast } from "sonner";
 function SubmitButton() {
     const { pending } = useFormStatus();
     return (
-        <Button type="submit" disabled={pending} className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground">
+        <Button 
+            type="submit" 
+            disabled={pending} 
+            className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8"
+        >
             {pending ? "CREANDO..." : "CREAR UNIDAD"}
         </Button>
     );

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import { ResourceItem } from "@/types/activity";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { updateUnitResources } from "@/app/dashboard/units/[id]/actions";
 import { toast } from "sonner";
-import { Plus, Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical, Search, Loader2, FolderPlus, ChevronRight, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical, Search, Loader2, FolderPlus, ChevronRight, ArrowLeft, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { ResourceIcon } from "./resource-icon";
@@ -34,6 +34,16 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface UnitResourcesTabProps {
     unitId: string;
@@ -44,6 +54,8 @@ export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabP
     const [resources, setResources] = useState<ResourceItem[]>(initialResources || []);
     const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [isPending, startTransition] = useTransition();
+    const [itemToDelete, setItemToDelete] = useState<ResourceItem | null>(null);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
@@ -87,8 +99,51 @@ export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabP
     };
 
     const removeItem = (id: string) => {
-        const newResources = resources.filter(item => item.id !== id);
+        const item = resources.find(r => r.id === id);
+        if (!item) return;
+
+        // Condition for confirmation:
+        // 1. Is a folder
+        // 2. Has title (if not "Nueva Carpeta"), url or description
+        const isDefaultFolder = item.type === 'folder' && item.title === "Nueva Carpeta";
+        const hasContent = (item.title && !isDefaultFolder) || !!item.url?.trim() || !!item.description?.trim();
+        const needsConfirmation = item.type === 'folder' || hasContent;
+
+        if (needsConfirmation) {
+            setItemToDelete(item);
+        } else {
+            confirmDelete(id);
+        }
+    };
+
+    const confirmDelete = (id: string) => {
+        // Recursive deletion logic to prevent orphaned resources
+        const idsToDelete = new Set<string>([id]);
+        
+        const findDescendants = (parentId: string) => {
+            resources.forEach(item => {
+                if (item.parentId === parentId) {
+                    idsToDelete.add(item.id);
+                    if (item.type === 'folder') {
+                        findDescendants(item.id);
+                    }
+                }
+            });
+        };
+
+        const item = resources.find(r => r.id === id);
+        if (item?.type === 'folder') {
+            findDescendants(id);
+        }
+
+        const newResources = resources.filter(item => !idsToDelete.has(item.id));
         handleUpdate(newResources);
+        setItemToDelete(null);
+        
+        // If we were inside a folder that just got deleted, go to root
+        if (idsToDelete.has(currentFolderId || "")) {
+            setCurrentFolderId(null);
+        }
     };
 
     const handleDragEnd = (event: DragEndEvent) => {
@@ -245,6 +300,33 @@ export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabP
                     </div>
                 </SortableContext>
             </DndContext>
+
+            {/* AlertDialog para confirmación de borrado */}
+            <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
+                <AlertDialogContent className="bg-surface border-border-strong">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                            <AlertCircle className="size-5 text-red-500" />
+                            ¿Eliminar recurso?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-text-muted">
+                            {itemToDelete?.type === 'folder' 
+                                ? `Estás a punto de eliminar la carpeta "${itemToDelete.title}". Esto eliminará permanentemente la carpeta y TODO su contenido. Esta acción no se puede deshacer.`
+                                : `¿Estás seguro de que quieres eliminar "${itemToDelete?.title || 'este recurso'}"? Esta acción no se puede deshacer.`
+                            }
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel className="bg-transparent border-border-strong hover:bg-surface-dark">Cancelar</AlertDialogCancel>
+                        <AlertDialogAction 
+                            onClick={() => itemToDelete && confirmDelete(itemToDelete.id)}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

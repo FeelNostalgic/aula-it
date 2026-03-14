@@ -42,6 +42,14 @@ import { ClassBadgesWidget } from "./class-badges-widget";
 import { ClassBadge, StudentBadge } from "@/types/database";
 import ClassBadgesManager from "./class-badges-manager";
 
+import { 
+    Select, 
+    SelectContent, 
+    SelectItem, 
+    SelectTrigger, 
+    SelectValue 
+} from "@/components/ui/select";
+
 type Unit = {
     id: string;
     module_id: string;
@@ -102,7 +110,8 @@ export function UnitDetailView({
     studentBadges
 }: UnitDetailViewProps) {
     const isTeacher = userRole === "teacher";
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [viewMode, setViewMode] = useState<'grid' | 'list' | null>(null);
+    const [gridCols, setGridCols] = useState(3);
     const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
     const [isMilestoneExpanded, setIsMilestoneExpanded] = useState(true);
     const [isBadgesExpanded, setIsBadgesExpanded] = useState(false);
@@ -110,16 +119,26 @@ export function UnitDetailView({
     const activeMilestone = sortedMilestones.find(m => m.status === 'active') ||
         [...sortedMilestones].reverse().find(m => m.status === 'completed') || null;
 
-    // Persist view mode preference
+    // Persist view mode and grid cols preference
     useEffect(() => {
-        const savedMode = localStorage.getItem('resourceViewMode') as 'grid' | 'list';
-        if (savedMode) setViewMode(savedMode);
+        const savedMode = localStorage.getItem('aula-it:unit-view:view-mode') as 'grid' | 'list';
+        const savedCols = localStorage.getItem('aula-it:unit-view:grid-cols');
+        if (savedMode) setViewMode(savedMode || 'grid');
+        else setViewMode('grid');
+        if (savedCols) setGridCols(parseInt(savedCols, 10));
     }, []);
 
     const handleViewModeChange = (mode: 'grid' | 'list') => {
         setViewMode(mode);
-        localStorage.setItem('resourceViewMode', mode);
+        localStorage.setItem('aula-it:unit-view:view-mode', mode);
     };
+
+    useEffect(() => {
+        if (viewMode) {
+            localStorage.setItem('aula-it:unit-view:grid-cols', gridCols.toString());
+        }
+    }, [gridCols, viewMode]);
+
     const { setSegments } = useBreadcrumb();
 
     // Normalize status for robust lookup
@@ -161,6 +180,13 @@ export function UnitDetailView({
         dotBg: "bg-accent-orange",
         dotAnim: ""
     };
+
+    const globalBadges = classBadges.filter(b => {
+        if (b.activity_id) return false;
+        if (isTeacher) return true;
+        // For students, show if not hidden OR if earned
+        return !b.is_hidden || studentBadges.some(sb => sb.badge_id === b.id);
+    });
 
     // Set breadcrumb segments for the top nav
     useEffect(() => {
@@ -275,7 +301,7 @@ export function UnitDetailView({
                                     transition={{ duration: 0.3, ease: "easeOut" }}
                                 >
                                     <ClassBadgesWidget 
-                                        badges={classBadges} 
+                                        badges={globalBadges} 
                                         studentBadges={studentBadges} 
                                         isTeacher={isTeacher} 
                                         onToggle={() => setIsBadgesExpanded(false)}
@@ -304,14 +330,14 @@ export function UnitDetailView({
                                     <div className="flex items-center gap-2">
                                         <span className="text-[10px] font-bold text-text-muted uppercase">Disponibles:</span>
                                         <div className="flex -space-x-2">
-                                            {classBadges.slice(0, 3).map((b, i) => (
+                                            {globalBadges.slice(0, 3).map((b, i) => (
                                                 <div key={b.id} className="size-6 rounded-full bg-surface border-2 border-background flex items-center justify-center shadow-sm">
                                                     <Award className="size-3 text-accent-amber" />
                                                 </div>
                                             ))}
-                                            {classBadges.length > 3 && (
+                                            {globalBadges.length > 3 && (
                                                 <div className="size-6 rounded-full bg-surface-dark border-2 border-background flex items-center justify-center text-[8px] font-bold text-text-muted">
-                                                    +{classBadges.length - 3}
+                                                    +{globalBadges.length - 3}
                                                 </div>
                                             )}
                                         </div>
@@ -415,6 +441,10 @@ export function UnitDetailView({
                             isTeacher={isTeacher}
                             submissions={submissions}
                             studentBadges={studentBadges}
+                            gridCols={gridCols}
+                            setGridCols={setGridCols}
+                            viewModeExternal={viewMode}
+                            setViewModeExternal={handleViewModeChange}
                         />
                     </TabsContent>
 

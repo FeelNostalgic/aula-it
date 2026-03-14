@@ -143,3 +143,161 @@ export async function reorderUnits(moduleId: string, items: { id: string; order_
     revalidatePath(`/dashboard/modules/${moduleId}`);
     return { success: true };
 }
+
+export async function duplicateModule(moduleId: string) {
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "Not authenticated" };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Unauthorized" };
+
+    const supabase = createAdminClient();
+
+    // 1. Get original module with units and everything nested
+    const { data: module, error: moduleError } = await supabase
+        .from("modules")
+        .select(`
+            *,
+            units (
+                *,
+                activities (
+                    *,
+                    activity_phases (
+                        *,
+                        activity_steps (*)
+                    )
+                ),
+                class_milestones (*),
+                class_badges (*)
+            )
+        `)
+        .eq("id", moduleId)
+        .single();
+
+    if (moduleError || !module) return { error: "Module not found" };
+
+    // 2. Insert new module
+    const { data: newModule, error: newModuleError } = await supabase
+        .from("modules")
+        .insert({
+            teacher_id: user.id,
+            name: `${module.name} - copia`,
+            description: module.description,
+            icon: module.icon,
+            icon_style: module.icon_style || 'default',
+            custom_icon_url: module.custom_icon_url,
+            status: 'draft',
+            order_index: (module.order_index ?? 0) + 1
+        })
+        .select()
+        .single();
+
+    if (newModuleError) return { error: newModuleError.message };
+
+    // 3. Duplicate units and their children
+    for (const unit of (module.units || [])) {
+        const { data: newUnit, error: newUnitError } = await supabase
+            .from("units")
+            .insert({
+                module_id: newModule.id,
+                name: unit.name,
+                description: unit.description,
+                status: 'draft',
+                view_type: unit.view_type || 'list',
+                order_index: unit.order_index,
+                resources: unit.resources
+            })
+            .select()
+            .single();
+
+        if (newUnitError) continue;
+
+        // 4. Duplicate activities
+        for (const activity of (unit.activities || [])) {
+            const { data: newActivity, error: newActivityError } = await supabase
+                .from("activities")
+                .insert({
+                    unit_id: newUnit.id,
+                    title: activity.title,
+                    description: activity.description,
+                    type: activity.type,
+                    xp: activity.xp,
+                    duration: activity.duration,
+                    difficulty: activity.difficulty,
+                    status: 'draft',
+                    order_index: activity.order_index,
+                    position_x: activity.position_x,
+                    position_y: activity.position_y,
+                    logo_url: activity.logo_url
+                })
+                .select()
+                .single();
+
+            if (newActivityError) continue;
+
+            for (const phase of (activity.activity_phases || [])) {
+                const { data: newPhase, error: newPhaseError } = await supabase
+                    .from("activity_phases")
+                    .insert({
+                        activity_id: newActivity.id,
+                        title: phase.title,
+                        description: phase.description,
+                        order_index: phase.order_index
+                    })
+                    .select()
+                    .single();
+
+                if (newPhaseError) continue;
+
+                for (const step of (phase.activity_steps || [])) {
+                    await supabase
+                        .from("activity_steps")
+                        .insert({
+                            phase_id: newPhase.id,
+                            title: step.title,
+                            content: step.content,
+                            type: step.type,
+                            order_index: step.order_index,
+                            xp_reward: step.xp_reward,
+                            completion_mode: step.completion_mode,
+                            config: step.config
+                        });
+                }
+            }
+        }
+
+        // 5. Duplicate milestones
+        for (const milestone of (unit.class_milestones || [])) {
+            await supabase
+                .from("class_milestones")
+                .insert({
+                    unit_id: newUnit.id,
+                    title: milestone.title,
+                    description: milestone.description,
+                    target_points: milestone.target_points,
+                    reward: milestone.reward,
+                    status: 'draft',
+                    order_index: milestone.order_index
+                });
+        }
+
+        // 6. Duplicate badges
+        for (const badge of (unit.class_badges || [])) {
+            await supabase
+                .from("class_badges")
+                .insert({
+                    unit_id: newUnit.id,
+                    title: badge.title,
+                    description: badge.description,
+                    icon_url: badge.icon_url,
+                    is_hidden: badge.is_hidden,
+                    condition_payload: badge.condition_payload,
+                    xp_reward: badge.xp_reward
+                });
+        }
+    }
+
+    revalidatePath("/dashboard");
+    return { success: true };
+}

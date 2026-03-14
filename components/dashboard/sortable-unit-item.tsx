@@ -1,19 +1,43 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { 
     Lock, 
     Terminal, 
-    GripVertical 
+    GripVertical,
+    MoreVertical,
+    Copy,
+    Trash2,
+    AlertCircle,
+    BookOpen
 } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { NextDueDisplay } from "./next-due-display";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { duplicateUnit, deleteUnit } from "@/app/dashboard/units/[id]/actions";
+import { toast } from "sonner";
 
 type Unit = {
     id: string;
@@ -77,6 +101,103 @@ function calculateProgress(unit: Unit) {
     }).length;
 
     return totalActivities > 0 ? Math.round((completedActivities / totalActivities) * 100) : 0;
+}
+
+function UnitActions({ unit }: { unit: Unit }) {
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [isPending, setIsPending] = useState(false);
+    const router = useRouter();
+
+    const handleDuplicate = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsPending(true);
+        
+        toast.promise(
+            (async () => {
+                const result = await duplicateUnit(unit.module_id, unit.id);
+                if (result?.error) throw new Error(result.error);
+                router.refresh();
+                return result;
+            })(),
+            {
+                loading: 'Duplicando unidad...',
+                success: 'Unidad duplicada correctamente',
+                error: (err) => `Error al duplicar: ${err.message}`,
+            }
+        );
+        
+        setIsPending(false);
+    };
+
+    const handleDelete = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsPending(true);
+        const result = await deleteUnit(unit.id);
+        setIsPending(false);
+
+        if (result?.error) {
+            toast.error(`Error al eliminar: ${result.error}`);
+        } else {
+            toast.success("Unidad eliminada correctamente");
+            router.refresh();
+        }
+        setIsDeleteDialogOpen(false);
+    };
+
+    return (
+        <div onClick={(e) => e.stopPropagation()}>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-text-muted hover:text-foreground"
+                        disabled={isPending}
+                    >
+                        <MoreVertical className="size-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 bg-surface-dark border-border-strong">
+                    <DropdownMenuItem
+                        className="focus:bg-accent-blue/10 focus:text-accent-blue cursor-pointer"
+                        onClick={handleDuplicate}
+                    >
+                        <Copy className="mr-2 size-4" />
+                        Duplicar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        className="text-red-500 focus:bg-red-500/10 focus:text-red-500 cursor-pointer"
+                        onClick={() => setIsDeleteDialogOpen(true)}
+                    >
+                        <Trash2 className="mr-2 size-4" />
+                        Eliminar
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent className="bg-surface border-border-strong">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-red-500">¿Eliminar unidad permanentemente?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-text-muted">
+                            Esta acción eliminará la unidad <span className="text-foreground font-bold">"{unit.name}"</span> y todos sus retos, hitos y datos asociados. Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={(e) => e.stopPropagation()} className="bg-transparent border-border-strong hover:bg-surface-dark">
+                            Cancelar
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDelete}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            Eliminar Unidad
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div>
+    );
 }
 
 export function SortableUnitListItem({ unit, userRole }: SortableUnitItemProps) {
@@ -159,11 +280,12 @@ export function SortableUnitListItem({ unit, userRole }: SortableUnitItemProps) 
                 </div>
 
                 {/* Col 4: Status Badge */}
-                <div className="w-full md:w-[130px] shrink-0 flex md:justify-end mt-2 md:mt-0">
+                <div className="w-full md:w-[130px] shrink-0 flex items-center justify-end gap-4 mt-2 md:mt-0">
                     <Badge variant="outline" className={`${unitStatusConfig.border} ${unitStatusConfig.bg} ${unitStatusConfig.color} gap-1.5 py-1 px-3 shadow-sm`}>
                         <span className={`size-1.5 rounded-full ${unitStatusConfig.dotBg}`} />
                         {unitStatusConfig.label}
                     </Badge>
+                    {isTeacher && <UnitActions unit={unit} />}
                 </div>
             </div>
         </>
@@ -213,7 +335,7 @@ export function SortableUnitGridItem({ unit, userRole }: SortableUnitItemProps) 
         <div ref={setNodeRef} style={style} className={cn("h-full", isDragging && "scale-[1.01]")}>
             <Card
                 className={cn(
-                    "bg-surface-dark border-border-subtle transition-all group overflow-hidden flex flex-col h-full rounded-2xl",
+                    "bg-surface-dark border-border-subtle transition-all group overflow-hidden flex flex-col h-full rounded-2xl relative",
                     !isLocked && "hover:border-accent-blue/50 hover:shadow-lg hover:shadow-accent-blue/5 cursor-pointer",
                     isLocked && "opacity-50 grayscale saturate-50 cursor-not-allowed"
                 )}
@@ -232,22 +354,27 @@ export function SortableUnitGridItem({ unit, userRole }: SortableUnitItemProps) 
                                 <span className="text-lg font-bold text-accent-blue font-mono">{unit.order_index + 1}</span>
                             )}
                         </div>
-                        <div className="flex items-center gap-2">
-                            <Badge variant="outline" className={`${unitStatusConfig.border} ${unitStatusConfig.bg} ${unitStatusConfig.color} gap-1.5 shadow-sm`}>
-                                <span className={`size-1.5 rounded-full ${unitStatusConfig.dotBg}`} />
-                                {unitStatusConfig.label}
-                            </Badge>
+                        <div className="flex items-center gap-1">
+                            {unitStatusConfig && (
+                                <Badge variant="outline" className={`${unitStatusConfig.border} ${unitStatusConfig.bg} ${unitStatusConfig.color} gap-1.5 shadow-sm`}>
+                                    <span className={`size-1.5 rounded-full ${unitStatusConfig.dotBg}`} />
+                                    {unitStatusConfig.label}
+                                </Badge>
+                            )}
                             {isTeacher && (
-                                <button
-                                    {...attributes}
-                                    {...listeners}
-                                    className="flex items-center justify-center size-7 rounded-lg text-text-muted hover:text-foreground hover:bg-surface transition-colors cursor-grab active:cursor-grabbing shrink-0 touch-none"
-                                    tabIndex={-1}
-                                    aria-label="Arrastrar para reordenar"
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    <GripVertical className="size-4" />
-                                </button>
+                                <>
+                                    <UnitActions unit={unit} />
+                                    <button
+                                        {...attributes}
+                                        {...listeners}
+                                        className="flex items-center justify-center size-7 rounded-lg text-text-muted hover:text-foreground hover:bg-surface transition-colors cursor-grab active:cursor-grabbing shrink-0 touch-none"
+                                        tabIndex={-1}
+                                        aria-label="Arrastrar para reordenar"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <GripVertical className="size-4" />
+                                    </button>
+                                </>
                             )}
                         </div>
                     </div>

@@ -261,14 +261,13 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
                             <List className="size-4" />
                         </Button>
                     </div>
-                    <Button 
-                        onClick={() => setIsCreating(true)} 
-                        className="bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-black uppercase tracking-widest text-[10px] px-4 rounded-xl h-9 gap-2 shadow-lg shadow-accent-blue/20"
+                    <Button
+                        onClick={() => setIsCreating(true)}
+                        className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase"
                     >
-                        <Plus className="size-4" strokeWidth={3} />
-                        Nueva Insignia
-                    </Button>
-                </div>
+                        <Plus className="mr-2 size-4" />
+                        NUEVA INSIGNIA
+                    </Button>                </div>
             </div>
 
             <Dialog 
@@ -502,15 +501,14 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
 
                     <DialogFooter className="p-6 bg-surface-dark/50 border-t border-border/50">
                         <Button variant="ghost" onClick={resetForm} disabled={isLoading}>Cancelar</Button>
-                        <Button 
-                            onClick={() => isEditing ? handleUpdate(isEditing) : handleCreate()} 
+                        <Button
+                            onClick={() => isEditing ? handleUpdate(isEditing) : handleCreate()}
                             disabled={isLoading || !title}
-                            className="bg-accent-blue hover:bg-accent-blue/90 text-white min-w-[120px]"
+                            className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8"
                         >
-                            {isLoading ? "Guardando..." : "Guardar Insignia"}
+                            {isLoading ? "GUARDANDO..." : "GUARDAR INSIGNIA"}
                         </Button>
-                    </DialogFooter>
-                </DialogContent>
+                    </DialogFooter>                </DialogContent>
             </Dialog>
 
             <div className={cn(
@@ -606,9 +604,12 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
                             <p className="font-bold text-foreground">No hay insignias {activityId ? 'para este reto' : 'globales'}</p>
                             <p className="text-sm text-text-muted max-w-[300px] mx-auto">Comienza creando una insignia para motivar el progreso de tus alumnos.</p>
                         </div>
-                        <Button onClick={() => setIsCreating(true)} variant="outline" className="border-accent-blue/30 text-accent-blue hover:bg-accent-blue hover:text-white transition-all">
+                        <Button 
+                            onClick={() => setIsCreating(true)} 
+                            className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8 uppercase"
+                        >
                             <Plus className="size-4 mr-2" />
-                            Crear Primera Insignia
+                            CREAR PRIMERA INSIGNIA
                         </Button>
                     </div>
                 )}

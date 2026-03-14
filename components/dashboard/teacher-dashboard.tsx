@@ -10,9 +10,7 @@ import {
     Clock,
     Plus,
     GripVertical,
-    ChevronDown,
     AlertTriangle,
-    CalendarClock,
     Globe,
     Cpu,
     Shield,
@@ -23,7 +21,13 @@ import {
     Code,
     Network,
     Database,
-    Terminal
+    Terminal,
+    MoreVertical,
+    Copy,
+    Trash2,
+    CalendarClock,
+    ChevronDown,
+    Loader2
 } from "lucide-react";
 import {
     DndContext,
@@ -32,6 +36,7 @@ import {
     useSensor,
     useSensors,
     closestCenter,
+    KeyboardSensor,
 } from "@dnd-kit/core";
 import {
     arrayMove,
@@ -39,6 +44,7 @@ import {
     useSortable,
     verticalListSortingStrategy,
     rectSortingStrategy,
+    sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
@@ -47,9 +53,26 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CreateModuleDialog } from "./create-module-dialog";
-import { reorderModules, updateDashboardSettings } from "@/app/dashboard/actions";
-import { cn } from "@/lib/utils";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { reorderModules, updateDashboardSettings, duplicateModule } from "@/app/dashboard/actions";
+import { deleteModule } from "@/app/dashboard/modules/[id]/actions";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { NextDueDisplay } from "./next-due-display";
 import {
     Select,
@@ -176,6 +199,109 @@ function ModuleIcon({ module, className }: { module: Module; className?: string 
     );
 }
 
+function ModuleActions({ module }: { module: Module }) {
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [isPending, setIsPending] = useState(false);
+    const router = useRouter();
+
+    const handleDuplicate = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsPending(true);
+        
+        toast.promise(
+            (async () => {
+                const result = await duplicateModule(module.id);
+                if (result?.error) throw new Error(result.error);
+                router.refresh();
+                return result;
+            })(),
+            {
+                loading: 'Duplicando módulo...',
+                success: 'Módulo duplicado correctamente',
+                error: (err) => `Error al duplicar: ${err.message}`,
+            }
+        );
+        
+        setIsPending(false);
+    };
+
+    const handleDelete = async () => {
+        setIsPending(true);
+        const result = await deleteModule(module.id);
+        setIsPending(false);
+
+        if (result?.error) {
+            toast.error(`Error al eliminar: ${result.error}`);
+        } else {
+            toast.success("Módulo eliminado correctamente");
+            router.refresh();
+        }
+        setIsDeleteDialogOpen(false);
+    };
+
+    return (
+        <>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="size-8 text-text-muted hover:text-foreground"
+                        onClick={(e) => e.stopPropagation()}
+                        disabled={isPending}
+                    >
+                        <MoreVertical className="size-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 bg-surface-dark border-border-strong">
+                    <DropdownMenuItem 
+                        className="focus:bg-accent-blue/10 focus:text-accent-blue cursor-pointer"
+                        onClick={handleDuplicate}
+                    >
+                        <Copy className="mr-2 size-4" />
+                        Duplicar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                        className="text-red-500 focus:bg-red-500/10 focus:text-red-500 cursor-pointer"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsDeleteDialogOpen(true);
+                        }}
+                    >
+                        <Trash2 className="mr-2 size-4" />
+                        Eliminar
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent className="bg-surface border-border-strong">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-red-500">¿Eliminar módulo permanentemente?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-text-muted">
+                            Esta acción eliminará el módulo <span className="text-foreground font-bold">"{module.name}"</span>, todas sus unidades, retos y datos de alumnos asociados. Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={(e) => e.stopPropagation()} className="bg-transparent border-border-strong hover:bg-surface-dark">
+                            Cancelar
+                        </AlertDialogCancel>
+                        <AlertDialogAction 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete();
+                            }}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            Eliminar Módulo
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
+    );
+}
+
 function SortableModuleListItem({ module }: { module: Module }) {
     const router = useRouter();
     const {
@@ -268,7 +394,7 @@ function SortableModuleListItem({ module }: { module: Module }) {
                     </div>
                 </div>
 
-                <div className="w-full md:w-[130px] shrink-0 flex md:justify-end mt-2 md:mt-0">
+                <div className="w-full md:w-[130px] shrink-0 flex items-center justify-end gap-4 mt-2 md:mt-0">
                     {statusConfig && (
                         <Badge
                             variant="outline"
@@ -278,6 +404,7 @@ function SortableModuleListItem({ module }: { module: Module }) {
                             {statusConfig.label}
                         </Badge>
                     )}
+                    <ModuleActions module={module} />
                 </div>
             </div>
         </div>
@@ -308,7 +435,7 @@ function SortableModuleGridItem({ module }: { module: Module }) {
         ?.map(e => e.student?.avatar_url)
         .filter(Boolean)
         .slice(0, 3) || [];
-    const statusConfig = STATUS_CONFIG[module.status || "pending"];
+    const statusConfig = STATUS_CONFIG[module.status as keyof typeof STATUS_CONFIG || "draft"];
 
     return (
         <div ref={setNodeRef} style={style} className={cn("h-full", isDragging && "scale-[1.01]")}>
@@ -316,7 +443,7 @@ function SortableModuleGridItem({ module }: { module: Module }) {
                 <div className="p-6 flex flex-col h-full">
                     <div className="flex items-start justify-between mb-5">
                         <ModuleIcon module={module} className="size-12" />
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                             {statusConfig && (
                                 <Badge
                                     variant="outline"
@@ -326,6 +453,7 @@ function SortableModuleGridItem({ module }: { module: Module }) {
                                     {statusConfig.label}
                                 </Badge>
                             )}
+                            <ModuleActions module={module} />
                             <button
                                 {...attributes}
                                 {...listeners}
