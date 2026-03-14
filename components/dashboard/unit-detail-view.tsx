@@ -75,6 +75,7 @@ interface Activity {
     position_x: number;
     position_y: number;
     logo_url: string | null;
+    grade_weight?: number;
 }
 
 interface Connection {

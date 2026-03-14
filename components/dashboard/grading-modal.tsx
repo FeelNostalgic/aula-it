@@ -7,10 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { gradeSubmission, StepSubmissionRow } from "@/app/dashboard/units/[id]/actions";
+import { gradeSubmission, StepSubmissionRow, SubmissionFile } from "@/app/dashboard/units/[id]/actions";
 import { RubricCriteria, criteriaMaxPoints } from "@/types/activity";
 import { toast } from "sonner";
-import { ExternalLink, FileText, User, Calendar, CheckCircle2, AlertTriangle } from "lucide-react";
+import { ExternalLink, FileText, File, Image, Video, User, Calendar, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type GradingMode = 'score' | 'rubric' | 'complete';
@@ -20,6 +20,10 @@ interface GradingModalProps {
     rubric?: RubricCriteria[];
     open: boolean;
     onClose: () => void;
+    hasPrev?: boolean;
+    hasNext?: boolean;
+    onPrev?: () => void;
+    onNext?: () => void;
     onGraded: (
         submissionId: string,
         score: number | null,
@@ -29,7 +33,7 @@ interface GradingModalProps {
     ) => void;
 }
 
-export function GradingModal({ submission, rubric, open, onClose, onGraded }: GradingModalProps) {
+export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNext, onPrev, onNext, onGraded }: GradingModalProps) {
     const [gradingMode, setGradingMode] = useState<GradingMode>('score');
     const [score, setScore] = useState<string>("");
     const [rubricScores, setRubricScores] = useState<Record<string, number>>({});
@@ -120,6 +124,17 @@ export function GradingModal({ submission, rubric, open, onClose, onGraded }: Gr
 
     const hasRubric = !!(rubric?.length);
 
+    // Keyboard navigation
+    useEffect(() => {
+        if (!open) return;
+        function onKey(e: KeyboardEvent) {
+            if (e.key === "ArrowLeft" && hasPrev) onPrev?.();
+            if (e.key === "ArrowRight" && hasNext) onNext?.();
+        }
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [open, hasPrev, hasNext, onPrev, onNext]);
+
     return (
         <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
             <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
@@ -131,43 +146,38 @@ export function GradingModal({ submission, rubric, open, onClose, onGraded }: Gr
                                 — {submission.step_title}
                             </span>
                         )}
+                        {(hasPrev || hasNext) && (
+                            <div className="flex items-center gap-1 ml-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 border-border-strong text-text-muted hover:text-foreground"
+                                    onClick={onPrev}
+                                    disabled={!hasPrev}
+                                    title="Alumno anterior (←)"
+                                >
+                                    <ChevronLeft className="size-4" />
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 border-border-strong text-text-muted hover:text-foreground"
+                                    onClick={onNext}
+                                    disabled={!hasNext}
+                                    title="Alumno siguiente (→)"
+                                >
+                                    <ChevronRight className="size-4" />
+                                </Button>
+                            </div>
+                        )}
                     </DialogTitle>
                 </DialogHeader>
 
                 <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
-                    {/* Left: Drive iframe */}
+                    {/* Left: Drive iframe or file list */}
                     <ResizablePanel defaultSize={62} minSize={30}>
                         <div className="h-full flex flex-col bg-surface-dark">
-                            {submission?.drive_file_url ? (
-                                <>
-                                    <div className="shrink-0 h-9 flex items-center justify-between px-4 border-b border-border-strong bg-surface">
-                                        <span className="text-xs text-text-muted font-mono uppercase tracking-widest">Documento del alumno</span>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-6 text-xs gap-1 text-text-muted hover:text-foreground"
-                                            onClick={() => window.open(submission.drive_file_url!, "_blank")}
-                                        >
-                                            <ExternalLink className="size-3" /> Abrir en Drive
-                                        </Button>
-                                    </div>
-                                    <iframe
-                                        src={submission.drive_file_url}
-                                        className="flex-1 w-full border-none bg-white"
-                                        title="Documento del alumno"
-                                    />
-                                </>
-                            ) : (
-                                <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center p-12">
-                                    <FileText className="size-12 text-text-muted/20" />
-                                    <p className="text-sm text-text-muted">
-                                        Este alumno no tiene un archivo de Drive asociado.
-                                    </p>
-                                    <p className="text-xs text-text-muted/50">
-                                        Solo disponible en modo "Copia del profesor".
-                                    </p>
-                                </div>
-                            )}
+                            <SubmissionFilePanel submission={submission} />
                         </div>
                     </ResizablePanel>
 
@@ -324,6 +334,102 @@ export function GradingModal({ submission, rubric, open, onClose, onGraded }: Gr
 }
 
 // ---------------------------------------------------------------------------
+// Left panel: single PDF → iframe, multiple/non-PDF → file list, empty → placeholder
+// ---------------------------------------------------------------------------
+
+function getMimeIcon(mimeType: string) {
+    if (mimeType === "application/pdf") return <FileText className="size-4 text-red-400 shrink-0" />;
+    if (mimeType.startsWith("image/")) return <Image className="size-4 text-blue-400 shrink-0" />;
+    if (mimeType.startsWith("video/")) return <Video className="size-4 text-purple-400 shrink-0" />;
+    return <File className="size-4 text-text-muted shrink-0" />;
+}
+
+function FileListPanel({ files }: { files: SubmissionFile[] }) {
+    return (
+        <>
+            <div className="shrink-0 h-9 flex items-center px-4 border-b border-border-strong bg-surface">
+                <span className="text-xs text-text-muted font-mono uppercase tracking-widest">
+                    Archivos entregados ({files.length})
+                </span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                {files.map((f) => (
+                    <a
+                        key={f.driveFileId}
+                        href={f.driveFileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-3 rounded-xl border border-border-strong bg-surface hover:bg-surface-dark transition-colors group"
+                    >
+                        {getMimeIcon(f.driveMimeType)}
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{f.driveFileName}</p>
+                            <p className="text-xs text-text-muted">{f.driveMimeType}</p>
+                        </div>
+                        <ExternalLink className="size-3.5 text-text-muted group-hover:text-foreground shrink-0" />
+                    </a>
+                ))}
+            </div>
+        </>
+    );
+}
+
+function SubmissionFilePanel({ submission }: { submission: StepSubmissionRow | null }) {
+    if (!submission) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center p-12">
+                <FileText className="size-12 text-text-muted/20" />
+                <p className="text-sm text-text-muted">Sin entrega seleccionada.</p>
+            </div>
+        );
+    }
+
+    // Build the canonical file list
+    const allFiles: SubmissionFile[] = submission.files && submission.files.length > 0
+        ? submission.files
+        : submission.drive_file_url
+            ? [{ driveFileId: submission.drive_file_id ?? "", driveFileUrl: submission.drive_file_url, driveFileName: "Documento", driveMimeType: "application/pdf" }]
+            : [];
+
+    if (allFiles.length === 0) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center p-12">
+                <FileText className="size-12 text-text-muted/20" />
+                <p className="text-sm text-text-muted">Este alumno no ha subido archivos.</p>
+                <p className="text-xs text-text-muted/50">Solo disponible en modo "Copia del profesor".</p>
+            </div>
+        );
+    }
+
+    // Single PDF → iframe
+    if (allFiles.length === 1 && allFiles[0].driveMimeType === "application/pdf") {
+        return (
+            <>
+                <div className="shrink-0 h-9 flex items-center justify-between px-4 border-b border-border-strong bg-surface">
+                    <span className="text-xs text-text-muted font-mono uppercase tracking-widest">Documento del alumno</span>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs gap-1 text-text-muted hover:text-foreground"
+                        onClick={() => window.open(allFiles[0].driveFileUrl, "_blank")}
+                    >
+                        <ExternalLink className="size-3" /> Abrir en Drive
+                    </Button>
+                </div>
+                <iframe
+                    src={allFiles[0].driveFileUrl}
+                    className="flex-1 w-full border-none bg-white"
+                    title="Documento del alumno"
+                />
+            </>
+        );
+    }
+
+    // Multiple files or non-PDF → file list
+    return <FileListPanel files={allFiles} />;
+}
+
+// ---------------------------------------------------------------------------
 // Per-criterion horizontal level selector
 // ---------------------------------------------------------------------------
 
@@ -378,7 +484,7 @@ function CriterionRow({
 
             {/* Horizontal level bar */}
             <div className="flex gap-1">
-                {criterion.levels.map((level) => {
+                {[...criterion.levels].sort((a, b) => a.points - b.points).map((level) => {
                     const isActive = score === level.points;
                     return (
                         <button

@@ -61,7 +61,7 @@ export default async function UnitPage({
     const { data: activitiesData } = await supabase
         .from("activities")
         .select(`
-            id, unit_id, title, description, type, order_index, status, created_at, duration, difficulty, logo_url, position_x, position_y,
+            id, unit_id, title, description, type, order_index, status, created_at, duration, difficulty, logo_url, position_x, position_y, grade_weight,
             activity_phases (
                 id,
                 activity_steps ( xp )

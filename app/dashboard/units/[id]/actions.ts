@@ -315,10 +315,18 @@ export async function removeActivityConnection(connectionId: string) {
     return { success: true };
 }
 
+export type SubmissionFile = {
+    driveFileId: string;
+    driveFileUrl: string;
+    driveFileName: string;
+    driveMimeType: string;
+};
+
 export type StepSubmissionRow = {
     id: string;
     step_id: string;
     step_title: string;
+    step_type: import('@/types/activity').ActivityStepType;
     activity_id: string;
     activity_title: string;
     student_id: string;
@@ -326,18 +334,24 @@ export type StepSubmissionRow = {
     student_email: string;
     drive_file_url: string | null;
     drive_file_id: string | null;
+    files: SubmissionFile[] | null;
     status: string;
     submitted_at: string | null;
     delivery_mode: 'manual' | 'teacher_copy' | undefined;
     score: number | null;
     feedback: string | null;
     graded_at: string | null;
+    published_at: string | null;
     rubric_scores: Record<string, number> | null;
     grading_mode: 'score' | 'rubric' | 'complete' | null;
     step_rubric: import('@/types/activity').RubricCriteria[];
+    synthetic?: boolean; // true = no real submission, injected for display
 };
 
-export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ data?: StepSubmissionRow[]; error?: string }> {
+export async function getUnitStepSubmissions(
+    activityIds: string[],
+    students?: { student_id: string; name: string }[]
+): Promise<{ data?: StepSubmissionRow[]; error?: string }> {
     if (activityIds.length === 0) return { data: [] };
 
     // Verify the caller is authenticated (admin client bypasses RLS below)
@@ -360,21 +374,22 @@ export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ d
     const phaseActivityMap: Record<string, string> = {};
     for (const p of phases) phaseActivityMap[p.id] = p.activity_id;
 
-    // Step 2: get deliverable and file_upload steps in those phases
+    // Step 2: get deliverable, file_upload, and quiz steps in those phases
     const { data: steps, error: stepsError } = await supabase
         .from("activity_steps")
-        .select("id, title, phase_id, content")
-        .in("type", ["deliverable", "file_upload"])
+        .select("id, type, title, phase_id, content")
+        .in("type", ["deliverable", "file_upload", "quiz"])
         .in("phase_id", phaseIds);
 
     if (stepsError) return { error: stepsError.message };
     if (!steps || steps.length === 0) return { data: [] };
 
     const stepIds = steps.map(s => s.id);
-    const stepMeta: Record<string, { title: string; activityId: string; deliveryMode: 'manual' | 'teacher_copy' | undefined; rubric: import('@/types/activity').RubricCriteria[] }> = {};
+    const stepMeta: Record<string, { title: string; stepType: import('@/types/activity').ActivityStepType; activityId: string; deliveryMode: 'manual' | 'teacher_copy' | undefined; rubric: import('@/types/activity').RubricCriteria[] }> = {};
     for (const s of steps) {
         stepMeta[s.id] = {
             title: s.title,
+            stepType: (s as any).type as import('@/types/activity').ActivityStepType,
             activityId: phaseActivityMap[s.phase_id] ?? "",
             deliveryMode: (s.content as any)?.deliveryMode,
             rubric: (s.content as any)?.rubric ?? [],
@@ -394,7 +409,7 @@ export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ d
     // Step 4: get submissions for those steps
     const { data: subs, error: subsError } = await supabase
         .from("activity_submissions")
-        .select("id, step_id, student_id, drive_file_url, drive_file_id, status, submitted_at, score, feedback, graded_at, rubric_scores, grading_mode, student:profiles(id, full_name)")
+        .select("id, step_id, student_id, drive_file_url, drive_file_id, files, status, submitted_at, score, feedback, graded_at, published_at, rubric_scores, grading_mode, student:profiles(id, full_name)")
         .in("step_id", stepIds)
         .order("submitted_at", { ascending: false });
 
@@ -406,6 +421,7 @@ export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ d
             id: row.id,
             step_id: row.step_id,
             step_title: meta?.title ?? "—",
+            step_type: meta?.stepType ?? "deliverable",
             activity_id: meta?.activityId ?? "",
             activity_title: activityTitles[meta?.activityId ?? ""] ?? "—",
             student_id: row.student_id,
@@ -413,19 +429,135 @@ export async function getUnitStepSubmissions(activityIds: string[]): Promise<{ d
             student_email: row.student_id,
             drive_file_url: row.drive_file_url,
             drive_file_id: row.drive_file_id ?? null,
+            files: row.files ?? null,
             status: row.status,
             submitted_at: row.submitted_at,
             delivery_mode: meta?.deliveryMode,
             score: row.score ?? null,
             feedback: row.feedback ?? null,
             graded_at: row.graded_at ?? null,
+            published_at: row.published_at ?? null,
             rubric_scores: row.rubric_scores ?? null,
             grading_mode: row.grading_mode ?? null,
             step_rubric: meta?.rubric ?? [],
         };
     });
 
+    // Inject synthetic rows for enrolled students without a real submission
+    if (students && students.length > 0) {
+        for (const step of steps) {
+            const meta = stepMeta[step.id];
+            for (const student of students) {
+                const hasRow = rows.some(r => r.step_id === step.id && r.student_id === student.student_id);
+                if (!hasRow) {
+                    rows.push({
+                        id: `synthetic-${step.id}-${student.student_id}`,
+                        step_id: step.id,
+                        step_title: meta?.title ?? "—",
+                        step_type: meta?.stepType ?? "deliverable",
+                        activity_id: meta?.activityId ?? "",
+                        activity_title: activityTitles[meta?.activityId ?? ""] ?? "—",
+                        student_id: student.student_id,
+                        student_name: student.name,
+                        student_email: student.student_id,
+                        drive_file_url: null,
+                        drive_file_id: null,
+                        files: null,
+                        status: "pending",
+                        submitted_at: null,
+                        delivery_mode: meta?.deliveryMode,
+                        score: null,
+                        feedback: null,
+                        graded_at: null,
+                        published_at: null,
+                        rubric_scores: null,
+                        grading_mode: null,
+                        step_rubric: meta?.rubric ?? [],
+                        synthetic: true,
+                    });
+                }
+            }
+        }
+    }
+
     return { data: rows };
+}
+
+export async function reopenSubmission(submissionId: string): Promise<{ success?: boolean; error?: string }> {
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Solo profesores." };
+
+    const admin = createAdminClient();
+    const { error } = await admin
+        .from("activity_submissions")
+        .update({ status: "submitted", graded_at: null, published_at: null })
+        .eq("id", submissionId);
+
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard/units/[id]", "page");
+    return { success: true };
+}
+
+export async function publishSubmissionGrade(submissionId: string): Promise<{ success?: boolean; error?: string }> {
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Solo profesores." };
+
+    const admin = createAdminClient();
+    const { error } = await admin
+        .from("activity_submissions")
+        .update({ published_at: new Date().toISOString(), status: "published" })
+        .eq("id", submissionId);
+
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard/units/[id]", "page");
+    return { success: true };
+}
+
+export async function publishAllGradesForStep(stepId: string): Promise<{ success?: boolean; count?: number; error?: string }> {
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Solo profesores." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+        .from("activity_submissions")
+        .update({ published_at: new Date().toISOString(), status: "published" })
+        .eq("step_id", stepId)
+        .eq("status", "graded")
+        .select("id");
+
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard/units/[id]", "page");
+    return { success: true, count: data?.length ?? 0 };
+}
+
+export async function updateActivityWeight(activityId: string, weight: number): Promise<{ success?: boolean; error?: string }> {
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Solo profesores." };
+
+    const { error } = await userClient
+        .from("activities")
+        .update({ grade_weight: weight })
+        .eq("id", activityId);
+
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard/units/[id]", "page");
+    return { success: true };
 }
 
 export async function gradeSubmission(

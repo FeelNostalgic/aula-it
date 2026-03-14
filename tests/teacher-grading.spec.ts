@@ -155,14 +155,12 @@ test.describe("Teacher Grading Flow", () => {
         // The tab content renders "Evaluación de la Unidad" heading
         await expect(page.getByRole("heading", { name: "Evaluación de la Unidad" })).toBeVisible({ timeout: 10000 });
 
-        // The "Entregas por Paso" section loads asynchronously — wait for it
-        await expect(page.getByRole("heading", { name: "Entregas por Paso" })).toBeVisible({ timeout: 15000 });
+        // The activity selector pill loads asynchronously — wait for it
+        const activityPill = page.locator(`button:has-text("E2E Grading Activity")`).first();
+        await expect(activityPill).toBeVisible({ timeout: 15000 });
 
-        // The activity group accordion is visible with the submission count
-        const activityAccordion = page.locator(`button:has-text("E2E Grading Activity")`).first();
-        await expect(activityAccordion).toBeVisible({ timeout: 10000 });
-        // It should show the submission count badge next to the activity title
-        await expect(activityAccordion.locator(`text=/entregas/`)).toBeVisible({ timeout: 5000 });
+        // The first activity is auto-selected — the step table should appear directly
+        await expect(page.locator(`text="E2E Deliverable Step"`)).toBeVisible({ timeout: 10000 });
     });
 
     test("teacher opens grading modal and grades the submission as completado", async ({ page }) => {
@@ -179,15 +177,11 @@ test.describe("Teacher Grading Flow", () => {
         // Click EVALUACIÓN tab
         await page.getByRole("tab", { name: "EVALUACIÓN" }).click();
 
-        // Wait for StepSubmissionsSection to finish loading
-        await expect(page.getByRole("heading", { name: "Entregas por Paso" })).toBeVisible({ timeout: 15000 });
+        // Wait for activity pill to appear (loads asynchronously)
+        const activityPill = page.locator(`button:has-text("E2E Grading Activity")`).first();
+        await expect(activityPill).toBeVisible({ timeout: 15000 });
 
-        // Expand the activity accordion
-        const activityAccordion = page.locator(`button:has-text("E2E Grading Activity")`).first();
-        await expect(activityAccordion).toBeVisible({ timeout: 10000 });
-        await activityAccordion.click();
-
-        // Wait for the step rows to appear
+        // First activity is auto-selected — step header appears directly, no accordion needed
         await expect(page.locator(`text="E2E Deliverable Step"`)).toBeVisible({ timeout: 10000 });
 
         // Click the "Evaluar" button for the submission row
