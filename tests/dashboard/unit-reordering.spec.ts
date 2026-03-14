@@ -113,8 +113,8 @@ test.describe("Unit Reordering (Drag and Drop)", () => {
         // Drag handle of Unit A to the bottom of Unit B
         await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
         await page.mouse.down();
-        // Hover over B for a bit to trigger dnd-kit logic
-        await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height * 0.9, { steps: 25 });
+        // Hover over B for a bit to trigger dnd-kit logic - use more steps for smoother move in CI
+        await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height * 0.8, { steps: 50 });
         await page.waitForTimeout(500); // Wait for sortable animation
         await page.mouse.up();
 
@@ -123,6 +123,8 @@ test.describe("Unit Reordering (Drag and Drop)", () => {
         await expect(unitCards.nth(1)).toContainText("Unit A");
 
         // Refresh and verify persistence in the database
+        // IMPORTANT: Give some time for revalidatePath and DB update to finish
+        await page.waitForTimeout(1500);
         await page.reload();
         await page.waitForLoadState("networkidle");
         

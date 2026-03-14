@@ -119,7 +119,7 @@ test.describe("Teacher Dashboard - Error Paths", () => {
         await dialog.locator('textarea[name="description"]').fill("Some description");
         
         // Verify the button is disabled because 'name' is empty
-        const submitBtn = dialog.locator('button:has-text("Crear Módulo")');
+        const submitBtn = dialog.locator('button:has-text("CREAR MÓDULO")');
         await expect(submitBtn).toBeDisabled();
 
         // Dialog must remain open
