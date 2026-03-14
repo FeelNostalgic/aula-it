@@ -345,6 +345,16 @@ export type StepSubmissionRow = {
     rubric_scores: Record<string, number> | null;
     grading_mode: 'score' | 'rubric' | 'complete' | null;
     step_rubric: import('@/types/activity').RubricCriteria[];
+    quiz_content: import('@/types/activity').QuizContent | null;
+    quiz_attempt: {
+        id: string;
+        attempt_number: number;
+        answers: Record<string, string[]>;
+        short_answers: Record<string, string>;
+        short_answer_scores: Record<string, number>;
+        points_earned: number;
+        points_total: number;
+    } | null;
     synthetic?: boolean; // true = no real submission, injected for display
 };
 
@@ -385,14 +395,16 @@ export async function getUnitStepSubmissions(
     if (!steps || steps.length === 0) return { data: [] };
 
     const stepIds = steps.map(s => s.id);
-    const stepMeta: Record<string, { title: string; stepType: import('@/types/activity').ActivityStepType; activityId: string; deliveryMode: 'manual' | 'teacher_copy' | undefined; rubric: import('@/types/activity').RubricCriteria[] }> = {};
+    const stepMeta: Record<string, { title: string; stepType: import('@/types/activity').ActivityStepType; activityId: string; deliveryMode: 'manual' | 'teacher_copy' | undefined; rubric: import('@/types/activity').RubricCriteria[]; quizContent: import('@/types/activity').QuizContent | null }> = {};
     for (const s of steps) {
+        const stepType = (s as any).type as import('@/types/activity').ActivityStepType;
         stepMeta[s.id] = {
             title: s.title,
-            stepType: (s as any).type as import('@/types/activity').ActivityStepType,
+            stepType,
             activityId: phaseActivityMap[s.phase_id] ?? "",
             deliveryMode: (s.content as any)?.deliveryMode,
             rubric: (s.content as any)?.rubric ?? [],
+            quizContent: stepType === 'quiz' ? ((s.content as any) as import('@/types/activity').QuizContent) : null,
         };
     }
 
@@ -415,8 +427,28 @@ export async function getUnitStepSubmissions(
 
     if (subsError) return { error: subsError.message };
 
+    // Step 5: get best quiz attempt per (student, step) for quiz steps
+    const quizStepIds = stepIds.filter(id => stepMeta[id]?.stepType === 'quiz');
+    const quizAttemptMap: Record<string, Record<string, any>> = {}; // stepId → studentId → attempt
+    if (quizStepIds.length > 0) {
+        const { data: attempts } = await supabase
+            .from("quiz_attempts")
+            .select("*")
+            .in("step_id", quizStepIds)
+            .order("points_earned", { ascending: false });
+
+        for (const att of attempts ?? []) {
+            if (!quizAttemptMap[att.step_id]) quizAttemptMap[att.step_id] = {};
+            // Keep only best attempt per student (already ordered by points_earned DESC)
+            if (!quizAttemptMap[att.step_id][att.student_id]) {
+                quizAttemptMap[att.step_id][att.student_id] = att;
+            }
+        }
+    }
+
     const rows: StepSubmissionRow[] = (subs || []).map((row: any) => {
         const meta = stepMeta[row.step_id];
+        const bestAttempt = quizAttemptMap[row.step_id]?.[row.student_id] ?? null;
         return {
             id: row.id,
             step_id: row.step_id,
@@ -440,6 +472,16 @@ export async function getUnitStepSubmissions(
             rubric_scores: row.rubric_scores ?? null,
             grading_mode: row.grading_mode ?? null,
             step_rubric: meta?.rubric ?? [],
+            quiz_content: meta?.quizContent ?? null,
+            quiz_attempt: bestAttempt ? {
+                id: bestAttempt.id,
+                attempt_number: bestAttempt.attempt_number,
+                answers: bestAttempt.answers,
+                short_answers: bestAttempt.short_answers,
+                short_answer_scores: bestAttempt.short_answer_scores ?? {},
+                points_earned: bestAttempt.points_earned,
+                points_total: bestAttempt.points_total,
+            } : null,
         };
     });
 
@@ -473,6 +515,8 @@ export async function getUnitStepSubmissions(
                         rubric_scores: null,
                         grading_mode: null,
                         step_rubric: meta?.rubric ?? [],
+                        quiz_content: meta?.quizContent ?? null,
+                        quiz_attempt: null,
                         synthetic: true,
                     });
                 }
@@ -481,6 +525,31 @@ export async function getUnitStepSubmissions(
     }
 
     return { data: rows };
+}
+
+export async function saveQuizShortAnswerScores(
+    attemptId: string,
+    shortAnswerScores: Record<string, number>, // questionId → manual points
+    autoPointsEarned: number,
+): Promise<{ success?: boolean; error?: string }> {
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Solo profesores." };
+
+    const manualPoints = Object.values(shortAnswerScores).reduce((a, b) => a + b, 0);
+    const totalEarned = autoPointsEarned + manualPoints;
+
+    const admin = createAdminClient();
+    const { error } = await admin
+        .from("quiz_attempts")
+        .update({ points_earned: totalEarned, short_answer_scores: shortAnswerScores })
+        .eq("id", attemptId);
+
+    if (error) return { error: error.message };
+    return { success: true };
 }
 
 export async function reopenSubmission(submissionId: string): Promise<{ success?: boolean; error?: string }> {

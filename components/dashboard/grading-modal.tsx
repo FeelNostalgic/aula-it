@@ -7,10 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { gradeSubmission, StepSubmissionRow, SubmissionFile } from "@/app/dashboard/units/[id]/actions";
-import { RubricCriteria, criteriaMaxPoints } from "@/types/activity";
+import { gradeSubmission, saveQuizShortAnswerScores, StepSubmissionRow, SubmissionFile } from "@/app/dashboard/units/[id]/actions";
+import { RubricCriteria, criteriaMaxPoints, QuizContent } from "@/types/activity";
 import { toast } from "sonner";
-import { ExternalLink, FileText, File, Image, Video, User, Calendar, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
+import { ExternalLink, FileText, File, Image, Video, User, Calendar, CheckCircle2, XCircle, Circle, AlertTriangle, ChevronLeft, ChevronRight, AlignLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type GradingMode = 'score' | 'rubric' | 'complete';
@@ -38,14 +38,33 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
     const [score, setScore] = useState<string>("");
     const [rubricScores, setRubricScores] = useState<Record<string, number>>({});
     const [feedback, setFeedback] = useState<string>("");
+    const [shortAnswerScores, setShortAnswerScores] = useState<Record<string, number>>({});
     const [isPending, startTransition] = useTransition();
+
+    const isQuiz = submission?.step_type === 'quiz';
+    const quizContent = submission?.quiz_content ?? null;
+    const quizAttempt = submission?.quiz_attempt ?? null;
+
+    // Compute quiz score from auto + manual short_answer scores
+    const computedQuizScore = (() => {
+        if (!isQuiz || !quizAttempt || !quizContent) return null;
+        // points_earned already includes previously saved manual pts — strip them out first
+        const savedManualPts = Object.values(quizAttempt.short_answer_scores).reduce((a, b) => a + b, 0);
+        const autoPoints = quizAttempt.points_earned - savedManualPts;
+        const manualPts = Object.values(shortAnswerScores).reduce((a, b) => a + b, 0);
+        const total = quizAttempt.points_total;
+        if (total === 0) return null;
+        return Math.round(((autoPoints + manualPts) / total) * 1000) / 100;
+    })();
 
     useEffect(() => {
         if (submission) {
-            setScore(submission.score !== null && submission.score !== undefined ? String(submission.score) : "");
+            // Pre-fill score: prefer computed quiz score if available
+            const baseScore = submission.score !== null && submission.score !== undefined ? String(submission.score) : "";
+            setScore(baseScore);
             setFeedback(submission.feedback ?? "");
             setRubricScores(submission.rubric_scores ?? {});
-            // Determine initial mode
+            setShortAnswerScores(submission.quiz_attempt?.short_answer_scores ?? {});
             if (submission.grading_mode) {
                 setGradingMode(submission.grading_mode);
             } else {
@@ -54,6 +73,13 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
         }
     }, [submission, rubric]);
 
+    // Keep score field in sync with computed quiz score when short_answer scores change
+    useEffect(() => {
+        if (computedQuizScore !== null) {
+            setScore(String(computedQuizScore));
+        }
+    }, [computedQuizScore]);
+
     const rubricTotal = (rubric ?? []).reduce((sum, c) => sum + (rubricScores[c.id] ?? 0), 0);
     const rubricMax = (rubric ?? []).reduce((sum, c) => sum + criteriaMaxPoints(c), 0);
 
@@ -61,12 +87,25 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
         if (!submission) return;
 
         if (gradingMode === 'score') {
-            const scoreNum = score.trim() !== "" ? parseInt(score, 10) : null;
+            const scoreNum = score.trim() !== "" ? parseFloat(score) : null;
             if (scoreNum !== null && (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 10)) {
                 toast.error("La nota debe estar entre 0 y 10.");
                 return;
             }
             startTransition(async () => {
+                // Persist short_answer scores to quiz_attempts if applicable
+                if (isQuiz && quizAttempt && Object.keys(shortAnswerScores).length > 0) {
+                    const saveRes = await saveQuizShortAnswerScores(
+                        quizAttempt.id,
+                        shortAnswerScores,
+                        quizAttempt.points_earned,
+                    );
+                    if (saveRes.error) {
+                        toast.error(`Error al guardar notas de respuestas cortas: ${saveRes.error}`);
+                        return;
+                    }
+                }
+
                 const result = await gradeSubmission(submission.id, {
                     gradingMode: 'score',
                     score: scoreNum,
@@ -174,10 +213,19 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                 </DialogHeader>
 
                 <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
-                    {/* Left: Drive iframe or file list */}
+                    {/* Left: Quiz attempt, Drive iframe, or file list */}
                     <ResizablePanel defaultSize={62} minSize={30}>
                         <div className="h-full flex flex-col bg-surface-dark">
-                            <SubmissionFilePanel submission={submission} />
+                            {isQuiz && quizAttempt && quizContent ? (
+                                <QuizAttemptPanel
+                                    attempt={quizAttempt}
+                                    content={quizContent}
+                                    shortAnswerScores={shortAnswerScores}
+                                    onShortAnswerScore={(qId, pts) => setShortAnswerScores(prev => ({ ...prev, [qId]: pts }))}
+                                />
+                            ) : (
+                                <SubmissionFilePanel submission={submission} />
+                            )}
                         </div>
                     </ResizablePanel>
 
@@ -243,7 +291,7 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                                             type="number"
                                             min={0}
                                             max={10}
-                                            step={1}
+                                            step={0.01}
                                             value={score}
                                             onChange={(e) => setScore(e.target.value)}
                                             placeholder="Sin nota"
@@ -330,6 +378,113 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                 </ResizablePanelGroup>
             </DialogContent>
         </Dialog>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Left panel: quiz attempt review
+// ---------------------------------------------------------------------------
+
+function QuizAttemptPanel({
+    attempt,
+    content,
+    shortAnswerScores,
+    onShortAnswerScore,
+}: {
+    attempt: NonNullable<StepSubmissionRow['quiz_attempt']>;
+    content: QuizContent;
+    shortAnswerScores: Record<string, number>;
+    onShortAnswerScore: (qId: string, pts: number) => void;
+}) {
+    const autoPoints = attempt.points_earned;
+    const manualPoints = Object.values(shortAnswerScores).reduce((a, b) => a + b, 0);
+    const totalPoints = attempt.points_total;
+
+    return (
+        <>
+            <div className="shrink-0 h-9 flex items-center justify-between px-4 border-b border-border-strong bg-surface">
+                <span className="text-xs text-text-muted font-mono uppercase tracking-widest">
+                    Respuestas del alumno — intento {attempt.attempt_number}
+                </span>
+                <span className="text-xs font-mono text-accent-blue">
+                    {autoPoints + manualPoints} / {totalPoints} pts
+                </span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {content.questions.map((q, idx) => {
+                    const qType = q.type ?? 'multiple_choice';
+                    const studentOpts = attempt.answers[q.id] ?? [];
+                    const correctOpts = q.options.filter(o => o.isCorrect).map(o => o.id);
+
+                    let ptsEarned = 0;
+                    if (qType !== 'short_answer') {
+                        const correctSelected = studentOpts.filter(id => correctOpts.includes(id)).length;
+                        const incorrectSelected = studentOpts.filter(id => !correctOpts.includes(id)).length;
+                        const ratio = correctOpts.length > 0 ? (correctSelected - incorrectSelected) / correctOpts.length : 0;
+                        ptsEarned = Math.max(0, Math.round((q.points ?? 1) * ratio));
+                    }
+
+                    return (
+                        <div key={q.id} className="p-4 rounded-xl border border-border-strong bg-surface space-y-3">
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-start gap-2 flex-1">
+                                    <span className="size-5 rounded bg-surface-dark text-text-muted flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">{idx + 1}</span>
+                                    <p className="text-sm font-semibold text-foreground leading-snug">{q.text}</p>
+                                </div>
+                                <span className="text-xs font-mono text-text-muted shrink-0">
+                                    {qType !== 'short_answer' ? `${ptsEarned}/${q.points ?? 1}pts` : `?/${q.points ?? 1}pts`}
+                                </span>
+                            </div>
+
+                            {qType === 'short_answer' ? (
+                                <div className="space-y-2">
+                                    <div className="flex items-start gap-2 p-3 rounded-lg bg-surface-dark border border-border-strong">
+                                        <AlignLeft className="size-3.5 text-text-muted shrink-0 mt-0.5" />
+                                        <p className="text-sm text-foreground leading-snug">
+                                            {attempt.short_answers[q.id] || <span className="italic text-text-muted">Sin respuesta</span>}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-xs text-text-muted">Puntos:</label>
+                                        <Input
+                                            type="number"
+                                            min={0}
+                                            max={q.points ?? 1}
+                                            step={0.5}
+                                            value={shortAnswerScores[q.id] ?? ""}
+                                            onChange={(e) => onShortAnswerScore(q.id, Math.min(q.points ?? 1, Math.max(0, Number(e.target.value) || 0)))}
+                                            placeholder="0"
+                                            className="w-16 h-7 text-xs font-mono bg-surface-dark border-border-strong text-center px-1"
+                                        />
+                                        <span className="text-xs text-text-muted">/ {q.points ?? 1}</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-1">
+                                    {q.options.map(opt => {
+                                        const selected = studentOpts.includes(opt.id);
+                                        const correct = opt.isCorrect;
+                                        return (
+                                            <div key={opt.id} className={cn(
+                                                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs",
+                                                correct ? "text-emerald-400 bg-emerald-500/5" :
+                                                selected ? "text-red-400 bg-red-500/5" : "text-text-muted"
+                                            )}>
+                                                {correct ? <CheckCircle2 className="size-3.5 shrink-0" /> :
+                                                 selected ? <XCircle className="size-3.5 shrink-0" /> :
+                                                 <Circle className="size-3.5 shrink-0 opacity-30" />}
+                                                <span>{opt.text}</span>
+                                                {selected && <span className="ml-auto opacity-60">alumno</span>}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </>
     );
 }
 

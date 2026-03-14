@@ -784,7 +784,8 @@ function ScoreDisplay({ row }: { row: StepSubmissionRow }) {
         return <span className="text-accent-blue">{total}/{max}</span>;
     }
     if (row.score !== null && row.score !== undefined) {
-        return <span className="text-accent-blue">{row.score}/10</span>;
+        const display = parseFloat(String(row.score));
+        return <span className="text-accent-blue">{isNaN(display) ? row.score : display}/10</span>;
     }
     return <span className="text-text-muted">—</span>;
 }

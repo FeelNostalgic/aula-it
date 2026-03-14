@@ -81,19 +81,40 @@ export type QuizOption = {
     isCorrect: boolean;
 };
 
+export type QuizQuestionType = 'multiple_choice' | 'true_false' | 'short_answer';
+
 export type QuizQuestion = {
     id: string;
+    type: QuizQuestionType;   // default: 'multiple_choice' (backwards-compat: undefined = multiple_choice)
     text: string;
-    options: QuizOption[];
+    options: QuizOption[];    // empty if type === 'short_answer'
+    points: number;           // default: 1
+    explanation?: string;     // shown after submission if showCorrectAnswers
 };
 
 export type QuizMode = 'builtin' | 'google_form';
 
 export type QuizContent = {
     questions: QuizQuestion[];
-    passingScore?: number;
-    googleFormUrl?: string; // e.g. embedded Google Form
-    quizMode?: QuizMode; // explicit mode selector; if undefined, inferred from googleFormUrl
+    passingScore?: number;          // % (0–100)
+    maxAttempts?: number;           // undefined = unlimited
+    showCorrectAnswers?: boolean;
+    randomizeQuestions?: boolean;
+    randomizeOptions?: boolean;
+    googleFormUrl?: string;
+    quizMode?: QuizMode;
+};
+
+export type QuizAttempt = {
+    id: string;
+    student_id: string;
+    step_id: string;
+    attempt_number: number;
+    answers: Record<string, string[]>;      // questionId → selectedOptionIds
+    short_answers: Record<string, string>;  // questionId → free text
+    points_earned: number;
+    points_total: number;
+    completed_at: string;
 };
 
 export type PresentationContent = {

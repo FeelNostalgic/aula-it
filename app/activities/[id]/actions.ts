@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
-import { ActivitySubmission, SubmissionFile } from "@/types/activity";
+import { ActivitySubmission, SubmissionFile, QuizContent, QuizAttempt } from "@/types/activity";
 
 const DRIVE_URL_REGEX = /^https:\/\/(docs|drive|sheets|slides|forms)\.google\.com\//;
 
@@ -189,6 +189,131 @@ export async function markStepViewed(stepId: string, activityId: string) {
 
     revalidatePath(`/activities/${activityId}`);
     return { success: true };
+}
+
+export async function getQuizAttempts(stepId: string): Promise<QuizAttempt[]> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data } = await supabase
+        .from("quiz_attempts")
+        .select("*")
+        .eq("student_id", user.id)
+        .eq("step_id", stepId)
+        .order("attempt_number", { ascending: true });
+
+    return (data ?? []) as QuizAttempt[];
+}
+
+export async function submitQuizAttempt(
+    stepId: string,
+    activityId: string,
+    answers: Record<string, string[]>,
+    shortAnswers: Record<string, string>,
+    content: QuizContent
+): Promise<{ data?: { attempt: QuizAttempt; score: number; pointsEarned: number; pointsTotal: number }; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return { error: "No autenticado." };
+
+    // Check max attempts
+    const { count } = await supabase
+        .from("quiz_attempts")
+        .select("*", { count: "exact", head: true })
+        .eq("student_id", user.id)
+        .eq("step_id", stepId);
+
+    const attemptCount = count ?? 0;
+    if (content.maxAttempts && attemptCount >= content.maxAttempts) {
+        return { error: `Máximo de intentos alcanzado (${content.maxAttempts}).` };
+    }
+
+    // Auto-score
+    let pointsEarned = 0;
+    let pointsTotal = 0;
+    let hasShortAnswer = false;
+
+    for (const q of content.questions) {
+        const qType = q.type ?? 'multiple_choice';
+        const qPoints = q.points ?? 1;
+        pointsTotal += qPoints;
+
+        if (qType === 'short_answer') {
+            hasShortAnswer = true;
+            // 0 pts — manual review
+        } else {
+            const selectedIds = answers[q.id] ?? [];
+            const correctIds = q.options.filter(o => o.isCorrect).map(o => o.id);
+            if (correctIds.length === 0) continue;
+
+            const correctSelected = selectedIds.filter(id => correctIds.includes(id)).length;
+            const incorrectSelected = selectedIds.filter(id => !correctIds.includes(id)).length;
+            const ratio = (correctSelected - incorrectSelected) / correctIds.length;
+            pointsEarned += Math.max(0, Math.round(qPoints * ratio));
+        }
+    }
+
+    const attemptNumber = attemptCount + 1;
+
+    const { data: attempt, error: insertError } = await supabase
+        .from("quiz_attempts")
+        .insert({
+            student_id: user.id,
+            step_id: stepId,
+            attempt_number: attemptNumber,
+            answers,
+            short_answers: shortAnswers,
+            points_earned: pointsEarned,
+            points_total: pointsTotal,
+        })
+        .select()
+        .single();
+
+    if (insertError) return { error: insertError.message };
+
+    // Upsert activity_submissions — only update if this score >= current best
+    const scoreOutOf10 = pointsTotal > 0 ? Math.round((pointsEarned / pointsTotal) * 1000) / 100 : 0;
+
+    const { data: existing } = await supabase
+        .from("activity_submissions")
+        .select("id, score")
+        .eq("student_id", user.id)
+        .eq("step_id", stepId)
+        .maybeSingle();
+
+    const shouldUpdateScore = !existing || existing.score === null || scoreOutOf10 >= (existing.score ?? 0);
+
+    if (shouldUpdateScore) {
+        await supabase
+            .from("activity_submissions")
+            .upsert(
+                {
+                    student_id: user.id,
+                    step_id: stepId,
+                    status: hasShortAnswer ? "submitted" : "graded",
+                    submitted_at: new Date().toISOString(),
+                    ...(hasShortAnswer ? {} : {
+                        score: scoreOutOf10,
+                        grading_mode: "score",
+                        graded_at: new Date().toISOString(),
+                    }),
+                },
+                { onConflict: "student_id,step_id" }
+            );
+    } else if (!existing) {
+        await supabase
+            .from("activity_submissions")
+            .insert({
+                student_id: user.id,
+                step_id: stepId,
+                status: hasShortAnswer ? "submitted" : "graded",
+                submitted_at: new Date().toISOString(),
+            });
+    }
+
+    revalidatePath(`/activities/${activityId}`);
+    return { data: { attempt: attempt as QuizAttempt, score: scoreOutOf10, pointsEarned, pointsTotal } };
 }
 
 export async function getStepSubmissions(stepId: string) {
