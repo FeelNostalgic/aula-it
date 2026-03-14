@@ -40,6 +40,7 @@ import { toast } from "sonner";
 interface CreateActivityDialogProps {
     unitId: string;
     trigger?: React.ReactNode;
+    children?: React.ReactNode;
 }
 
 export const activityTypes = [
@@ -51,7 +52,7 @@ export const activityTypes = [
     { value: "other", label: "Otro", icon: HelpCircle, color: "text-text-muted" },
 ];
 
-export function CreateActivityDialog({ unitId, trigger }: CreateActivityDialogProps) {
+export function CreateActivityDialog({ unitId, trigger, children }: CreateActivityDialogProps) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [selectedType, setSelectedType] = useState<string>("theory");
@@ -76,10 +77,12 @@ export function CreateActivityDialog({ unitId, trigger }: CreateActivityDialogPr
         }
     };
 
+    const finalTrigger = children || trigger;
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                {trigger ? trigger : (
+                {finalTrigger ? finalTrigger : (
                     <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4">
                         <Plus className="mr-2 size-4" />
                         AÑADIR RETO
