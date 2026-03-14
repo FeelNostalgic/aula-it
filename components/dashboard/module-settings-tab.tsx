@@ -280,7 +280,7 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
 
                                 <div className="space-y-2">
                                     <Label htmlFor="status" className="text-foreground text-[10px] font-mono font-bold uppercase tracking-widest text-text-muted">Estado del Módulo</Label>
-                                    <Select name="status" defaultValue={module.status === 'pending' ? 'draft' : (module.status || "draft")}>
+                                    <Select key={module.status} name="status" defaultValue={module.status === 'pending' ? 'draft' : (module.status || "draft")}>
                                         <SelectTrigger className="bg-surface-dark border-border-strong text-foreground focus:ring-accent-blue h-11">
                                             <SelectValue placeholder="Selecciona un estado" />
                                         </SelectTrigger>
@@ -292,6 +292,12 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                                                 </div>
                                             </SelectItem>
                                             <SelectItem value="draft" className="focus:bg-accent-blue/10 focus:text-accent-blue">
+                                                <div className="flex items-center gap-2">
+                                                    <Clock className="size-4 text-accent-orange" />
+                                                    <span>Borrador</span>
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="pending" className="hidden">
                                                 <div className="flex items-center gap-2">
                                                     <Clock className="size-4 text-accent-orange" />
                                                     <span>Borrador</span>

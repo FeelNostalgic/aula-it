@@ -27,6 +27,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { usePresence } from "@/components/dashboard/presence-context";
 
 interface Student {
     id: string;
@@ -49,6 +50,7 @@ export default function ModuleStudentsTab({ moduleId, initialStudents }: ModuleS
     const [enrolledStudents, setEnrolledStudents] = useState<Student[]>(initialStudents);
     const [isPending, startTransition] = useTransition();
     const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+    const { onlineUsers } = usePresence();
 
     // Sincronizar el estado local cuando cambian los props (tras router.refresh)
     useEffect(() => {
@@ -90,12 +92,8 @@ export default function ModuleStudentsTab({ moduleId, initialStudents }: ModuleS
         return date.toLocaleDateString("es-ES", { day: '2-digit', month: 'short' });
     };
 
-    const isOnline = (dateStr: string | null | undefined) => {
-        if (!dateStr) return false;
-        const date = new Date(dateStr);
-        const now = new Date();
-        const diffMins = (now.getTime() - date.getTime()) / 60000;
-        return diffMins < 15; // Consider active if activity in last 15 mins
+    const isOnline = (studentId: string) => {
+        return onlineUsers.has(studentId);
     };
 
     return (
@@ -133,7 +131,7 @@ export default function ModuleStudentsTab({ moduleId, initialStudents }: ModuleS
                             const total = student.total_steps || 0;
                             const completed = student.completed_steps || 0;
                             const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
-                            const active = isOnline(student.last_activity);
+                            const active = isOnline(student.id);
 
                             return (
                                 <div key={student.id} className="grid md:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-4 p-4 items-center hover:bg-surface/20 transition-colors">
@@ -186,7 +184,7 @@ export default function ModuleStudentsTab({ moduleId, initialStudents }: ModuleS
                                                 : "bg-surface border-border-strong text-text-muted"
                                         )}>
                                             <span className={cn("size-1.5 rounded-full", active ? "bg-accent-green animate-pulse" : "bg-text-muted")} />
-                                            {active ? "Activo" : "Inactivo"}
+                                            {active ? "Online" : "Desconectado"}
                                         </div>
                                     </div>
 

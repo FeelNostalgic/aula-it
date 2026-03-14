@@ -139,7 +139,7 @@ interface ModuleDetailViewProps {
 
 export function ModuleDetailView({ module, initialUnits, initialStudents, userRole, moduleXp = 0 }: ModuleDetailViewProps) {
     const isTeacher = userRole === "teacher";
-    const { moduleXp: liveModuleXp, moduleRank: liveModuleRank, rankPosition } = useModuleGamification(module.id);
+    const { moduleXp: liveModuleXp, moduleRank: liveModuleRank, rankPosition } = useModuleGamification(module.id, userRole);
 
     // Use live data for students, prop data for teachers
     const displayXp = !isTeacher ? liveModuleXp : moduleXp;

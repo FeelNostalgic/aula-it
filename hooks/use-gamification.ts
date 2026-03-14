@@ -60,7 +60,7 @@ export function useGamification() {
     };
 }
 
-export function useModuleGamification(moduleId: string) {
+export function useModuleGamification(moduleId: string, userRole?: "teacher" | "student") {
     const [moduleXp, setModuleXp] = useState<number>(0);
     const [moduleRank, setModuleRank] = useState<string>("F");
     const [rankPosition, setRankPosition] = useState<number | null>(null);
@@ -68,6 +68,12 @@ export function useModuleGamification(moduleId: string) {
     const supabase = createClient();
 
     useEffect(() => {
+        // Skip fetching module-specific gamification if teacher
+        if (userRole === "teacher") {
+            setLoading(false);
+            return;
+        }
+
         async function fetchModuleData() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -78,7 +84,7 @@ export function useModuleGamification(moduleId: string) {
                 .select("module_xp")
                 .eq("module_id", moduleId)
                 .eq("student_id", user.id)
-                .single();
+                .maybeSingle();
 
             if (enrollment) {
                 setModuleXp(enrollment.module_xp || 0);
@@ -123,7 +129,7 @@ export function useModuleGamification(moduleId: string) {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [moduleId, supabase]);
+    }, [moduleId, supabase, userRole]);
 
     return {
         moduleXp,

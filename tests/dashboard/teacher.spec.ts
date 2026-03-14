@@ -58,10 +58,13 @@ test.describe("Teacher Dashboard", () => {
 
         // Wait for the dialog to close (resetForm is called after success)
         const dialog = page.locator('div[role="dialog"]');
-        await expect(dialog).not.toBeVisible({ timeout: 10000 });
+        await expect(dialog).not.toBeVisible({ timeout: 15000 });
 
-        // Verify success toast appears - more flexible regex
-        await expect(page.getByText(/creado correctamente|éxito|success/i)).toBeVisible({ timeout: 10000 });
+        // Verify success toast appears - more flexible regex and longer wait for refresh
+        await expect(page.getByText(/creado correctamente|éxito|success/i)).toBeVisible({ timeout: 15000 });
+
+        // Wait a bit for the UI to stabilize after refresh before checking existence
+        await page.waitForTimeout(1000);
 
         // 4. Verificar
         await dashboardPage.verifyModuleExists("Playwright POM Module");

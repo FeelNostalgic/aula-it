@@ -108,8 +108,8 @@ export function CreateModuleDialog({ children }: CreateModuleDialogProps = {}) {
             toast.error(`Error al crear el módulo: ${result.error}`);
         } else {
             toast.success(`Módulo "${name}" creado correctamente`);
-            router.refresh();
             resetForm();
+            router.refresh();
         }
     }
 

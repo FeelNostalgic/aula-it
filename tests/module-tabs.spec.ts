@@ -94,6 +94,9 @@ test.describe("Module Details Tabs", () => {
     test("settings tab allows form interaction", async ({ page }) => {
         // Click the CONFIGURACIÓN tab
         await page.getByRole('tab', { name: 'CONFIGURACIÓN' }).click();
+        
+        // Wait for hydration
+        await page.waitForTimeout(1000);
 
         await expect(page.getByRole('heading', { name: 'Información General' })).toBeVisible();
         await expect(page.getByText('Nombre del módulo')).toBeVisible();

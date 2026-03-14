@@ -79,7 +79,7 @@ function ModuleIcon({ module, className, viewMode }: { module: any; className?: 
 }
 
 export function StudentModuleCard({ module, viewMode }: StudentModuleCardProps) {
-    const { moduleXp, moduleRank } = useModuleGamification(module.id);
+    const { moduleXp, moduleRank } = useModuleGamification(module.id, "student");
     const Icon = ICON_MAP[module.icon] || BookOpen;
 
     const statusConfigMap = {
