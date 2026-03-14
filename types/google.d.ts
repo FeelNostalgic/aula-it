@@ -35,6 +35,7 @@ declare namespace google {
         enum Feature {
             MULTISELECT_ENABLED = "multiselect",
             NAV_HIDDEN = "navHidden",
+            NAVIGABLE = "navigable",
         }
 
         interface ResponseObject {
