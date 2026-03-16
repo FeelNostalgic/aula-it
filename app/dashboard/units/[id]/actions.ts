@@ -56,7 +56,7 @@ export async function updateUnitSettings(unitId: string, formData: FormData) {
     if (unitData?.module_id) {
         revalidatePath(`/dashboard/modules/${unitData.module_id}`);
     }
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -120,7 +120,7 @@ export async function createActivity(formData: FormData) {
         return { error: error.message };
     }
 
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -165,7 +165,7 @@ export async function reorderActivity(unitId: string, activityId: string, direct
     await supabase.from("activities").update({ order_index: swapData.order_index }).eq("id", currentActivity.id);
     await supabase.from("activities").update({ order_index: currentActivity.order_index }).eq("id", swapData.id);
 
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -189,7 +189,7 @@ export async function reorderMultipleActivities(unitId: string, updates: { id: s
 
     await Promise.all(updatePromises);
 
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -211,7 +211,7 @@ export async function deleteActivity(unitId: string, activityId: string) {
         return { error: error.message };
     }
 
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -229,7 +229,7 @@ export async function updateActivityStatus(activityId: string, status: 'publishe
         return { error: 'No se pudo actualizar el estado de la actividad' };
     }
 
-    revalidatePath('/dashboard/units/[id]', 'page');
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -246,7 +246,7 @@ export async function updateActivityPosition(activityId: string, x: number, y: n
         return { error: 'No se pudo actualizar la posición de la actividad' };
     }
 
-    revalidatePath('/dashboard/units/[id]', 'page');
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -271,7 +271,7 @@ export async function updateMultipleActivityPositions(updates: { id: string, x: 
         return { error: 'Algunas posiciones no se pudieron guardar' };
     }
 
-    revalidatePath('/dashboard/units/[id]', 'page');
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -294,7 +294,7 @@ export async function addActivityConnection(unitId: string, sourceId: string, ta
         return { error: 'No se pudo crear la conexión' };
     }
 
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -311,7 +311,7 @@ export async function removeActivityConnection(connectionId: string) {
         return { error: 'No se pudo eliminar la conexión' };
     }
 
-    revalidatePath('/dashboard/units/[id]', 'page');
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -570,7 +570,7 @@ export async function reopenSubmission(submissionId: string): Promise<{ success?
         .eq("id", submissionId);
 
     if (error) return { error: error.message };
-    revalidatePath("/dashboard/units/[id]", "page");
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -589,7 +589,7 @@ export async function publishSubmissionGrade(submissionId: string): Promise<{ su
         .eq("id", submissionId);
 
     if (error) return { error: error.message };
-    revalidatePath("/dashboard/units/[id]", "page");
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -610,8 +610,26 @@ export async function publishAllGradesForStep(stepId: string): Promise<{ success
         .select("id");
 
     if (error) return { error: error.message };
-    revalidatePath("/dashboard/units/[id]", "page");
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true, count: data?.length ?? 0 };
+}
+
+export async function updateStepWeight(stepId: string, weight: number): Promise<{ success?: boolean; error?: string }> {
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Solo profesores." };
+
+    const { error } = await userClient
+        .from("activity_steps")
+        .update({ grade_weight: weight })
+        .eq("id", stepId);
+
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { success: true };
 }
 
 export async function updateActivityWeight(activityId: string, weight: number): Promise<{ success?: boolean; error?: string }> {
@@ -628,7 +646,7 @@ export async function updateActivityWeight(activityId: string, weight: number): 
         .eq("id", activityId);
 
     if (error) return { error: error.message };
-    revalidatePath("/dashboard/units/[id]", "page");
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -700,11 +718,11 @@ export async function gradeSubmission(
                 console.error("[Gamification] Error evaluating badges:", err);
             });
             
-            revalidatePath(`/dashboard/units/${unitId}`);
+            revalidatePath("/dashboard/units/[id]", "layout");
         }
     }
 
-    revalidatePath("/dashboard/units/[id]", "page");
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -761,7 +779,7 @@ export async function createUnitMilestone(
         return { error: error.message };
     }
 
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -819,7 +837,7 @@ export async function updateUnitMilestone(
         return { error: error.message };
     }
 
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -862,7 +880,7 @@ export async function deleteUnitMilestone(milestoneId: string, unitId: string) {
         return { error: error.message };
     }
 
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -893,7 +911,7 @@ export async function updateUnitResources(unitId: string, resources: any[]) {
         return { error: error.message };
     }
 
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -934,7 +952,7 @@ export async function reorderUnitMilestones(
         return { error: firstError.error.message };
     }
 
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -973,7 +991,7 @@ export async function createClassBadge(
 
     if (error) return { error: error.message };
 
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -1005,7 +1023,7 @@ export async function updateClassBadge(
 
     if (error) return { error: error.message };
 
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -1025,7 +1043,7 @@ export async function deleteClassBadge(badgeId: string, unitId: string) {
 
     if (error) return { error: error.message };
 
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
@@ -1139,7 +1157,7 @@ export async function duplicateActivity(unitId: string, activityId: string) {
         }
     }
 
-    revalidatePath(`/dashboard/units/${unitId}`);
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 

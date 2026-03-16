@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useMemo } from "react";
 import { Award, Plus, Trash2, Edit2, CheckCircle, XCircle, HardDrive, List, LayoutGrid, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";

@@ -48,6 +48,9 @@ export default async function UnitPage({
         if (unit.view_type === 'map') {
             redirect(`/units/${unit.id}/map`);
         }
+    } else {
+        // Teacher is redirected to the nested challenges route
+        redirect(`/dashboard/units/${unitId}/retos`);
     }
 
     // Fetch parent Module
@@ -117,7 +120,7 @@ export default async function UnitPage({
         });
 
         // Calculate completed steps based on submissions for this student
-        const activitySubmissions = submissions.filter(s => s.activity_id === activity.id && (userRole === 'teacher' || s.student_id === user.id));
+        const activitySubmissions = submissions.filter(s => s.activity_id === activity.id && s.student_id === user.id);
         const completedStepIds = new Set(activitySubmissions.map(s => s.step_id));
 
         return {

@@ -1,0 +1,2 @@
+ALTER TABLE activity_steps
+  ADD COLUMN IF NOT EXISTS grade_weight NUMERIC(3,1) NOT NULL DEFAULT 1.0;
