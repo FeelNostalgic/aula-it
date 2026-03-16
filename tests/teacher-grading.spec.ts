@@ -150,17 +150,16 @@ test.describe("Teacher Grading Flow", () => {
         await page.waitForLoadState("networkidle");
 
         // Navigate to EVALUACIÓN tab
-        await page.getByRole("tab", { name: "EVALUACIÓN" }).click();
-
-        // The tab content renders "Evaluación de la Unidad" heading
-        await expect(page.getByRole("heading", { name: "Evaluación de la Unidad" })).toBeVisible({ timeout: 10000 });
+        await page.getByRole("link", { name: "EVALUACIÓN" }).click();
+        await page.waitForURL(/\/evaluacion/);
+        await page.waitForLoadState("networkidle");
 
         // The activity selector pill loads asynchronously — wait for it
         const activityPill = page.locator(`button:has-text("E2E Grading Activity")`).first();
         await expect(activityPill).toBeVisible({ timeout: 15000 });
 
         // The first activity is auto-selected — the step table should appear directly
-        await expect(page.locator(`text="E2E Deliverable Step"`)).toBeVisible({ timeout: 10000 });
+        await expect(page.getByRole("heading", { name: "E2E Deliverable Step" })).toBeVisible({ timeout: 10000 });
     });
 
     test("teacher opens grading modal and grades the submission as completado", async ({ page }) => {
@@ -175,14 +174,16 @@ test.describe("Teacher Grading Flow", () => {
         await page.waitForLoadState("networkidle");
 
         // Click EVALUACIÓN tab
-        await page.getByRole("tab", { name: "EVALUACIÓN" }).click();
+        await page.getByRole("link", { name: "EVALUACIÓN" }).click();
+        await page.waitForURL(/\/evaluacion/);
+        await page.waitForLoadState("networkidle");
 
         // Wait for activity pill to appear (loads asynchronously)
         const activityPill = page.locator(`button:has-text("E2E Grading Activity")`).first();
         await expect(activityPill).toBeVisible({ timeout: 15000 });
 
         // First activity is auto-selected — step header appears directly, no accordion needed
-        await expect(page.locator(`text="E2E Deliverable Step"`)).toBeVisible({ timeout: 10000 });
+        await expect(page.getByRole("heading", { name: "E2E Deliverable Step" })).toBeVisible({ timeout: 10000 });
 
         // Click the "Evaluar" button for the submission row
         const evaluarBtn = page.getByRole("button", { name: "Evaluar" }).first();

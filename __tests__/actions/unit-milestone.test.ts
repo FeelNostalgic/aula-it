@@ -60,7 +60,7 @@ describe("createUnitMilestone", () => {
     const result = await createUnitMilestone(UNIT_ID, MILESTONE_DATA);
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith(`/dashboard/units/${UNIT_ID}`);
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 
   it("returns error when DB insert fails", async () => {
@@ -128,7 +128,7 @@ describe("updateUnitMilestone", () => {
     const result = await updateUnitMilestone(MILESTONE_ID, UNIT_ID, { title: "New title" });
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith(`/dashboard/units/${UNIT_ID}`);
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 
   it("returns error when DB update fails", async () => {
@@ -197,6 +197,6 @@ describe("deleteUnitMilestone", () => {
     const result = await deleteUnitMilestone(MILESTONE_ID, UNIT_ID);
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith(`/dashboard/units/${UNIT_ID}`);
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });

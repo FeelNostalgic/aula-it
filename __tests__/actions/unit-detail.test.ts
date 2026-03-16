@@ -96,7 +96,7 @@ describe("updateUnitSettings", () => {
     const result = await updateUnitSettings("unit-1", formData);
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/unit-1");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });
 
@@ -182,7 +182,7 @@ describe("createActivity", () => {
     const result = await createActivity(formData);
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/unit-1");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 
   it("uses order_index 0 when no previous activity exists", async () => {
@@ -257,7 +257,7 @@ describe("reorderActivity", () => {
     const result = await reorderActivity("unit-1", "activity-1", "up");
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/unit-1");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 
   it("returns success without swap when activity is already at boundary", async () => {
@@ -343,7 +343,7 @@ describe("reorderMultipleActivities", () => {
     const result = await reorderMultipleActivities("unit-1", updates);
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/unit-1");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });
 
@@ -390,7 +390,7 @@ describe("deleteActivity", () => {
     const result = await deleteActivity("unit-1", "activity-1");
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/unit-1");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });
 
@@ -407,7 +407,7 @@ describe("updateActivityStatus", () => {
     const result = await updateActivityStatus("activity-1", "published");
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "page");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });
 
@@ -424,7 +424,7 @@ describe("updateActivityPosition", () => {
     const result = await updateActivityPosition("activity-1", 120, 340);
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "page");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });
 
@@ -445,7 +445,7 @@ describe("updateMultipleActivityPositions", () => {
     const result = await updateMultipleActivityPositions(updates);
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "page");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });
 
@@ -462,7 +462,7 @@ describe("addActivityConnection", () => {
     const result = await addActivityConnection("unit-1", "source-1", "target-1");
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/unit-1");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 
   it("returns spanish error message when connection already exists (23505 duplicate)", async () => {
@@ -493,7 +493,7 @@ describe("removeActivityConnection", () => {
     const result = await removeActivityConnection("connection-1");
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "page");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });
 
@@ -654,7 +654,7 @@ describe("gradeSubmission", () => {
     });
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "page");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 
   it("grades with rubric mode: sets rubric_scores, clears score", async () => {
@@ -752,6 +752,6 @@ describe("updateUnitResources", () => {
     const result = await updateUnitResources("unit-1", resources);
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/unit-1");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });

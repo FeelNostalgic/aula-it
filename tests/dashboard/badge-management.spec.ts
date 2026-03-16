@@ -85,11 +85,9 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
             await page.waitForLoadState("networkidle");
 
             // Navigate to the INSIGNIAS tab
-            const insigniasTab = page.getByRole("tab", { name: /INSIGNIAS/i });
+            const insigniasTab = page.getByRole("link", { name: /INSIGNIAS/i });
             await insigniasTab.click();
-            
-            // Wait for tab to be active
-            await expect(insigniasTab).toHaveAttribute("data-state", "active", { timeout: 10000 });
+            await page.waitForURL(/\/insignias/);
 
             // Verify the manager heading is visible to ensure tab content rendered
             await expect(page.getByText("Gestión de Insignias Globales")).toBeVisible({ timeout: 10000 });
@@ -141,7 +139,8 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
             await page.waitForLoadState("networkidle");
 
             // Navigate to the INSIGNIAS tab
-            await page.getByRole("tab", { name: /INSIGNIAS/i }).click();
+            await page.getByRole("link", { name: /INSIGNIAS/i }).click();
+            await page.waitForURL(/\/insignias/);
             await page.waitForLoadState("networkidle");
 
             // Verify the badge from the previous test is present
@@ -199,7 +198,8 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
             await page.waitForLoadState("networkidle");
 
             // Navigate to the INSIGNIAS tab
-            await page.getByRole("tab", { name: /INSIGNIAS/i }).click();
+            await page.getByRole("link", { name: /INSIGNIAS/i }).click();
+            await page.waitForURL(/\/insignias/);
             await page.waitForLoadState("networkidle");
 
             // Verify badge from previous test is present

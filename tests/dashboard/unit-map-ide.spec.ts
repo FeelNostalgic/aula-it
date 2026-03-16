@@ -73,14 +73,8 @@ test.describe("Unit Map IDE", () => {
             await unitDetailPage.goto(testUnitId);
             await page.waitForLoadState("networkidle");
 
-            // Go to Map Tab
+            // Go to Map Tab (navigates directly to /units/[id]/map)
             await unitDetailPage.clickTab("mapa");
-            await expect(unitDetailPage.tabMap).toHaveAttribute("data-state", "active");
-
-            // Open IDE
-            await unitDetailPage.openMapIdeButton.click();
-
-            // Should navigate to /units/[id]/map
             await page.waitForURL(/\/units\/.*\/map/);
 
             // Verify IDE elements

@@ -91,8 +91,8 @@ test.describe("Unit Detail (Creador del Mapa)", () => {
             await expect(unitDetailPage.tabEvaluation).toBeVisible();
             await expect(unitDetailPage.tabSettings).toBeVisible();
 
-            // Activities Tab is default
-            await expect(unitDetailPage.tabActivities).toHaveAttribute("data-state", "active");
+            // Activities Tab is default (URL ends in /retos)
+            await expect(page).toHaveURL(/\/retos/);
         }
     );
 
@@ -204,7 +204,7 @@ test.describe("Unit Detail (Creador del Mapa)", () => {
 
             // Go to settings tab
             await unitDetailPage.clickTab("configuracion");
-            await expect(unitDetailPage.tabSettings).toHaveAttribute("data-state", "active");
+            await expect(page).toHaveURL(/\/configuracion/);
 
             // Change Title
             await unitDetailPage.titleInput.fill("U.D.1 Intro Modificada");

@@ -11,8 +11,7 @@ export class UnitDetailPage extends BasePage {
     readonly tabSettings: Locator;
     readonly tabMap: Locator;
 
-    // Map Tab
-    readonly openMapIdeButton: Locator;
+    private currentUnitId: string = "";
 
     // Activities Tab
     readonly activitiesList: Locator;
@@ -31,13 +30,10 @@ export class UnitDetailPage extends BasePage {
         this.breadcrumbUnitName = page.locator("header");
 
         // Tabs
-        this.tabActivities = page.getByRole("tab", { name: /RETOS/i });
-        this.tabEvaluation = page.getByRole("tab", { name: /EVALUACIÓN/i });
-        this.tabSettings = page.getByRole("tab", { name: /CONFIGURACIÓN/i });
-        this.tabMap = page.getByRole("tab", { name: /MAPA/i });
-
-        // Map
-        this.openMapIdeButton = page.locator('button:has-text("Abrir")'); // "Abrir Creador de Mapa" or "Abrir Mapa Interactivo"
+        this.tabActivities = page.getByRole("link", { name: /RETOS/i });
+        this.tabEvaluation = page.getByRole("link", { name: /EVALUACIÓN/i });
+        this.tabSettings = page.getByRole("link", { name: /CONFIGURACIÓN/i });
+        this.tabMap = page.getByRole("link", { name: /MAPA/i });
 
         // Activities
         this.addActivityButton = page.locator('button:has-text("Añadir Reto")').first();
@@ -46,7 +42,7 @@ export class UnitDetailPage extends BasePage {
 
         // Settings
         this.settingsForm = page.locator('form:has(button:has-text("Guardar Configuración"))');
-        this.titleInput = page.locator('input[name="name"]');
+        this.titleInput = this.settingsForm.locator('input[name="name"]');
         this.descriptionTextarea = page.locator('textarea[name="description"]');
         this.statusSelect = page.locator('button[role="combobox"]').first(); // Status is usually the first select
         this.viewTypeSelect = page.locator('button[role="combobox"]').nth(1); // View type is the second
@@ -54,17 +50,18 @@ export class UnitDetailPage extends BasePage {
     }
 
     async goto(unitId: string): Promise<void> {
-        await super.goto(`/dashboard/units/${unitId}`);
+        this.currentUnitId = unitId;
+        await super.goto(`/dashboard/units/${unitId}/retos`);
     }
 
     async clickTab(tab: "actividades" | "evaluacion" | "configuracion" | "mapa"): Promise<void> {
-        const tabLocator = {
-            actividades: this.tabActivities,
-            evaluacion: this.tabEvaluation,
-            configuracion: this.tabSettings,
-            mapa: this.tabMap,
-        }[tab];
-        await tabLocator.click();
+        const paths: Record<string, string> = {
+            actividades:   `/dashboard/units/${this.currentUnitId}/retos`,
+            evaluacion:    `/dashboard/units/${this.currentUnitId}/evaluacion`,
+            configuracion: `/dashboard/units/${this.currentUnitId}/configuracion`,
+            mapa:          `/units/${this.currentUnitId}/map`,
+        };
+        await this.page.goto(paths[tab]);
     }
 
     async createActivity(title: string, description?: string): Promise<void> {

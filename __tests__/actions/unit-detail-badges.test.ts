@@ -95,7 +95,7 @@ describe("createClassBadge", () => {
     });
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/unit-1");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });
 
@@ -172,7 +172,7 @@ describe("updateClassBadge", () => {
     });
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/unit-1");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });
 
@@ -238,7 +238,7 @@ describe("deleteClassBadge", () => {
     const result = await deleteClassBadge("badge-1", "unit-1");
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/unit-1");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });
 
@@ -317,6 +317,6 @@ describe("reorderUnitMilestones", () => {
     ]);
 
     expect(result).toEqual({ success: true });
-    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/unit-1");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });
