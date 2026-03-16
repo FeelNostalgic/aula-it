@@ -179,7 +179,7 @@ export type ActivityPhaseWithSteps = ActivityPhase & {
 };
 
 // Submissions (Phase 2: student deliverable submissions)
-export type SubmissionStatus = 'pending' | 'submitted' | 'graded';
+export type SubmissionStatus = 'pending' | 'submitted' | 'graded' | 'published';
 
 export type ActivitySubmission = {
     id: string;
@@ -199,6 +199,7 @@ export type ActivitySubmission = {
     rubric_scores: Record<string, number> | null;
     grading_mode: 'score' | 'rubric' | 'complete' | null;
     files: SubmissionFile[] | null;
+    published_at: string | null;
 };
 
 // Step views (tracking de visualización de pasos por estudiante)

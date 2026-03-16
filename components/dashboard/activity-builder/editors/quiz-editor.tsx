@@ -46,7 +46,7 @@ const QUESTION_TYPES: { value: QuizQuestionType; label: string }[] = [
 ];
 
 export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
-    const defaultContent = (step.content as QuizContent) || { questions: [], passingScore: 80 };
+    const defaultContent = (step.content as QuizContent) || { questions: [], passingScore: 80, showCorrectAnswers: true };
     const [content, setContent] = useState<QuizContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -58,7 +58,7 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
     );
 
     useEffect(() => {
-        const newContent = (step.content as QuizContent) || { questions: [], passingScore: 80 };
+        const newContent = (step.content as QuizContent) || { questions: [], passingScore: 80, showCorrectAnswers: true };
         setContent(newContent);
     }, [step.id, step.content]);
 
@@ -399,7 +399,14 @@ function SortableQuestion({
                                     oIdx={oIdx}
                                     qType={qType}
                                     canRemove={q.options.length > 2}
-                                    onToggleCorrect={() => onUpdateOption(q.id, opt.id, { isCorrect: !opt.isCorrect })}
+                                    onToggleCorrect={() => {
+                                        if (qType === 'true_false') {
+                                            // Single-select: set this as correct, all others incorrect
+                                            onUpdate(q.id, { options: q.options.map(o => ({ ...o, isCorrect: o.id === opt.id })) });
+                                        } else {
+                                            onUpdateOption(q.id, opt.id, { isCorrect: !opt.isCorrect });
+                                        }
+                                    }}
                                     onChangeText={(text) => onUpdateOption(q.id, opt.id, { text })}
                                     onRemove={() => onRemoveOption(q.id, opt.id)}
                                 />
@@ -469,7 +476,6 @@ function SortableOption({
                 onClick={onToggleCorrect}
                 className="focus:outline-none transition-colors shrink-0"
                 title={opt.isCorrect ? "Marcar como incorrecta" : "Marcar como correcta"}
-                disabled={qType === 'true_false'}
             >
                 {opt.isCorrect
                     ? <CheckCircle2 className="size-5 text-green-500" />
