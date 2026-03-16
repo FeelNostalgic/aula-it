@@ -206,6 +206,7 @@ export function createMockSubmission(
     rubric_scores: null,
     grading_mode: null,
     files: null,
+    published_at: null,
     ...overrides,
   };
 }

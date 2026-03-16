@@ -37,6 +37,7 @@ const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.Eleme
     pending: { label: "Sin entregar", icon: Clock, className: "text-text-muted bg-surface border-white/10" },
     submitted: { label: "Entregado", icon: CheckCircle2, className: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
     graded: { label: "Corregido", icon: Star, className: "text-accent-blue bg-accent-blue/10 border-accent-blue/20" },
+    published: { label: "Publicado", icon: Star, className: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
 };
 
 const ACCEPT_MAP: Record<AllowedFileType, string> = {

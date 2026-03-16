@@ -41,6 +41,11 @@ const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.Eleme
         icon: Star,
         className: "text-accent-blue bg-accent-blue/10 border-accent-blue/20",
     },
+    published: {
+        label: "Publicado",
+        icon: Star,
+        className: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+    },
 };
 
 export function DeliverableViewer({ content, stepId, activityId, initialSubmission, googleEmail: initialGoogleEmail, dueDate }: DeliverableViewerProps) {
