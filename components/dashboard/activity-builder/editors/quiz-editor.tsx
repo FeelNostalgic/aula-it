@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ActivityStepWithClientState, QuizContent, QuizMode, QuizQuestion, QuizQuestionType } from "@/types/activity";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { Plus, Trash2, CheckCircle2, Circle, HardDrive, ExternalLink, BarChart2, AlignLeft, GripVertical } from "lucide-react";
@@ -231,86 +232,159 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                         )}
                     </div>
                 ) : (
-                    <>
-                        {/* Quiz settings */}
-                        <div className="p-5 bg-surface-dark border border-white/5 rounded-xl space-y-4">
-                            <h4 className="text-sm font-semibold text-foreground">Configuración del cuestionario</h4>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Nota mínima para aprobar (%)</label>
-                                    <Input type="number" min={0} max={100}
-                                        value={content.passingScore ?? ""}
-                                        onChange={(e) => handleUpdate({ ...content, passingScore: e.target.value ? Number(e.target.value) : undefined })}
-                                        placeholder="Sin mínimo" className="bg-surface border-border w-32 font-mono" />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Máximo de intentos</label>
-                                    <Input type="number" min={1}
-                                        value={content.maxAttempts ?? ""}
-                                        onChange={(e) => handleUpdate({ ...content, maxAttempts: e.target.value ? Number(e.target.value) : undefined })}
-                                        placeholder="Ilimitados" className="bg-surface border-border w-32 font-mono" />
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap gap-x-6 gap-y-2">
-                                {[
-                                    { key: 'showCorrectAnswers', label: 'Mostrar respuestas correctas al alumno' },
-                                    { key: 'randomizeQuestions', label: 'Aleatorizar orden de preguntas' },
-                                    { key: 'randomizeOptions', label: 'Aleatorizar respuestas dentro de cada pregunta' },
-                                ].map(({ key, label }) => (
-                                    <label key={key} className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox"
-                                            checked={!!(content as any)[key]}
-                                            onChange={(e) => handleUpdate({ ...content, [key]: e.target.checked })}
-                                            className="accent-accent-blue" />
-                                        <span className="text-sm text-foreground">{label}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
+                    <Tabs defaultValue="preguntas">
+                        <TabsList className="bg-surface-dark border border-white/5 w-full justify-start rounded-xl p-1 mb-2">
+                            <TabsTrigger value="configuracion" className="text-xs data-[state=active]:bg-surface data-[state=active]:text-foreground text-text-muted rounded-lg">
+                                Configuración
+                            </TabsTrigger>
+                            <TabsTrigger value="preguntas" className="text-xs data-[state=active]:bg-surface data-[state=active]:text-foreground text-text-muted rounded-lg">
+                                Preguntas{content.questions.length > 0 && <span className="ml-1.5 text-[10px] font-mono opacity-60">({content.questions.length})</span>}
+                            </TabsTrigger>
+                        </TabsList>
 
-                        {/* Questions */}
-                        {content.questions.length === 0 ? (
-                            <div className="text-center p-12 border border-dashed border-border/50 rounded-xl bg-surface/20">
-                                <p className="text-text-muted mb-4">No hay preguntas creadas.</p>
-                                <Button onClick={addQuestion} variant="outline" className="text-accent-blue border-accent-blue/30 hover:bg-accent-blue/10">
-                                    <Plus className="size-4 mr-2" /> Añadir la primera pregunta
-                                </Button>
-                            </div>
-                        ) : (
-                            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleQuestionDragEnd}>
-                                <SortableContext items={content.questions.map(q => q.id)} strategy={verticalListSortingStrategy}>
-                                    <div className="space-y-4">
-                                        {content.questions.map((q, idx) => (
-                                            <SortableQuestion
-                                                key={q.id}
-                                                q={q}
-                                                idx={idx}
-                                                sensors={sensors}
-                                                onChangeType={changeQuestionType}
-                                                onUpdate={updateQuestion}
-                                                onRemove={removeQuestion}
-                                                onAddOption={addOption}
-                                                onUpdateOption={updateOption}
-                                                onRemoveOption={removeOption}
-                                                onOptionDragEnd={handleOptionDragEnd}
-                                            />
-                                        ))}
+                        <TabsContent value="configuracion" className="mt-0 space-y-3">
+                            {/* Evaluación */}
+                            <ConfigSection title="Evaluación">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Nota mínima para aprobar (%)</label>
+                                        <Input type="number" min={0} max={100}
+                                            value={content.passingScore ?? ""}
+                                            onChange={(e) => handleUpdate({ ...content, passingScore: e.target.value ? Number(e.target.value) : undefined })}
+                                            placeholder="Sin mínimo" className="bg-surface border-border w-32 font-mono" />
+                                        <p className="text-xs text-text-muted/70">Porcentaje mínimo para considerar el cuestionario superado.</p>
                                     </div>
-                                </SortableContext>
-                            </DndContext>
-                        )}
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Máximo de intentos</label>
+                                        <Input type="number" min={1}
+                                            value={content.maxAttempts ?? ""}
+                                            onChange={(e) => handleUpdate({ ...content, maxAttempts: e.target.value ? Number(e.target.value) : undefined })}
+                                            placeholder="Ilimitados" className="bg-surface border-border w-32 font-mono" />
+                                        <p className="text-xs text-text-muted/70">Vacío = intentos ilimitados.</p>
+                                    </div>
+                                </div>
+                                <ConfigToggle
+                                    checked={!!(content as any).penalizeWrongAnswers}
+                                    onChange={(v) => handleUpdate({ ...content, penalizeWrongAnswers: v })}
+                                    label="Penalizar respuestas incorrectas"
+                                    description="Una respuesta incorrecta resta 1/3 del valor de la pregunta. Para opción múltiple, cada opción incorrecta cancela una correcta. El total nunca baja de 0."
+                                />
+                            </ConfigSection>
 
-                        {content.questions.length > 0 && (
-                            <div className="flex justify-center pt-4">
-                                <Button onClick={addQuestion} className="bg-surface hover:bg-surface-dark text-foreground border border-border/50">
-                                    <Plus className="size-4 mr-2" /> Nueva Pregunta
-                                </Button>
-                            </div>
-                        )}
-                    </>
+                            {/* Resultados */}
+                            <ConfigSection title="Resultados">
+                                <ConfigToggle
+                                    checked={!!(content as any).showCorrectAnswers}
+                                    onChange={(v) => handleUpdate({ ...content, showCorrectAnswers: v })}
+                                    label="Mostrar respuestas correctas al alumno"
+                                    description="Al terminar el cuestionario, el alumno ve qué respuestas eran correctas y su nota. Si está desactivado, solo se muestra la nota cuando el profesor publique las calificaciones."
+                                />
+                            </ConfigSection>
+
+                            {/* Aleatoriedad */}
+                            <ConfigSection title="Aleatoriedad">
+                                <ConfigToggle
+                                    checked={!!(content as any).randomizeQuestions}
+                                    onChange={(v) => handleUpdate({ ...content, randomizeQuestions: v })}
+                                    label="Aleatorizar orden de preguntas"
+                                    description="Cada alumno verá las preguntas en un orden diferente, reduciendo la posibilidad de copiar."
+                                />
+                                <ConfigToggle
+                                    checked={!!(content as any).randomizeOptions}
+                                    onChange={(v) => handleUpdate({ ...content, randomizeOptions: v })}
+                                    label="Aleatorizar opciones de respuesta"
+                                    description="Las opciones de cada pregunta se muestran en orden aleatorio. No aplica a preguntas de Verdadero/Falso."
+                                />
+                            </ConfigSection>
+                        </TabsContent>
+
+                        <TabsContent value="preguntas" className="mt-0 space-y-4">
+                            {content.questions.length === 0 ? (
+                                <div className="text-center p-12 border border-dashed border-border/50 rounded-xl bg-surface/20">
+                                    <p className="text-text-muted mb-4">No hay preguntas creadas.</p>
+                                    <Button onClick={addQuestion} variant="outline" className="text-accent-blue border-accent-blue/30 hover:bg-accent-blue/10">
+                                        <Plus className="size-4 mr-2" /> Añadir la primera pregunta
+                                    </Button>
+                                </div>
+                            ) : (
+                                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleQuestionDragEnd}>
+                                    <SortableContext items={content.questions.map(q => q.id)} strategy={verticalListSortingStrategy}>
+                                        <div className="space-y-4">
+                                            {content.questions.map((q, idx) => (
+                                                <SortableQuestion
+                                                    key={q.id}
+                                                    q={q}
+                                                    idx={idx}
+                                                    sensors={sensors}
+                                                    onChangeType={changeQuestionType}
+                                                    onUpdate={updateQuestion}
+                                                    onRemove={removeQuestion}
+                                                    onAddOption={addOption}
+                                                    onUpdateOption={updateOption}
+                                                    onRemoveOption={removeOption}
+                                                    onOptionDragEnd={handleOptionDragEnd}
+                                                />
+                                            ))}
+                                        </div>
+                                    </SortableContext>
+                                </DndContext>
+                            )}
+
+                            {content.questions.length > 0 && (
+                                <div className="flex justify-center pt-4">
+                                    <Button onClick={addQuestion} className="bg-surface hover:bg-surface-dark text-foreground border border-border/50">
+                                        <Plus className="size-4 mr-2" /> Nueva Pregunta
+                                    </Button>
+                                </div>
+                            )}
+                        </TabsContent>
+                    </Tabs>
                 )}
             </div>
         </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Config section + toggle helpers
+// ---------------------------------------------------------------------------
+
+function ConfigSection({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+            <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
+                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">{title}</span>
+            </div>
+            <div className="p-5 space-y-4">
+                {children}
+            </div>
+        </div>
+    );
+}
+
+function ConfigToggle({
+    checked, onChange, label, description,
+}: {
+    checked: boolean;
+    onChange: (v: boolean) => void;
+    label: string;
+    description: string;
+}) {
+    return (
+        <label className="flex items-start gap-3 cursor-pointer group">
+            <div className="mt-0.5 shrink-0">
+                <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => onChange(e.target.checked)}
+                    className="accent-accent-blue size-4"
+                />
+            </div>
+            <div className="space-y-0.5">
+                <p className="text-sm font-semibold text-foreground group-hover:text-white transition-colors">{label}</p>
+                <p className="text-xs text-text-muted/70 leading-relaxed">{description}</p>
+            </div>
+        </label>
     );
 }
 

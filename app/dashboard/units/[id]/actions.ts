@@ -352,6 +352,7 @@ export type StepSubmissionRow = {
         answers: Record<string, string[]>;
         short_answers: Record<string, string>;
         short_answer_scores: Record<string, number>;
+        short_answer_feedback: Record<string, string>;
         points_earned: number;
         points_total: number;
     } | null;
@@ -479,6 +480,7 @@ export async function getUnitStepSubmissions(
                 answers: bestAttempt.answers,
                 short_answers: bestAttempt.short_answers,
                 short_answer_scores: bestAttempt.short_answer_scores ?? {},
+                short_answer_feedback: bestAttempt.short_answer_feedback ?? {},
                 points_earned: bestAttempt.points_earned,
                 points_total: bestAttempt.points_total,
             } : null,
@@ -530,6 +532,7 @@ export async function getUnitStepSubmissions(
 export async function saveQuizShortAnswerScores(
     attemptId: string,
     shortAnswerScores: Record<string, number>, // questionId → manual points
+    shortAnswerFeedback: Record<string, string>, // questionId → teacher feedback
     autoPointsEarned: number,
 ): Promise<{ success?: boolean; error?: string }> {
     const userClient = await createClient();
@@ -545,7 +548,7 @@ export async function saveQuizShortAnswerScores(
     const admin = createAdminClient();
     const { error } = await admin
         .from("quiz_attempts")
-        .update({ points_earned: totalEarned, short_answer_scores: shortAnswerScores })
+        .update({ points_earned: totalEarned, short_answer_scores: shortAnswerScores, short_answer_feedback: shortAnswerFeedback })
         .eq("id", attemptId);
 
     if (error) return { error: error.message };

@@ -101,6 +101,7 @@ export type QuizContent = {
     showCorrectAnswers?: boolean;
     randomizeQuestions?: boolean;
     randomizeOptions?: boolean;
+    penalizeWrongAnswers?: boolean;
     googleFormUrl?: string;
     quizMode?: QuizMode;
 };
@@ -110,11 +111,13 @@ export type QuizAttempt = {
     student_id: string;
     step_id: string;
     attempt_number: number;
-    answers: Record<string, string[]>;      // questionId → selectedOptionIds
-    short_answers: Record<string, string>;  // questionId → free text
+    answers: Record<string, string[]>;            // questionId → selectedOptionIds
+    short_answers: Record<string, string>;        // questionId → free text
+    short_answer_scores: Record<string, number>;  // questionId → manual points (set by teacher)
     points_earned: number;
     points_total: number;
     completed_at: string;
+    short_answer_feedback: Record<string, string>;
 };
 
 export type PresentationContent = {

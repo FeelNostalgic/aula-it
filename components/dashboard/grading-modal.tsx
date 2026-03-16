@@ -39,6 +39,7 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
     const [rubricScores, setRubricScores] = useState<Record<string, number>>({});
     const [feedback, setFeedback] = useState<string>("");
     const [shortAnswerScores, setShortAnswerScores] = useState<Record<string, number>>({});
+    const [shortAnswerFeedback, setShortAnswerFeedback] = useState<Record<string, string>>({});
     const [isPending, startTransition] = useTransition();
 
     const isQuiz = submission?.step_type === 'quiz';
@@ -65,6 +66,7 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
             setFeedback(submission.feedback ?? "");
             setRubricScores(submission.rubric_scores ?? {});
             setShortAnswerScores(submission.quiz_attempt?.short_answer_scores ?? {});
+            setShortAnswerFeedback(submission.quiz_attempt?.short_answer_feedback ?? {});
             if (submission.grading_mode) {
                 setGradingMode(submission.grading_mode);
             } else {
@@ -98,6 +100,7 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                     const saveRes = await saveQuizShortAnswerScores(
                         quizAttempt.id,
                         shortAnswerScores,
+                        shortAnswerFeedback,
                         quizAttempt.points_earned,
                     );
                     if (saveRes.error) {
@@ -222,6 +225,8 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                                     content={quizContent}
                                     shortAnswerScores={shortAnswerScores}
                                     onShortAnswerScore={(qId, pts) => setShortAnswerScores(prev => ({ ...prev, [qId]: pts }))}
+                                    shortAnswerFeedback={shortAnswerFeedback}
+                                    onShortAnswerFeedback={(qId, text) => setShortAnswerFeedback(prev => ({ ...prev, [qId]: text }))}
                                 />
                             ) : (
                                 <SubmissionFilePanel submission={submission} />
@@ -390,11 +395,15 @@ function QuizAttemptPanel({
     content,
     shortAnswerScores,
     onShortAnswerScore,
+    shortAnswerFeedback,
+    onShortAnswerFeedback,
 }: {
     attempt: NonNullable<StepSubmissionRow['quiz_attempt']>;
     content: QuizContent;
     shortAnswerScores: Record<string, number>;
     onShortAnswerScore: (qId: string, pts: number) => void;
+    shortAnswerFeedback: Record<string, string>;
+    onShortAnswerFeedback: (qId: string, text: string) => void;
 }) {
     const autoPoints = attempt.points_earned;
     const manualPoints = Object.values(shortAnswerScores).reduce((a, b) => a + b, 0);
@@ -458,6 +467,13 @@ function QuizAttemptPanel({
                                         />
                                         <span className="text-xs text-text-muted">/ {q.points ?? 1}</span>
                                     </div>
+                                    <Textarea
+                                        value={shortAnswerFeedback[q.id] ?? ""}
+                                        onChange={(e) => onShortAnswerFeedback(q.id, e.target.value)}
+                                        placeholder="Comentario para el alumno (opcional)..."
+                                        rows={2}
+                                        className="text-xs bg-surface-dark border-border-strong resize-none"
+                                    />
                                 </div>
                             ) : (
                                 <div className="space-y-1">

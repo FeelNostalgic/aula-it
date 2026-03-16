@@ -9,7 +9,7 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
-import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, XCircle, Circle, PencilRuler, Zap, Copy, AlignLeft, RefreshCw, Trophy, AlertCircle, ChevronRight, Clock, ArrowLeft, Plus } from "lucide-react";
+import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, XCircle, Circle, PencilRuler, Zap, Copy, AlignLeft, RefreshCw, Trophy, AlertCircle, ChevronRight, Clock, ArrowLeft, Plus, MessageSquare } from "lucide-react";
 import { useState, useEffect, useTransition, useMemo } from "react";
 import { getQuizAttempts, submitQuizAttempt } from "@/app/activities/[id]/actions";
 import { Textarea } from "@/components/ui/textarea";
@@ -247,12 +247,21 @@ function BuiltinQuizViewer({
     const [lastAttempt, setLastAttempt] = useState<QuizAttempt | null>(null);
     const [isPending, startTransition] = useTransition();
     const [showConfirm, setShowConfirm] = useState(false);
+    const [loadingAttempts, setLoadingAttempts] = useState(true);
 
     useEffect(() => {
-        if (!stepId) return;
+        if (!stepId) { setLoadingAttempts(false); return; }
+        // Reset all state immediately so the old quiz doesn't flash while loading the new one
+        setPhase('answering');
+        setSelectedAnswers({});
+        setShortAnswers({});
+        setAttempts([]);
+        setLastAttempt(null);
+        setLoadingAttempts(true);
         getQuizAttempts(stepId).then(data => {
             setAttempts(data);
             if (data.length > 0) setPhase('list');
+            setLoadingAttempts(false);
         });
     }, [stepId]);
 
@@ -320,6 +329,15 @@ function BuiltinQuizViewer({
 
     if (!content?.questions || content.questions.length === 0) {
         return <p className="text-text-muted italic text-center">Este cuestionario no tiene preguntas aún.</p>;
+    }
+
+    if (loadingAttempts) {
+        return (
+            <div className="flex items-center justify-center py-20 text-text-muted gap-2 text-sm">
+                <RefreshCw className="size-4 animate-spin" />
+                Cargando...
+            </div>
+        );
     }
 
     // List phase — all previous attempts
@@ -409,13 +427,18 @@ function BuiltinQuizViewer({
             ? Math.round((lastAttempt.points_earned / lastAttempt.points_total) * 100)
             : 0;
         const passed = content.passingScore !== undefined ? pct >= content.passingScore : null;
-        const hasShortAnswer = content.questions.some(q => (q.type ?? 'multiple_choice') === 'short_answer');
+        const hasShortAnswerQs = content.questions.some(q => (q.type ?? 'multiple_choice') === 'short_answer');
+        const isPublished = submission?.status === 'published';
+        // Score visible only when: grades are visible AND (no short answers OR already published)
+        const scoreVisible = gradesVisible && (!hasShortAnswerQs || isPublished);
+        // "Pending" message: quiz has short answers and hasn't been published yet
+        const showPendingMsg = hasShortAnswerQs && !isPublished;
         const newAttemptsLeft = maxAttempts !== undefined ? maxAttempts - attempts.length : null;
 
         return (
             <div className="max-w-2xl mx-auto space-y-6 py-4">
                 {/* Score card */}
-                {gradesVisible ? (
+                {scoreVisible ? (
                     <div className={cn(
                         "p-8 rounded-2xl border text-center space-y-3",
                         passed === true ? "bg-emerald-500/10 border-emerald-500/30" :
@@ -432,18 +455,24 @@ function BuiltinQuizViewer({
                                 {passed ? "✓ Superado" : "✗ No superado"} — mínimo {content.passingScore}%
                             </p>
                         )}
-                        {hasShortAnswer && (
-                            <div className="flex items-center gap-2 justify-center text-amber-400 text-sm">
-                                <AlertCircle className="size-4" />
-                                <span>Hay respuestas cortas pendientes de corrección por el profesor.</span>
-                            </div>
-                        )}
                     </div>
                 ) : (
                     <div className="p-8 rounded-2xl border bg-surface border-border/50 text-center space-y-3">
                         <Clock className="size-10 mx-auto text-text-muted/40" />
-                        <p className="text-base font-semibold text-foreground">Entrega recibida</p>
-                        <p className="text-sm text-text-muted">Las notas se publicarán cuando el profesor las haga visibles.</p>
+                        {showPendingMsg ? (
+                            <>
+                                <p className="text-base font-semibold text-foreground">Pendiente de publicación</p>
+                                <div className="flex items-center gap-2 justify-center text-amber-400 text-sm">
+                                    <AlertCircle className="size-4" />
+                                    <span>Hay respuestas cortas pendientes de corrección por el profesor.</span>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-base font-semibold text-foreground">Entrega recibida</p>
+                                <p className="text-sm text-text-muted">Las notas se publicarán cuando el profesor las haga visibles.</p>
+                            </>
+                        )}
                     </div>
                 )}
 
@@ -455,31 +484,74 @@ function BuiltinQuizViewer({
                             const studentOpts = lastAttempt.answers[q.id] ?? [];
                             const correctOpts = q.options.filter(o => o.isCorrect).map(o => o.id);
                             const isAutoGraded = qType !== 'short_answer';
-                            const isCorrect = isAutoGraded && JSON.stringify([...studentOpts].sort()) === JSON.stringify([...correctOpts].sort());
+                            const qPoints = q.points ?? 1;
+                            const penalize = !!content.penalizeWrongAnswers;
+
+                            // Compute per-question score (mirrors server formula)
+                            let qScore: number | null = null;
+                            if (isAutoGraded) {
+                                if (!penalize) {
+                                    const cs = studentOpts.filter(id => correctOpts.includes(id)).length;
+                                    const ws = studentOpts.filter(id => !correctOpts.includes(id)).length;
+                                    qScore = correctOpts.length > 0
+                                        ? Math.max(0, Math.round(qPoints * ((cs - ws) / correctOpts.length) * 100) / 100)
+                                        : 0;
+                                } else if (correctOpts.length === 1) {
+                                    if (studentOpts.length === 0) qScore = 0;
+                                    else if (studentOpts[0] === correctOpts[0]) qScore = qPoints;
+                                    else qScore = Math.round((-qPoints / 3) * 100) / 100;
+                                } else {
+                                    const cs = studentOpts.filter(id => correctOpts.includes(id)).length;
+                                    const ws = studentOpts.filter(id => !correctOpts.includes(id)).length;
+                                    qScore = Math.round((qPoints / correctOpts.length) * (cs - ws) * 100) / 100;
+                                }
+                            }
+
+                            const borderClass = isAutoGraded
+                                ? qScore! > 0 ? "bg-emerald-500/5 border-emerald-500/20"
+                                : qScore! < 0 ? "bg-red-500/5 border-red-500/20"
+                                : "bg-surface border-border/30"
+                                : "bg-surface border-border/30";
 
                             return (
-                                <div key={q.id} className={cn(
-                                    "p-6 rounded-xl border",
-                                    isAutoGraded
-                                        ? isCorrect ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20"
-                                        : "bg-surface border-border/30"
-                                )}>
+                                <div key={q.id} className={cn("p-6 rounded-xl border", borderClass)}>
                                     <div className="flex items-start gap-3 mb-3">
                                         <span className="size-6 rounded-md bg-surface-dark text-text-muted flex items-center justify-center text-xs font-bold shrink-0">{idx + 1}</span>
-                                        <p className="font-semibold text-foreground leading-tight">{q.text}</p>
-                                        {isAutoGraded && (
-                                            isCorrect
-                                                ? <CheckCircle2 className="size-4 text-emerald-400 shrink-0 ml-auto" />
-                                                : <XCircle className="size-4 text-red-400 shrink-0 ml-auto" />
-                                        )}
+                                        <p className="font-semibold text-foreground leading-tight flex-1">{q.text}</p>
+                                        {isAutoGraded && qScore !== null ? (
+                                            <span className={cn(
+                                                "text-xs font-mono font-bold shrink-0",
+                                                qScore > 0 ? "text-emerald-400" : qScore < 0 ? "text-red-400" : "text-text-muted"
+                                            )}>
+                                                {qScore > 0 ? "+" : ""}{qScore}/{qPoints} pts
+                                            </span>
+                                        ) : !isAutoGraded ? (() => {
+                                            const manualScore = lastAttempt.short_answer_scores?.[q.id];
+                                            return isPublished && manualScore !== undefined ? (
+                                                <span className={cn(
+                                                    "text-xs font-mono font-bold shrink-0",
+                                                    manualScore > 0 ? "text-emerald-400" : "text-text-muted"
+                                                )}>
+                                                    {manualScore}/{qPoints} pts
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs font-mono text-text-muted shrink-0">?/{qPoints} pts</span>
+                                            );
+                                        })() : null}
                                     </div>
 
                                     {qType === 'short_answer' ? (
-                                        <div className="pl-9">
+                                        <div className="pl-9 space-y-2">
                                             <p className="text-xs text-text-muted mb-1">Tu respuesta:</p>
                                             <p className="text-sm text-foreground italic bg-surface p-2 rounded-lg border border-border/30">
                                                 {lastAttempt.short_answers[q.id] || <span className="text-text-muted">Sin respuesta</span>}
                                             </p>
+                                            {gradesVisible && lastAttempt.short_answer_feedback?.[q.id] && (
+                                                <div className="flex items-start gap-2 text-xs text-accent-blue bg-accent-blue/5 border border-accent-blue/20 rounded-lg p-2">
+                                                    <MessageSquare className="size-3.5 shrink-0 mt-0.5" />
+                                                    <span>{lastAttempt.short_answer_feedback[q.id]}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     ) : (
                                         <div className="pl-9 space-y-1.5">
@@ -549,6 +621,13 @@ function BuiltinQuizViewer({
                         Intento {attemptsDone + 1}{maxAttempts !== undefined ? ` de ${maxAttempts}` : ""} · {totalPoints} pts
                     </p>
                 </div>
+
+                {content.penalizeWrongAnswers && (
+                    <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-amber-500/8 border border-amber-500/20 text-amber-300 text-xs">
+                        <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+                        <span>Las respuestas incorrectas restan puntos. Opción única: −1/3 por fallo. Opción múltiple: cada respuesta incorrecta cancela una correcta. Dejar en blanco no penaliza.</span>
+                    </div>
+                )}
 
                 {displayQuestions.map((q, idx) => {
                     const qType = q.type ?? 'multiple_choice';

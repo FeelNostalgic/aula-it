@@ -230,9 +230,10 @@ export async function submitQuizAttempt(
     }
 
     // Auto-score
-    let pointsEarned = 0;
+    let rawScore = 0;
     let pointsTotal = 0;
     let hasShortAnswer = false;
+    const penalize = !!content.penalizeWrongAnswers;
 
     for (const q of content.questions) {
         const qType = q.type ?? 'multiple_choice';
@@ -241,18 +242,36 @@ export async function submitQuizAttempt(
 
         if (qType === 'short_answer') {
             hasShortAnswer = true;
-            // 0 pts — manual review
-        } else {
-            const selectedIds = answers[q.id] ?? [];
-            const correctIds = q.options.filter(o => o.isCorrect).map(o => o.id);
-            if (correctIds.length === 0) continue;
+            continue;
+        }
 
+        const selectedIds = answers[q.id] ?? [];
+        const correctIds = q.options.filter(o => o.isCorrect).map(o => o.id);
+        if (correctIds.length === 0) continue;
+
+        if (!penalize) {
             const correctSelected = selectedIds.filter(id => correctIds.includes(id)).length;
             const incorrectSelected = selectedIds.filter(id => !correctIds.includes(id)).length;
             const ratio = (correctSelected - incorrectSelected) / correctIds.length;
-            pointsEarned += Math.max(0, Math.round(qPoints * ratio));
+            rawScore += Math.max(0, qPoints * ratio);
+        } else if (correctIds.length === 1) {
+            // Single-select: correct = +pts, wrong = -pts/3, no answer = 0
+            if (selectedIds.length === 0) {
+                // no answer
+            } else if (selectedIds[0] === correctIds[0]) {
+                rawScore += qPoints;
+            } else {
+                rawScore -= qPoints / 3;
+            }
+        } else {
+            // Multi-select: each wrong cancels one correct (±pts/M)
+            const correctSelected = selectedIds.filter(id => correctIds.includes(id)).length;
+            const incorrectSelected = selectedIds.filter(id => !correctIds.includes(id)).length;
+            rawScore += (qPoints / correctIds.length) * (correctSelected - incorrectSelected);
         }
     }
+
+    let pointsEarned = Math.max(0, Math.round(rawScore * 100) / 100);
 
     const attemptNumber = attemptCount + 1;
 
