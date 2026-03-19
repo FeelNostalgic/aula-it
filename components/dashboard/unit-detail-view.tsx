@@ -588,14 +588,14 @@ export function UnitDetailView({
                                                                 <div className="flex items-center gap-1">
                                                                     {resource.type === 'file' && (
                                                                         <button
-                                                                            className="opacity-0 group-hover:opacity-100 hover:text-foreground transition-all p-0.5 rounded"
+                                                                            className="opacity-0 group-hover:opacity-100 hover:text-foreground transition-all p-1 rounded"
                                                                             title="Descargar"
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
                                                                                 window.open(toDriveDownloadUrl(resource.url ?? '') ?? resource.url, '_blank');
                                                                             }}
                                                                         >
-                                                                            <Download className="size-3" />
+                                                                            <Download className="size-4" />
                                                                         </button>
                                                                     )}
                                                                     {!isFolder && <ExternalLink className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />}

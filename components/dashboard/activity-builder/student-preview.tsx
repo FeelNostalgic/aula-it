@@ -110,7 +110,7 @@ function SortableTab({
     onAuxClick: (e: React.MouseEvent) => void;
 }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stepId });
-    const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : 0 };
+    const style = { transform: CSS.Transform.toString(transform ? { ...transform, y: 0 } : null), transition, zIndex: isDragging ? 50 : 0 };
 
     return (
         <div

@@ -12,6 +12,7 @@ import rehypeKatex from "rehype-katex";
 import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, XCircle, Circle, PencilRuler, Zap, Copy, AlignLeft, RefreshCw, Trophy, AlertCircle, ChevronRight, Clock, ArrowLeft, Plus, MessageSquare, Printer, ClipboardList } from "lucide-react";
 import { useState, useEffect, useTransition, useMemo } from "react";
 import { getQuizAttempts, submitQuizAttempt } from "@/app/activities/[id]/actions";
+import { generateMarkdownPdf } from "@/app/actions/generate-pdf";
 import { Textarea } from "@/components/ui/textarea";
 import { animationRegistry } from "@/lib/animations/registry";
 import { AnimationPlayer } from "@/components/animations/animation-player";
@@ -93,38 +94,21 @@ function TheoryViewer({ content }: { content: TheoryContent }) {
     const [isExporting, setIsExporting] = useState(false);
 
     const handleDownloadPdf = async () => {
-        const el = document.getElementById('theory-content-export');
-        if (!el) return;
         setIsExporting(true);
         try {
-            const html2canvas = (await import('html2canvas')).default;
-            const { jsPDF } = await import('jspdf');
-
-            const canvas = await html2canvas(el, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: '#0f172a',
-            });
-
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            const pageWidth = pdf.internal.pageSize.getWidth();
-            const pageHeight = pdf.internal.pageSize.getHeight();
-            const imgWidth = pageWidth - 20;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            let y = 10;
-            let remaining = imgHeight;
-
-            while (remaining > 0) {
-                pdf.addImage(imgData, 'PNG', 10, y, imgWidth, imgHeight);
-                remaining -= (pageHeight - 20);
-                if (remaining > 0) {
-                    pdf.addPage();
-                    y = 10 - (imgHeight - remaining);
-                }
+            const result = await generateMarkdownPdf(content?.markdown ?? '');
+            if ('error' in result) {
+                console.error('Error al generar PDF:', result.error);
+                return;
             }
-
-            pdf.save('teoria.pdf');
+            const bytes = Uint8Array.from(atob(result.pdf), c => c.charCodeAt(0));
+            const blob = new Blob([bytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = result.filename;
+            a.click();
+            URL.revokeObjectURL(url);
         } catch (err) {
             console.error('Error al exportar PDF:', err);
         } finally {
@@ -146,7 +130,7 @@ function TheoryViewer({ content }: { content: TheoryContent }) {
                     {isExporting ? 'Generando...' : 'Descargar PDF'}
                 </Button>
             </div>
-            <div id="theory-content-export" className="prose dark:prose-invert prose-blue max-w-none prose-pre:p-0 prose-pre:bg-transparent prose-code:bg-surface-dark prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none font-sans">
+            <div className="prose dark:prose-invert prose-blue max-w-none prose-pre:p-0 prose-pre:bg-transparent prose-code:bg-surface-dark prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none font-sans">
                 <ReactMarkdown
                     remarkPlugins={[remarkGfm, remarkMath]}
                     rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
