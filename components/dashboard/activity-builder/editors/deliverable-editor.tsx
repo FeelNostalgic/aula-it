@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import { ActivityStepWithClientState, DeliverableContent, DeliveryMode, RubricCriteria } from "@/types/activity";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { updateStepContent, updateStepDueDate } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,7 +18,10 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StepConfigSection } from "./step-config-section";
 
 interface DeliverableEditorProps {
     step: ActivityStepWithClientState;
@@ -27,7 +29,7 @@ interface DeliverableEditorProps {
 }
 
 export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
-    const defaultContent = (step.content as DeliverableContent) || { templateUrl: '', instructionsMarkdown: '', deliveryMode: 'manual' };
+    const defaultContent = (step.content as DeliverableContent) || { templateUrl: "", instructionsMarkdown: "", deliveryMode: "manual" };
     const [content, setContent] = useState<DeliverableContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
@@ -38,20 +40,15 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
     const dueDateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
-    const togglePreview = () => {
-        setIsPreviewCollapsed(!isPreviewCollapsed);
-    };
-
     useEffect(() => {
-        const newContent = (step.content as DeliverableContent) || { templateUrl: '', instructionsMarkdown: '', deliveryMode: 'manual' };
+        const newContent = (step.content as DeliverableContent) || { templateUrl: "", instructionsMarkdown: "", deliveryMode: "manual" };
         setContent(newContent);
         setDueDate(step.due_date ?? null);
     }, [step.id, step.content, step.due_date]);
 
-    // Check Drive connection status when teacher_copy is selected
     useEffect(() => {
-        if (content.deliveryMode === 'teacher_copy' && driveConnected === null) {
-            fetch('/api/drive/status')
+        if (content.deliveryMode === "teacher_copy" && driveConnected === null) {
+            fetch("/api/drive/status")
                 .then(r => r.json())
                 .then(data => setDriveConnected(data.connected))
                 .catch(() => setDriveConnected(false));
@@ -73,9 +70,9 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
     };
 
     const handleDeliveryModeChange = (mode: DeliveryMode) => {
-        handleChange('deliveryMode', mode);
-        if (mode === 'teacher_copy' && driveConnected === null) {
-            setDriveConnected(null); // trigger re-fetch
+        handleChange("deliveryMode", mode);
+        if (mode === "teacher_copy" && driveConnected === null) {
+            setDriveConnected(null);
         }
     };
 
@@ -95,8 +92,7 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
             }
             const files = await openPicker({ multiSelect: false, title: "Seleccionar plantilla", externalAccessToken });
             if (files.length > 0) {
-                const url = toEditableUrl(files[0]);
-                handleChange("templateUrl", url);
+                handleChange("templateUrl", toEditableUrl(files[0]));
             }
         } catch {
             toast.error("Error al abrir Google Drive");
@@ -127,234 +123,260 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
         }, 1000);
     };
 
-    const deliveryMode: DeliveryMode = content.deliveryMode ?? 'manual';
+    const deliveryMode: DeliveryMode = content.deliveryMode ?? "manual";
 
     return (
-        <div className="flex flex-col h-full w-full bg-background overflow-hidden relative min-h-0">
-            <div className="shrink-0 p-6 border-b border-border/50 bg-surface/30">
-                <div className="flex items-center justify-between mb-4">
-                    <div>
-                        <h3 className="text-xl font-bold text-foreground">Configuración del Entregable</h3>
-                        <p className="text-sm text-text-muted mt-1">
-                            Define qué debe entregar el alumno y asocia una plantilla inicial si es necesario.
-                        </p>
-                    </div>
-                    {isSaving ? (
-                        <span className="text-xs text-accent-blue animate-pulse">Guardando...</span>
-                    ) : (
-                        <span className="text-xs text-text-muted/50">Guardado automáticamente</span>
-                    )}
-                </div>
-
-                {/* Delivery Mode Toggle */}
-                <div className="space-y-2 mb-4">
-                    <label className="text-sm font-semibold text-foreground">Modo de entrega</label>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => handleDeliveryModeChange('manual')}
-                            className={cn(
-                                "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
-                                deliveryMode === 'manual'
-                                    ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
-                                    : "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark"
-                            )}
-                        >
-                            <MousePointer className="size-3.5" />
-                            Entrega manual
-                        </button>
-                        <button
-                            onClick={() => handleDeliveryModeChange('teacher_copy')}
-                            className={cn(
-                                "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
-                                deliveryMode === 'teacher_copy'
-                                    ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
-                                    : "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark"
-                            )}
-                        >
-                            <Copy className="size-3.5" />
-                            Copia del profesor
-                        </button>
-                    </div>
-                    <p className="text-xs text-text-muted">
-                        {deliveryMode === 'manual'
-                            ? "El alumno pega la URL de su propio documento de Drive."
-                            : "El sistema copia la plantilla en la cuenta de cada alumno. Tú controlas los permisos."}
-                    </p>
-                </div>
-
-                {/* Drive connection status for teacher_copy mode */}
-                {deliveryMode === 'teacher_copy' && (
-                    <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-surface-dark border border-border-strong rounded-xl">
-                        <HardDrive className="size-4 text-accent-blue shrink-0" />
-                        {driveConnected === null && (
-                            <span className="text-xs text-text-muted animate-pulse">Verificando conexión...</span>
-                        )}
-                        {driveConnected === true && (
-                            <span className="text-xs text-emerald-400 flex items-center gap-1.5 font-semibold">
-                                <CheckCircle2 className="size-3.5" /> Drive conectado
-                            </span>
-                        )}
-                        {driveConnected === false && (
-                            <div className="flex items-center gap-3 flex-1">
-                                <span className="text-xs text-text-muted flex-1">
-                                    Drive no conectado —{" "}
-                                    <a
-                                        href="/settings"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-accent-blue hover:underline"
-                                    >
-                                        Conectar en Configuración →
-                                    </a>
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                <div className="space-y-2 max-w-2xl">
-                    <label className="text-sm font-semibold text-foreground flex items-center gap-2">
-                        <Link2 className="size-4" /> Plantilla URL (Opcional)
-                    </label>
-                    <p className="text-xs text-text-muted">Enlace a Google Docs, Packet Tracer, o repositorio de inicio.</p>
-                    <div className="flex gap-2">
-                        <Input
-                            value={content.templateUrl || ""}
-                            onChange={(e) => handleChange("templateUrl", e.target.value)}
-                            placeholder="https://docs.google.com/document/d/.../copy"
-                            className="bg-surface border-border/50 h-9 flex-1"
-                        />
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handlePickFromDrive}
-                            disabled={isDriveLoading}
-                            className="h-9 border-border/50 hover:bg-surface-dark shrink-0"
-                        >
-                            <HardDrive className="size-4 mr-2 text-accent-blue" />
-                            {isDriveLoading ? "Cargando..." : "Drive"}
-                        </Button>
-                        {content.templateUrl && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                asChild
-                                className="h-9 px-2 text-text-muted hover:text-foreground shrink-0"
-                                title="Abrir plantilla en nueva pestaña"
-                            >
-                                <a href={content.templateUrl} target="_blank" rel="noopener noreferrer">
-                                    <ExternalLink className="size-4" />
-                                </a>
-                            </Button>
-                        )}
-                    </div>
-                </div>
-
-                {/* Rubric builder */}
-                <div className="mt-4">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setRubricModalOpen(true)}
-                        className="h-8 text-xs gap-1.5 border-border/50 text-text-muted hover:text-foreground"
+        <Tabs defaultValue="instrucciones" className="flex flex-col h-full w-full bg-background">
+            {/* Tab bar */}
+            <div className="shrink-0 border-b border-border/50 bg-surface-dark/10 px-4 flex items-center gap-2">
+                <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">
+                    <TabsTrigger
+                        value="instrucciones"
+                        className="h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
                     >
-                        <ListChecks className="size-3.5" />
-                        {(content.rubric?.length ?? 0) > 0
-                            ? `Rúbrica (${content.rubric!.length} ${content.rubric!.length === 1 ? 'criterio' : 'criterios'})`
-                            : "Configurar rúbrica"}
-                    </Button>
-                </div>
+                        Instrucciones
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="configuracion"
+                        className="h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                    >
+                        Configuración
+                    </TabsTrigger>
+                </TabsList>
 
-                <RubricBuilderModal
-                    rubric={content.rubric ?? []}
-                    open={rubricModalOpen}
-                    onClose={() => setRubricModalOpen(false)}
-                    onChange={handleRubricChange}
-                />
-
-                {/* Deadline picker */}
-                <div className="mt-4 space-y-1.5 max-w-xs">
-                    <label className="text-sm font-semibold text-foreground">Fecha límite (opcional)</label>
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="datetime-local"
-                            value={dueDate ? dueDate.slice(0, 16) : ""}
-                            onChange={(e) => handleDueDateChange(e.target.value || null)}
-                            className="flex-1 h-9 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent-blue"
-                        />
-                        {dueDate && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDueDateChange(null)}
-                                className="h-9 text-xs text-text-muted hover:text-foreground shrink-0"
-                            >
-                                Quitar
-                            </Button>
-                        )}
-                    </div>
-                    <p className="text-xs text-text-muted">El alumno no podrá entregar pasada esta fecha.</p>
+                <div className="ml-auto">
+                    {isSaving ? (
+                        <span className="text-[10px] text-accent-blue animate-pulse">Guardando...</span>
+                    ) : (
+                        <span className="text-[10px] text-text-muted/50">Guardado automáticamente</span>
+                    )}
                 </div>
             </div>
 
-            <div className="flex-1 flex overflow-hidden min-h-0">
-                <ResizablePanelGroup direction="horizontal">
-                    {/* Editor Panel */}
-                    <ResizablePanel defaultSize={50} minSize={30}>
-                        <div className="flex flex-col h-full bg-surface-dark/20 relative min-h-0">
-                            <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50 justify-between">
-                                <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Instrucciones (Markdown)</span>
+            {/* Instrucciones tab — markdown split view */}
+            <TabsContent value="instrucciones" className="mt-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
+                <div className="flex h-full overflow-hidden min-h-0">
+                    <ResizablePanelGroup direction="horizontal">
+                        <ResizablePanel defaultSize={50} minSize={30}>
+                            <div className="flex flex-col h-full bg-surface-dark/20 relative min-h-0">
+                                <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50 justify-between">
+                                    <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Instrucciones (Markdown)</span>
+                                    <button
+                                        onClick={() => setIsPreviewCollapsed(!isPreviewCollapsed)}
+                                        className="text-text-muted hover:text-foreground transition-colors flex items-center gap-1 bg-surface border border-border-subtle rounded-md px-2 py-1 shadow-sm h-7"
+                                        title={isPreviewCollapsed ? "Expandir Vista Previa" : "Ocultar Vista Previa"}
+                                    >
+                                        {isPreviewCollapsed ? <PanelRightOpen className="size-3.5" /> : <PanelRightClose className="size-3.5" />}
+                                    </button>
+                                </div>
+                                <div className="flex-1 p-0 overflow-hidden">
+                                    <Textarea
+                                        value={content.instructionsMarkdown || ""}
+                                        onChange={(e) => handleChange("instructionsMarkdown", e.target.value)}
+                                        className="h-full w-full resize-none border-none focus-visible:ring-0 rounded-none bg-transparent p-6 text-foreground font-mono text-sm leading-relaxed"
+                                        placeholder="# Paso 1...\nDescribe el reto."
+                                    />
+                                </div>
+                            </div>
+                        </ResizablePanel>
+
+                        <ResizableHandle withHandle className="bg-border-subtle hover:bg-accent-blue transition-colors duration-300 w-1.5 flex flex-col items-center justify-center" />
+
+                        <ResizablePanel
+                            defaultSize={50}
+                            minSize={25}
+                            maxSize={75}
+                            className={isPreviewCollapsed ? "hidden" : ""}
+                        >
+                            <div className="flex flex-col h-full bg-background relative border-l border-border-subtle">
+                                <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50">
+                                    <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Vista Previa</span>
+                                </div>
+                                <div className="flex-1 p-8 overflow-y-auto prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-a:text-accent-blue hover:prose-a:text-accent-blue/80 prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-pre:border-none prose-code:bg-surface-dark prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none font-sans">
+                                    {content.instructionsMarkdown ? (
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkGfm, remarkMath]}
+                                            rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
+                                        >
+                                            {content.instructionsMarkdown}
+                                        </ReactMarkdown>
+                                    ) : (
+                                        <div className="text-text-muted/50 italic mt-4 text-center">
+                                            Instrucciones vacías.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </ResizablePanel>
+                    </ResizablePanelGroup>
+                </div>
+            </TabsContent>
+
+            {/* Configuración tab */}
+            <TabsContent value="configuracion" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <div className="max-w-2xl mx-auto p-8 space-y-4">
+                    <div className="mb-2">
+                        <h3 className="text-lg font-bold text-foreground">Configuración del Entregable</h3>
+                        <p className="text-sm text-text-muted mt-1">Define qué debe entregar el alumno, la plantilla y la evaluación.</p>
+                    </div>
+
+                    {/* Step-level: XP + completion mode */}
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} />
+
+                    {/* Delivery mode */}
+                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
+                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Modo de entrega</span>
+                        </div>
+                        <div className="p-5 space-y-3">
+                            <div className="flex gap-2">
                                 <button
-                                    onClick={togglePreview}
-                                    className="text-text-muted hover:text-foreground transition-colors flex items-center gap-1 bg-surface border border-border-subtle rounded-md px-2 py-1 shadow-sm h-7"
-                                    title={isPreviewCollapsed ? "Expandir Vista Previa" : "Ocultar Vista Previa"}
+                                    onClick={() => handleDeliveryModeChange("manual")}
+                                    className={cn(
+                                        "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
+                                        deliveryMode === "manual"
+                                            ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
+                                            : "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark"
+                                    )}
                                 >
-                                    {isPreviewCollapsed ? <PanelRightOpen className="size-3.5" /> : <PanelRightClose className="size-3.5" />}
+                                    <MousePointer className="size-3.5" /> Entrega manual
+                                </button>
+                                <button
+                                    onClick={() => handleDeliveryModeChange("teacher_copy")}
+                                    className={cn(
+                                        "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
+                                        deliveryMode === "teacher_copy"
+                                            ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
+                                            : "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark"
+                                    )}
+                                >
+                                    <Copy className="size-3.5" /> Copia del profesor
                                 </button>
                             </div>
-                            <div className="flex-1 p-0 overflow-hidden">
-                                <Textarea
-                                    value={content.instructionsMarkdown || ""}
-                                    onChange={(e) => handleChange("instructionsMarkdown", e.target.value)}
-                                    className="h-full w-full resize-none border-none focus-visible:ring-0 rounded-none bg-transparent p-6 text-foreground font-mono text-sm leading-relaxed"
-                                    placeholder="# Paso 1...\nDescribe el reto."
-                                />
-                            </div>
+                            <p className="text-xs text-text-muted">
+                                {deliveryMode === "manual"
+                                    ? "El alumno pega la URL de su propio documento de Drive."
+                                    : "El sistema copia la plantilla en la cuenta de cada alumno. Tú controlas los permisos."}
+                            </p>
+
+                            {deliveryMode === "teacher_copy" && (
+                                <div className="flex items-center gap-3 px-4 py-3 bg-surface border border-border-strong rounded-xl">
+                                    <HardDrive className="size-4 text-accent-blue shrink-0" />
+                                    {driveConnected === null && <span className="text-xs text-text-muted animate-pulse">Verificando conexión...</span>}
+                                    {driveConnected === true && (
+                                        <span className="text-xs text-emerald-400 flex items-center gap-1.5 font-semibold">
+                                            <CheckCircle2 className="size-3.5" /> Drive conectado
+                                        </span>
+                                    )}
+                                    {driveConnected === false && (
+                                        <span className="text-xs text-text-muted flex-1">
+                                            Drive no conectado —{" "}
+                                            <a href="/settings" target="_blank" rel="noopener noreferrer" className="text-accent-blue hover:underline">
+                                                Conectar en Configuración →
+                                            </a>
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                    </ResizablePanel>
+                    </div>
 
-                    <ResizableHandle withHandle className="bg-border-subtle hover:bg-accent-blue transition-colors duration-300 w-1.5 flex flex-col items-center justify-center">
-                    </ResizableHandle>
-
-                    {/* Preview Panel */}
-                    <ResizablePanel
-                        defaultSize={50}
-                        minSize={25}
-                        maxSize={75}
-                        className={isPreviewCollapsed ? "hidden transition-all duration-300 ease-in-out" : "transition-all duration-300 ease-in-out"}
-                    >
-                        <div className="flex flex-col h-full bg-background relative border-l border-border-subtle">
-                            <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50">
-                                <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Vista Previa</span>
-                            </div>
-                            <div className="flex-1 p-8 overflow-y-auto prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-a:text-accent-blue hover:prose-a:text-accent-blue/80 prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-pre:border-none prose-code:bg-surface-dark prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none font-sans">
-                                {content.instructionsMarkdown ? (
-                                    <ReactMarkdown
-                                        remarkPlugins={[remarkGfm, remarkMath]}
-                                        rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
+                    {/* Template URL */}
+                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
+                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Plantilla (Opcional)</span>
+                        </div>
+                        <div className="p-5 space-y-3">
+                            <p className="text-xs text-text-muted">Enlace a Google Docs, Packet Tracer, o repositorio de inicio.</p>
+                            <div className="flex gap-2">
+                                <Input
+                                    value={content.templateUrl || ""}
+                                    onChange={(e) => handleChange("templateUrl", e.target.value)}
+                                    placeholder="https://docs.google.com/document/d/.../copy"
+                                    className="bg-surface border-border/50 h-9 flex-1"
+                                />
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handlePickFromDrive}
+                                    disabled={isDriveLoading}
+                                    className="h-9 border-border/50 hover:bg-surface-dark shrink-0"
+                                >
+                                    <HardDrive className="size-4 mr-2 text-accent-blue" />
+                                    {isDriveLoading ? "Cargando..." : "Drive"}
+                                </Button>
+                                {content.templateUrl && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        asChild
+                                        className="h-9 px-2 text-text-muted hover:text-foreground shrink-0"
+                                        title="Abrir plantilla en nueva pestaña"
                                     >
-                                        {content.instructionsMarkdown}
-                                    </ReactMarkdown>
-                                ) : (
-                                    <div className="text-text-muted/50 italic mt-4 text-center">
-                                        Instrucciones vacías.
-                                    </div>
+                                        <a href={content.templateUrl} target="_blank" rel="noopener noreferrer">
+                                            <ExternalLink className="size-4" />
+                                        </a>
+                                    </Button>
                                 )}
                             </div>
                         </div>
-                    </ResizablePanel>
-                </ResizablePanelGroup>
-            </div>
-        </div>
+                    </div>
+
+                    {/* Rubric */}
+                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
+                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Rúbrica</span>
+                        </div>
+                        <div className="p-5">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setRubricModalOpen(true)}
+                                className="h-8 text-xs gap-1.5 border-border/50 text-text-muted hover:text-foreground"
+                            >
+                                <ListChecks className="size-3.5" />
+                                {(content.rubric?.length ?? 0) > 0
+                                    ? `Editar rúbrica (${content.rubric!.length} ${content.rubric!.length === 1 ? "criterio" : "criterios"})`
+                                    : "Configurar rúbrica"}
+                            </Button>
+                        </div>
+                    </div>
+                    <RubricBuilderModal
+                        rubric={content.rubric ?? []}
+                        open={rubricModalOpen}
+                        onClose={() => setRubricModalOpen(false)}
+                        onChange={handleRubricChange}
+                    />
+
+                    {/* Due date */}
+                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
+                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Fecha Límite</span>
+                        </div>
+                        <div className="p-5 space-y-2">
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="datetime-local"
+                                    value={dueDate ? dueDate.slice(0, 16) : ""}
+                                    onChange={(e) => handleDueDateChange(e.target.value || null)}
+                                    className="flex-1 h-9 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                />
+                                {dueDate && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDueDateChange(null)}
+                                        className="h-9 text-xs text-text-muted hover:text-foreground shrink-0"
+                                    >
+                                        Quitar
+                                    </Button>
+                                )}
+                            </div>
+                            <p className="text-xs text-text-muted">El alumno no podrá entregar pasada esta fecha.</p>
+                        </div>
+                    </div>
+                </div>
+            </TabsContent>
+        </Tabs>
     );
 }

@@ -153,7 +153,11 @@ export class ActivityBuilderPage extends BasePage {
     }
 
     async toggleQuizToGoogleForms(url: string): Promise<void> {
+        // Mode selector is in Configuración tab
+        await this.page.getByRole('tab', { name: 'Configuración' }).click();
         await this.page.getByRole('button', { name: 'Google Form' }).click();
+        // Contenido tab label changes to "Google Form" after mode switch
+        await this.page.getByRole('tab', { name: 'Google Form' }).click();
         await this.page.getByPlaceholder('https://docs.google.com/forms/d/e/.../viewform?embedded=true').fill(url);
         await this.page.waitForTimeout(1500); // debounce
         await this.waitForNotification();

@@ -135,8 +135,8 @@ test.describe("Dashboard Activity Builder", () => {
         await builder.goto(testActivityId);
 
         await builder.clickStep("Recursos 1");
-        // Verify central editor opens with the right title
-        await expect(page.getByRole('heading', { name: "Gestor de Recursos" })).toBeVisible();
+        // Verify central editor opens (Recursos tab is active by default)
+        await expect(page.getByRole('button', { name: 'Añadir Enlace' })).toBeVisible();
 
         await builder.addResource("https://google.com", "Enlace a Google");
         await builder.addResource("https://example.com/file.pdf", "Un PDF de prueba");

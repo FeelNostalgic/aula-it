@@ -27,6 +27,8 @@ import {
     useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StepConfigSection } from "./step-config-section";
 
 interface ResourceEditorProps {
     step: ActivityStepWithClientState;
@@ -122,77 +124,87 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
         }
     };
 
+    const tabTriggerClass = "h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none";
+
     return (
-        <div className="flex flex-col h-full w-full p-8 overflow-y-auto max-w-4xl mx-auto space-y-8 pb-32">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h3 className="text-xl font-bold text-foreground">Gestor de Recursos</h3>
-                    <p className="text-sm text-text-muted mt-1">
-                        Añade archivos (PDF, PKA) o enlaces externos para los alumnos.
-                    </p>
+        <Tabs defaultValue="recursos" className="flex flex-col h-full w-full bg-background">
+            {/* Tab bar */}
+            <div className="shrink-0 border-b border-border/50 bg-surface-dark/10 px-4 flex items-center gap-2">
+                <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">
+                    <TabsTrigger value="recursos" className={tabTriggerClass}>
+                        Recursos{content.items.length > 0 && <span className="ml-1.5 text-[10px] font-mono opacity-60">({content.items.length})</span>}
+                    </TabsTrigger>
+                    <TabsTrigger value="configuracion" className={tabTriggerClass}>Configuración</TabsTrigger>
+                </TabsList>
+                <div className="ml-auto">
+                    {isSaving ? (
+                        <span className="text-[10px] text-accent-blue animate-pulse">Guardando...</span>
+                    ) : (
+                        <span className="text-[10px] text-text-muted/50">Guardado automáticamente</span>
+                    )}
                 </div>
-                {isSaving ? (
-                    <span className="text-xs text-accent-blue animate-pulse">Guardando...</span>
-                ) : (
-                    <span className="text-xs text-text-muted/50">Guardado automáticamente</span>
-                )}
             </div>
 
-            <div className="flex gap-4">
-                <Button onClick={() => addResource('file')} variant="outline" className="border-border/50 hover:bg-surface-dark">
-                    <Plus className="size-4 mr-2 text-accent-blue" /> Nuevo Archivo
-                </Button>
-                <Button
-                    onClick={handleAddFromDrive}
-                    disabled={isDriveLoading}
-                    variant="outline"
-                    className="border-border/50 hover:bg-surface-dark"
-                >
-                    <FileText className="size-4 mr-2 text-accent-blue" /> {isDriveLoading ? 'Cargando Drive...' : 'Añadir de Drive'}
-                </Button>
-                <Button onClick={() => addResource('link')} variant="outline" className="border-border/50 hover:bg-surface-dark">
-                    <LinkIcon className="size-4 mr-2 text-emerald-400" /> Añadir Enlace
-                </Button>
-            </div>
-
-            <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-            >
-                <SortableContext
-                    items={content.items.map(i => i.id)}
-                    strategy={verticalListSortingStrategy}
-                >
-                    <div className="space-y-4">
-                        {content.items.length === 0 ? (
-                            <div className="text-center p-12 border border-dashed border-border/50 rounded-xl bg-surface/20">
-                                <p className="text-text-muted">No hay recursos añadidos aún.</p>
-                            </div>
-                        ) : (
-                            content.items.map((item) => (
-                                <SortableResourceItem
-                                    key={item.id}
-                                    item={item}
-                                    updateItem={updateItem}
-                                    removeItem={removeItem}
-                                />
-                            ))
-                        )}
+            {/* Recursos tab */}
+            <TabsContent value="recursos" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <div className="max-w-4xl mx-auto p-8 space-y-6 pb-32">
+                    <div className="flex gap-3 flex-wrap">
+                        <Button onClick={() => addResource('file')} variant="outline" className="border-border/50 hover:bg-surface-dark">
+                            <Plus className="size-4 mr-2 text-accent-blue" /> Nuevo Archivo
+                        </Button>
+                        <Button
+                            onClick={handleAddFromDrive}
+                            disabled={isDriveLoading}
+                            variant="outline"
+                            className="border-border/50 hover:bg-surface-dark"
+                        >
+                            <FileText className="size-4 mr-2 text-accent-blue" />
+                            {isDriveLoading ? "Cargando Drive..." : "Añadir de Drive"}
+                        </Button>
+                        <Button onClick={() => addResource('link')} variant="outline" className="border-border/50 hover:bg-surface-dark">
+                            <LinkIcon className="size-4 mr-2 text-emerald-400" /> Añadir Enlace
+                        </Button>
                     </div>
-                </SortableContext>
-            </DndContext>
 
-            <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground">Encabezado Markdown (Opcional)</label>
-                <textarea
-                    value={content.markdownHeader || ""}
-                    onChange={(e) => handleUpdate({ ...content, markdownHeader: e.target.value })}
-                    placeholder="Puedes añadir algunas instrucciones generales aquí usando Markdown..."
-                    className="w-full bg-surface-dark border border-border/50 rounded-xl p-4 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-1 focus:ring-accent-blue/30 overflow-y-auto"
-                />
-            </div>
-        </div>
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                        <SortableContext items={content.items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                            <div className="space-y-4">
+                                {content.items.length === 0 ? (
+                                    <div className="text-center p-12 border border-dashed border-border/50 rounded-xl bg-surface/20">
+                                        <p className="text-text-muted">No hay recursos añadidos aún.</p>
+                                    </div>
+                                ) : (
+                                    content.items.map((item) => (
+                                        <SortableResourceItem key={item.id} item={item} updateItem={updateItem} removeItem={removeItem} />
+                                    ))
+                                )}
+                            </div>
+                        </SortableContext>
+                    </DndContext>
+
+                    <div className="space-y-2">
+                        <label className="text-sm font-semibold text-foreground">Encabezado Markdown (Opcional)</label>
+                        <textarea
+                            value={content.markdownHeader || ""}
+                            onChange={(e) => handleUpdate({ ...content, markdownHeader: e.target.value })}
+                            placeholder="Puedes añadir algunas instrucciones generales aquí usando Markdown..."
+                            className="w-full bg-surface-dark border border-border/50 rounded-xl p-4 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-1 focus:ring-accent-blue/30 overflow-y-auto"
+                        />
+                    </div>
+                </div>
+            </TabsContent>
+
+            {/* Configuración tab */}
+            <TabsContent value="configuracion" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <div className="max-w-2xl mx-auto p-8 space-y-4">
+                    <div className="mb-2">
+                        <h3 className="text-lg font-bold text-foreground">Configuración del paso</h3>
+                        <p className="text-sm text-text-muted mt-1">Ajusta la experiencia y el modo de completado de este bloque de recursos.</p>
+                    </div>
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} />
+                </div>
+            </TabsContent>
+        </Tabs>
     );
 }
 

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
+import { StepConfigSection, ConfigSection, ConfigToggle } from "./step-config-section";
 import { toast } from "sonner";
 import { Plus, Trash2, CheckCircle2, Circle, HardDrive, ExternalLink, BarChart2, AlignLeft, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,8 @@ interface QuizEditorProps {
     step: ActivityStepWithClientState;
     onUpdate: (updated: ActivityStepWithClientState) => void;
 }
+
+// onUpdate serves double duty: content updates AND step-level updates (XP, completion)
 
 function getFormAdminUrl(viewformUrl: string): string | null {
     const match = viewformUrl.match(/\/forms\/d\/([^/?]+)/);
@@ -168,82 +171,157 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
 
     const effectiveMode: QuizMode = content.quizMode ?? (content.googleFormUrl ? 'google_form' : 'builtin');
 
+    const tabTriggerClass = "h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none";
+
     return (
-        <div className="flex flex-col h-full w-full p-8 overflow-y-auto max-w-4xl mx-auto space-y-8 pb-32">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h3 className="text-xl font-bold text-foreground">Constructor de Cuestionario</h3>
-                    <p className="text-sm text-text-muted mt-1">Añade preguntas y opciones para evaluar al alumno.</p>
+        <Tabs defaultValue="contenido" className="flex flex-col h-full w-full bg-background">
+            {/* Tab bar */}
+            <div className="shrink-0 border-b border-border/50 bg-surface-dark/10 px-4 flex items-center gap-2">
+                <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">
+                    <TabsTrigger value="contenido" className={tabTriggerClass}>
+                        {effectiveMode === 'builtin'
+                            ? <>Preguntas{content.questions.length > 0 && <span className="ml-1.5 text-[10px] font-mono opacity-60">({content.questions.length})</span>}</>
+                            : "Google Form"
+                        }
+                    </TabsTrigger>
+                    <TabsTrigger value="configuracion" className={tabTriggerClass}>Configuración</TabsTrigger>
+                </TabsList>
+                <div className="ml-auto">
+                    {isSaving
+                        ? <span className="text-[10px] text-accent-blue animate-pulse">Guardando...</span>
+                        : <span className="text-[10px] text-text-muted/50">Guardado automáticamente</span>
+                    }
                 </div>
-                {isSaving
-                    ? <span className="text-xs text-accent-blue animate-pulse">Guardando...</span>
-                    : <span className="text-xs text-text-muted/50">Guardado automáticamente</span>
-                }
             </div>
 
-            {/* Mode selector */}
-            <div className="flex gap-4 p-1 bg-surface-dark rounded-lg w-fit border border-border/50">
-                <Button variant={effectiveMode === 'builtin' ? "secondary" : "ghost"} size="sm" className="text-xs h-7 px-4"
-                    onClick={() => handleUpdate({ ...content, quizMode: 'builtin' })}>
-                    Built-in
-                </Button>
-                <Button variant={effectiveMode === 'google_form' ? "secondary" : "ghost"} size="sm" className="text-xs h-7 px-4"
-                    onClick={() => handleUpdate({ ...content, quizMode: 'google_form' })}>
-                    Google Form
-                </Button>
-            </div>
-
-            <div className="space-y-6">
+            {/* Contenido tab — adapta según modo */}
+            <TabsContent value="contenido" className="mt-0 flex-1 min-h-0 overflow-y-auto">
                 {effectiveMode === 'google_form' ? (
-                    <div className="p-8 bg-surface-dark border border-white/5 rounded-xl space-y-4">
-                        <label className="text-sm font-semibold text-foreground">Google Form Link</label>
-                        <div className="flex gap-2">
-                            <Input
-                                value={content.googleFormUrl ?? ""}
-                                onChange={(e) => handleUpdate({ ...content, googleFormUrl: e.target.value })}
-                                placeholder="https://docs.google.com/forms/d/e/.../viewform?embedded=true"
-                                className="bg-surface border-border flex-1"
-                            />
-                            <Button variant="outline" size="sm" onClick={handlePickFormFromDrive} disabled={isDriveLoading}
-                                className="h-9 border-border/50 hover:bg-surface-dark shrink-0">
-                                <HardDrive className="size-4 mr-2 text-accent-blue" />
-                                {isDriveLoading ? "..." : "Drive"}
-                            </Button>
-                            {content.googleFormUrl?.startsWith("http") && (
-                                <>
-                                    <Button variant="ghost" size="sm" asChild className="h-9 px-2 text-text-muted hover:text-foreground shrink-0" title="Abrir formulario en nueva pestaña">
-                                        <a href={content.googleFormUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="size-4" /></a>
-                                    </Button>
-                                    {getFormAdminUrl(content.googleFormUrl) && (
-                                        <Button variant="ghost" size="sm" asChild className="h-9 px-2 text-emerald-400 hover:text-emerald-300 shrink-0" title="Ver respuestas en Google Forms">
-                                            <a href={getFormAdminUrl(content.googleFormUrl)!} target="_blank" rel="noopener noreferrer"><BarChart2 className="size-4" /></a>
+                    /* Google Form mode */
+                    <div className="max-w-3xl mx-auto p-8 space-y-4">
+                        <div className="p-6 bg-surface-dark border border-white/5 rounded-xl space-y-4">
+                            <label className="text-sm font-semibold text-foreground">Google Form Link</label>
+                            <div className="flex gap-2">
+                                <Input
+                                    value={content.googleFormUrl ?? ""}
+                                    onChange={(e) => handleUpdate({ ...content, googleFormUrl: e.target.value })}
+                                    placeholder="https://docs.google.com/forms/d/e/.../viewform?embedded=true"
+                                    className="bg-surface border-border flex-1"
+                                />
+                                <Button variant="outline" size="sm" onClick={handlePickFormFromDrive} disabled={isDriveLoading}
+                                    className="h-9 border-border/50 hover:bg-surface-dark shrink-0">
+                                    <HardDrive className="size-4 mr-2 text-accent-blue" />
+                                    {isDriveLoading ? "..." : "Drive"}
+                                </Button>
+                                {content.googleFormUrl?.startsWith("http") && (
+                                    <>
+                                        <Button variant="ghost" size="sm" asChild className="h-9 px-2 text-text-muted hover:text-foreground shrink-0" title="Abrir formulario en nueva pestaña">
+                                            <a href={content.googleFormUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="size-4" /></a>
                                         </Button>
-                                    )}
-                                </>
+                                        {getFormAdminUrl(content.googleFormUrl) && (
+                                            <Button variant="ghost" size="sm" asChild className="h-9 px-2 text-emerald-400 hover:text-emerald-300 shrink-0" title="Ver respuestas en Google Forms">
+                                                <a href={getFormAdminUrl(content.googleFormUrl)!} target="_blank" rel="noopener noreferrer"><BarChart2 className="size-4" /></a>
+                                            </Button>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                            <p className="text-xs text-text-muted italic">
+                                Asegúrate de que el enlace termine en /viewform o tenga embedded=true para que se vea correctamente en el visor del alumno.
+                            </p>
+                            {content.googleFormUrl?.includes("http") && (
+                                <div className="aspect-video w-full border border-border/50 rounded-lg overflow-hidden bg-background mt-4">
+                                    <iframe src={content.googleFormUrl} className="size-full" />
+                                </div>
                             )}
                         </div>
-                        <p className="text-xs text-text-muted italic">
-                            Asegúrate de que el enlace termine en /viewform o tenga embedded=true para que se vea correctamente en el visor del alumno.
-                        </p>
-                        {content.googleFormUrl?.includes("http") && (
-                            <div className="aspect-video w-full border border-border/50 rounded-lg overflow-hidden bg-background mt-4">
-                                <iframe src={content.googleFormUrl} className="size-full" />
+                    </div>
+                ) : (
+                    /* Built-in mode — questions builder */
+                    <div className="max-w-4xl mx-auto p-8 space-y-4 pb-32">
+                        {content.questions.length === 0 ? (
+                            <div className="text-center p-12 border border-dashed border-border/50 rounded-xl bg-surface/20">
+                                <p className="text-text-muted mb-4">No hay preguntas creadas.</p>
+                                <Button onClick={addQuestion} variant="outline" className="text-accent-blue border-accent-blue/30 hover:bg-accent-blue/10">
+                                    <Plus className="size-4 mr-2" /> Añadir la primera pregunta
+                                </Button>
+                            </div>
+                        ) : (
+                            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleQuestionDragEnd}>
+                                <SortableContext items={content.questions.map(q => q.id)} strategy={verticalListSortingStrategy}>
+                                    <div className="space-y-4">
+                                        {content.questions.map((q, idx) => (
+                                            <SortableQuestion
+                                                key={q.id}
+                                                q={q}
+                                                idx={idx}
+                                                sensors={sensors}
+                                                onChangeType={changeQuestionType}
+                                                onUpdate={updateQuestion}
+                                                onRemove={removeQuestion}
+                                                onAddOption={addOption}
+                                                onUpdateOption={updateOption}
+                                                onRemoveOption={removeOption}
+                                                onOptionDragEnd={handleOptionDragEnd}
+                                            />
+                                        ))}
+                                    </div>
+                                </SortableContext>
+                            </DndContext>
+                        )}
+                        {content.questions.length > 0 && (
+                            <div className="flex justify-center pt-4">
+                                <Button onClick={addQuestion} className="bg-surface hover:bg-surface-dark text-foreground border border-border/50">
+                                    <Plus className="size-4 mr-2" /> Nueva Pregunta
+                                </Button>
                             </div>
                         )}
                     </div>
-                ) : (
-                    <Tabs defaultValue="preguntas">
-                        <TabsList className="bg-surface-dark border border-white/5 w-full justify-start rounded-xl p-1 mb-2">
-                            <TabsTrigger value="configuracion" className="text-xs data-[state=active]:bg-surface data-[state=active]:text-foreground text-text-muted rounded-lg">
-                                Configuración
-                            </TabsTrigger>
-                            <TabsTrigger value="preguntas" className="text-xs data-[state=active]:bg-surface data-[state=active]:text-foreground text-text-muted rounded-lg">
-                                Preguntas{content.questions.length > 0 && <span className="ml-1.5 text-[10px] font-mono opacity-60">({content.questions.length})</span>}
-                            </TabsTrigger>
-                        </TabsList>
+                )}
+            </TabsContent>
 
-                        <TabsContent value="configuracion" className="mt-0 space-y-3">
-                            {/* Evaluación */}
+            {/* Configuración tab */}
+            <TabsContent value="configuracion" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <div className="max-w-2xl mx-auto p-8 space-y-4 pb-16">
+                    {/* Step-level: XP + completion mode */}
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} />
+
+                    {/* Quiz mode selector — global config */}
+                    <ConfigSection title="Modo del cuestionario">
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => handleUpdate({ ...content, quizMode: 'builtin' })}
+                                className={cn(
+                                    "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
+                                    effectiveMode === 'builtin'
+                                        ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
+                                        : "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark"
+                                )}
+                            >
+                                Built-in
+                            </button>
+                            <button
+                                onClick={() => handleUpdate({ ...content, quizMode: 'google_form' })}
+                                className={cn(
+                                    "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
+                                    effectiveMode === 'google_form'
+                                        ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
+                                        : "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark"
+                                )}
+                            >
+                                Google Form
+                            </button>
+                        </div>
+                        <p className="text-xs text-text-muted/70">
+                            {effectiveMode === 'builtin'
+                                ? "El cuestionario se construye con el editor de preguntas integrado."
+                                : "Se incrusta un formulario de Google Forms. Las respuestas se gestionan en Google."}
+                        </p>
+                    </ConfigSection>
+
+                    {/* Built-in only settings */}
+                    {effectiveMode === 'builtin' && (
+                        <>
                             <ConfigSection title="Evaluación">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1.5">
@@ -271,7 +349,6 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                                 />
                             </ConfigSection>
 
-                            {/* Resultados */}
                             <ConfigSection title="Resultados">
                                 <ConfigToggle
                                     checked={!!(content as any).showCorrectAnswers}
@@ -281,7 +358,6 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                                 />
                             </ConfigSection>
 
-                            {/* Aleatoriedad */}
                             <ConfigSection title="Aleatoriedad">
                                 <ConfigToggle
                                     checked={!!(content as any).randomizeQuestions}
@@ -296,95 +372,11 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                                     description="Las opciones de cada pregunta se muestran en orden aleatorio. No aplica a preguntas de Verdadero/Falso."
                                 />
                             </ConfigSection>
-                        </TabsContent>
-
-                        <TabsContent value="preguntas" className="mt-0 space-y-4">
-                            {content.questions.length === 0 ? (
-                                <div className="text-center p-12 border border-dashed border-border/50 rounded-xl bg-surface/20">
-                                    <p className="text-text-muted mb-4">No hay preguntas creadas.</p>
-                                    <Button onClick={addQuestion} variant="outline" className="text-accent-blue border-accent-blue/30 hover:bg-accent-blue/10">
-                                        <Plus className="size-4 mr-2" /> Añadir la primera pregunta
-                                    </Button>
-                                </div>
-                            ) : (
-                                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleQuestionDragEnd}>
-                                    <SortableContext items={content.questions.map(q => q.id)} strategy={verticalListSortingStrategy}>
-                                        <div className="space-y-4">
-                                            {content.questions.map((q, idx) => (
-                                                <SortableQuestion
-                                                    key={q.id}
-                                                    q={q}
-                                                    idx={idx}
-                                                    sensors={sensors}
-                                                    onChangeType={changeQuestionType}
-                                                    onUpdate={updateQuestion}
-                                                    onRemove={removeQuestion}
-                                                    onAddOption={addOption}
-                                                    onUpdateOption={updateOption}
-                                                    onRemoveOption={removeOption}
-                                                    onOptionDragEnd={handleOptionDragEnd}
-                                                />
-                                            ))}
-                                        </div>
-                                    </SortableContext>
-                                </DndContext>
-                            )}
-
-                            {content.questions.length > 0 && (
-                                <div className="flex justify-center pt-4">
-                                    <Button onClick={addQuestion} className="bg-surface hover:bg-surface-dark text-foreground border border-border/50">
-                                        <Plus className="size-4 mr-2" /> Nueva Pregunta
-                                    </Button>
-                                </div>
-                            )}
-                        </TabsContent>
-                    </Tabs>
-                )}
-            </div>
-        </div>
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Config section + toggle helpers
-// ---------------------------------------------------------------------------
-
-function ConfigSection({ title, children }: { title: string; children: React.ReactNode }) {
-    return (
-        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-            <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
-                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">{title}</span>
-            </div>
-            <div className="p-5 space-y-4">
-                {children}
-            </div>
-        </div>
-    );
-}
-
-function ConfigToggle({
-    checked, onChange, label, description,
-}: {
-    checked: boolean;
-    onChange: (v: boolean) => void;
-    label: string;
-    description: string;
-}) {
-    return (
-        <label className="flex items-start gap-3 cursor-pointer group">
-            <div className="mt-0.5 shrink-0">
-                <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(e) => onChange(e.target.checked)}
-                    className="accent-accent-blue size-4"
-                />
-            </div>
-            <div className="space-y-0.5">
-                <p className="text-sm font-semibold text-foreground group-hover:text-white transition-colors">{label}</p>
-                <p className="text-xs text-text-muted/70 leading-relaxed">{description}</p>
-            </div>
-        </label>
+                        </>
+                    )}
+                </div>
+            </TabsContent>
+        </Tabs>
     );
 }
 
