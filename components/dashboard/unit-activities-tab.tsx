@@ -174,8 +174,12 @@ function SortableActivityItem({
 
     const style = {
         transform: CSS.Transform.toString(transform),
-        transition,
+        // 'none' overrides transition-all from the CSS class so the dragged
+        // item follows the cursor instantly instead of animating each step.
+        // Non-dragging items still use the dnd-kit transition to slide into place.
+        transition: isDragging ? 'none' : transition,
         zIndex: isDragging ? 50 : undefined,
+        opacity: isDragging ? 0.5 : 1,
     };
 
     const router = useRouter();
@@ -314,15 +318,15 @@ function SortableActivityItem({
                         </div>
                         {isTeacher && (
                             <div className="flex items-center gap-1">
+                                <ActionsMenu />
                                 <div
                                     {...attributes}
                                     {...listeners}
-                                    className="text-text-muted opacity-30 hover:opacity-100 cursor-grab active:cursor-grabbing p-1 transition-opacity"
+                    className="flex items-center justify-center size-8 rounded-lg text-text-muted hover:text-foreground hover:bg-surface transition-colors cursor-grab active:cursor-grabbing shrink-0 touch-none"
                                     onClick={(e) => e.stopPropagation()}
                                 >
                                     <GripVertical className="size-4" />
                                 </div>
-                                <ActionsMenu />
                             </div>
                         )}
                     </div>
@@ -435,7 +439,7 @@ function SortableActivityItem({
                     <div
                         {...attributes}
                         {...listeners}
-                        className="text-text-muted opacity-30 hover:opacity-100 cursor-grab active:cursor-grabbing p-1 -ml-1 transition-opacity"
+                    className="flex items-center justify-center size-8 rounded-lg text-text-muted hover:text-foreground hover:bg-surface transition-colors cursor-grab active:cursor-grabbing shrink-0 touch-none"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <GripVertical className="size-5" />
@@ -559,6 +563,7 @@ export function UnitActivitiesTab({
     setViewModeExternal
 }: UnitActivitiesTabProps) {
     const router = useRouter();
+    const [, startTransition] = useTransition();
     const [activities, setActivities] = useState<Activity[]>(
         [...initialActivities]
             .filter(a => isTeacher || a.status !== 'draft')
@@ -575,12 +580,7 @@ export function UnitActivitiesTab({
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 8, // Avoid accidental drags when clicking
-            },
-        }),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
+            activationConstraint: { distance: 8 },
         })
     );
 
@@ -592,42 +592,29 @@ export function UnitActivitiesTab({
         );
     }, [initialActivities, isTeacher]);
 
-    const handleDragEnd = async (event: DragEndEvent) => {
+    const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
+        if (!over || active.id === over.id) return;
 
-        if (over && active.id !== over.id) {
-            const oldIndex = activities.findIndex((item) => item.id === active.id);
-            const newIndex = activities.findIndex((item) => item.id === over.id);
+        const oldIndex = activities.findIndex((item) => item.id === active.id);
+        const newIndex = activities.findIndex((item) => item.id === over.id);
 
-            const reorderedList = arrayMove(activities, oldIndex, newIndex);
+        const reordered = arrayMove(activities, oldIndex, newIndex).map((a, idx) => ({
+            ...a,
+            order_index: idx,
+        }));
 
-            // Re-map order_indices locally
-            const activitiesWithNewOrder = reorderedList.map((activity, idx) => ({
-                ...activity,
-                order_index: idx
-            }));
+        const snapshot = activities;
+        setActivities(reordered);
 
-            setActivities(activitiesWithNewOrder);
-            setIsReordering(true);
-
-            // Persist to database
-            const updates = activitiesWithNewOrder.map(a => ({ id: a.id, order_index: a.order_index }));
-
-            toast.promise(reorderMultipleActivities(unitId, updates), {
-                loading: 'Guardando orden...',
-                success: (result) => {
-                    if (result?.error) throw new Error(result.error);
-                    return 'Orden actualizado correctamente';
-                },
-                error: (err) => {
-                    // Revert to initial on error
-                    setActivities([...initialActivities].sort((a, b) => a.order_index - b.order_index));
-                    return `Error al reordenar: ${err.message}`;
-                },
-            });
-
-            setIsReordering(false);
-        }
+        startTransition(async () => {
+            const updates = reordered.map(a => ({ id: a.id, order_index: a.order_index }));
+            const result = await reorderMultipleActivities(unitId, updates);
+            if (result?.error) {
+                toast.error(`Error al reordenar: ${result.error}`);
+                setActivities(snapshot);
+            }
+        });
     };
 
     const gridColsClass = {
@@ -735,7 +722,7 @@ export function UnitActivitiesTab({
                 >
                     <SortableContext
                         items={activities.map(a => a.id)}
-                        strategy={viewMode === 'grid' ? rectSortingStrategy : verticalListSortingStrategy}
+                        strategy={viewMode === "list" ? verticalListSortingStrategy : rectSortingStrategy}
                     >
                         <div className={cn(
                             viewMode === 'grid'
