@@ -169,7 +169,8 @@ test.describe("Dashboard Activity Builder", () => {
         await expect(builder.sidebarContainer.getByText('Fase de Prueba')).toBeVisible();
         await builder.verifyStepVisible('Teoría 1');
 
-        // Auto-selects first visible step
+        // Click step to open it (no longer auto-opens on load)
+        await builder.clickStep('Teoría 1');
         await expect(builder.editorContainer.getByRole('heading', { name: 'Teoría 1' })).toBeVisible();
 
         // Navigation buttons

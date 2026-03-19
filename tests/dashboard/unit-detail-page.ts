@@ -84,6 +84,12 @@ export class UnitDetailPage extends BasePage {
         await expect(this.page.locator(`h4:has-text("${title}")`).first()).toBeVisible({ timeout: 10000 });
     }
 
+    async switchToListView(): Promise<void> {
+        await this.page.getByRole('button', { name: 'Lista' }).click();
+        // Wait for the list layout to render
+        await this.page.waitForTimeout(300);
+    }
+
     async dragActivity(sourceIndex: number, targetIndex: number): Promise<void> {
         const activities = this.page.locator('div.group').filter({ has: this.page.locator('h4') });
         const sourceActivity = activities.nth(sourceIndex);

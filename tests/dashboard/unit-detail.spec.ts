@@ -175,6 +175,9 @@ test.describe("Unit Detail (Creador del Mapa)", () => {
             await expect(firstRowTitle).toHaveText("A1: Teoría básica");
             await expect(secondRowTitle).toHaveText("A2: Cuestionario de prueba");
 
+            // Switch to list view so items are stacked vertically (drag requires vertical layout)
+            await unitDetailPage.switchToListView();
+
             // Move the first one down by dragging it to the second one
             await unitDetailPage.dragActivity(0, 1);
 
