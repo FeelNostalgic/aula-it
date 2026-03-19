@@ -20,7 +20,8 @@ import {
     ChevronRight,
     Search,
     Award,
-    Target
+    Target,
+    Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -571,10 +572,7 @@ export function UnitDetailView({
                                                             key={resource.id}
                                                             onClick={() => {
                                                             if (isFolder) { setCurrentFolderId(resource.id); return; }
-                                                            const url = resource.type === 'file'
-                                                                ? (toDriveDownloadUrl(resource.url ?? '') ?? resource.url)
-                                                                : resource.url;
-                                                            window.open(url, '_blank');
+                                                            window.open(resource.url, '_blank');
                                                         }}
                                                             className="group p-6 bg-surface border border-border-subtle rounded-3xl hover:border-accent-blue/30 hover:shadow-xl transition-all duration-300 flex flex-col items-start gap-4 cursor-pointer"
                                                         >
@@ -587,7 +585,21 @@ export function UnitDetailView({
                                                             </div>
                                                             <div className="w-full pt-2 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-text-muted/50">
                                                                 <span>{isFolder ? 'Carpeta' : (resource.type === 'file' ? 'Archivo' : 'Enlace')}</span>
-                                                                {!isFolder && <ExternalLink className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                                <div className="flex items-center gap-1">
+                                                                    {resource.type === 'file' && (
+                                                                        <button
+                                                                            className="opacity-0 group-hover:opacity-100 hover:text-foreground transition-all p-0.5 rounded"
+                                                                            title="Descargar"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                window.open(toDriveDownloadUrl(resource.url ?? '') ?? resource.url, '_blank');
+                                                                            }}
+                                                                        >
+                                                                            <Download className="size-3" />
+                                                                        </button>
+                                                                    )}
+                                                                    {!isFolder && <ExternalLink className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     );
@@ -605,10 +617,7 @@ export function UnitDetailView({
                                                         key={resource.id}
                                                         onClick={() => {
                                                             if (isFolder) { setCurrentFolderId(resource.id); return; }
-                                                            const url = resource.type === 'file'
-                                                                ? (toDriveDownloadUrl(resource.url ?? '') ?? resource.url)
-                                                                : resource.url;
-                                                            window.open(url, '_blank');
+                                                            window.open(resource.url, '_blank');
                                                         }}
                                                         className="group p-4 bg-surface border border-border-subtle rounded-xl hover:border-accent-blue/30 flex items-center gap-4 transition-all cursor-pointer"
                                                     >
@@ -623,9 +632,21 @@ export function UnitDetailView({
                                                                 {resource.description || (isFolder ? "Carpeta de recursos" : "Sin descripción")}
                                                             </p>
                                                         </div>
-                                                        <div className="hidden sm:flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-text-muted/40">
+                                                        <div className="hidden sm:flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-text-muted/40">
                                                             <span>{isFolder ? 'Carpeta' : (resource.type === 'file' ? 'Archivo' : 'Enlace')}</span>
                                                             {!isFolder && <ExternalLink className="size-3" />}
+                                                            {resource.type === 'file' && (
+                                                                <button
+                                                                    className="opacity-0 group-hover:opacity-100 hover:text-foreground transition-all p-0.5 rounded"
+                                                                    title="Descargar"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        window.open(toDriveDownloadUrl(resource.url ?? '') ?? resource.url, '_blank');
+                                                                    }}
+                                                                >
+                                                                    <Download className="size-3" />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 );

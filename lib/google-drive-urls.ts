@@ -47,21 +47,38 @@ export function extractGoogleFileId(url: string): string | null {
 }
 
 /**
- * Build a direct download URL for a Google Drive file.
- * Works for binary files (PDF, images, etc.) stored in Drive.
- * For Google Docs/Sheets/Slides native formats, falls back to null (use export-specific functions).
- * Returns null if the URL is not a recognizable Google Drive file URL.
+ * Build a direct download URL for a Google Drive / Google Docs file.
+ * - drive.google.com/file/d/{ID}  → binary download via uc?export=download
+ * - docs.google.com/document/d/{ID}  → export as PDF
+ * - docs.google.com/spreadsheets/d/{ID}  → export as XLSX
+ * - docs.google.com/presentation/d/{ID}  → export as PPTX
+ * Returns null if URL doesn't match any known Google pattern.
  */
 export function toDriveDownloadUrl(url: string): string | null {
     if (!url) return null;
-    // https://drive.google.com/file/d/{ID}/view  or  /preview  or  /edit
+
+    // Google Docs
+    const docsMatch = url.match(/docs\.google\.com\/document\/d\/(?:e\/)?([a-zA-Z0-9_-]+)/);
+    if (docsMatch) return `https://docs.google.com/document/d/${docsMatch[1]}/export?format=pdf`;
+
+    // Google Sheets
+    const sheetsMatch = url.match(/docs\.google\.com\/spreadsheets\/d\/(?:e\/)?([a-zA-Z0-9_-]+)/);
+    if (sheetsMatch) return `https://docs.google.com/spreadsheets/d/${sheetsMatch[1]}/export?format=xlsx`;
+
+    // Google Slides
+    const slidesMatch = url.match(/docs\.google\.com\/presentation\/d\/(?:e\/)?([a-zA-Z0-9_-]+)/);
+    if (slidesMatch) return `https://docs.google.com/presentation/d/${slidesMatch[1]}/export/pptx`;
+
+    // Google Drive binary file: https://drive.google.com/file/d/{ID}/view
     const driveFile = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
     if (driveFile) return `https://drive.google.com/uc?export=download&id=${driveFile[1]}`;
-    // https://drive.google.com/open?id={ID}  or  ?usp=sharing&id={ID}
+
+    // drive.google.com/open?id={ID}
     if (url.includes('drive.google.com')) {
         const idParam = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
         if (idParam) return `https://drive.google.com/uc?export=download&id=${idParam[1]}`;
     }
+
     return null;
 }
 

@@ -90,19 +90,63 @@ export function StepViewer({ step, activityId, submission, googleEmail, userId, 
 }
 
 function TheoryViewer({ content }: { content: TheoryContent }) {
+    const [isExporting, setIsExporting] = useState(false);
+
+    const handleDownloadPdf = async () => {
+        const el = document.getElementById('theory-content-export');
+        if (!el) return;
+        setIsExporting(true);
+        try {
+            const html2canvas = (await import('html2canvas')).default;
+            const { jsPDF } = await import('jspdf');
+
+            const canvas = await html2canvas(el, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#0f172a',
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const imgWidth = pageWidth - 20;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            let y = 10;
+            let remaining = imgHeight;
+
+            while (remaining > 0) {
+                pdf.addImage(imgData, 'PNG', 10, y, imgWidth, imgHeight);
+                remaining -= (pageHeight - 20);
+                if (remaining > 0) {
+                    pdf.addPage();
+                    y = 10 - (imgHeight - remaining);
+                }
+            }
+
+            pdf.save('teoria.pdf');
+        } catch (err) {
+            console.error('Error al exportar PDF:', err);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     return (
         <div className="max-w-4xl mx-auto space-y-6">
-            <div className="flex justify-end print:hidden">
+            <div className="flex justify-end">
                 <Button
                     variant="ghost"
                     size="sm"
                     className="gap-2 text-text-muted hover:text-foreground"
-                    onClick={() => window.print()}
+                    onClick={handleDownloadPdf}
+                    disabled={isExporting}
                 >
-                    <Printer className="size-4" /> Imprimir / PDF
+                    <Printer className="size-4" />
+                    {isExporting ? 'Generando...' : 'Descargar PDF'}
                 </Button>
             </div>
-            <div className="prose dark:prose-invert prose-blue max-w-none prose-pre:p-0 prose-pre:bg-transparent prose-code:bg-surface-dark prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none font-sans">
+            <div id="theory-content-export" className="prose dark:prose-invert prose-blue max-w-none prose-pre:p-0 prose-pre:bg-transparent prose-code:bg-surface-dark prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none font-sans">
                 <ReactMarkdown
                     remarkPlugins={[remarkGfm, remarkMath]}
                     rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
@@ -830,19 +874,31 @@ function ResourceViewer({ content }: { content: ResourceContent }) {
                                 <h4 className="font-bold text-foreground truncate">{item.title}</h4>
                                 <p className="text-xs text-text-muted truncate mt-0.5">{item.description}</p>
                             </div>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="shrink-0 text-text-muted hover:text-foreground hover:bg-background h-10 w-10 rounded-full"
-                                onClick={() => {
-                                    const url = item.type === 'file'
-                                        ? (toDriveDownloadUrl(item.url ?? '') ?? item.url)
-                                        : item.url;
-                                    window.open(url, '_blank');
-                                }}
-                            >
-                                {item.type === 'file' ? <Download className="size-5" /> : <ExternalLink className="size-5" />}
-                            </Button>
+                            <div className="flex items-center gap-1 shrink-0">
+                                {item.type === 'file' && (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-text-muted hover:text-foreground hover:bg-background h-9 w-9 rounded-full"
+                                        title="Descargar"
+                                        onClick={() => {
+                                            const downloadUrl = toDriveDownloadUrl(item.url ?? '') ?? item.url;
+                                            window.open(downloadUrl, '_blank');
+                                        }}
+                                    >
+                                        <Download className="size-4" />
+                                    </Button>
+                                )}
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-text-muted hover:text-foreground hover:bg-background h-9 w-9 rounded-full"
+                                    title={item.type === 'folder' ? 'Abrir carpeta' : 'Abrir'}
+                                    onClick={() => window.open(item.url, '_blank')}
+                                >
+                                    <ExternalLink className="size-4" />
+                                </Button>
+                            </div>
                         </div>
                     ))
                 )}

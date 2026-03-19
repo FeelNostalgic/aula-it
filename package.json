@@ -62,6 +62,8 @@
     "googleapis": "^171.4.0",
     "gsap": "^3.14.2",
     "highlight.js": "^11.11.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "katex": "^0.16.33",
     "lucide-react": "^0.575.0",
     "next": "16.1.6",

@@ -4,7 +4,7 @@ import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType, 
 import { getStepIcon, getTabStepIcon } from "@/lib/constants/step-icons";
 import {
     ArrowLeft, FileText, Lock,
-    ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen, X, Zap, Eye, CheckCircle2, AlertTriangle
+    ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen, X, Zap, Eye, CheckCircle2, AlertTriangle, GripVertical
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useMemo, useEffect } from "react";
@@ -123,12 +123,18 @@ function SortableTab({
                 isActive
                     ? "bg-background border-t-2 border-t-accent-blue text-foreground"
                     : "bg-surface-dark border-t-2 border-t-transparent text-text-muted hover:bg-surface hover:text-foreground",
-                isDragging && "opacity-50"
+                isDragging && "opacity-50 ring-2 ring-accent-blue/20"
             )}
         >
-            <div {...attributes} {...listeners} className="mr-2 shrink-0 cursor-grab active:cursor-grabbing">
-                {getTabStepIcon(step.type)}
+            <div
+                {...attributes}
+                {...listeners}
+                className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-text-muted hover:text-foreground mr-1 shrink-0"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <GripVertical className="size-3" />
             </div>
+            <div className="mr-2 shrink-0">{getTabStepIcon(step.type)}</div>
             <span className="truncate flex-1 font-medium">{step.title}</span>
             <button
                 onClick={onClose}
@@ -194,7 +200,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
         }
     };
 
-    const tabSensors = useSensors(useSensor(PointerSensor));
+    const tabSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
     const handleTabDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
@@ -379,9 +385,9 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                 <ResizablePanel id="main-content" defaultSize={80} className="h-full bg-background relative flex flex-col min-w-0">
                     {/* Tabs Bar — matches EditorTabsBar styling (editor-tabs-bar.tsx) */}
                     {openStepIds.length > 0 ? (
+                        <DndContext sensors={tabSensors} collisionDetection={closestCenter} onDragEnd={handleTabDragEnd}>
                         <div className="h-10 shrink-0 bg-surface-dark border-b border-border/50 flex print:hidden">
                             <div className="flex items-center h-full flex-1 overflow-x-auto no-scrollbar">
-                                <DndContext sensors={tabSensors} collisionDetection={closestCenter} onDragEnd={handleTabDragEnd}>
                                     <SortableContext items={openStepIds} strategy={horizontalListSortingStrategy}>
                                         {openStepIds.map(stepId => {
                                             const step = allSteps.find(s => s.id === stepId);
@@ -406,7 +412,6 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                             );
                                         })}
                                     </SortableContext>
-                                </DndContext>
                             </div>
 
                             {/* Step Counter + Navigation */}
@@ -434,6 +439,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                 </Button>
                             </div>
                         </div>
+                        </DndContext>
                     ) : (
                         <div className="h-10 shrink-0 bg-surface-dark border-b border-border/50 flex items-center px-4 text-xs text-text-muted print:hidden">
                             Ningún paso abierto

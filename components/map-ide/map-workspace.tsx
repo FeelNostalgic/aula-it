@@ -493,10 +493,7 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                                             key={resource.id}
                                                             onClick={() => {
                                                             if (isFolder) { setCurrentFolderId(resource.id); return; }
-                                                            const url = resource.type === 'file'
-                                                                ? (toDriveDownloadUrl(resource.url ?? '') ?? resource.url)
-                                                                : resource.url;
-                                                            window.open(url, '_blank');
+                                                            window.open(resource.url, '_blank');
                                                         }}
                                                             className="group p-6 bg-muted/20 hover:bg-muted/40 dark:bg-surface-dark/40 dark:hover:bg-surface-dark border border-border/10 hover:border-accent-blue/30 rounded-3xl transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl"
                                                         >
@@ -514,8 +511,22 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                                                 </div>
                                                                 <div className="w-full pt-4 border-t border-border/5 flex items-center justify-between text-[8px] font-black uppercase tracking-[0.2em] text-text-muted/40">
                                                                     <span>{isFolder ? 'Carpeta' : (resource.type === 'file' ? 'Archivo' : 'Enlace')}</span>
-                                                                    {!isFolder && <ExternalLink className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
-                                                                    {isFolder && <ChevronRight className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                                    <div className="flex items-center gap-1">
+                                                                        {resource.type === 'file' && (
+                                                                            <button
+                                                                                className="opacity-0 group-hover:opacity-100 hover:text-foreground transition-all p-1 rounded"
+                                                                                title="Descargar"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    window.open(toDriveDownloadUrl(resource.url ?? '') ?? resource.url, '_blank');
+                                                                                }}
+                                                                            >
+                                                                                <Download className="size-3" />
+                                                                            </button>
+                                                                        )}
+                                                                        {!isFolder && <ExternalLink className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                                        {isFolder && <ChevronRight className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -552,8 +563,20 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                                                 {resource.description || (isFolder ? "Carpeta de recursos" : "Sin descripción")}
                                                             </p>
                                                         </div>
-                                                        <div className="hidden sm:flex items-center gap-4 text-[8px] font-black uppercase tracking-[0.2em] text-text-muted/40">
+                                                        <div className="hidden sm:flex items-center gap-2 text-[8px] font-black uppercase tracking-[0.2em] text-text-muted/40">
                                                             <span>{isFolder ? 'Carpeta' : (resource.type === 'file' ? 'Archivo' : 'Enlace')}</span>
+                                                            {resource.type === 'file' && (
+                                                                <button
+                                                                    className="opacity-0 group-hover:opacity-100 hover:text-foreground transition-all p-1 rounded"
+                                                                    title="Descargar"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        window.open(toDriveDownloadUrl(resource.url ?? '') ?? resource.url, '_blank');
+                                                                    }}
+                                                                >
+                                                                    <Download className="size-3" />
+                                                                </button>
+                                                            )}
                                                             {!isFolder && <ExternalLink className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
                                                             {isFolder && <ChevronRight className="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
                                                         </div>
