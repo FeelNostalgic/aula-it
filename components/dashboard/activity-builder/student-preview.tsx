@@ -7,13 +7,16 @@ import {
     ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen, X, Zap, Eye, CheckCircle2, AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { StepViewer } from "./viewers/step-viewer";
 import { markStepViewed } from "@/app/activities/[id]/actions";
 import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb";
 import { UserNav } from "@/components/dashboard/user-nav";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface StudentPreviewProps {
     activity: any;
@@ -49,9 +52,22 @@ function StepXpBadge({ xp }: { xp: number }) {
     );
 }
 
-function StepStatusBadge({ status, type }: { status?: string; type: ActivityStepType }) {
+function StepStatusBadge({ status, type, isViewed, completionMode }: { status?: string; type: ActivityStepType; isViewed?: boolean; completionMode?: string }) {
     if (!status && (type === 'deliverable' || type === 'file_upload' || type === 'quiz')) {
         return (
+            <div className="px-1.5 py-0.5 rounded-md border border-border/50 text-[8px] font-bold uppercase tracking-wider text-text-muted shrink-0">
+                Pendiente
+            </div>
+        );
+    }
+
+    // Viewable steps — show Visto / Pendiente based on isViewed
+    if (!status && completionMode === 'viewable') {
+        return isViewed ? (
+            <div className="px-1.5 py-0.5 rounded-md border border-accent-green/30 text-[8px] font-bold uppercase tracking-wider text-accent-green bg-accent-green/10 shrink-0 flex items-center gap-0.5">
+                <CheckCircle2 className="size-2.5" /> Visto
+            </div>
+        ) : (
             <div className="px-1.5 py-0.5 rounded-md border border-border/50 text-[8px] font-bold uppercase tracking-wider text-text-muted shrink-0">
                 Pendiente
             </div>
@@ -78,28 +94,80 @@ function StepStatusBadge({ status, type }: { status?: string; type: ActivityStep
 }
 
 
+function SortableTab({
+    stepId,
+    step,
+    isActive,
+    onSelect,
+    onClose,
+    onAuxClick,
+}: {
+    stepId: string;
+    step: any;
+    isActive: boolean;
+    onSelect: () => void;
+    onClose: (e: React.MouseEvent) => void;
+    onAuxClick: (e: React.MouseEvent) => void;
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stepId });
+    const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : 0 };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            onClick={onSelect}
+            onAuxClick={onAuxClick}
+            className={cn(
+                "group flex items-center h-full min-w-32 max-w-64 px-3 border-r border-border/50 text-xs cursor-pointer select-none transition-colors",
+                isActive
+                    ? "bg-background border-t-2 border-t-accent-blue text-foreground"
+                    : "bg-surface-dark border-t-2 border-t-transparent text-text-muted hover:bg-surface hover:text-foreground",
+                isDragging && "opacity-50"
+            )}
+        >
+            <div {...attributes} {...listeners} className="mr-2 shrink-0 cursor-grab active:cursor-grabbing">
+                {getTabStepIcon(step.type)}
+            </div>
+            <span className="truncate flex-1 font-medium">{step.title}</span>
+            <button
+                onClick={onClose}
+                className="ml-2 size-5 flex items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-border/50 text-text-muted hover:text-foreground transition-all shrink-0"
+            >
+                <X className="size-3" />
+            </button>
+        </div>
+    );
+}
+
 export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, viewsMap, googleEmail, isPreview = false }: StudentPreviewProps) {
     const allSteps = useMemo(() => {
         return phases.flatMap(p => p.steps.filter(s => s.is_visible !== false));
     }, [phases]);
 
-    const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
-    const [openStepIds, setOpenStepIds] = useState<string[]>([]);
+    const [selectedStepId, setSelectedStepId] = useState<string | null>(() => {
+        try {
+            const saved = localStorage.getItem(`aula-it:activity-view:${activity.id}:selected-tab`);
+            return saved && phases.flatMap(p => p.steps.filter(s => s.is_visible !== false)).some(s => s.id === saved) ? saved : null;
+        } catch { return null; }
+    });
+    const [openStepIds, setOpenStepIds] = useState<string[]>(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem(`aula-it:activity-view:${activity.id}:open-tabs`) ?? '[]');
+            return (saved as string[]).filter(id => phases.flatMap(p => p.steps.filter(s => s.is_visible !== false)).some(s => s.id === id));
+        } catch { return []; }
+    });
     const [collapsedPhases, setCollapsedPhases] = useState<string[]>([]);
     const [localViews, setLocalViews] = useState<Record<string, boolean>>(viewsMap ?? {});
     const [markingViewed, setMarkingViewed] = useState(false);
-    const hasInitialized = useRef(false);
 
     useEffect(() => {
-        if (!hasInitialized.current && allSteps.length > 0) {
-            const firstStep = allSteps[0];
-            if (firstStep) {
-                setSelectedStepId(firstStep.id);
-                setOpenStepIds([firstStep.id]);
-                hasInitialized.current = true;
-            }
-        }
-    }, [allSteps]);
+        localStorage.setItem(`aula-it:activity-view:${activity.id}:open-tabs`, JSON.stringify(openStepIds));
+    }, [openStepIds, activity.id]);
+
+    useEffect(() => {
+        if (selectedStepId) localStorage.setItem(`aula-it:activity-view:${activity.id}:selected-tab`, selectedStepId);
+    }, [selectedStepId, activity.id]);
 
     const selectedStep = useMemo(() => {
         return allSteps.find(s => s.id === selectedStepId);
@@ -123,6 +191,19 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
 
         if (selectedStepId === stepId) {
             setSelectedStepId(newOpenIds.length > 0 ? newOpenIds[newOpenIds.length - 1] : null);
+        }
+    };
+
+    const tabSensors = useSensors(useSensor(PointerSensor));
+
+    const handleTabDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            setOpenStepIds(prev => {
+                const oldIndex = prev.indexOf(active.id as string);
+                const newIndex = prev.indexOf(over.id as string);
+                return arrayMove(prev, oldIndex, newIndex);
+            });
         }
     };
 
@@ -159,7 +240,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
             {!hideHeader && (
                 <>
                     {/* === HEADER (identical to teacher: edit/client.tsx line 132) === */}
-                    <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between px-6 shrink-0 z-40">
+                    <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between px-6 shrink-0 z-40 print:hidden">
                         <div className="flex items-center gap-4">
                             <Button
                                 variant="outline"
@@ -194,7 +275,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
             )}
 
             {isPreview && (
-                <div className="shrink-0 flex items-center gap-3 px-6 py-2.5 bg-amber-500/10 border-b border-amber-500/20">
+                <div className="shrink-0 flex items-center gap-3 px-6 py-2.5 bg-amber-500/10 border-b border-amber-500/20 print:hidden">
                     <AlertTriangle className="size-4 text-amber-500 shrink-0" />
                     <p className="text-xs text-amber-200/80">
                         <span className="font-bold text-amber-400">Vista Previa del Profesor</span>
@@ -205,7 +286,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
 
             <ResizablePanelGroup id="student-preview-panel-group" direction="horizontal" className="flex-1 overflow-hidden">
                 {/* === SIDEBAR (identical to teacher: mission-builder-sidebar.tsx line 604-753) === */}
-                <ResizablePanel id="sidebar-panel" defaultSize={12} minSize={10} maxSize={40} className="bg-background h-full flex flex-col">
+                <ResizablePanel id="sidebar-panel" defaultSize={12} minSize={10} maxSize={40} className="bg-background h-full flex flex-col print:hidden">
                     <div className="p-4 border-b border-border/50 flex items-center justify-between shrink-0">
                         <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">Estructura de Misión</h2>
                     </div>
@@ -266,7 +347,12 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                             )}
                                                             <span className="flex-1 truncate font-medium">{step.title}</span>
                                                             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                                                                <StepStatusBadge status={submissionsMap?.[step.id]?.status} type={step.type} />
+                                                                <StepStatusBadge
+                                                                    status={submissionsMap?.[step.id]?.status}
+                                                                    type={step.type}
+                                                                    isViewed={localViews[step.id]}
+                                                                    completionMode={step.completion_mode}
+                                                                />
                                                                 <StepXpBadge xp={step.xp || 0} />
                                                             </div>
                                                         </div>
@@ -293,47 +379,38 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                 <ResizablePanel id="main-content" defaultSize={80} className="h-full bg-background relative flex flex-col min-w-0">
                     {/* Tabs Bar — matches EditorTabsBar styling (editor-tabs-bar.tsx) */}
                     {openStepIds.length > 0 ? (
-                        <div className="h-10 shrink-0 bg-surface-dark border-b border-border/50 flex">
+                        <div className="h-10 shrink-0 bg-surface-dark border-b border-border/50 flex print:hidden">
                             <div className="flex items-center h-full flex-1 overflow-x-auto no-scrollbar">
-                                {openStepIds.map(stepId => {
-                                    const step = allSteps.find(s => s.id === stepId);
-                                    if (!step) return null;
-                                    const isActive = selectedStepId === stepId;
-                                    return (
-                                        <div
-                                            key={stepId}
-                                            onClick={() => setSelectedStepId(stepId)}
-                                            onAuxClick={(e) => {
-                                                if (e.button === 1) {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    handleCloseTab(e, stepId);
-                                                }
-                                            }}
-                                            className={cn(
-                                                "group flex items-center h-full min-w-32 max-w-64 px-3 border-r border-border/50 text-xs cursor-pointer select-none transition-colors",
-                                                isActive
-                                                    ? "bg-background border-t-2 border-t-accent-blue text-foreground"
-                                                    : "bg-surface-dark border-t-2 border-t-transparent text-text-muted hover:bg-surface hover:text-foreground"
-                                            )}
-                                        >
-                                            <div className="mr-2 shrink-0">
-                                                {getTabStepIcon(step.type)}
-                                            </div>
-                                            <span className="truncate flex-1 font-medium">{step.title}</span>
-                                            <button
-                                                onClick={(e) => handleCloseTab(e, stepId)}
-                                                className="ml-2 size-5 flex items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-border/50 text-text-muted hover:text-foreground transition-all shrink-0"
-                                            >
-                                                <X className="size-3" />
-                                            </button>
-                                        </div>
-                                    );
-                                })}
+                                <DndContext sensors={tabSensors} collisionDetection={closestCenter} onDragEnd={handleTabDragEnd}>
+                                    <SortableContext items={openStepIds} strategy={horizontalListSortingStrategy}>
+                                        {openStepIds.map(stepId => {
+                                            const step = allSteps.find(s => s.id === stepId);
+                                            if (!step) return null;
+                                            const isActive = selectedStepId === stepId;
+                                            return (
+                                                <SortableTab
+                                                    key={stepId}
+                                                    stepId={stepId}
+                                                    step={step}
+                                                    isActive={isActive}
+                                                    onSelect={() => setSelectedStepId(stepId)}
+                                                    onClose={(e) => handleCloseTab(e, stepId)}
+                                                    onAuxClick={(e) => {
+                                                        if (e.button === 1) {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            handleCloseTab(e, stepId);
+                                                        }
+                                                    }}
+                                                />
+                                            );
+                                        })}
+                                    </SortableContext>
+                                </DndContext>
                             </div>
 
                             {/* Step Counter + Navigation */}
-                            <div className="flex items-center gap-1 px-4 border-l border-border/50 h-full shrink-0">
+                            <div className="flex items-center gap-1 px-4 border-l border-border/50 h-full shrink-0 print:hidden">
                                 <span className="text-[10px] font-mono text-text-muted mr-2">
                                     {selectedStepIndex + 1} / {allSteps.length}
                                 </span>
@@ -358,7 +435,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                             </div>
                         </div>
                     ) : (
-                        <div className="h-10 shrink-0 bg-surface-dark border-b border-border/50 flex items-center px-4 text-xs text-text-muted">
+                        <div className="h-10 shrink-0 bg-surface-dark border-b border-border/50 flex items-center px-4 text-xs text-text-muted print:hidden">
                             Ningún paso abierto
                         </div>
                     )}
@@ -376,7 +453,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                         userId={user?.id}
                                     />
                                 </div>
-                                <div className="flex justify-between items-center px-6 py-3 border-t border-border/50 shrink-0">
+                                <div className="flex justify-between items-center px-6 py-3 border-t border-border/50 shrink-0 print:hidden">
                                     <Button
                                         variant="outline"
                                         className="border-border/50 hover:bg-surface-dark h-10 px-6 text-sm font-medium"
@@ -441,7 +518,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                 />
 
                                 {/* Navigation footer */}
-                                <div className="flex justify-between items-center pt-8 border-t border-border/50 mt-8">
+                                <div className="flex justify-between items-center pt-8 border-t border-border/50 mt-8 print:hidden">
                                     <Button
                                         variant="outline"
                                         className="border-border/50 hover:bg-surface-dark h-10 px-6 text-sm font-medium"

@@ -47,6 +47,25 @@ export function extractGoogleFileId(url: string): string | null {
 }
 
 /**
+ * Build a direct download URL for a Google Drive file.
+ * Works for binary files (PDF, images, etc.) stored in Drive.
+ * For Google Docs/Sheets/Slides native formats, falls back to null (use export-specific functions).
+ * Returns null if the URL is not a recognizable Google Drive file URL.
+ */
+export function toDriveDownloadUrl(url: string): string | null {
+    if (!url) return null;
+    // https://drive.google.com/file/d/{ID}/view  or  /preview  or  /edit
+    const driveFile = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (driveFile) return `https://drive.google.com/uc?export=download&id=${driveFile[1]}`;
+    // https://drive.google.com/open?id={ID}  or  ?usp=sharing&id={ID}
+    if (url.includes('drive.google.com')) {
+        const idParam = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+        if (idParam) return `https://drive.google.com/uc?export=download&id=${idParam[1]}`;
+    }
+    return null;
+}
+
+/**
  * Build a download URL for a Google Slides presentation (exports as .pptx).
  * Returns null if the URL is not a Google Slides URL.
  */

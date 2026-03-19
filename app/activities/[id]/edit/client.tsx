@@ -56,8 +56,20 @@ function BreadcrumbSetter({ activity }: { activity: any }) {
 export function ActivityBuilderClient({ activity, initialPhases, profile, user }: ActivityBuilderClientProps) {
     const router = useRouter();
     const [phases, setPhases] = useState<ActivityPhaseWithSteps[]>(initialPhases);
-    const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
-    const [openedStepsIds, setOpenedStepsIds] = useState<string[]>([]);
+    const [selectedStepId, setSelectedStepId] = useState<string | null>(() => {
+        try {
+            const saved = localStorage.getItem(`aula-it:activity-editor:${activity.id}:selected-tab`);
+            const allStepIds = initialPhases.flatMap(p => p.steps.map((s: any) => s.id));
+            return saved && (allStepIds.includes(saved) || saved === 'settings' || saved === 'badges') ? saved : null;
+        } catch { return null; }
+    });
+    const [openedStepsIds, setOpenedStepsIds] = useState<string[]>(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem(`aula-it:activity-editor:${activity.id}:open-tabs`) ?? '[]');
+            const allStepIds = initialPhases.flatMap(p => p.steps.map((s: any) => s.id));
+            return (saved as string[]).filter(id => allStepIds.includes(id) || id === 'settings' || id === 'badges');
+        } catch { return []; }
+    });
     const [activityData, setActivityData] = useState(activity);
     const [isPreviewMode, setIsPreviewMode] = useState(false);
 
@@ -65,6 +77,15 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
     useEffect(() => {
         setActivityData(activity);
     }, [activity]);
+
+    // Persist open tabs and selected tab to localStorage
+    useEffect(() => {
+        localStorage.setItem(`aula-it:activity-editor:${activity.id}:open-tabs`, JSON.stringify(openedStepsIds));
+    }, [openedStepsIds, activity.id]);
+
+    useEffect(() => {
+        if (selectedStepId) localStorage.setItem(`aula-it:activity-editor:${activity.id}:selected-tab`, selectedStepId);
+    }, [selectedStepId, activity.id]);
 
     const isTeacher = profile?.role === "teacher";
 

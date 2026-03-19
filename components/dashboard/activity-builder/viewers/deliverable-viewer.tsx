@@ -7,10 +7,10 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
-import { PencilRuler, ExternalLink, Send, CheckCircle2, Clock, Star, Link, Copy, CalendarClock, AlertTriangle } from "lucide-react";
+import { PencilRuler, ExternalLink, Send, CheckCircle2, Clock, Star, Link, Copy, CalendarClock, AlertTriangle, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DeliverableContent, ActivitySubmission, SubmissionStatus } from "@/types/activity";
+import { DeliverableContent, ActivitySubmission, SubmissionStatus, RubricCriteria } from "@/types/activity";
 import { submitDeliverable } from "@/app/activities/[id]/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -48,6 +48,34 @@ const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.Eleme
         className: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
     },
 };
+
+function RubricDisplay({ rubric }: { rubric: RubricCriteria[] }) {
+    if (!rubric?.length) return null;
+    return (
+        <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-4">
+            <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
+                <ClipboardList className="size-4" /> Criterios de evaluación
+            </h3>
+            <div className="space-y-5">
+                {rubric.map(criteria => (
+                    <div key={criteria.id} className="space-y-2">
+                        <p className="text-sm font-semibold text-foreground">{criteria.name}</p>
+                        {criteria.description && <p className="text-xs text-text-muted">{criteria.description}</p>}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {criteria.levels.map(level => (
+                                <div key={level.id} className="p-2.5 bg-surface border border-border/50 rounded-xl">
+                                    <p className="text-xs font-bold text-foreground">{level.label}</p>
+                                    <p className="text-[10px] font-mono text-accent-blue">{level.points} pts</p>
+                                    {level.description && <p className="text-[10px] text-text-muted mt-1 leading-snug">{level.description}</p>}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
 
 export function DeliverableViewer({ content, stepId, activityId, initialSubmission, googleEmail: initialGoogleEmail, dueDate, isPreview }: DeliverableViewerProps) {
     const [submission, setSubmission] = useState<ActivitySubmission | null>(initialSubmission ?? null);
@@ -109,6 +137,11 @@ export function DeliverableViewer({ content, stepId, activityId, initialSubmissi
                     </ReactMarkdown>
                 </div>
             </div>
+
+            {/* Rubric */}
+            {content?.rubric && content.rubric.length > 0 && (
+                <RubricDisplay rubric={content.rubric} />
+            )}
 
             {/* TEACHER COPY mode */}
             {deliveryMode === "teacher_copy" ? (

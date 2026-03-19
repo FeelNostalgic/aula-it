@@ -35,6 +35,7 @@ import Link from "next/link";
 import { StudentUnitView } from "./student-unit-view";
 import { ResourceIcon } from "./resource-icon";
 import { cn } from "@/lib/utils";
+import { toDriveDownloadUrl } from "@/lib/google-drive-urls";
 import { UnitMilestoneTab } from "./unit-milestone-tab";
 import { ClassMilestone } from "@/types/database";
 import { ClassMilestoneWidget } from "./class-milestone-widget";
@@ -568,7 +569,13 @@ export function UnitDetailView({
                                                     return (
                                                         <div
                                                             key={resource.id}
-                                                            onClick={() => isFolder ? setCurrentFolderId(resource.id) : window.open(resource.url, '_blank')}
+                                                            onClick={() => {
+                                                            if (isFolder) { setCurrentFolderId(resource.id); return; }
+                                                            const url = resource.type === 'file'
+                                                                ? (toDriveDownloadUrl(resource.url ?? '') ?? resource.url)
+                                                                : resource.url;
+                                                            window.open(url, '_blank');
+                                                        }}
                                                             className="group p-6 bg-surface border border-border-subtle rounded-3xl hover:border-accent-blue/30 hover:shadow-xl transition-all duration-300 flex flex-col items-start gap-4 cursor-pointer"
                                                         >
                                                             <div className="size-12 group-hover:scale-110 transition-transform">
@@ -596,7 +603,13 @@ export function UnitDetailView({
                                                 return (
                                                     <div
                                                         key={resource.id}
-                                                        onClick={() => isFolder ? setCurrentFolderId(resource.id) : window.open(resource.url, '_blank')}
+                                                        onClick={() => {
+                                                            if (isFolder) { setCurrentFolderId(resource.id); return; }
+                                                            const url = resource.type === 'file'
+                                                                ? (toDriveDownloadUrl(resource.url ?? '') ?? resource.url)
+                                                                : resource.url;
+                                                            window.open(url, '_blank');
+                                                        }}
                                                         className="group p-4 bg-surface border border-border-subtle rounded-xl hover:border-accent-blue/30 flex items-center gap-4 transition-all cursor-pointer"
                                                     >
                                                         <div className="size-10 shrink-0">

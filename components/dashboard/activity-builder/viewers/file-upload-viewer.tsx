@@ -11,7 +11,7 @@ import {
     Paperclip, CheckCircle2, Clock, Star, ExternalLink,
     Upload, X, AlertTriangle, CalendarClock, RefreshCw,
     FileText, Image, FileSpreadsheet, FileVideo, FileAudio,
-    FileCode, FileArchive, File,
+    FileCode, FileArchive, File, ClipboardList,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import {
     AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
     AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileUploadContent, ActivitySubmission, SubmissionStatus, AllowedFileType, SubmissionFile } from "@/types/activity";
+import { FileUploadContent, ActivitySubmission, SubmissionStatus, AllowedFileType, SubmissionFile, RubricCriteria } from "@/types/activity";
 import { submitFileUploadMulti } from "@/app/activities/[id]/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,43 @@ const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.Eleme
     graded: { label: "Corregido", icon: Star, className: "text-accent-blue bg-accent-blue/10 border-accent-blue/20" },
     published: { label: "Publicado", icon: Star, className: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
 };
+
+const FILE_TYPE_LABELS: Record<AllowedFileType, string> = {
+    pdf: "PDF",
+    image: "Imagen",
+    word: "Word",
+    zip: "ZIP",
+    pka: "PKA (Packet Tracer)",
+    any: "Cualquier formato",
+};
+
+function RubricDisplay({ rubric }: { rubric: RubricCriteria[] }) {
+    if (!rubric?.length) return null;
+    return (
+        <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-4">
+            <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
+                <ClipboardList className="size-4" /> Criterios de evaluación
+            </h3>
+            <div className="space-y-5">
+                {rubric.map(criteria => (
+                    <div key={criteria.id} className="space-y-2">
+                        <p className="text-sm font-semibold text-foreground">{criteria.name}</p>
+                        {criteria.description && <p className="text-xs text-text-muted">{criteria.description}</p>}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {criteria.levels.map(level => (
+                                <div key={level.id} className="p-2.5 bg-surface border border-border/50 rounded-xl">
+                                    <p className="text-xs font-bold text-foreground">{level.label}</p>
+                                    <p className="text-[10px] font-mono text-accent-blue">{level.points} pts</p>
+                                    {level.description && <p className="text-[10px] text-text-muted mt-1 leading-snug">{level.description}</p>}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
 
 const ACCEPT_MAP: Record<AllowedFileType, string> = {
     pdf: ".pdf",
@@ -300,6 +337,11 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
                 </div>
             </div>
 
+            {/* Rubric */}
+            {content?.rubric && content.rubric.length > 0 && (
+                <RubricDisplay rubric={content.rubric} />
+            )}
+
             {/* Upload zone */}
             <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-5">
                 <div className="flex items-center justify-between">
@@ -459,6 +501,11 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
                                         Arrastra aquí o haz clic · Máx. {maxSizeMb} MB
                                         {maxFiles > 1 ? ` · Hasta ${maxFiles} archivos` : ""}
                                     </p>
+                                    {content?.allowedTypes?.length > 0 && !content.allowedTypes.includes('any') && (
+                                        <p className="text-xs text-text-muted/60 mt-1">
+                                            Formatos: {content.allowedTypes.map(t => FILE_TYPE_LABELS[t]).join(', ')}
+                                        </p>
+                                    )}
                                 </div>
                             )}
                         </div>

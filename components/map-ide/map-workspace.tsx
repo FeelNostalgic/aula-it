@@ -26,12 +26,13 @@ import { MapBackground } from './map-background';
 import { StudentSidebar } from './student-sidebar';
 import { TeacherSidebar } from './teacher-sidebar';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Save, MousePointer2, Eraser, FolderDown, FileText, ChevronRight, ExternalLink, LayoutGrid, List } from 'lucide-react';
+import { ArrowLeft, Save, MousePointer2, Eraser, FolderDown, FileText, ChevronRight, ExternalLink, LayoutGrid, List, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { UserNav } from '@/components/dashboard/user-nav';
 import { DashboardBreadcrumb } from '@/components/dashboard/dashboard-breadcrumb';
 import { cn } from '@/lib/utils';
+import { toDriveDownloadUrl } from '@/lib/google-drive-urls';
 import { ResourceIcon } from '@/components/dashboard/resource-icon';
 import {
     updateActivityPosition,
@@ -490,7 +491,13 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                                     return (
                                                         <div
                                                             key={resource.id}
-                                                            onClick={() => isFolder ? setCurrentFolderId(resource.id) : window.open(resource.url, '_blank')}
+                                                            onClick={() => {
+                                                            if (isFolder) { setCurrentFolderId(resource.id); return; }
+                                                            const url = resource.type === 'file'
+                                                                ? (toDriveDownloadUrl(resource.url ?? '') ?? resource.url)
+                                                                : resource.url;
+                                                            window.open(url, '_blank');
+                                                        }}
                                                             className="group p-6 bg-muted/20 hover:bg-muted/40 dark:bg-surface-dark/40 dark:hover:bg-surface-dark border border-border/10 hover:border-accent-blue/30 rounded-3xl transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl"
                                                         >
                                                             <div className="flex flex-col items-start gap-4 h-full">
@@ -525,7 +532,13 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                                 return (
                                                     <div
                                                         key={resource.id}
-                                                        onClick={() => isFolder ? setCurrentFolderId(resource.id) : window.open(resource.url, '_blank')}
+                                                        onClick={() => {
+                                                            if (isFolder) { setCurrentFolderId(resource.id); return; }
+                                                            const url = resource.type === 'file'
+                                                                ? (toDriveDownloadUrl(resource.url ?? '') ?? resource.url)
+                                                                : resource.url;
+                                                            window.open(url, '_blank');
+                                                        }}
                                                         className="group p-4 bg-muted/20 hover:bg-muted/40 dark:bg-surface-dark/40 dark:hover:bg-surface-dark border border-border/10 hover:border-accent-blue/30 rounded-2xl flex items-center gap-4 transition-all cursor-pointer"
                                                     >
                                                         <div className="size-10 shrink-0 group-hover:scale-110 transition-transform">

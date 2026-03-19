@@ -9,7 +9,7 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
-import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, XCircle, Circle, PencilRuler, Zap, Copy, AlignLeft, RefreshCw, Trophy, AlertCircle, ChevronRight, Clock, ArrowLeft, Plus, MessageSquare } from "lucide-react";
+import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, XCircle, Circle, PencilRuler, Zap, Copy, AlignLeft, RefreshCw, Trophy, AlertCircle, ChevronRight, Clock, ArrowLeft, Plus, MessageSquare, Printer, ClipboardList } from "lucide-react";
 import { useState, useEffect, useTransition, useMemo } from "react";
 import { getQuizAttempts, submitQuizAttempt } from "@/app/activities/[id]/actions";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { ResourceIcon } from "../../resource-icon";
-import { toSlidesDownloadUrl } from "@/lib/google-drive-urls";
+import { toSlidesDownloadUrl, toDriveDownloadUrl } from "@/lib/google-drive-urls";
 
 interface StepViewerProps {
     step: ActivityStepWithClientState;
@@ -92,6 +92,16 @@ export function StepViewer({ step, activityId, submission, googleEmail, userId, 
 function TheoryViewer({ content }: { content: TheoryContent }) {
     return (
         <div className="max-w-4xl mx-auto space-y-6">
+            <div className="flex justify-end print:hidden">
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-2 text-text-muted hover:text-foreground"
+                    onClick={() => window.print()}
+                >
+                    <Printer className="size-4" /> Imprimir / PDF
+                </Button>
+            </div>
             <div className="prose dark:prose-invert prose-blue max-w-none prose-pre:p-0 prose-pre:bg-transparent prose-code:bg-surface-dark prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none font-sans">
                 <ReactMarkdown
                     remarkPlugins={[remarkGfm, remarkMath]}
@@ -824,7 +834,12 @@ function ResourceViewer({ content }: { content: ResourceContent }) {
                                 variant="ghost"
                                 size="icon"
                                 className="shrink-0 text-text-muted hover:text-foreground hover:bg-background h-10 w-10 rounded-full"
-                                onClick={() => window.open(item.url, '_blank')}
+                                onClick={() => {
+                                    const url = item.type === 'file'
+                                        ? (toDriveDownloadUrl(item.url ?? '') ?? item.url)
+                                        : item.url;
+                                    window.open(url, '_blank');
+                                }}
                             >
                                 {item.type === 'file' ? <Download className="size-5" /> : <ExternalLink className="size-5" />}
                             </Button>
