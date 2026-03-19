@@ -359,7 +359,7 @@ function SortableResourceItem({ item, updateItem, removeItem, onEnterFolder, ava
 
     const style = {
         transform: CSS.Transform.toString(transform),
-        transition,
+        transition: isDragging ? 'none' : transition,
         zIndex: isDragging ? 50 : 0,
         position: 'relative' as any,
     };
