@@ -152,6 +152,7 @@ export type ResourceItem = {
     type: 'file' | 'link' | 'folder';
     mimeType?: string;
     parentId?: string | null;
+    isVisible?: boolean;
 };
 
 export type ResourceContent = {

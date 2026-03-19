@@ -23,6 +23,7 @@ interface DeliverableViewerProps {
     initialSubmission?: ActivitySubmission | null;
     googleEmail?: string | null;
     dueDate?: string | null;
+    isPreview?: boolean;
 }
 
 const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.ElementType; className: string }> = {
@@ -48,7 +49,7 @@ const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.Eleme
     },
 };
 
-export function DeliverableViewer({ content, stepId, activityId, initialSubmission, googleEmail: initialGoogleEmail, dueDate }: DeliverableViewerProps) {
+export function DeliverableViewer({ content, stepId, activityId, initialSubmission, googleEmail: initialGoogleEmail, dueDate, isPreview }: DeliverableViewerProps) {
     const [submission, setSubmission] = useState<ActivitySubmission | null>(initialSubmission ?? null);
     const [url, setUrl] = useState(initialSubmission?.drive_file_url ?? "");
     const [isPending, startTransition] = useTransition();
@@ -179,11 +180,11 @@ export function DeliverableViewer({ content, stepId, activityId, initialSubmissi
                                 onChange={(e) => setUrl(e.target.value)}
                                 placeholder="https://docs.google.com/..."
                                 className="flex-1 bg-background border-border/50 text-sm"
-                                disabled={isPending || status === "graded" || isDeadlinePassed}
+                                disabled={isPending || status === "graded" || isDeadlinePassed || isPreview}
                             />
                             <Button
                                 type="submit"
-                                disabled={isPending || !url || status === "graded" || isDeadlinePassed}
+                                disabled={isPending || !url || status === "graded" || isDeadlinePassed || isPreview}
                                 className="gap-2 shrink-0"
                             >
                                 <Send className="size-4" />
@@ -191,6 +192,9 @@ export function DeliverableViewer({ content, stepId, activityId, initialSubmissi
                             </Button>
                         </form>
 
+                        {isPreview && (
+                            <p className="text-xs text-amber-400/80">No disponible en vista previa</p>
+                        )}
                         {status === "graded" && (
                             <p className="text-xs text-text-muted">
                                 Esta entrega ya ha sido corregida y no puede modificarse.

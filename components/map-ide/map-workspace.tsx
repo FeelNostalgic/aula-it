@@ -458,7 +458,7 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
 
                                 {(() => {
                                     const resources = unit.resources || [];
-                                    const currentResources = resources.filter((r: any) => (r.parentId || null) === currentFolderId);
+                                    const currentResources = resources.filter((r: any) => (r.parentId || null) === currentFolderId && r.isVisible !== false);
 
                                     if (currentResources.length === 0) {
                                         return (

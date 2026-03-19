@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { Plus, Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical } from "lucide-react";
+import { Plus, Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ResourceIcon } from "../../resource-icon";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
@@ -237,7 +237,8 @@ function SortableResourceItem({ item, updateItem, removeItem }: SortableResource
             style={style}
             className={cn(
                 "p-4 bg-surface-dark border border-white/5 rounded-xl flex gap-4 items-start group shadow-sm transition-shadow",
-                isDragging && "shadow-2xl border-accent-blue/50 scale-[1.02] opacity-80"
+                isDragging && "shadow-2xl border-accent-blue/50 scale-[1.02] opacity-80",
+                item.isVisible === false && "opacity-50"
             )}
             data-testid="resource-card"
         >
@@ -278,7 +279,19 @@ function SortableResourceItem({ item, updateItem, removeItem }: SortableResource
                 />
             </div>
 
-            <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
+            <div className="flex flex-col gap-1 mt-0.5">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    onClick={() => updateItem(item.id, { isVisible: item.isVisible === false ? true : false })}
+                    title={item.isVisible === false ? "Mostrar a alumnos" : "Ocultar a alumnos"}
+                >
+                    {item.isVisible === false
+                        ? <EyeOff className="size-4 text-text-muted" />
+                        : <Eye className="size-4 text-text-muted/30 hover:text-text-muted" />
+                    }
+                </Button>
                 {item.url && (
                     <Button
                         variant="ghost"

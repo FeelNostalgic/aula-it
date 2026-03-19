@@ -4,7 +4,7 @@ import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType, 
 import { getStepIcon, getTabStepIcon } from "@/lib/constants/step-icons";
 import {
     ArrowLeft, FileText, Lock,
-    ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen, X, Zap, Eye, CheckCircle2
+    ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen, X, Zap, Eye, CheckCircle2, AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -25,6 +25,7 @@ interface StudentPreviewProps {
     submissionsMap?: Record<string, ActivitySubmission>;
     viewsMap?: Record<string, boolean>;
     googleEmail?: string | null;
+    isPreview?: boolean;
 }
 
 function StepXpBadge({ xp }: { xp: number }) {
@@ -77,7 +78,7 @@ function StepStatusBadge({ status, type }: { status?: string; type: ActivityStep
 }
 
 
-export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, viewsMap, googleEmail }: StudentPreviewProps) {
+export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, viewsMap, googleEmail, isPreview = false }: StudentPreviewProps) {
     const allSteps = useMemo(() => {
         return phases.flatMap(p => p.steps.filter(s => s.is_visible !== false));
     }, [phases]);
@@ -190,6 +191,16 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                         </div>
                     </header>
                 </>
+            )}
+
+            {isPreview && (
+                <div className="shrink-0 flex items-center gap-3 px-6 py-2.5 bg-amber-500/10 border-b border-amber-500/20">
+                    <AlertTriangle className="size-4 text-amber-500 shrink-0" />
+                    <p className="text-xs text-amber-200/80">
+                        <span className="font-bold text-amber-400">Vista Previa del Profesor</span>
+                        {" — "}Las entregas, marcas de visto y cuestionarios no se guardarán.
+                    </p>
+                </div>
             )}
 
             <ResizablePanelGroup id="student-preview-panel-group" direction="horizontal" className="flex-1 overflow-hidden">
@@ -384,9 +395,9 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                             </Button>
                                         ) : (
                                             <Button
-                                                className="bg-green-600 hover:bg-green-700 text-white h-10 px-6 text-sm font-medium"
+                                                className="bg-green-600 hover:bg-green-700 text-white h-10 px-6 text-sm font-medium disabled:opacity-50"
                                                 onClick={handleMarkViewed}
-                                                disabled={markingViewed}
+                                                disabled={markingViewed || isPreview}
                                             >
                                                 <Eye className="size-4 mr-2" />
                                                 {markingViewed ? "Guardando..." : "Marcar como visto"}
@@ -426,6 +437,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                     submission={submissionsMap?.[selectedStep.id]}
                                     googleEmail={googleEmail}
                                     userId={user?.id}
+                                    isPreview={isPreview}
                                 />
 
                                 {/* Navigation footer */}
@@ -448,9 +460,9 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                             </Button>
                                         ) : (
                                             <Button
-                                                className="bg-green-600 hover:bg-green-700 text-white h-10 px-6 text-sm font-medium"
+                                                className="bg-green-600 hover:bg-green-700 text-white h-10 px-6 text-sm font-medium disabled:opacity-50"
                                                 onClick={handleMarkViewed}
-                                                disabled={markingViewed}
+                                                disabled={markingViewed || isPreview}
                                             >
                                                 <Eye className="size-4 mr-2" />
                                                 {markingViewed ? "Guardando..." : "Marcar como visto"}

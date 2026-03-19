@@ -548,7 +548,7 @@ export function UnitDetailView({
 
                                 {(() => {
                                     const currentResources = (unit.resources || [])
-                                        .filter((r: any) => (r.parentId || null) === currentFolderId);
+                                        .filter((r: any) => (r.parentId || null) === currentFolderId && r.isVisible !== false);
 
                                     if (currentResources.length === 0) {
                                         return (

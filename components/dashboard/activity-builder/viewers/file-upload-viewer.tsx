@@ -31,6 +31,7 @@ interface FileUploadViewerProps {
     activityId: string;
     initialSubmission?: ActivitySubmission | null;
     dueDate?: string | null;
+    isPreview?: boolean;
 }
 
 const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.ElementType; className: string }> = {
@@ -80,7 +81,7 @@ function getMimeIcon(mimeType: string | null): LucideIcon {
     return File;
 }
 
-export function FileUploadViewer({ content, stepId, activityId, initialSubmission, dueDate }: FileUploadViewerProps) {
+export function FileUploadViewer({ content, stepId, activityId, initialSubmission, dueDate, isPreview }: FileUploadViewerProps) {
     const [submission, setSubmission] = useState<ActivitySubmission | null>(initialSubmission ?? null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
@@ -390,18 +391,21 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
                         {/* Drag & drop zone */}
                         <div
                             className={cn(
-                                "border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer",
-                                isDragging
+                                "border-2 border-dashed rounded-xl p-8 text-center transition-colors",
+                                isPreview
+                                    ? "border-border/30 opacity-60 cursor-not-allowed"
+                                    : "cursor-pointer",
+                                !isPreview && isDragging
                                     ? "border-amber-400 bg-amber-400/10"
-                                    : selectedFiles.length
+                                    : !isPreview && selectedFiles.length
                                         ? "border-amber-400/40 bg-amber-400/5"
-                                        : "border-border/50 hover:border-amber-400/30 hover:bg-amber-400/5"
+                                        : !isPreview && "border-border/50 hover:border-amber-400/30 hover:bg-amber-400/5"
                             )}
-                            onClick={() => !selectedFiles.length && fileInputRef.current?.click()}
-                            onDragEnter={handleDragEnter}
-                            onDragOver={handleDragOver}
-                            onDragLeave={handleDragLeave}
-                            onDrop={handleDrop}
+                            onClick={() => !isPreview && !selectedFiles.length && fileInputRef.current?.click()}
+                            onDragEnter={!isPreview ? handleDragEnter : undefined}
+                            onDragOver={!isPreview ? handleDragOver : undefined}
+                            onDragLeave={!isPreview ? handleDragLeave : undefined}
+                            onDrop={!isPreview ? handleDrop : undefined}
                         >
                             <input
                                 ref={fileInputRef}
@@ -461,7 +465,7 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
 
                         <Button
                             onClick={handleUpload}
-                            disabled={!selectedFiles.length || uploading || isPending}
+                            disabled={!selectedFiles.length || uploading || isPending || isPreview}
                             className="w-full gap-2 bg-amber-500 hover:bg-amber-600 text-white"
                         >
                             {uploading || isPending
@@ -472,6 +476,9 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
                     </>
                 )}
 
+                {isPreview && (
+                    <p className="text-xs text-amber-400/80">No disponible en vista previa</p>
+                )}
                 {status === "graded" && (
                     <p className="text-xs text-text-muted">Esta entrega ya ha sido corregida y no puede modificarse.</p>
                 )}

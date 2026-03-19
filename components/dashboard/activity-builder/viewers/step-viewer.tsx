@@ -33,16 +33,17 @@ interface StepViewerProps {
     submission?: ActivitySubmission;
     googleEmail?: string | null;
     userId?: string | null;
+    isPreview?: boolean;
 }
 
-export function StepViewer({ step, activityId, submission, googleEmail, userId }: StepViewerProps) {
+export function StepViewer({ step, activityId, submission, googleEmail, userId, isPreview }: StepViewerProps) {
     if (!step) return null;
 
     switch (step.type) {
         case 'theory':
             return <TheoryViewer content={step.content as TheoryContent} />;
         case 'quiz':
-            return <QuizViewer content={step.content as QuizContent} userId={userId} stepId={step.id} activityId={activityId} submission={submission} />;
+            return <QuizViewer content={step.content as QuizContent} userId={userId} stepId={step.id} activityId={activityId} submission={submission} isPreview={isPreview} />;
         case 'presentation':
             return <PresentationViewer content={step.content as PresentationContent} />;
         case 'resource':
@@ -57,6 +58,7 @@ export function StepViewer({ step, activityId, submission, googleEmail, userId }
                         initialSubmission={submission}
                         googleEmail={googleEmail}
                         dueDate={step.due_date}
+                        isPreview={isPreview}
                     />
                 );
             }
@@ -70,6 +72,7 @@ export function StepViewer({ step, activityId, submission, googleEmail, userId }
                         activityId={activityId}
                         initialSubmission={submission}
                         dueDate={step.due_date}
+                        isPreview={isPreview}
                     />
                 );
             }
@@ -185,12 +188,14 @@ function QuizViewer({
     stepId,
     activityId,
     submission,
+    isPreview,
 }: {
     content: QuizContent;
     userId?: string | null;
     stepId?: string;
     activityId?: string;
     submission?: ActivitySubmission;
+    isPreview?: boolean;
 }) {
     const isGoogleFormMode = content?.quizMode === 'google_form' || (!content?.quizMode && !!content?.googleFormUrl);
 
@@ -225,7 +230,7 @@ function QuizViewer({
         );
     }
 
-    return <BuiltinQuizViewer content={content} userId={userId} stepId={stepId} activityId={activityId} submission={submission} />;
+    return <BuiltinQuizViewer content={content} userId={userId} stepId={stepId} activityId={activityId} submission={submission} isPreview={isPreview} />;
 }
 
 function BuiltinQuizViewer({
@@ -233,12 +238,14 @@ function BuiltinQuizViewer({
     stepId,
     activityId,
     submission,
+    isPreview,
 }: {
     content: QuizContent;
     userId?: string | null;
     stepId?: string;
     activityId?: string;
     submission?: ActivitySubmission;
+    isPreview?: boolean;
 }) {
     const [phase, setPhase] = useState<'answering' | 'result' | 'list'>('answering');
     const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string[]>>({});
@@ -694,11 +701,14 @@ function BuiltinQuizViewer({
                 <div className="flex justify-center pt-8">
                     <Button
                         onClick={() => setShowConfirm(true)}
-                        disabled={isPending || !stepId || !activityId}
+                        disabled={isPending || !stepId || !activityId || isPreview}
                         className="bg-emerald-500 hover:bg-emerald-600 text-white px-10 h-12 text-base font-bold rounded-full shadow-lg shadow-emerald-500/20"
                     >
                         {isPending ? "Enviando..." : "Enviar Cuestionario"}
                     </Button>
+                    {isPreview && (
+                        <p className="text-xs text-amber-400/80 text-center mt-2">No disponible en vista previa</p>
+                    )}
                 </div>
             </div>
 
@@ -780,6 +790,8 @@ function PresentationViewer({ content }: { content: PresentationContent }) {
 }
 
 function ResourceViewer({ content }: { content: ResourceContent }) {
+    const visibleItems = content?.items.filter(item => item.isVisible !== false) ?? [];
+
     return (
         <div className="max-w-4xl mx-auto space-y-12">
             {content?.markdownHeader && (
@@ -794,12 +806,12 @@ function ResourceViewer({ content }: { content: ResourceContent }) {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {content?.items.length === 0 ? (
+                {visibleItems.length === 0 ? (
                     <div className="col-span-2 text-center p-12 border-2 border-dashed border-border/50 rounded-2xl bg-surface-dark/20 text-text-muted">
                         No hay archivos o enlaces disponibles.
                     </div>
                 ) : (
-                    content.items.map((item) => (
+                    visibleItems.map((item) => (
                         <div key={item.id} className="p-5 bg-surface border border-white/5 rounded-2xl flex items-center gap-4 group hover:border-accent-blue/30 transition-all hover:bg-surface-light shadow-sm">
                             <div className="size-12 shrink-0 group-hover:scale-110 transition-transform">
                                 <ResourceIcon type={item.type} mimeType={item.mimeType} />

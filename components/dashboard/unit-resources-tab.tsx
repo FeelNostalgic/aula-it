@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { updateUnitResources } from "@/app/dashboard/units/[id]/actions";
 import { toast } from "sonner";
-import { Plus, Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical, Search, Loader2, FolderPlus, ChevronRight, ArrowLeft, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical, Search, Loader2, FolderPlus, ChevronRight, ArrowLeft, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { ResourceIcon } from "./resource-icon";
@@ -370,7 +370,8 @@ function SortableResourceItem({ item, updateItem, removeItem, onEnterFolder, ava
             style={style}
             className={cn(
                 "group p-5 bg-surface border border-border/50 rounded-2xl flex gap-5 items-start transition-all hover:border-accent-blue/30 hover:shadow-md",
-                isDragging && "shadow-2xl border-accent-blue scale-[1.01] opacity-90 rotate-1"
+                isDragging && "shadow-2xl border-accent-blue scale-[1.01] opacity-90 rotate-1",
+                item.isVisible === false && "opacity-50"
             )}
         >
             <div
@@ -444,7 +445,20 @@ function SortableResourceItem({ item, updateItem, removeItem, onEnterFolder, ava
                 </div>
             </div>
 
-            <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex flex-col gap-2">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-9 rounded-xl transition-colors"
+                    onClick={() => updateItem(item.id, { isVisible: item.isVisible === false ? true : false })}
+                    title={item.isVisible === false ? "Mostrar a alumnos" : "Ocultar a alumnos"}
+                >
+                    {item.isVisible === false
+                        ? <EyeOff className="size-4 text-text-muted" />
+                        : <Eye className="size-4 text-text-muted/20 hover:text-text-muted" />
+                    }
+                </Button>
+                <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 {item.type === 'folder' && (
                     <Button
                         variant="ghost"
@@ -476,6 +490,7 @@ function SortableResourceItem({ item, updateItem, removeItem, onEnterFolder, ava
                 >
                     <Trash2 className="size-4" />
                 </Button>
+                </div>
             </div>
         </div>
     );

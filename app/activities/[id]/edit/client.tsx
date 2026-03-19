@@ -212,6 +212,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                         user={user}
                         profile={profile}
                         hideHeader={true}
+                        isPreview={true}
                     />
                 ) : (
                     <ResizablePanelGroup id="activity-builder-layout" direction="horizontal" className="flex-1 overflow-hidden">
