@@ -219,7 +219,7 @@ export function SortableUnitListItem({ unit, userRole }: SortableUnitItemProps) 
 
     const style = {
         transform: CSS.Transform.toString(transform),
-        transition,
+        transition: isDragging ? 'none' : transition,
         zIndex: isDragging ? 50 : undefined,
         opacity: isDragging ? 0.5 : 1,
     };
