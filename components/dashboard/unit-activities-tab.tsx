@@ -69,6 +69,7 @@ import {
     SortableContext,
     sortableKeyboardCoordinates,
     verticalListSortingStrategy,
+    rectSortingStrategy,
     useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -676,6 +677,7 @@ export function UnitActivitiesTab({
                     {/* View Mode Toggle */}
                     <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
                         <Button
+                            aria-label="Vista cuadrícula"
                             variant={viewMode === "grid" ? "secondary" : "ghost"}
                             size="icon"
                             className={cn("h-8 w-8", viewMode === 'grid' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
@@ -684,6 +686,7 @@ export function UnitActivitiesTab({
                             <LayoutGrid className="size-4" />
                         </Button>
                         <Button
+                            aria-label="Vista lista"
                             variant={viewMode === "list" ? "secondary" : "ghost"}
                             size="icon"
                             className={cn("h-8 w-8", viewMode === 'list' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
@@ -732,7 +735,7 @@ export function UnitActivitiesTab({
                 >
                     <SortableContext
                         items={activities.map(a => a.id)}
-                        strategy={verticalListSortingStrategy}
+                        strategy={viewMode === 'grid' ? rectSortingStrategy : verticalListSortingStrategy}
                     >
                         <div className={cn(
                             viewMode === 'grid'

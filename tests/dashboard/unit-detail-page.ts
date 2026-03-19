@@ -85,7 +85,7 @@ export class UnitDetailPage extends BasePage {
     }
 
     async switchToListView(): Promise<void> {
-        await this.page.getByRole('button', { name: 'Lista' }).click();
+        await this.page.getByRole('button', { name: 'Vista lista' }).click();
         // Wait for the list layout to render
         await this.page.waitForTimeout(300);
     }
