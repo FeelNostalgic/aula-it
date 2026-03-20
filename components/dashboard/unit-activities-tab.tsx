@@ -114,6 +114,7 @@ const getDifficultyConfig = (difficulty?: string | null) => {
         case 'bajo':
         case 'easy':
             return { color: "text-accent-green", bg: "bg-accent-green/10", border: "border-accent-green/20", label: "Fácil" };
+        case 'medio':
         case 'media':
         case 'medium':
         case 'normal':

@@ -28,7 +28,7 @@ const getDifficultyConfig = (difficulty?: string | null) => {
     switch (val) {
         case 'fácil': case 'bajo': case 'easy':
             return { color: 'text-accent-green', bg: 'bg-accent-green/10', border: 'border-accent-green/20', label: 'Fácil' };
-        case 'media': case 'medium': case 'normal':
+        case 'medio': case 'media': case 'medium': case 'normal':
             return { color: 'text-accent-amber', bg: 'bg-accent-amber/10', border: 'border-accent-amber/20', label: 'Medio' };
         case 'difícil': case 'hard':
             return { color: 'text-accent-orange', bg: 'bg-accent-orange/10', border: 'border-accent-orange/20', label: 'Difícil' };
