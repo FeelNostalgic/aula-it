@@ -122,21 +122,24 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                         </div>
 
                         {/* Content */}
-                        <div className="flex-1 overflow-y-auto custom-scrollbar overflow-x-hidden p-6 space-y-6">
+                        <div className="flex-1 overflow-y-auto custom-scrollbar overflow-x-hidden p-6 space-y-5">
+                            {/* Description */}
                             <p className="text-xs text-text-muted leading-relaxed line-clamp-4">
-                                {selectedActivity.description || "Inicia la misión para descubrir los objetivos detallados."}
+                                {selectedActivity.description || "Sin descripción para este reto."}
                             </p>
 
-                            {/* Quick Stats Grid */}
+                            <div className="border-t border-border/50" />
+
+                            {/* Stats — each row full width */}
                             {(() => {
                                 const diff = getDifficultyConfig(selectedActivity.difficulty);
                                 return (
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-2">
                                         {/* Difficulty */}
-                                        <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
-                                            <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">Nivel</div>
+                                        <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-xl px-3 py-2.5">
+                                            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Nivel</span>
                                             <div className={cn(
-                                                "flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded border inline-flex w-fit",
+                                                "flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded border",
                                                 diff.bg, diff.color, diff.border
                                             )}>
                                                 <Zap className="size-2.5" />
@@ -144,24 +147,27 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                                             </div>
                                         </div>
                                         {/* XP */}
-                                        <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
-                                            <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">XP</div>
+                                        <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-xl px-3 py-2.5">
+                                            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">XP</span>
                                             <div className="text-xs font-black text-accent-amber flex items-center gap-1">
                                                 <Zap className="size-3 fill-accent-amber" />
-                                                {selectedActivity.xp || 0}
+                                                {selectedActivity.xp || 0} XP
                                             </div>
                                         </div>
                                         {/* Steps */}
                                         {selectedActivity.stepsCount > 0 && (
-                                            <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
-                                                <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">Pasos</div>
-                                                <div className="text-xs font-black text-foreground">{selectedActivity.stepsCount}</div>
+                                            <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-xl px-3 py-2.5">
+                                                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Pasos</span>
+                                                <div className="text-xs font-black text-foreground flex items-center gap-1">
+                                                    <FolderDown className="size-3 text-text-muted" />
+                                                    {selectedActivity.stepsCount} pasos
+                                                </div>
                                             </div>
                                         )}
                                         {/* Duration */}
                                         {selectedActivity.duration && (
-                                            <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
-                                                <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">Tiempo</div>
+                                            <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-xl px-3 py-2.5">
+                                                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Tiempo</span>
                                                 <div className="text-xs font-black text-text-muted flex items-center gap-1">
                                                     <Clock className="size-3" />
                                                     {selectedActivity.duration}
