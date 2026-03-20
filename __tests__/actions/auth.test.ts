@@ -17,7 +17,7 @@ describe("login()", () => {
     const formData = createFormData({ password: "secret123" });
     const result = await login(null, formData);
 
-    expect(result).toEqual({ error: "Email and password are required" });
+    expect(result).toEqual({ error: "Identificador/email y contraseña son obligatorios" });
   });
 
   it("returns error when password is missing", async () => {
@@ -27,7 +27,7 @@ describe("login()", () => {
     const formData = createFormData({ email: "user@example.com" });
     const result = await login(null, formData);
 
-    expect(result).toEqual({ error: "Email and password are required" });
+    expect(result).toEqual({ error: "Identificador/email y contraseña son obligatorios" });
   });
 
   it("returns error when Supabase signInWithPassword fails", async () => {
@@ -75,7 +75,7 @@ describe("signup()", () => {
     const formData = createFormData({ email: "user@example.com" }); // missing name + password
     const result = await signup(null, formData);
 
-    expect(result).toEqual({ error: "Name, email and password are required" });
+    expect(result).toEqual({ error: "Nombre, email y contraseña son obligatorios" });
   });
 
   it("returns error when Supabase signUp fails", async () => {
