@@ -57,33 +57,38 @@ export async function loginWithGoogle() {
 }
 
 export async function signup(prevState: any, formData: FormData) {
+  return { error: "El registro público está deshabilitado. Contacta con el administrador del sistema." };
+}
+
+export async function loginTeacher(prevState: any, formData: FormData) {
   const supabase = await createClient();
 
-  const name = formData.get("name") as string;
-  const email = formData.get("email") as string;
+  const email = (formData.get("email") as string)?.trim();
   const password = formData.get("password") as string;
 
-  if (!email || !password || !name) {
-    return { error: "Nombre, email y contraseña son obligatorios" };
+  if (!email || !password) {
+    return { error: "Email y contraseña son obligatorios" };
   }
 
-  if (email.endsWith("@aula.local")) {
-    return { error: "Esta cuenta está gestionada por el profesor. Usa tu identificador en la pantalla de inicio de sesión." };
-  }
-
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        full_name: name,
-        role: "student",
-      },
-    },
-  });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
     return { error: error.message };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", data.user.id)
+    .single();
+
+  if (profile?.role === "student") {
+    await supabase.auth.signOut();
+    return { error: "Acceso denegado. Esta pantalla es solo para profesores y administradores." };
+  }
+
+  if (profile?.role === "admin") {
+    redirect("/admin");
   }
 
   redirect("/dashboard");

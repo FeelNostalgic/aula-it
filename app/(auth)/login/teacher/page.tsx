@@ -2,14 +2,16 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { login } from "./actions";
+import { useSearchParams } from "next/navigation";
+import { loginTeacher, loginWithGoogle } from "../actions";
 import Link from "next/link";
-import { Terminal, LogIn, Loader2, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Chrome, Terminal, LogIn, Loader2, Eye, EyeOff, GraduationCap } from "lucide-react";
 import { APP_VERSION, APP_STATUS } from "@/lib/version";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
 function LoginButton() {
   const { pending } = useFormStatus();
@@ -30,9 +32,13 @@ function LoginButton() {
   );
 }
 
-export default function LoginPage() {
-  const [state, formAction] = useActionState(login, null);
+export default function TeacherLoginPage() {
+  const [state, formAction] = useActionState(loginTeacher, null);
   const [showPassword, setShowPassword] = useState(false);
+  const searchParams = useSearchParams();
+  const oauthError = searchParams.get("error") === "unauthorized"
+    ? "Acceso denegado. Solo los profesores y administradores pueden acceder desde esta pantalla."
+    : null;
 
   return (
     <div className="bg-background text-foreground min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
@@ -53,47 +59,46 @@ export default function LoginPage() {
         {/* Header / Logo Area */}
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="flex items-center gap-3 text-primary">
-            <div className="size-8 flex items-center justify-center">
-              <Terminal className="size-8" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">
-              Aula IT
-            </h1>
+            <Terminal className="size-8" />
+            <h1 className="text-2xl font-bold tracking-tight text-white">Aula IT</h1>
           </div>
         </div>
 
         {/* Login Card */}
         <Card className="border-border/50 bg-card shadow-2xl overflow-hidden">
           <CardHeader className="space-y-1 pb-6 text-center">
-            <CardTitle className="text-xl font-mono tracking-wider uppercase text-white">Protocolo de Seguridad</CardTitle>
+            <div className="flex justify-center mb-2">
+              <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <GraduationCap className="size-5 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-xl font-mono tracking-wider uppercase text-white">Acceso Docente</CardTitle>
             <CardDescription className="text-xs uppercase tracking-widest font-mono text-muted-foreground">
-              Se Requiere Autorización Nivel 4
+              Profesores y Administradores
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-6">
             <form action={formAction} className="flex flex-col gap-6">
-              {/* Field: Username */}
+              {/* Field: Email */}
               <div className="grid gap-2">
                 <Label htmlFor="email" className="text-xs font-mono font-medium text-muted-foreground uppercase tracking-wider">
-                  Email / Identificador
+                  Email
                 </Label>
                 <Input
                   id="email"
                   name="email"
-                  type="text"
+                  type="email"
                   required
-                  placeholder="ALU-001 o usuario@dominio.com"
+                  placeholder="profesor@centro.edu"
                   className="h-12 bg-background/50 border-border/50 focus-visible:ring-primary font-sans"
                 />
               </div>
 
               {/* Field: Password */}
               <div className="grid gap-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-xs font-mono font-medium text-muted-foreground uppercase tracking-wider">
-                    Contraseña
-                  </Label>
-                </div>
+                <Label htmlFor="password" className="text-xs font-mono font-medium text-muted-foreground uppercase tracking-wider">
+                  Contraseña
+                </Label>
                 <div className="relative">
                   <Input
                     id="password"
@@ -110,19 +115,15 @@ export default function LoginPage() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-1 top-1 h-10 w-10 text-muted-foreground hover:text-primary hover:bg-transparent"
                   >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
+                    {showPassword ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>
 
-              {state?.error && (
+              {(state?.error || oauthError) && (
                 <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
                   <p className="text-[10px] font-mono text-destructive uppercase text-center tracking-tight">
-                    {state.error}
+                    {state?.error ?? oauthError}
                   </p>
                 </div>
               )}
@@ -130,27 +131,35 @@ export default function LoginPage() {
               <LoginButton />
             </form>
 
+            {/* OAuth Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full border-border/50" />
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase">
+                <span className="bg-card px-2 text-muted-foreground font-mono tracking-widest">o</span>
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              onClick={() => loginWithGoogle()}
+              className="w-full h-12 bg-background/50 border-border/50 hover:bg-accent/10 text-white text-xs font-mono tracking-wider"
+            >
+              <Chrome className="mr-2 h-4 w-4 text-primary" />
+              CONTINUAR CON GOOGLE
+            </Button>
           </CardContent>
           <CardFooter className="flex flex-col gap-4 border-t border-border/50 bg-muted/30 pt-6">
             <Link
-              href="/login/teacher"
+              href="/login"
               className="text-[11px] text-muted-foreground hover:text-primary transition-colors uppercase font-mono tracking-tight"
             >
-              ¿Eres profesor? → Acceso docente
+              ¿Eres alumno? → Acceso de alumnos
             </Link>
           </CardFooter>
         </Card>
-
-        {/* External Link */}
-        <div className="text-center">
-          <Button variant="outline" size="sm" className="h-9 px-4 rounded-full bg-border-subtle/20 border-border/20 text-muted-foreground hover:text-white hover:bg-border/30 transition-all font-medium text-xs">
-            <ShieldCheck className="mr-2 h-4 w-4" />
-            Solicitar acceso al sistema
-          </Button>
-        </div>
       </main>
     </div>
   );
 }
-
-

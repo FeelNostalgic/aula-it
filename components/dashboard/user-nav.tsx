@@ -34,11 +34,12 @@ interface UserNavProps {
     userEmail: string;
     userName: string;
     isTeacher: boolean;
+    isAdmin?: boolean;
     userId: string;
     userAvatar?: string;
 }
 
-export function UserNav({ userEmail, userName, isTeacher, userId, userAvatar }: UserNavProps) {
+export function UserNav({ userEmail, userName, isTeacher, isAdmin, userId, userAvatar }: UserNavProps) {
     const { setTheme, theme } = useTheme();
 
     return (
@@ -79,7 +80,7 @@ export function UserNav({ userEmail, userName, isTeacher, userId, userAvatar }: 
                             <p className="text-xs leading-none text-muted-foreground">
                                 {userEmail}
                             </p>
-                            {!isTeacher && (
+                            {!isTeacher && !isAdmin && (
                                 <span className="text-[10px] text-accent-amber font-mono font-bold mt-1.5 uppercase tracking-widest bg-amber-500/10 py-0.5 px-2 rounded-full w-fit">
                                     ALUMNO
                                 </span>
@@ -89,16 +90,23 @@ export function UserNav({ userEmail, userName, isTeacher, userId, userAvatar }: 
                                     PROFESOR
                                 </span>
                             )}
+                            {isAdmin && (
+                                <span className="text-[10px] text-amber-400 font-mono font-bold mt-1.5 uppercase tracking-widest bg-amber-400/10 py-0.5 px-2 rounded-full w-fit">
+                                    ADMIN
+                                </span>
+                            )}
                         </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
 
-                    <DropdownMenuItem asChild className="cursor-pointer gap-2 py-2">
-                        <NextLink href="/settings" className="flex items-center gap-2 w-full">
-                            <Settings className="size-4" />
-                            <span>Configuración</span>
-                        </NextLink>
-                    </DropdownMenuItem>
+                    {!isAdmin && (
+                        <DropdownMenuItem asChild className="cursor-pointer gap-2 py-2">
+                            <NextLink href="/settings" className="flex items-center gap-2 w-full">
+                                <Settings className="size-4" />
+                                <span>Configuración</span>
+                            </NextLink>
+                        </DropdownMenuItem>
+                    )}
 
                     {isTeacher && (
                         <DropdownMenuItem asChild className="cursor-pointer gap-2 py-2">
@@ -108,6 +116,7 @@ export function UserNav({ userEmail, userName, isTeacher, userId, userAvatar }: 
                             </NextLink>
                         </DropdownMenuItem>
                     )}
+
 
                     {/* Theme Sub-menu */}
                     <DropdownMenuSub>

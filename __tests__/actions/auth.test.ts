@@ -1,11 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { login, logout, loginWithGoogle, signup } from "@/app/(auth)/login/actions";
+import { createTeacher } from "@/app/admin/actions";
 import { SupabaseMockBuilder } from "../helpers/supabase-mock";
 import { createFormData } from "../helpers/form-data";
 import { RedirectError } from "../setup";
 
 vi.mock("@/utils/supabase/server");
+vi.mock("@/utils/supabase/admin");
 
 // ─── login ────────────────────────────────────────────────────────────────────
 
@@ -68,62 +71,87 @@ describe("login()", () => {
 // ─── signup ───────────────────────────────────────────────────────────────────
 
 describe("signup()", () => {
-  it("returns error when required fields are missing", async () => {
-    const { client } = new SupabaseMockBuilder().build();
+  it("siempre devuelve error: registro público deshabilitado", async () => {
+    const formData = createFormData({ name: "X", email: "x@example.com", password: "pass1234" });
+    const result = await signup(null, formData);
+    expect(result).toEqual({
+      error: "El registro público está deshabilitado. Contacta con el administrador del sistema.",
+    });
+  });
+});
+
+// ─── createTeacher ────────────────────────────────────────────────────────────
+
+describe("createTeacher()", () => {
+  it("returns error when not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
     vi.mocked(createClient).mockResolvedValue(client as any);
 
-    const formData = createFormData({ email: "user@example.com" }); // missing name + password
-    const result = await signup(null, formData);
+    const formData = createFormData({ name: "Prof. Test", email: "prof@test.com", password: "pass1234" });
+    const result = await createTeacher(null, formData);
+
+    expect(result).toEqual({ error: "No autenticado" });
+  });
+
+  it("returns error when required fields are missing", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth({ id: "admin-id", email: "admin@school.com" })
+      .build();
+    vi.mocked(createClient).mockResolvedValue(client as any);
+
+    // requireAdmin usa createAdminClient para leer el perfil
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { role: "admin" }, error: null }),
+          }),
+        }),
+      }),
+    } as any);
+
+    const formData = createFormData({ email: "prof@test.com" }); // missing name + password
+    const result = await createTeacher(null, formData);
 
     expect(result).toEqual({ error: "Nombre, email y contraseña son obligatorios" });
   });
 
-  it("returns error when Supabase signUp fails", async () => {
+  it("creates teacher and returns success", async () => {
     const { client } = new SupabaseMockBuilder()
-      .mockSignUp({ data: null, error: { message: "Email already registered" } })
+      .mockAuth({ id: "admin-id", email: "admin@school.com" })
       .build();
     vi.mocked(createClient).mockResolvedValue(client as any);
 
-    const formData = createFormData({
-      name: "Ada Lovelace",
-      email: "ada@example.com",
-      password: "pass1234",
-    });
-    const result = await signup(null, formData);
-
-    expect(result).toEqual({ error: "Email already registered" });
-  });
-
-  it("calls signUp with correct metadata and redirects to /dashboard on success", async () => {
-    const { client, spies } = new SupabaseMockBuilder()
-      .mockSignUp({ data: null, error: null })
-      .build();
-    vi.mocked(createClient).mockResolvedValue(client as any);
-
-    const formData = createFormData({
-      name: "Ada Lovelace",
-      email: "ada@example.com",
-      password: "pass1234",
-    });
-
-    try {
-      await signup(null, formData);
-      expect.unreachable("Should have thrown RedirectError");
-    } catch (e) {
-      expect(e).toBeInstanceOf(RedirectError);
-      expect((e as RedirectError).url).toBe("/dashboard");
-    }
-
-    expect(spies.auth.signUp).toHaveBeenCalledWith({
-      email: "ada@example.com",
-      password: "pass1234",
-      options: {
-        data: {
-          full_name: "Ada Lovelace",
-          role: "student",
+    const mockAdminClient = {
+      auth: {
+        admin: {
+          createUser: vi.fn().mockResolvedValue({
+            data: { user: { id: "new-teacher-id" } },
+            error: null,
+          }),
         },
       },
-    });
+      // from() sirve tanto para requireAdmin (select) como para createTeacher (update)
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { role: "admin" }, error: null }),
+          }),
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        }),
+      }),
+    };
+    vi.mocked(createAdminClient).mockReturnValue(mockAdminClient as any);
+
+    const formData = createFormData({ name: "Prof. Test", email: "prof@test.com", password: "securePass1" });
+    const result = await createTeacher(null, formData);
+
+    expect(result).toEqual({ success: true });
+    expect(mockAdminClient.auth.admin.createUser).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "prof@test.com" })
+    );
   });
 });
 

@@ -41,7 +41,12 @@ export default async function DashboardLayout({
     redirect("/cambiar-contrasena");
   }
 
+  if (profile?.role === "admin") {
+    redirect("/admin");
+  }
+
   const isTeacher = profile?.role === "teacher";
+  const isAdmin = false;
 
   return (
     <BreadcrumbProvider>
@@ -63,6 +68,7 @@ export default async function DashboardLayout({
                   userEmail={user.email || ""}
                   userName={user.user_metadata?.full_name || "Usuario"}
                   isTeacher={isTeacher}
+                  isAdmin={isAdmin}
                   userId={user.id}
                   userAvatar={user.user_metadata?.avatar_url}
                 />

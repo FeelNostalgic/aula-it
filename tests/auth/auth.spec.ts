@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { LoginPage } from "./login-page";
-import { cleanupTestUsers, generateTestEmail, getSupabaseAdmin } from "../helpers";
+import { cleanupTestUsers } from "../helpers";
 
 test.afterAll(async () => {
     await cleanupTestUsers();
@@ -27,16 +27,6 @@ test.describe("Authentication", () => {
         await loginPage.verifyUrl(/\/login/);
     });
 
-    test("debe permitir registrar un nuevo usuario", async ({ page }) => {
-        const loginPage = new LoginPage(page);
-        const testEmail = generateTestEmail("student");
-
-        await loginPage.register("Test Student", testEmail, "password123");
-
-        await loginPage.verifyUrl(/\/dashboard/);
-        await expect(page.locator("h2")).toContainText("Módulos Activos");
-    });
-
     test("debe mostrar error con credenciales incorrectas", { tag: ["@e2e", "@auth", "@critical", "@AUTH-E2E-ERR-001"] }, async ({ page }) => {
         const loginPage = new LoginPage(page);
         await loginPage.login("nonexistent-user@aula-it.dev", "wrongpassword999");
@@ -49,37 +39,17 @@ test.describe("Authentication", () => {
         await loginPage.verifyUrl(/\/login/);
     });
 
-    test("debe mostrar error al registrar con contraseña demasiado corta", { tag: ["@e2e", "@auth", "@critical", "@AUTH-E2E-ERR-002"] }, async ({ page }) => {
+    test("debe mostrar página de acceso docente en /login/teacher", async ({ page }) => {
         const loginPage = new LoginPage(page);
-        await loginPage.register("Test User", generateTestEmail("short-pass"), "ab");
-
-        // Error appears inline
-        const errorEl = page.locator(".text-destructive");
-        await expect(errorEl).toBeVisible({ timeout: 5000 });
-
-        // Must stay on register page
-        await loginPage.verifyUrl(/\/register/);
+        await loginPage.gotoTeacherLogin();
+        await expect(page.locator("h1")).toContainText("Aula IT");
+        await expect(page.getByRole("button", { name: /google/i })).toBeVisible();
     });
 
-    test("debe mostrar error al registrar con email ya existente", { tag: ["@e2e", "@auth", "@high", "@AUTH-E2E-ERR-003"] }, async ({ page }) => {
-        const supabase = getSupabaseAdmin();
-        if (!supabase) {
-            test.skip(true, "Skipping: SUPABASE_SERVICE_ROLE_KEY not set");
-            return;
-        }
-
-        const existingEmail = generateTestEmail("existing");
-        await supabase.auth.admin.createUser({
-            email: existingEmail,
-            password: "password123",
-            email_confirm: true,
-        });
-
+    test("debe mostrar mensaje de registro deshabilitado en /register", async ({ page }) => {
         const loginPage = new LoginPage(page);
-        await loginPage.register("Test User", existingEmail, "password123");
-
-        // Either stays on /register with inline error, or shows inline error
-        const errorEl = page.locator(".text-destructive");
-        await expect(errorEl).toBeVisible({ timeout: 5000 });
+        await loginPage.goto("/register");
+        await expect(page.getByText(/solo por invitación/i)).toBeVisible();
+        await expect(page.locator("form")).not.toBeVisible();
     });
 });
