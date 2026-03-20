@@ -211,35 +211,43 @@ export function useGoogleDrivePicker() {
                             }));
 
                             // Auto-share selected files. Always shares images (required for proxy).
-                            // When autoShareAll=true, also shares non-image files (e.g. PDFs in unit resources).
+                            // When autoShareAll=true, also shares non-image files (e.g. PDFs/videos in unit resources).
                             if (options?.externalAccessToken || accessTokenRef.current) {
                                 const tokenToUse = options?.externalAccessToken || accessTokenRef.current;
                                 if (tokenToUse) {
+                                    const filesToShare = files.filter((f) => options?.autoShareAll || f.mimeType?.startsWith("image/"));
                                     await Promise.all(
-                                        files
-                                            .filter((f) => options?.autoShareAll || f.mimeType?.startsWith("image/"))
-                                            .map((f) =>
-                                                fetch(`https://www.googleapis.com/drive/v3/files/${f.id}/permissions`, {
-                                                    method: "POST",
+                                        filesToShare.map(async (f) => {
+                                            // 1. Set public "anyone reader" permission
+                                            const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}/permissions`, {
+                                                method: "POST",
+                                                headers: {
+                                                    Authorization: `Bearer ${tokenToUse}`,
+                                                    "Content-Type": "application/json",
+                                                },
+                                                body: JSON.stringify({ type: "anyone", role: "reader" }),
+                                            });
+                                            if (!permRes.ok) {
+                                                const errData = await permRes.json().catch(() => null);
+                                                console.warn("Could not auto-share Drive file:", errData || permRes.statusText);
+                                                toast.warning(
+                                                    `No se pudo compartir "${f.name}". Compártelo manualmente en Google Drive.`,
+                                                    { duration: 6000 }
+                                                );
+                                                return;
+                                            }
+                                            // 2. Allow downloads for all viewers (fixes video/binary download restriction)
+                                            if (options?.autoShareAll) {
+                                                await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, {
+                                                    method: "PATCH",
                                                     headers: {
                                                         Authorization: `Bearer ${tokenToUse}`,
                                                         "Content-Type": "application/json",
                                                     },
-                                                    body: JSON.stringify({
-                                                        type: "anyone",
-                                                        role: "reader",
-                                                    }),
-                                                }).then(async (res) => {
-                                                    if (!res.ok) {
-                                                        const errData = await res.json().catch(() => null);
-                                                        console.warn("Could not auto-share Drive file:", errData || res.statusText);
-                                                        toast.warning(
-                                                            `No se pudo hacer pública la imagen "${f.name}". Asegúrate de compartirla manualmente en Google Drive para que tus alumnos puedan verla.`,
-                                                            { duration: 6000 }
-                                                        );
-                                                    }
-                                                })
-                                            )
+                                                    body: JSON.stringify({ copyRequiresWriterPermission: false }),
+                                                }).catch((err) => console.warn("Could not unset copyRequiresWriterPermission:", err));
+                                            }
+                                        })
                                     ).catch((err) => {
                                         console.error("Auto-share error:", err);
                                     });

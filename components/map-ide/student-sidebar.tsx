@@ -9,7 +9,8 @@ import {
     Trophy,
     Network,
     FileText as FileTextIcon,
-    FolderDown
+    FolderDown,
+    Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -23,18 +24,26 @@ interface StudentSidebarProps {
     onViewChange: (view: 'map' | 'resources') => void;
 }
 
+const getDifficultyConfig = (difficulty?: string | null) => {
+    const val = difficulty?.toLowerCase();
+    switch (val) {
+        case 'fácil': case 'bajo': case 'easy':
+            return { color: 'text-accent-green', bg: 'bg-accent-green/10', border: 'border-accent-green/20', label: 'Fácil' };
+        case 'media': case 'medium': case 'normal':
+            return { color: 'text-accent-amber', bg: 'bg-accent-amber/10', border: 'border-accent-amber/20', label: 'Medio' };
+        case 'difícil': case 'hard':
+            return { color: 'text-accent-orange', bg: 'bg-accent-orange/10', border: 'border-accent-orange/20', label: 'Difícil' };
+        case 'experto': case 'expert': case 'alto':
+            return { color: 'text-red-400', bg: 'bg-red-950/30', border: 'border-red-900/40', label: 'Experto' };
+        default:
+            return { color: 'text-text-muted', bg: 'bg-surface', border: 'border-border-subtle', label: difficulty || 'N/A' };
+    }
+};
+
 export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMission, activeView, onViewChange }: StudentSidebarProps) {
     const isBlocked = selectedActivity?.status === 'blocked';
     const isDraft = selectedActivity?.status === 'draft';
     const isDisabled = isBlocked || isDraft;
-
-    const getDifficultyColor = (diff?: string | null) => {
-        const d = diff?.toLowerCase();
-        if (d === 'fácil' || d === 'easy') return 'text-accent-green bg-accent-green/10 border-accent-green/20';
-        if (d === 'media' || d === 'medium' || d === 'normal') return 'text-accent-amber bg-accent-amber/10 border-accent-amber/20';
-        if (d === 'experto' || d === 'expert' || d === 'difícil') return 'text-accent-orange bg-accent-orange/10 border-accent-orange/20';
-        return 'text-text-muted bg-surface border-border-subtle';
-    };
 
     return (
         <aside className="h-full flex shrink-0 z-20 overflow-hidden">
@@ -119,36 +128,49 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                             </p>
 
                             {/* Quick Stats Grid */}
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
-                                    <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">Nivel</div>
-                                    <div className={cn(
-                                        "text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border inline-block",
-                                        getDifficultyColor(selectedActivity.difficulty)
-                                    )}>
-                                        {selectedActivity.difficulty || 'Normal'}
+                            {(() => {
+                                const diff = getDifficultyConfig(selectedActivity.difficulty);
+                                return (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {/* Difficulty */}
+                                        <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
+                                            <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">Nivel</div>
+                                            <div className={cn(
+                                                "flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded border inline-flex w-fit",
+                                                diff.bg, diff.color, diff.border
+                                            )}>
+                                                <Zap className="size-2.5" />
+                                                {diff.label}
+                                            </div>
+                                        </div>
+                                        {/* XP */}
+                                        <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
+                                            <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">XP</div>
+                                            <div className="text-xs font-black text-accent-amber flex items-center gap-1">
+                                                <Zap className="size-3 fill-accent-amber" />
+                                                {selectedActivity.xp || 0}
+                                            </div>
+                                        </div>
+                                        {/* Steps */}
+                                        {selectedActivity.stepsCount > 0 && (
+                                            <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
+                                                <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">Pasos</div>
+                                                <div className="text-xs font-black text-foreground">{selectedActivity.stepsCount}</div>
+                                            </div>
+                                        )}
+                                        {/* Duration */}
+                                        {selectedActivity.duration && (
+                                            <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
+                                                <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">Tiempo</div>
+                                                <div className="text-xs font-black text-text-muted flex items-center gap-1">
+                                                    <Clock className="size-3" />
+                                                    {selectedActivity.duration}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                                <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
-                                    <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">XP</div>
-                                    <div className="text-xs font-black text-accent-amber flex items-center gap-1">
-                                        <Zap className="size-3 fill-accent-amber" />
-                                        {selectedActivity.xp || 0}
-                                    </div>
-                                </div>
-                                {selectedActivity.stepsCount > 0 && (
-                                    <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
-                                        <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">Pasos</div>
-                                        <div className="text-xs font-black text-foreground">{selectedActivity.stepsCount}</div>
-                                    </div>
-                                )}
-                                {selectedActivity.duration && (
-                                    <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
-                                        <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">Tiempo</div>
-                                        <div className="text-xs font-black text-foreground">{selectedActivity.duration}</div>
-                                    </div>
-                                )}
-                            </div>
+                                );
+                            })()}
 
                             {/* Action Button */}
                             <Button

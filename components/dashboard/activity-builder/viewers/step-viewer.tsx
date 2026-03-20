@@ -866,8 +866,15 @@ function ResourceViewer({ content }: { content: ResourceContent }) {
                                         className="text-text-muted hover:text-foreground hover:bg-background h-9 w-9 rounded-full"
                                         title="Descargar"
                                         onClick={() => {
-                                            const downloadUrl = toDriveDownloadUrl(item.url ?? '') ?? item.url;
-                                            window.open(downloadUrl, '_blank');
+                                            const dlUrl = toDriveDownloadUrl(item.url ?? '') ?? item.url ?? '';
+                                            const a = document.createElement('a');
+                                            a.href = dlUrl;
+                                            a.download = item.title || 'download';
+                                            a.target = '_blank';
+                                            a.rel = 'noopener noreferrer';
+                                            document.body.appendChild(a);
+                                            a.click();
+                                            document.body.removeChild(a);
                                         }}
                                     >
                                         <Download className="size-4" />
