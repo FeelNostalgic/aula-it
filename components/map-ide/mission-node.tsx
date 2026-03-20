@@ -28,13 +28,21 @@ export type MissionNodeData = {
     role?: 'student' | 'teacher';
     onTitlePositionChange?: (newPosition: 'down' | 'right' | 'up' | 'left') => void;
     onRemoveFromMap?: () => void;
+    editingMode?: boolean;
+    onHandleClick?: (handleId: string) => void;
 };
 
 // Define the custom node type for React Flow
 export type MissionNode = Node<MissionNodeData, 'mission'>;
 
 const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
-    const { status, label, logo_url, title_position = 'down', unitId, role } = data;
+    const { status, label, logo_url, title_position = 'down', unitId, role, editingMode, onHandleClick } = data;
+
+    const handleClick = (handleId: string) => (e: React.MouseEvent) => {
+        if (!editingMode) return;
+        e.stopPropagation();
+        onHandleClick?.(handleId);
+    };
     const router = useRouter();
 
     const getStatusStyles = () => {
@@ -137,25 +145,49 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
                     type="source"
                     position={Position.Top}
                     id="top"
-                    className="size-3 bg-surface border-2 border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10 transition-all z-20 top-0! left-1/2! -translate-x-1/2!"
+                    onClick={handleClick("top")}
+                    className={cn(
+                        "border-2 transition-all z-20 top-0! left-1/2! -translate-x-1/2!",
+                        editingMode
+                            ? "size-4 bg-accent-blue/30 border-accent-blue cursor-pointer shadow-[0_0_12px_rgba(34,211,238,0.6)] hover:bg-accent-blue/60 hover:scale-125"
+                            : "size-3 bg-surface border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10"
+                    )}
                 />
                 <Handle
                     type="source"
                     position={Position.Left}
                     id="left"
-                    className="size-3 bg-surface border-2 border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10 transition-all z-20 left-0! top-1/2! -translate-y-1/2!"
+                    onClick={handleClick("left")}
+                    className={cn(
+                        "border-2 transition-all z-20 left-0! top-1/2! -translate-y-1/2!",
+                        editingMode
+                            ? "size-4 bg-accent-blue/30 border-accent-blue cursor-pointer shadow-[0_0_12px_rgba(34,211,238,0.6)] hover:bg-accent-blue/60 hover:scale-125"
+                            : "size-3 bg-surface border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10"
+                    )}
                 />
                 <Handle
                     type="source"
                     position={Position.Bottom}
                     id="bottom"
-                    className="size-3 bg-surface border-2 border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10 transition-all z-20 bottom-0! left-1/2! -translate-x-1/2!"
+                    onClick={handleClick("bottom")}
+                    className={cn(
+                        "border-2 transition-all z-20 bottom-0! left-1/2! -translate-x-1/2!",
+                        editingMode
+                            ? "size-4 bg-accent-blue/30 border-accent-blue cursor-pointer shadow-[0_0_12px_rgba(34,211,238,0.6)] hover:bg-accent-blue/60 hover:scale-125"
+                            : "size-3 bg-surface border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10"
+                    )}
                 />
                 <Handle
                     type="source"
                     position={Position.Right}
                     id="right"
-                    className="size-3 bg-surface border-2 border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10 transition-all z-20 right-0! top-1/2! -translate-y-1/2!"
+                    onClick={handleClick("right")}
+                    className={cn(
+                        "border-2 transition-all z-20 right-0! top-1/2! -translate-y-1/2!",
+                        editingMode
+                            ? "size-4 bg-accent-blue/30 border-accent-blue cursor-pointer shadow-[0_0_12px_rgba(34,211,238,0.6)] hover:bg-accent-blue/60 hover:scale-125"
+                            : "size-3 bg-surface border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10"
+                    )}
                 />
 
                 <div

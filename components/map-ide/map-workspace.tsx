@@ -159,11 +159,46 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
 
     // Enriquecer nodes con los callbacks después de inicializar el estado
     const enrichedNodes = useMemo(() => {
-        return nodes.map(node => ({
+        return nodes.map(node => {
+            const isEditTarget = editingEdge !== null && node.id !== editingEdge.source;
+            return {
             ...node,
             data: {
                 ...node.data,
                 onTitlePositionChange: (pos: 'down' | 'right' | 'up' | 'left') => updateNodeTitlePosition(node.id, pos),
+                editingMode: isEditTarget,
+                onHandleClick: isEditTarget ? async (targetHandle: string) => {
+                    if (!editingEdge) return;
+                    // Check for exact duplicate (same source+target+handles) excluding the edge being edited
+                    const isDuplicate = edges.some(e =>
+                        e.id !== editingEdge.id &&
+                        e.source === editingEdge.source &&
+                        e.target === node.id &&
+                        (e.targetHandle || 'top') === targetHandle
+                    );
+                    if (isDuplicate) {
+                        toast.warning("Ya existe una conexión a ese punto de conexión");
+                        setEditingEdge(null);
+                        return;
+                    }
+                    setEdges((eds) => eds.filter(e => e.id !== editingEdge.id));
+                    await deleteActivityConnection(editingEdge.id, unit.id);
+                    const newEdgeParams = {
+                        source: editingEdge.source,
+                        target: node.id,
+                        sourceHandle: editingEdge.sourceHandle || 'bottom',
+                        targetHandle,
+                    };
+                    setEdges((eds) => addEdge({
+                        ...newEdgeParams,
+                        animated: true,
+                        style: { stroke: 'var(--color-accent-blue)', strokeWidth: 2 },
+                        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--color-accent-blue)' }
+                    }, eds));
+                    await createActivityConnection(unit.id, newEdgeParams.source, newEdgeParams.target, newEdgeParams.sourceHandle, newEdgeParams.targetHandle);
+                    toast.success("Conexión actualizada");
+                    setEditingEdge(null);
+                } : undefined,
                 onRemoveFromMap: async () => {
                     const connectedEdges = edges.filter(
                         (edge) => edge.source === node.id || edge.target === node.id
@@ -181,8 +216,9 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                     }
                 }
             }
-        }));
-    }, [nodes, edges, updateNodeTitlePosition, setEdges, setNodes, unit.id]);
+        };
+        });
+    }, [nodes, edges, editingEdge, updateNodeTitlePosition, setEdges, setNodes, unit.id]);
 
     const onConnect: OnConnect = useCallback(
         async (params) => {
@@ -246,44 +282,8 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
     }, [isTeacher, unit.id]);
 
     const onNodeClick = useCallback(async (event: React.MouseEvent, node: Node) => {
-        // Editing mode: click a node to set as new connection target
-        if (editingEdge) {
-            if (node.id === editingEdge.source) {
-                toast.error("No puedes conectar un nodo consigo mismo");
-                return;
-            }
-            if (node.id === editingEdge.target) {
-                toast.info("El destino ya era ese nodo");
-                setEditingEdge(null);
-                return;
-            }
-            if (edges.some(e => e.source === editingEdge.source && e.target === node.id)) {
-                toast.warning("Ya existe una conexión entre esos nodos");
-                setEditingEdge(null);
-                return;
-            }
-            // Delete old edge optimistically
-            setEdges((eds) => eds.filter(e => e.id !== editingEdge.id));
-            await deleteActivityConnection(editingEdge.id, unit.id);
-
-            // Create new edge
-            const newEdgeParams = {
-                source: editingEdge.source,
-                target: node.id,
-                sourceHandle: editingEdge.sourceHandle || 'bottom',
-                targetHandle: editingEdge.targetHandle || 'top',
-            };
-            setEdges((eds) => addEdge({
-                ...newEdgeParams,
-                animated: true,
-                style: { stroke: 'var(--color-accent-blue)', strokeWidth: 2 },
-                markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--color-accent-blue)' }
-            }, eds));
-            await createActivityConnection(unit.id, newEdgeParams.source, newEdgeParams.target, newEdgeParams.sourceHandle, newEdgeParams.targetHandle);
-            toast.success("Conexión actualizada");
-            setEditingEdge(null);
-            return;
-        }
+        // In editing mode node body clicks are ignored — only handle clicks reconnect
+        if (editingEdge) return;
 
         if (isEraserMode && isTeacher) {
             // 1. Find and delete connected edges first
@@ -308,7 +308,7 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
         }
         const activity = activities.find(a => a.id === node.id);
         setSelectedActivity(activity || null);
-    }, [activities, isEraserMode, isTeacher, unit.id, setNodes, editingEdge, edges, setEdges]);
+    }, [activities, isEraserMode, isTeacher, unit.id, setNodes, editingEdge]);
 
     const onEdgeClick = useCallback(async (event: React.MouseEvent, edge: Edge) => {
         if (isEraserMode && isTeacher) {
@@ -834,7 +834,7 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                 edgesReconnectable={isTeacher && !isEraserMode}
                                 fitView
                                 nodesDraggable={isTeacher && !isEraserMode}
-                                nodesConnectable={isTeacher && !isEraserMode}
+                                nodesConnectable={isTeacher && !isEraserMode && !editingEdge}
                                 elementsSelectable={isTeacher}
                                 deleteKeyCode={isTeacher ? ["Backspace", "Delete"] : null}
                                 className={cn("bg-transparent", isEraserMode && "cursor-eraser")}
