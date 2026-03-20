@@ -26,7 +26,7 @@ import { MapBackground } from './map-background';
 import { StudentSidebar } from './student-sidebar';
 import { TeacherSidebar } from './teacher-sidebar';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Save, MousePointer2, Eraser, FolderDown, FileText, ChevronRight, ExternalLink, LayoutGrid, List, Download, Trash2, Network } from 'lucide-react';
+import { ArrowLeft, Save, MousePointer2, Eraser, FolderDown, FileText, ChevronRight, ExternalLink, LayoutGrid, List, Download, Trash2, Network, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { UserNav } from '@/components/dashboard/user-nav';
@@ -854,6 +854,17 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                     onClick={(e) => e.stopPropagation()}
                                 >
                                     <div className="w-52 bg-popover border border-border text-popover-foreground backdrop-blur-xl rounded-xl shadow-2xl p-1">
+                                        <button
+                                            onClick={() => {
+                                                setEdgeContextMenu(null);
+                                                toast.info("Arrastra el extremo de la conexión para cambiar su destino", { duration: 4000 });
+                                            }}
+                                            className="w-full flex gap-2 items-center px-3 py-2 text-sm rounded-lg hover:bg-accent/10 cursor-pointer transition-colors"
+                                        >
+                                            <Pencil className="size-4 text-accent-blue" />
+                                            Editar conexión
+                                        </button>
+                                        <div className="my-1 h-px bg-border" />
                                         <button
                                             onClick={async () => {
                                                 setEdges((eds) => eds.filter((e) => e.id !== edgeContextMenu.edge.id));

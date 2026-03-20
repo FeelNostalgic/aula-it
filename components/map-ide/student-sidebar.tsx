@@ -9,7 +9,6 @@ import {
     Trophy,
     Network,
     FileText as FileTextIcon,
-    FolderDown,
     Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -99,7 +98,7 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                 {activeView === 'map' && selectedActivity && (
                     <motion.div
                         initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: 288, opacity: 1 }}
+                        animate={{ width: 320, opacity: 1 }}
                         exit={{ width: 0, opacity: 0 }}
                         transition={{ duration: 0.2, ease: 'easeInOut' }}
                         className="h-full bg-popover/95 backdrop-blur-xl border-r border-border/50 flex flex-col shrink-0 overflow-hidden"
@@ -124,7 +123,7 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                         {/* Content */}
                         <div className="flex-1 overflow-y-auto custom-scrollbar overflow-x-hidden p-6 space-y-5">
                             {/* Description */}
-                            <p className="text-xs text-text-muted leading-relaxed line-clamp-4">
+                            <p className="text-sm text-text-muted leading-relaxed line-clamp-4">
                                 {selectedActivity.description || "Sin descripción para este reto."}
                             </p>
 
@@ -134,43 +133,42 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                             {(() => {
                                 const diff = getDifficultyConfig(selectedActivity.difficulty);
                                 return (
-                                    <div className="space-y-2">
+                                    <div className="space-y-2.5">
                                         {/* Difficulty */}
-                                        <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-xl px-3 py-2.5">
-                                            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Nivel</span>
+                                        <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-xl px-4 py-3">
+                                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Nivel</span>
                                             <div className={cn(
-                                                "flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded border",
+                                                "flex items-center gap-1.5 text-xs font-black uppercase px-2 py-1 rounded-lg border",
                                                 diff.bg, diff.color, diff.border
                                             )}>
-                                                <Zap className="size-2.5" />
+                                                <Zap className="size-3" />
                                                 {diff.label}
                                             </div>
                                         </div>
                                         {/* XP */}
-                                        <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-xl px-3 py-2.5">
-                                            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">XP</span>
-                                            <div className="text-xs font-black text-accent-amber flex items-center gap-1">
-                                                <Zap className="size-3 fill-accent-amber" />
+                                        <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-xl px-4 py-3">
+                                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">XP</span>
+                                            <div className="text-sm font-black text-accent-amber flex items-center gap-1.5">
+                                                <Zap className="size-3.5 fill-accent-amber" />
                                                 {selectedActivity.xp || 0} XP
                                             </div>
                                         </div>
                                         {/* Steps */}
                                         {selectedActivity.stepsCount > 0 && (
-                                            <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-xl px-3 py-2.5">
-                                                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Pasos</span>
-                                                <div className="text-xs font-black text-foreground flex items-center gap-1">
-                                                    <FolderDown className="size-3 text-text-muted" />
-                                                    {selectedActivity.stepsCount} pasos
-                                                </div>
+                                            <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-xl px-4 py-3">
+                                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Pasos</span>
+                                                <span className="text-sm font-black text-accent-blue">
+                                                    {selectedActivity.completedSteps ?? 0} / {selectedActivity.stepsCount}
+                                                </span>
                                             </div>
                                         )}
                                         {/* Duration */}
                                         {selectedActivity.duration && (
-                                            <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-xl px-3 py-2.5">
-                                                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Tiempo</span>
-                                                <div className="text-xs font-black text-text-muted flex items-center gap-1">
-                                                    <Clock className="size-3" />
-                                                    {selectedActivity.duration}
+                                            <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-xl px-4 py-3">
+                                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Tiempo</span>
+                                                <div className="text-sm font-black text-text-muted flex items-center gap-1.5">
+                                                    <Clock className="size-3.5" />
+                                                    {selectedActivity.duration} min
                                                 </div>
                                             </div>
                                         )}

@@ -592,7 +592,15 @@ export function UnitDetailView({
                                                                             title="Descargar"
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
-                                                                                window.open(toDriveDownloadUrl(resource.url ?? '') ?? resource.url, '_blank');
+                                                                                const dlUrl = toDriveDownloadUrl(resource.url ?? '') ?? resource.url ?? '';
+                                                                const a = document.createElement('a');
+                                                                a.href = dlUrl;
+                                                                a.download = resource.title || 'download';
+                                                                a.target = '_blank';
+                                                                a.rel = 'noopener noreferrer';
+                                                                document.body.appendChild(a);
+                                                                a.click();
+                                                                document.body.removeChild(a);
                                                                             }}
                                                                         >
                                                                             <Download className="size-4" />
@@ -641,7 +649,15 @@ export function UnitDetailView({
                                                                     title="Descargar"
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
-                                                                        window.open(toDriveDownloadUrl(resource.url ?? '') ?? resource.url, '_blank');
+                                                                        const dlUrl = toDriveDownloadUrl(resource.url ?? '') ?? resource.url ?? '';
+                                                                const a = document.createElement('a');
+                                                                a.href = dlUrl;
+                                                                a.download = resource.title || 'download';
+                                                                a.target = '_blank';
+                                                                a.rel = 'noopener noreferrer';
+                                                                document.body.appendChild(a);
+                                                                a.click();
+                                                                document.body.removeChild(a);
                                                                     }}
                                                                 >
                                                                     <Download className="size-3" />
