@@ -36,7 +36,10 @@ export async function updateProfile({
     if (authError || !user) return { error: "No autenticado." };
 
     const updates: Record<string, any> = {};
-    if (fullName.trim()) updates.full_name = fullName.trim();
+    // Los alumnos de clase (@aula.local) no pueden cambiar su identificador
+    if (fullName.trim() && !user.email?.endsWith("@aula.local")) {
+        updates.full_name = fullName.trim();
+    }
     updates.google_email = googleEmail.trim() || null as any;
     if (isPrivate !== undefined) updates.is_private = isPrivate;
 

@@ -3,15 +3,22 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 
+function normalizeLoginInput(input: string): string {
+  if (input.includes("@")) return input;
+  return `${input.toLowerCase()}@aula.local`;
+}
+
 export async function login(prevState: any, formData: FormData) {
   const supabase = await createClient();
 
-  const email = formData.get("email") as string;
+  const rawInput = (formData.get("email") as string)?.trim();
   const password = formData.get("password") as string;
 
-  if (!email || !password) {
-    return { error: "Email and password are required" };
+  if (!rawInput || !password) {
+    return { error: "Identificador/email y contraseña son obligatorios" };
   }
+
+  const email = normalizeLoginInput(rawInput);
 
   const { error } = await supabase.auth.signInWithPassword({
     email,
@@ -57,7 +64,11 @@ export async function signup(prevState: any, formData: FormData) {
   const password = formData.get("password") as string;
 
   if (!email || !password || !name) {
-    return { error: "Name, email and password are required" };
+    return { error: "Nombre, email y contraseña son obligatorios" };
+  }
+
+  if (email.endsWith("@aula.local")) {
+    return { error: "Esta cuenta está gestionada por el profesor. Usa tu identificador en la pantalla de inicio de sesión." };
   }
 
   const { error } = await supabase.auth.signUp({

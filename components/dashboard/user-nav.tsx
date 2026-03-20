@@ -9,7 +9,8 @@ import {
     Moon,
     Sun,
     Check,
-    ChevronRight
+    ChevronRight,
+    Users,
 } from "lucide-react";
 import NextLink from "next/link";
 import {
@@ -98,6 +99,15 @@ export function UserNav({ userEmail, userName, isTeacher, userId, userAvatar }: 
                             <span>Configuración</span>
                         </NextLink>
                     </DropdownMenuItem>
+
+                    {isTeacher && (
+                        <DropdownMenuItem asChild className="cursor-pointer gap-2 py-2">
+                            <NextLink href="/alumnos" className="flex items-center gap-2 w-full">
+                                <Users className="size-4" />
+                                <span>Gestión de alumnos</span>
+                            </NextLink>
+                        </DropdownMenuItem>
+                    )}
 
                     {/* Theme Sub-menu */}
                     <DropdownMenuSub>

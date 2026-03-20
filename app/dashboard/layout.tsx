@@ -33,9 +33,13 @@ export default async function DashboardLayout({
   // Fetch role from profiles table
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, must_change_password")
     .eq("id", user.id)
     .single();
+
+  if (profile?.must_change_password) {
+    redirect("/cambiar-contrasena");
+  }
 
   const isTeacher = profile?.role === "teacher";
 

@@ -77,14 +77,14 @@ export default function LoginPage() {
               {/* Field: Username */}
               <div className="grid gap-2">
                 <Label htmlFor="email" className="text-xs font-mono font-medium text-muted-foreground uppercase tracking-wider">
-                  Email
+                  Email / Identificador
                 </Label>
                 <Input
                   id="email"
                   name="email"
-                  type="email"
+                  type="text"
                   required
-                  placeholder="usuario@aula-it.dev"
+                  placeholder="ALU-001 o usuario@dominio.com"
                   className="h-12 bg-background/50 border-border/50 focus-visible:ring-primary font-sans"
                 />
               </div>

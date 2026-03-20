@@ -68,6 +68,7 @@ export function SettingsClient({
     const [fullName, setFullName] = useState(initialFullName);
     const [googleEmail, setGoogleEmail] = useState(initialGoogleEmail);
     const [isPrivate, setIsPrivate] = useState(initialIsPrivate);
+    const isClassroomStudent = userEmail.endsWith("@aula.local");
     const [isPending, startTransition] = useTransition();
     const [isDriveConnected, setIsDriveConnected] = useState(driveConnected);
     const [isDisconnecting, startDisconnect] = useTransition();
@@ -316,14 +317,25 @@ export function SettingsClient({
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div className="space-y-2">
                                                     <label className="text-xs font-mono uppercase tracking-widest text-text-muted flex items-center gap-2">
-                                                        <User className="size-3" /> Nombre completo
+                                                        <User className="size-3" /> {isClassroomStudent ? "Identificador" : "Nombre completo"}
                                                     </label>
                                                     <Input
                                                         value={fullName}
-                                                        onChange={(e) => setFullName(e.target.value)}
+                                                        onChange={(e) => !isClassroomStudent && setFullName(e.target.value)}
+                                                        readOnly={isClassroomStudent}
                                                         placeholder="Tu nombre completo"
-                                                        className="bg-surface/50 border-border/40 focus:border-primary/50 focus:ring-primary/20 transition-all font-mono text-sm"
+                                                        className={cn(
+                                                            "font-mono text-sm",
+                                                            isClassroomStudent
+                                                                ? "bg-muted/30 border-border/40 opacity-60 cursor-not-allowed"
+                                                                : "bg-surface/50 border-border/40 focus:border-primary/50 focus:ring-primary/20 transition-all"
+                                                        )}
                                                     />
+                                                    {isClassroomStudent && (
+                                                        <p className="text-[10px] font-mono text-muted-foreground">
+                                                            Tu identificador es asignado por el profesor y no puede modificarse.
+                                                        </p>
+                                                    )}
                                                 </div>
 
                                                 <div className="space-y-2">
