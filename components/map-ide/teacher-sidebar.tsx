@@ -11,8 +11,7 @@ import {
     Gamepad2,
     HelpCircle,
     Info,
-    Trash2,
-    Settings
+    Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,9 +51,6 @@ export function TeacherSidebar({ unit, activities, onAddActivity }: TeacherSideb
                     <h2 className="text-sm font-black text-foreground uppercase tracking-widest">
                         Panel de Diseño
                     </h2>
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground hover:bg-accent/10">
-                        <Settings className="size-4" />
-                    </Button>
                 </div>
 
                 <div className="relative mb-4">

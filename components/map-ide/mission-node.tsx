@@ -3,7 +3,7 @@
 import React, { memo, useCallback } from 'react';
 import { Handle, Position, NodeProps, type Node } from '@xyflow/react';
 import { motion } from 'framer-motion';
-import { Lock, CheckCircle2, Zap, Network, RotateCw, ExternalLink } from 'lucide-react';
+import { Lock, CheckCircle2, Zap, Network, RotateCw, ExternalLink, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
     ContextMenu,
@@ -27,6 +27,7 @@ export type MissionNodeData = {
     unitId: string;
     role?: 'student' | 'teacher';
     onTitlePositionChange?: (newPosition: 'down' | 'right' | 'up' | 'left') => void;
+    onRemoveFromMap?: () => void;
 };
 
 // Define the custom node type for React Flow
@@ -109,6 +110,12 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
         window.open(`/activities/${id}/edit`, '_blank');
     };
 
+    const removeFromMap = useCallback(() => {
+        if (data.onRemoveFromMap) {
+            data.onRemoveFromMap();
+        }
+    }, [data]);
+
     const getLabelAlignmentClasses = () => {
         switch (title_position) {
             case 'right':
@@ -151,12 +158,7 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
                     className="size-3 bg-surface border-2 border-accent-blue/50 hover:border-accent-blue hover:bg-accent-blue/10 transition-all z-20 right-0! top-1/2! -translate-y-1/2!"
                 />
 
-                <motion.div
-                    initial={false}
-                    animate={{
-                        scale: selected ? 1.15 : 1,
-                        y: selected ? -5 : 0
-                    }}
+                <div
                     className={cn(
                         "relative size-16 rounded-full border-2 transition-all duration-300 flex items-center justify-center overflow-visible",
                         styles.bg,
@@ -202,7 +204,7 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
                             transition={{ duration: 2, repeat: Infinity }}
                         />
                     )}
-                </motion.div>
+                </div>
 
                 {/* Centered container for label orbital movement */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -269,6 +271,11 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
                 <ContextMenuItem onClick={openIDE} className="flex gap-2 items-center hover:bg-accent/10 cursor-pointer">
                     <ExternalLink className="size-4 text-accent-green" />
                     <span>Abrir IDE del reto</span>
+                </ContextMenuItem>
+                <ContextMenuSeparator className="bg-border" />
+                <ContextMenuItem onClick={removeFromMap} className="flex gap-2 items-center hover:bg-accent-red/10 cursor-pointer text-accent-red focus:text-accent-red focus:bg-accent-red/10">
+                    <Trash2 className="size-4" />
+                    <span>Eliminar del mapa</span>
                 </ContextMenuItem>
             </ContextMenuContent>
         </ContextMenu>

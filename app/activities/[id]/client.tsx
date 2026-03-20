@@ -48,7 +48,7 @@ export function StudentActivityClient({ activity, phases, user, profile, submiss
 
     const handleExit = () => {
         if (activity.unit?.id) {
-            router.push(`/dashboard/units/${activity.unit.id}/map`);
+            router.push(`/units/${activity.unit.id}/map`);
         } else {
             router.push('/dashboard');
         }

@@ -51,10 +51,12 @@ export default async function UnitMapPage({
 
     const activities = activitiesData?.map(activity => {
         let totalXp = 0;
+        let stepsCount = 0;
 
         const phases = Array.isArray(activity.activity_phases) ? activity.activity_phases : [];
         phases.forEach((phase: any) => {
             const steps = Array.isArray(phase.activity_steps) ? phase.activity_steps : [];
+            stepsCount += steps.length;
             steps.forEach((step: any) => {
                 totalXp += (step.xp || 0);
             });
@@ -64,7 +66,8 @@ export default async function UnitMapPage({
         const { activity_phases, ...rest } = activity;
         return {
             ...rest,
-            xp: totalXp
+            xp: totalXp,
+            stepsCount
         };
     });
 
@@ -76,6 +79,11 @@ export default async function UnitMapPage({
         .single();
 
     const role = profile?.role || 'student';
+
+    // Guard: if teacher changed view_type, redirect student back to unit detail
+    if (role === 'student' && unit.view_type !== 'map') {
+        redirect(`/dashboard/units/${id}`);
+    }
 
     // Map connections format for React Flow
     const mapConnections = (unit.activity_connections || []).map((conn: any) => ({

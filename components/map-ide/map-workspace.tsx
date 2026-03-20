@@ -26,7 +26,7 @@ import { MapBackground } from './map-background';
 import { StudentSidebar } from './student-sidebar';
 import { TeacherSidebar } from './teacher-sidebar';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Save, MousePointer2, Eraser, FolderDown, FileText, ChevronRight, ExternalLink, LayoutGrid, List, Download } from 'lucide-react';
+import { ArrowLeft, Save, MousePointer2, Eraser, FolderDown, FileText, ChevronRight, ExternalLink, LayoutGrid, List, Download, Trash2, Network } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { UserNav } from '@/components/dashboard/user-nav';
@@ -34,6 +34,7 @@ import { DashboardBreadcrumb } from '@/components/dashboard/dashboard-breadcrumb
 import { cn } from '@/lib/utils';
 import { toDriveDownloadUrl } from '@/lib/google-drive-urls';
 import { ResourceIcon } from '@/components/dashboard/resource-icon';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
     updateActivityPosition,
     createActivityConnection,
@@ -61,24 +62,41 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
     const [activeView, setActiveView] = useState<'map' | 'resources'>('map');
     const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [columnCount, setColumnCount] = useState<2 | 3 | 4>(3);
+    const [edgeContextMenu, setEdgeContextMenu] = useState<{ edge: Edge; x: number; y: number } | null>(null);
 
-    // Persist view mode preference
+    // Persist view mode and column count preferences
     React.useEffect(() => {
         const savedMode = localStorage.getItem('resourceViewMode') as 'grid' | 'list';
         if (savedMode) setViewMode(savedMode);
+        const savedCols = localStorage.getItem('resourceColumnCount');
+        if (savedCols) setColumnCount(Number(savedCols) as 2 | 3 | 4);
     }, []);
+
+    // Close edge context menu on outside click
+    React.useEffect(() => {
+        if (!edgeContextMenu) return;
+        const handler = () => setEdgeContextMenu(null);
+        document.addEventListener('click', handler);
+        return () => document.removeEventListener('click', handler);
+    }, [edgeContextMenu]);
 
     const handleViewModeChange = (mode: 'grid' | 'list') => {
         setViewMode(mode);
         localStorage.setItem('resourceViewMode', mode);
     };
 
+    const handleColumnCountChange = (cols: 2 | 3 | 4) => {
+        setColumnCount(cols);
+        localStorage.setItem('resourceColumnCount', String(cols));
+    };
+
     const isTeacher = role === 'teacher';
 
-    // Initial Nodes: Only show those with a position
+    // Initial Nodes: Only show those with a position (filter drafts for students)
     const initialNodes: Node[] = useMemo(() => {
         return activities
-            .filter(activity => activity.position !== null)
+            .filter(activity => activity.position !== null && (isTeacher || activity.status !== 'draft'))
             .map((activity) => ({
                 id: activity.id,
                 type: 'mission',
@@ -138,16 +156,32 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
         );
     }, [setNodes]);
 
-    // Enriquecer nodes con el callback después de inicializar el estado
+    // Enriquecer nodes con los callbacks después de inicializar el estado
     const enrichedNodes = useMemo(() => {
         return nodes.map(node => ({
             ...node,
             data: {
                 ...node.data,
-                onTitlePositionChange: (pos: 'down' | 'right' | 'up' | 'left') => updateNodeTitlePosition(node.id, pos)
+                onTitlePositionChange: (pos: 'down' | 'right' | 'up' | 'left') => updateNodeTitlePosition(node.id, pos),
+                onRemoveFromMap: async () => {
+                    const connectedEdges = edges.filter(
+                        (edge) => edge.source === node.id || edge.target === node.id
+                    );
+                    for (const edge of connectedEdges) {
+                        setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+                        await deleteActivityConnection(edge.id, unit.id);
+                    }
+                    setNodes((nds) => nds.filter((n) => n.id !== node.id));
+                    const result = await removeActivityFromMap(node.id, unit.id);
+                    if (result.success) {
+                        toast.success("Reto quitado del mapa");
+                    } else {
+                        toast.error("Error al quitar el reto del mapa");
+                    }
+                }
             }
         }));
-    }, [nodes, updateNodeTitlePosition]);
+    }, [nodes, edges, updateNodeTitlePosition, setEdges, setNodes, unit.id]);
 
     const onConnect: OnConnect = useCallback(
         async (params) => {
@@ -242,6 +276,37 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
             }
         }
     }, [isEraserMode, isTeacher, unit.id, setEdges]);
+
+    const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
+        if (!isTeacher) return;
+        event.preventDefault();
+        setEdgeContextMenu({ edge, x: event.clientX, y: event.clientY });
+    }, [isTeacher]);
+
+    const onReconnect = useCallback(async (oldEdge: Edge, newConnection: Connection) => {
+        await deleteActivityConnection(oldEdge.id, unit.id);
+        setEdges((eds) => {
+            const filtered = eds.filter(e => e.id !== oldEdge.id);
+            return addEdge({
+                ...newConnection,
+                animated: true,
+                style: { stroke: 'var(--color-accent-blue)', strokeWidth: 2 },
+                markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--color-accent-blue)' }
+            }, filtered);
+        });
+        if (newConnection.source && newConnection.target) {
+            const result = await createActivityConnection(
+                unit.id,
+                newConnection.source,
+                newConnection.target,
+                newConnection.sourceHandle || 'bottom',
+                newConnection.targetHandle || 'top'
+            );
+            if (!result.success) {
+                toast.error("Error al reconectar la conexión");
+            }
+        }
+    }, [unit.id, setEdges]);
 
     const onSave = useCallback(async () => {
         // Manual save trigger - can be used as a "Sync" or just removed
@@ -341,10 +406,9 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                     <div className="flex items-center gap-6">
                         {isTeacher && (
                             <Button
-                                variant="outline"
                                 size="sm"
                                 onClick={onSave}
-                                className="text-xs h-8 px-3 transition-all border-border/50 hover:bg-accent/10"
+                                className="text-xs h-8 px-3 transition-all bg-accent-blue hover:bg-accent-blue/90 text-white border-0 shadow-[0_0_15px_rgba(34,211,238,0.2)]"
                             >
                                 <Save className="size-3 mr-2" />
                                 Guardar Mapa
@@ -376,22 +440,64 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                 }}
                             />
                         ) : (
-                            <div className="w-80 border-r border-border/50 flex flex-col">
-                                <TeacherSidebar
-                                    unit={unit}
-                                    activities={activities.filter(a => !nodes.find(n => n.id === a.id))}
-                                    onAddActivity={(a) => {
-                                        // Manual add logic could go here if needed
-                                    }}
-                                />
-                            </div>
+                            <aside className="h-full flex shrink-0 z-20 overflow-hidden">
+                                {/* Icon bar — same pattern as StudentSidebar */}
+                                <div className="w-[60px] h-full bg-background border-r border-border/50 flex flex-col items-center py-6 gap-6 relative z-30 shrink-0">
+                                    <div className="flex flex-col gap-3">
+                                        <button
+                                            onClick={() => setActiveView('map')}
+                                            className={cn(
+                                                "size-10 rounded-xl transition-all duration-300 relative flex items-center justify-center",
+                                                activeView === 'map'
+                                                    ? "bg-accent-blue/10 text-accent-blue shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+                                                    : "text-muted-foreground hover:text-foreground hover:bg-accent/10"
+                                            )}
+                                            title="Mapa de Misiones"
+                                        >
+                                            <Network className="size-5" />
+                                            {activeView === 'map' && (
+                                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent-blue rounded-r-full shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={() => { setActiveView('resources'); setCurrentFolderId(null); }}
+                                            className={cn(
+                                                "size-10 rounded-xl transition-all duration-300 relative flex items-center justify-center",
+                                                activeView === 'resources'
+                                                    ? "bg-accent-blue/10 text-accent-blue shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+                                                    : "text-muted-foreground hover:text-foreground hover:bg-accent/10"
+                                            )}
+                                            title="Recursos de la unidad"
+                                        >
+                                            <FileText className="size-5" />
+                                            {activeView === 'resources' && (
+                                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent-blue rounded-r-full shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Design panel — only visible in map view */}
+                                {activeView === 'map' && (
+                                    <div className="w-80 border-r border-border/50 flex flex-col">
+                                        <TeacherSidebar
+                                            unit={unit}
+                                            activities={activities.filter(a => !nodes.find(n => n.id === a.id))}
+                                            onAddActivity={(a) => {
+                                                // Manual add logic could go here if needed
+                                            }}
+                                        />
+                                    </div>
+                                )}
+                            </aside>
                         )}
                     </div>
 
                     {/* Main Content Area — swaps between map canvas and resources */}
-                    {(!isTeacher && activeView === 'resources') ? (
+                    {(activeView === 'resources') ? (
+                        <TooltipProvider>
                         <main className="flex-1 relative overflow-y-auto bg-background p-12">
-                            <div className="max-w-4xl mx-auto">
+                            <div className="max-w-6xl mx-auto">
                                 <div className="mb-8 flex items-center justify-between">
                                     <div className="space-y-1">
                                         <div className="text-[10px] font-black uppercase tracking-[0.2em] text-accent-blue font-sans">Recursos de la Unidad</div>
@@ -401,6 +507,18 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                             </h2>
                                         </div>
                                     </div>
+                                    <div className="flex items-center gap-3">
+                                    {isTeacher && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => router.push(`/dashboard/units/${unit.id}/recursos`)}
+                                            className="text-xs h-8 px-3 border-border/50 hover:bg-accent/10"
+                                        >
+                                            <ExternalLink className="size-3 mr-2" />
+                                            Editar recursos
+                                        </Button>
+                                    )}
                                     <div className="flex items-center bg-muted/30 dark:bg-surface-dark/50 p-1 rounded-xl border border-border/50">
                                         <Button
                                             variant="ghost"
@@ -424,6 +542,26 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                         >
                                             <List className="size-4" />
                                         </Button>
+                                    </div>
+                                    {/* Column count selector — only in grid mode */}
+                                    {viewMode === 'grid' && (
+                                        <div className="flex items-center bg-muted/30 dark:bg-surface-dark/50 p-1 rounded-xl border border-border/50">
+                                            {([2, 3, 4] as const).map(n => (
+                                                <Button
+                                                    key={n}
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => handleColumnCountChange(n)}
+                                                    className={cn(
+                                                        "h-8 w-8 p-0 rounded-lg transition-all text-xs font-bold",
+                                                        columnCount === n ? "bg-background shadow-sm text-accent-blue" : "text-muted-foreground hover:text-foreground"
+                                                    )}
+                                                >
+                                                    {n}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    )}
                                     </div>
                                 </div>
 
@@ -485,7 +623,11 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
 
                                     if (viewMode === 'grid') {
                                         return (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            <div className={cn("grid gap-6",
+                                                columnCount === 2 ? "grid-cols-1 md:grid-cols-2" :
+                                                columnCount === 4 ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" :
+                                                "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+                                            )}>
                                                 {currentResources.map((resource: any) => {
                                                     const isFolder = resource.type === 'folder';
                                                     return (
@@ -502,9 +644,14 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                                                     <ResourceIcon type={resource.type} mimeType={resource.mimeType} className="rounded-xl!" />
                                                                 </div>
                                                                 <div className="flex-1 min-w-0 space-y-1 w-full">
-                                                                    <div className="text-sm font-black text-foreground truncate group-hover:text-accent-blue transition-colors uppercase tracking-tight">
-                                                                        {resource.title || "Sin título"}
-                                                                    </div>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <div className="text-sm font-black text-foreground truncate group-hover:text-accent-blue transition-colors uppercase tracking-tight">
+                                                                                {resource.title || "Sin título"}
+                                                                            </div>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>{resource.title || "Sin título"}</TooltipContent>
+                                                                    </Tooltip>
                                                                     <p className="text-[10px] text-text-muted leading-relaxed line-clamp-2">
                                                                         {resource.description || (isFolder ? "Carpeta de recursos" : "Sin descripción")}
                                                                     </p>
@@ -518,7 +665,15 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                                                                 title="Descargar"
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
-                                                                                    window.open(toDriveDownloadUrl(resource.url ?? '') ?? resource.url, '_blank');
+                                                                                    const dlUrl = toDriveDownloadUrl(resource.url ?? '') ?? resource.url;
+                                                                                    const a = document.createElement('a');
+                                                                                    a.href = dlUrl;
+                                                                                    a.download = resource.title || 'download';
+                                                                                    a.target = '_blank';
+                                                                                    a.rel = 'noopener noreferrer';
+                                                                                    document.body.appendChild(a);
+                                                                                    a.click();
+                                                                                    document.body.removeChild(a);
                                                                                 }}
                                                                             >
                                                                                 <Download className="size-3" />
@@ -556,9 +711,14 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                                             <ResourceIcon type={resource.type} mimeType={resource.mimeType} className="rounded-lg" />
                                                         </div>
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="text-sm font-black text-foreground group-hover:text-accent-blue transition-colors truncate uppercase tracking-tight">
-                                                                {resource.title || "Sin título"}
-                                                            </div>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <div className="text-sm font-black text-foreground group-hover:text-accent-blue transition-colors truncate uppercase tracking-tight">
+                                                                        {resource.title || "Sin título"}
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>{resource.title || "Sin título"}</TooltipContent>
+                                                            </Tooltip>
                                                             <p className="text-[10px] text-text-muted truncate">
                                                                 {resource.description || (isFolder ? "Carpeta de recursos" : "Sin descripción")}
                                                             </p>
@@ -571,7 +731,15 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                                                     title="Descargar"
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
-                                                                        window.open(toDriveDownloadUrl(resource.url ?? '') ?? resource.url, '_blank');
+                                                                        const dlUrl = toDriveDownloadUrl(resource.url ?? '') ?? resource.url;
+                                                                        const a = document.createElement('a');
+                                                                        a.href = dlUrl;
+                                                                        a.download = resource.title || 'download';
+                                                                        a.target = '_blank';
+                                                                        a.rel = 'noopener noreferrer';
+                                                                        document.body.appendChild(a);
+                                                                        a.click();
+                                                                        document.body.removeChild(a);
                                                                     }}
                                                                 >
                                                                     <Download className="size-3" />
@@ -588,6 +756,7 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                 })()}
                             </div>
                         </main>
+                        </TooltipProvider>
                     ) : (
                         <main className="flex-1 relative overflow-hidden bg-background">
                             <ReactFlow
@@ -598,14 +767,18 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                 onConnect={onConnect}
                                 onNodeClick={onNodeClick}
                                 onEdgeClick={onEdgeClick}
+                                onEdgeContextMenu={onEdgeContextMenu}
                                 onInit={setRfInstance}
                                 onDrop={onDrop}
                                 onDragOver={onDragOver}
                                 onNodeDragStop={onNodeDragStop}
                                 onEdgesDelete={onEdgesDelete}
                                 onNodesDelete={onNodesDelete}
+                                onPaneClick={() => { setSelectedActivity(null); setEdgeContextMenu(null); }}
+                                onReconnect={onReconnect}
                                 nodeTypes={nodeTypes}
                                 connectionMode={ConnectionMode.Loose}
+                                edgesReconnectable={isTeacher && !isEraserMode}
                                 fitView
                                 nodesDraggable={isTeacher && !isEraserMode}
                                 nodesConnectable={isTeacher && !isEraserMode}
@@ -623,7 +796,12 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                         border: '1px solid var(--color-border)',
                                     }}
                                     nodeColor={(n) => {
-                                        if (n.type === 'mission') return '#22d3ee';
+                                        if (n.type === 'mission') {
+                                            const status = (n.data as any)?.status;
+                                            if (status === 'blocked') return '#64748b';
+                                            if (status === 'draft') return '#f97316';
+                                            return '#22d3ee';
+                                        }
                                         return '#1e293b';
                                     }}
                                     maskColor="rgba(0, 0, 0, 0.3)"
@@ -667,6 +845,34 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                     className="bg-popover/80! border-border! dark:bg-surface-dark/80! dark:border-border-strong! rounded-lg! overflow-hidden! [&_button]:border-border-subtle! [&_button]:text-muted-foreground! dark:[&_button]:text-text-muted! hover:[&_button]:text-foreground! dark:hover:[&_button]:text-white! m-6 shadow-2xl"
                                 />
                             </ReactFlow>
+
+                            {/* Edge context menu */}
+                            {edgeContextMenu && (
+                                <div
+                                    className="fixed z-50"
+                                    style={{ top: edgeContextMenu.y, left: edgeContextMenu.x }}
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <div className="w-52 bg-popover border border-border text-popover-foreground backdrop-blur-xl rounded-xl shadow-2xl p-1">
+                                        <button
+                                            onClick={async () => {
+                                                setEdges((eds) => eds.filter((e) => e.id !== edgeContextMenu.edge.id));
+                                                const result = await deleteActivityConnection(edgeContextMenu.edge.id, unit.id);
+                                                if (result.success) {
+                                                    toast.success("Conexión eliminada");
+                                                } else {
+                                                    toast.error("Error al eliminar la conexión");
+                                                }
+                                                setEdgeContextMenu(null);
+                                            }}
+                                            className="w-full flex gap-2 items-center px-3 py-2 text-sm rounded-lg hover:bg-accent-red/10 text-accent-red cursor-pointer transition-colors"
+                                        >
+                                            <Trash2 className="size-4" />
+                                            Eliminar conexión
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </main>
                     )}
                 </div>

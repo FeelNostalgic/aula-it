@@ -25,6 +25,8 @@ interface StudentSidebarProps {
 
 export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMission, activeView, onViewChange }: StudentSidebarProps) {
     const isBlocked = selectedActivity?.status === 'blocked';
+    const isDraft = selectedActivity?.status === 'draft';
+    const isDisabled = isBlocked || isDraft;
 
     const getDifficultyColor = (diff?: string | null) => {
         const d = diff?.toLowerCase();
@@ -131,18 +133,30 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                                     <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">XP</div>
                                     <div className="text-xs font-black text-accent-amber flex items-center gap-1">
                                         <Zap className="size-3 fill-accent-amber" />
-                                        {selectedActivity.xp}
+                                        {selectedActivity.xp || 0}
                                     </div>
                                 </div>
+                                {selectedActivity.stepsCount > 0 && (
+                                    <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
+                                        <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">Pasos</div>
+                                        <div className="text-xs font-black text-foreground">{selectedActivity.stepsCount}</div>
+                                    </div>
+                                )}
+                                {selectedActivity.duration && (
+                                    <div className="bg-muted/50 border border-border p-2.5 rounded-xl">
+                                        <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1.5">Tiempo</div>
+                                        <div className="text-xs font-black text-foreground">{selectedActivity.duration}</div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Action Button */}
                             <Button
                                 onClick={() => onStartMission?.(selectedActivity.id)}
-                                disabled={isBlocked}
+                                disabled={isDisabled}
                                 className={cn(
                                     "w-full h-12 rounded-xl font-black uppercase tracking-[0.15em] text-[10px] transition-all duration-300",
-                                    isBlocked
+                                    isDisabled
                                         ? "bg-surface-dark border-border-strong text-text-muted/40"
                                         : "bg-accent-blue hover:bg-accent-blue/90 text-white shadow-[0_8px_20px_-4px_rgba(34,211,238,0.4)]"
                                 )}
@@ -151,6 +165,11 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                                     <div className="flex items-center gap-2">
                                         <Lock className="size-3.5" />
                                         Bloqueada
+                                    </div>
+                                ) : isDraft ? (
+                                    <div className="flex items-center gap-2">
+                                        <Lock className="size-3.5" />
+                                        Borrador
                                     </div>
                                 ) : (
                                     <div className="flex items-center gap-2">

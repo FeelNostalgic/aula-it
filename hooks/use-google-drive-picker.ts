@@ -24,6 +24,7 @@ export interface PickerOptions {
     multiSelect?: boolean;
     title?: string;
     externalAccessToken?: string; // Skip OAuth flow when provided (server-side token)
+    autoShareAll?: boolean; // Auto-share all file types (not just images). Use for unit resources.
 }
 
 /**
@@ -209,13 +210,14 @@ export function useGoogleDrivePicker() {
                                 lastEditedUtc: doc.lastEditedUtc,
                             }));
 
-                            // Auto-share the selected files if they are images (required for proxy to work)
+                            // Auto-share selected files. Always shares images (required for proxy).
+                            // When autoShareAll=true, also shares non-image files (e.g. PDFs in unit resources).
                             if (options?.externalAccessToken || accessTokenRef.current) {
                                 const tokenToUse = options?.externalAccessToken || accessTokenRef.current;
                                 if (tokenToUse) {
                                     await Promise.all(
                                         files
-                                            .filter((f) => f.mimeType?.startsWith("image/"))
+                                            .filter((f) => options?.autoShareAll || f.mimeType?.startsWith("image/"))
                                             .map((f) =>
                                                 fetch(`https://www.googleapis.com/drive/v3/files/${f.id}/permissions`, {
                                                     method: "POST",

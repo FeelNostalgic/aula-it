@@ -160,7 +160,7 @@ export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabP
 
     const openDrivePicker = async () => {
         try {
-            const files = await openPicker();
+            const files = await openPicker({ autoShareAll: true });
             if (files.length === 0) return;
 
             const newItems: ResourceItem[] = files.map((file) => ({
