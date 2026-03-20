@@ -64,6 +64,7 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [columnCount, setColumnCount] = useState<2 | 3 | 4>(3);
     const [edgeContextMenu, setEdgeContextMenu] = useState<{ edge: Edge; x: number; y: number } | null>(null);
+    const [editingEdge, setEditingEdge] = useState<Edge | null>(null);
 
     // Persist view mode and column count preferences
     React.useEffect(() => {
@@ -187,6 +188,12 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
         async (params) => {
             if (!isTeacher || isEraserMode) return;
 
+            // Guard: prevent duplicate connections
+            if (edges.some(e => e.source === params.source && e.target === params.target)) {
+                toast.warning("Ya existe una conexión entre estos dos nodos");
+                return;
+            }
+
             // Optimistic update
             setEdges((eds) => addEdge({
                 ...params,
@@ -210,7 +217,7 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                 }
             }
         },
-        [setEdges, isTeacher, unit.id]
+        [edges, setEdges, isTeacher, isEraserMode, unit.id]
     );
 
     const onEdgesDelete = useCallback(async (deletedEdges: Edge[]) => {
@@ -239,6 +246,45 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
     }, [isTeacher, unit.id]);
 
     const onNodeClick = useCallback(async (event: React.MouseEvent, node: Node) => {
+        // Editing mode: click a node to set as new connection target
+        if (editingEdge) {
+            if (node.id === editingEdge.source) {
+                toast.error("No puedes conectar un nodo consigo mismo");
+                return;
+            }
+            if (node.id === editingEdge.target) {
+                toast.info("El destino ya era ese nodo");
+                setEditingEdge(null);
+                return;
+            }
+            if (edges.some(e => e.source === editingEdge.source && e.target === node.id)) {
+                toast.warning("Ya existe una conexión entre esos nodos");
+                setEditingEdge(null);
+                return;
+            }
+            // Delete old edge optimistically
+            setEdges((eds) => eds.filter(e => e.id !== editingEdge.id));
+            await deleteActivityConnection(editingEdge.id, unit.id);
+
+            // Create new edge
+            const newEdgeParams = {
+                source: editingEdge.source,
+                target: node.id,
+                sourceHandle: editingEdge.sourceHandle || 'bottom',
+                targetHandle: editingEdge.targetHandle || 'top',
+            };
+            setEdges((eds) => addEdge({
+                ...newEdgeParams,
+                animated: true,
+                style: { stroke: 'var(--color-accent-blue)', strokeWidth: 2 },
+                markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--color-accent-blue)' }
+            }, eds));
+            await createActivityConnection(unit.id, newEdgeParams.source, newEdgeParams.target, newEdgeParams.sourceHandle, newEdgeParams.targetHandle);
+            toast.success("Conexión actualizada");
+            setEditingEdge(null);
+            return;
+        }
+
         if (isEraserMode && isTeacher) {
             // 1. Find and delete connected edges first
             const connectedEdges = edges.filter(
@@ -262,7 +308,7 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
         }
         const activity = activities.find(a => a.id === node.id);
         setSelectedActivity(activity || null);
-    }, [activities, isEraserMode, isTeacher, unit.id, setNodes]);
+    }, [activities, isEraserMode, isTeacher, unit.id, setNodes, editingEdge, edges, setEdges]);
 
     const onEdgeClick = useCallback(async (event: React.MouseEvent, edge: Edge) => {
         if (isEraserMode && isTeacher) {
@@ -758,7 +804,7 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                         </main>
                         </TooltipProvider>
                     ) : (
-                        <main className="flex-1 relative overflow-hidden bg-background">
+                        <main className={cn("flex-1 relative overflow-hidden bg-background", editingEdge && "cursor-crosshair")}>
                             <ReactFlow
                                 nodes={enrichedNodes}
                                 edges={edges}
@@ -774,7 +820,14 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                 onNodeDragStop={onNodeDragStop}
                                 onEdgesDelete={onEdgesDelete}
                                 onNodesDelete={onNodesDelete}
-                                onPaneClick={() => { setSelectedActivity(null); setEdgeContextMenu(null); }}
+                                onPaneClick={() => {
+                                    setSelectedActivity(null);
+                                    setEdgeContextMenu(null);
+                                    if (editingEdge) {
+                                        setEditingEdge(null);
+                                        toast.info("Edición cancelada");
+                                    }
+                                }}
                                 onReconnect={onReconnect}
                                 nodeTypes={nodeTypes}
                                 connectionMode={ConnectionMode.Loose}
@@ -856,8 +909,9 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                     <div className="w-52 bg-popover border border-border text-popover-foreground backdrop-blur-xl rounded-xl shadow-2xl p-1">
                                         <button
                                             onClick={() => {
+                                                setEditingEdge(edgeContextMenu.edge);
                                                 setEdgeContextMenu(null);
-                                                toast.info("Arrastra el extremo de la conexión para cambiar su destino", { duration: 4000 });
+                                                toast.info("Haz clic en el nodo destino para reconectar", { duration: 5000 });
                                             }}
                                             className="w-full flex gap-2 items-center px-3 py-2 text-sm rounded-lg hover:bg-accent/10 cursor-pointer transition-colors"
                                         >
