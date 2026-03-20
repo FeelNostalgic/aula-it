@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, Suspense } from "react";
 import { useFormStatus } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { loginTeacher, loginWithGoogle } from "../actions";
@@ -13,13 +13,29 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
+function OAuthErrorBanner() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get("error") === "unauthorized"
+    ? "Acceso denegado. Solo los profesores y administradores pueden acceder desde esta pantalla."
+    : null;
+
+  if (!error) return null;
+  return (
+    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+      <p className="text-[10px] font-mono text-destructive uppercase text-center tracking-tight">
+        {error}
+      </p>
+    </div>
+  );
+}
+
 function LoginButton() {
   const { pending } = useFormStatus();
 
   return (
     <Button
       disabled={pending}
-      className="w-full h-12 text-white font-bold shadow-lg shadow-primary/20"
+      className="w-full h-12 text-foreground font-bold shadow-lg shadow-primary/20"
       type="submit"
     >
       {pending ? (
@@ -35,10 +51,6 @@ function LoginButton() {
 export default function TeacherLoginPage() {
   const [state, formAction] = useActionState(loginTeacher, null);
   const [showPassword, setShowPassword] = useState(false);
-  const searchParams = useSearchParams();
-  const oauthError = searchParams.get("error") === "unauthorized"
-    ? "Acceso denegado. Solo los profesores y administradores pueden acceder desde esta pantalla."
-    : null;
 
   return (
     <div className="bg-background text-foreground min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
@@ -60,7 +72,7 @@ export default function TeacherLoginPage() {
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="flex items-center gap-3 text-primary">
             <Terminal className="size-8" />
-            <h1 className="text-2xl font-bold tracking-tight text-white">Aula IT</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Aula IT</h1>
           </div>
         </div>
 
@@ -72,7 +84,7 @@ export default function TeacherLoginPage() {
                 <GraduationCap className="size-5 text-primary" />
               </div>
             </div>
-            <CardTitle className="text-xl font-mono tracking-wider uppercase text-white">Acceso Docente</CardTitle>
+            <CardTitle className="text-xl font-mono tracking-wider uppercase text-foreground">Acceso Docente</CardTitle>
             <CardDescription className="text-xs uppercase tracking-widest font-mono text-muted-foreground">
               Profesores y Administradores
             </CardDescription>
@@ -120,10 +132,14 @@ export default function TeacherLoginPage() {
                 </div>
               </div>
 
-              {(state?.error || oauthError) && (
+              <Suspense fallback={null}>
+                <OAuthErrorBanner />
+              </Suspense>
+
+              {state?.error && (
                 <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
                   <p className="text-[10px] font-mono text-destructive uppercase text-center tracking-tight">
-                    {state?.error ?? oauthError}
+                    {state.error}
                   </p>
                 </div>
               )}
@@ -144,7 +160,7 @@ export default function TeacherLoginPage() {
             <Button
               variant="outline"
               onClick={() => loginWithGoogle()}
-              className="w-full h-12 bg-background/50 border-border/50 hover:bg-accent/10 text-white text-xs font-mono tracking-wider"
+              className="w-full h-12 bg-background/50 border-border/50 hover:bg-accent/10 text-foreground text-xs font-mono tracking-wider"
             >
               <Chrome className="mr-2 h-4 w-4 text-primary" />
               CONTINUAR CON GOOGLE
