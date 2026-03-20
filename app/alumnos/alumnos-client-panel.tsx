@@ -740,7 +740,13 @@ export function AlumnosClientPanel({ initialStudents, fetchError, modules }: Pro
                               <TableCell className="font-bold">{r.identifier}</TableCell>
                               <TableCell className="text-muted-foreground">{r.error ? "—" : r.password}</TableCell>
                               <TableCell className="text-center">
-                                {r.error ? <XCircle className="size-3 text-destructive inline" title={r.error} /> : <CheckCircle2 className="size-3 text-green-500 inline" />}
+                                {r.error ? (
+                                  <span title={r.error}>
+                                    <XCircle className="size-3 text-destructive inline" />
+                                  </span>
+                                ) : (
+                                  <CheckCircle2 className="size-3 text-green-500 inline" />
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}
