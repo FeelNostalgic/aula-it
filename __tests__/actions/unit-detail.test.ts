@@ -891,7 +891,7 @@ describe("reopenSubmission", () => {
 
     const result = await reopenSubmission("sub-1");
 
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({ success: true, warning: null });
     expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });
