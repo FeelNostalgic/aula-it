@@ -722,7 +722,7 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
                                 <TableRow
                                     key={row.id}
                                     data-state={row.getIsSelected() ? "selected" : undefined}
-                                    className={cn("group", row.getIsSelected() ? "bg-accent-blue/[0.04]" : "")}
+                                    className={cn("group", row.getIsSelected() ? "bg-accent-blue/4" : "")}
                                 >
                                     {row.getVisibleCells().map(cell => (
                                         <TableCell key={cell.id}>
@@ -1203,7 +1203,7 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
             <div className="flex-1 bg-surface border border-border-strong rounded-[2rem] overflow-hidden flex flex-col shadow-xl shadow-black/5">
                 <div className="overflow-auto custom-scrollbar flex-1">
                     <table className="w-full text-sm text-left border-collapse">
-                        <thead className="border-b border-border-strong sticky top-0 z-20 shadow-[0_1px_3px_rgba(0,0,0,0.15)]">
+                        <thead className="border-b border-border-strong">
                             {/* Row 1: Reto group headers */}
                             {(() => {
                                 const retoSum = activitiesWithSteps.reduce((s, a) => s + (weights[a.id] ?? 0), 0);
@@ -1216,7 +1216,7 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                                         className={cn(
                                             "px-4 py-3 text-center border-b border-border-strong/20",
                                             "border-l-2 border-l-border-strong",
-                                            i % 2 === 0 ? "bg-surface" : "bg-white/[0.02]",
+                                            i % 2 === 0 ? "bg-surface" : "bg-white/2",
                                         )}>
                                         <div className="flex flex-col items-center gap-2">
                                             <span className="truncate max-w-[180px] text-foreground/80 uppercase tracking-tight text-[11px]" title={activity.title}>{activity.title}</span>
@@ -1230,14 +1230,14 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                                         </div>
                                     </th>
                                 ))}
-                                <th rowSpan={2} className="px-4 py-4 text-center border-l-2 border-accent-blue/10 bg-accent-blue/[0.03] min-w-[100px] w-[100px] align-middle rounded-tr-[2rem]">
+                                <th rowSpan={2} className="px-4 py-4 text-center border-l-2 border-accent-blue/10 bg-accent-blue/3 min-w-[100px] w-[100px] align-middle rounded-tr-[2rem]">
                                     <div className="flex flex-col items-center gap-1">
                                         <span className="text-xs">Promedio</span>
                                         <span className={cn(
-                                            "text-[10px] font-mono tabular-nums px-2 py-0.5 rounded-md",
+                                            "text-[16px] font-mono tabular-nums px-2 py-0.5 rounded-md",
                                             retoSumValid ? "text-emerald-400/60" : "text-red-400 bg-red-500/10"
                                         )}>
-                                            Σ {Math.round(retoSum)}%
+                                            {Math.round(retoSum)}%
                                         </span>
                                     </div>
                                 </th>
@@ -1252,7 +1252,7 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                                         <th key={step.id} className={cn(
                                             "px-3 py-2.5 text-center border-r border-border-strong/15 min-w-[120px]",
                                             stepIdx === 0 && "border-l-2 border-l-border-strong",
-                                            actIdx % 2 === 0 ? "bg-surface-dark/10" : "bg-white/[0.03]",
+                                            actIdx % 2 === 0 ? "bg-surface-dark/10" : "bg-white/3",
                                         )}>
                                             <div className="flex flex-col items-center gap-1.5">
                                                 <span className="truncate max-w-[100px] text-[10px] text-text-muted/50 font-black uppercase tracking-widest">{step.title}</span>
@@ -1276,8 +1276,8 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                                 return (
                                     <tr key={student.student_id} className={cn(
                                         "transition-colors group border-b border-border-subtle/30",
-                                        idx % 2 === 1 ? "bg-white/[0.015]" : "",
-                                        "hover:bg-accent-blue/[0.03]"
+                                        idx % 2 === 1 ? "bg-white/1.5" : "",
+                                        "hover:bg-accent-blue/3"
                                     )}>
                                         <td className="px-4 py-2.5 border-r border-border-strong/30 bg-surface/40 sticky left-0 z-10 whitespace-nowrap">
                                             <div className="flex items-center gap-2.5">
@@ -1294,8 +1294,8 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                                                     <td key={step.id} className={cn(
                                                         "px-3 py-2.5 text-center border-r border-border-strong/15",
                                                         stepIdx === 0 && "border-l-2 border-l-border-strong/40",
-                                                        status === 'graded' && "bg-emerald-500/[0.02]",
-                                                        status !== 'graded' && actIdx % 2 === 1 && "bg-white/[0.01]",
+                                                        status === 'graded' && "bg-emerald-500/2",
+                                                        status !== 'graded' && actIdx % 2 === 1 && "bg-white/1",
                                                     )}>
                                                         {status === 'graded' && grade !== null && (
                                                             <span className="font-mono text-xs font-black text-emerald-400 tabular-nums">{grade.toFixed(1)}</span>
@@ -1310,7 +1310,7 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                                                 );
                                             })
                                         )}
-                                        <td className="px-4 py-2.5 text-center border-l-2 border-accent-blue/10 bg-accent-blue/[0.02] group-hover:bg-accent-blue/[0.05] transition-colors">
+                                        <td className="px-4 py-2.5 text-center border-l-2 border-accent-blue/10 bg-accent-blue/2 group-hover:bg-accent-blue/5 transition-colors">
                                             {total !== null ? (
                                                 <div className={cn(
                                                     "inline-flex items-center justify-center size-10 rounded-2xl font-mono text-xs font-black border tabular-nums shadow-sm",
@@ -1372,7 +1372,7 @@ function PercentageInput({ entityId, value, groupSum, onChange, onSave, variant 
             onKeyDown={e => { if (e.key === "Enter") handleBlur(); if (e.key === "Escape") { setDraft(String(Math.round(value))); setEditing(false); } }}
             className={cn(
                 "text-center bg-background border rounded-lg font-mono font-black outline-none tabular-nums",
-                isStep ? "w-14 text-[11px] px-1.5 py-1 border-accent-amber/50 text-accent-amber" : "w-16 text-xs px-2 py-1.5 border-accent-blue/50 text-accent-blue"
+                isStep ? "w-14 text-[13px] px-1.5 py-1 border-accent-amber/50 text-accent-amber" : "w-16 text-[14px] px-2 py-1.5 border-accent-blue/50 text-accent-blue"
             )}
         />
     );
@@ -1382,8 +1382,8 @@ function PercentageInput({ entityId, value, groupSum, onChange, onSave, variant 
             className={cn(
                 "font-black font-mono transition-all border bg-surface-dark tabular-nums",
                 isStep
-                    ? "text-[11px] px-2 py-1 rounded-lg hover:border-accent-amber/30"
-                    : "text-xs px-2.5 py-1.5 rounded-lg hover:border-accent-blue/30",
+                    ? "text-[13px] px-2 py-1 rounded-lg hover:border-accent-amber/30"
+                    : "text-[14px] px-2.5 py-1.5 rounded-lg hover:border-accent-blue/30",
                 !isValid
                     ? "text-red-400 border-red-500/30 hover:text-red-300"
                     : isStep
