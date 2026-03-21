@@ -29,6 +29,8 @@ import {
   updateStepVisibility,
   updateStepDueDate,
   updateStepLock,
+  updateStepXp,
+  updateStepCompletionMode,
 } from "@/app/activities/[id]/edit/actions";
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
@@ -618,6 +620,84 @@ describe("updateStepLock", () => {
     vi_verifyOwnsStep.mockResolvedValue(true);
 
     const result = await updateStepLock("step-1", true);
+
+    expect(result).toEqual({ data: step });
+  });
+});
+
+// ─── updateStepXp ─────────────────────────────────────────────────────────────
+
+describe("updateStepXp", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await updateStepXp("step-1", 50);
+
+    expect(result).toEqual({ error: "No autenticado." });
+  });
+
+  it("returns error when teacher does not own the step", async () => {
+    const user = createMockUser();
+    const { client } = new SupabaseMockBuilder().mockAuth(user).build();
+    vi_createClient.mockResolvedValue(client as any);
+    vi_verifyOwnsStep.mockResolvedValue(false);
+
+    const result = await updateStepXp("step-1", 50);
+
+    expect(result).toEqual({ error: "No autorizado." });
+  });
+
+  it("updates xp via admin client and returns data on success", async () => {
+    const user = createMockUser();
+    const step = createMockStep({ xp: 50 });
+
+    setupAuthAndAdmin(
+      user,
+      new SupabaseMockBuilder().mockUpdate("activity_steps", { data: step, error: null })
+    );
+    vi_verifyOwnsStep.mockResolvedValue(true);
+
+    const result = await updateStepXp("step-1", 50);
+
+    expect(result).toEqual({ data: step });
+  });
+});
+
+// ─── updateStepCompletionMode ─────────────────────────────────────────────────
+
+describe("updateStepCompletionMode", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await updateStepCompletionMode("step-1", "required");
+
+    expect(result).toEqual({ error: "No autenticado." });
+  });
+
+  it("returns error when teacher does not own the step", async () => {
+    const user = createMockUser();
+    const { client } = new SupabaseMockBuilder().mockAuth(user).build();
+    vi_createClient.mockResolvedValue(client as any);
+    vi_verifyOwnsStep.mockResolvedValue(false);
+
+    const result = await updateStepCompletionMode("step-1", "viewable");
+
+    expect(result).toEqual({ error: "No autorizado." });
+  });
+
+  it("updates completion_mode via admin client and returns data on success", async () => {
+    const user = createMockUser();
+    const step = createMockStep({ completion_mode: "required" });
+
+    setupAuthAndAdmin(
+      user,
+      new SupabaseMockBuilder().mockUpdate("activity_steps", { data: step, error: null })
+    );
+    vi_verifyOwnsStep.mockResolvedValue(true);
+
+    const result = await updateStepCompletionMode("step-1", "required");
 
     expect(result).toEqual({ data: step });
   });

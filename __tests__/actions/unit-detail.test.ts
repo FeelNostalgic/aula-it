@@ -19,6 +19,15 @@ import {
   getUnitStepSubmissions,
   gradeSubmission,
   updateUnitResources,
+  deleteUnit,
+  duplicateActivity,
+  duplicateUnit,
+  saveQuizShortAnswerScores,
+  reopenSubmission,
+  publishSubmissionGrade,
+  publishAllGradesForStep,
+  updateStepWeight,
+  updateActivityWeight,
 } from "@/app/dashboard/units/[id]/actions";
 
 const vi_createClient = vi.mocked(createClient);
@@ -753,5 +762,378 @@ describe("updateUnitResources", () => {
 
     expect(result).toEqual({ success: true });
     expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
+  });
+});
+
+// ─── deleteUnit ───────────────────────────────────────────────────────────────
+
+describe("deleteUnit", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuthError("session expired").build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await deleteUnit("unit-1");
+
+    expect(result).toEqual({ error: "Not authenticated" });
+  });
+
+  it("returns error when user is not a teacher", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "student" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await deleteUnit("unit-1");
+
+    expect(result).toEqual({ error: "Unauthorized" });
+  });
+
+  it("deletes unit and revalidates paths", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "teacher" }), error: null })
+      .mockQuery("units", { data: { module_id: "module-1" }, error: null })
+      .mockDelete("units", { data: null, error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await deleteUnit("unit-1");
+
+    expect(result).toEqual({ success: true });
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/modules/module-1");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
+});
+
+// ─── saveQuizShortAnswerScores ────────────────────────────────────────────────
+
+describe("saveQuizShortAnswerScores", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await saveQuizShortAnswerScores("attempt-1", {}, {}, 5);
+
+    expect(result).toEqual({ error: "No autenticado." });
+  });
+
+  it("returns error when user is not a teacher", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "student" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await saveQuizShortAnswerScores("attempt-1", {}, {}, 5);
+
+    expect(result).toEqual({ error: "Solo profesores." });
+  });
+
+  it("calculates totalEarned = autoPoints + sum(manualScores) and updates attempt", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "teacher" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockUpdate("quiz_attempts", { data: null, error: null })
+      .build();
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await saveQuizShortAnswerScores(
+      "attempt-1",
+      { "q1": 3, "q2": 2 },
+      { "q1": "Good answer", "q2": "Correct" },
+      5
+    );
+
+    expect(result).toEqual({ success: true });
+  });
+});
+
+// ─── reopenSubmission ─────────────────────────────────────────────────────────
+
+describe("reopenSubmission", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await reopenSubmission("sub-1");
+
+    expect(result).toEqual({ error: "No autenticado." });
+  });
+
+  it("returns error when user is not a teacher", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "student" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await reopenSubmission("sub-1");
+
+    expect(result).toEqual({ error: "Solo profesores." });
+  });
+
+  it("resets submission to submitted and clears timestamps", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "teacher" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockUpdate("activity_submissions", { data: null, error: null })
+      .build();
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await reopenSubmission("sub-1");
+
+    expect(result).toEqual({ success: true });
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
+  });
+});
+
+// ─── publishSubmissionGrade ───────────────────────────────────────────────────
+
+describe("publishSubmissionGrade", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await publishSubmissionGrade("sub-1");
+
+    expect(result).toEqual({ error: "No autenticado." });
+  });
+
+  it("sets published_at and status=published", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "teacher" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockUpdate("activity_submissions", { data: null, error: null })
+      .build();
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await publishSubmissionGrade("sub-1");
+
+    expect(result).toEqual({ success: true });
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
+  });
+});
+
+// ─── publishAllGradesForStep ──────────────────────────────────────────────────
+
+describe("publishAllGradesForStep", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await publishAllGradesForStep("step-1");
+
+    expect(result).toEqual({ error: "No autenticado." });
+  });
+
+  it("publishes all graded submissions and returns count", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "teacher" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockUpdate("activity_submissions", {
+        data: [{ id: "sub-1" }, { id: "sub-2" }],
+        error: null,
+      })
+      .build();
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await publishAllGradesForStep("step-1");
+
+    expect(result).toEqual({ success: true, count: 2 });
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
+  });
+});
+
+// ─── updateStepWeight ─────────────────────────────────────────────────────────
+
+describe("updateStepWeight", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await updateStepWeight("step-1", 2);
+
+    expect(result).toEqual({ error: "No autenticado." });
+  });
+
+  it("updates grade_weight and returns success", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "teacher" }), error: null })
+      .mockUpdate("activity_steps", { data: null, error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await updateStepWeight("step-1", 2);
+
+    expect(result).toEqual({ success: true });
+  });
+});
+
+// ─── updateActivityWeight ─────────────────────────────────────────────────────
+
+describe("updateActivityWeight", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await updateActivityWeight("activity-1", 3);
+
+    expect(result).toEqual({ error: "No autenticado." });
+  });
+
+  it("updates activity grade_weight and returns success", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "teacher" }), error: null })
+      .mockUpdate("activities", { data: null, error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await updateActivityWeight("activity-1", 3);
+
+    expect(result).toEqual({ success: true });
+  });
+});
+
+// ─── duplicateActivity ────────────────────────────────────────────────────────
+
+describe("duplicateActivity", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await duplicateActivity("unit-1", "activity-1");
+
+    expect(result).toEqual({ error: "Not authenticated" });
+  });
+
+  it("returns error when user is not a teacher", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "student" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await duplicateActivity("unit-1", "activity-1");
+
+    expect(result).toEqual({ error: "Unauthorized" });
+  });
+
+  it("returns error when activity is not found", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "teacher" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockQuery("activities", { data: null, error: { message: "not found" } })
+      .build();
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await duplicateActivity("unit-1", "activity-1");
+
+    expect(result).toEqual({ error: "Activity not found" });
+  });
+
+  it("duplicates activity with - copia suffix and returns success", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "teacher" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const originalActivity = {
+      id: "activity-1",
+      title: "My Activity",
+      activity_phases: [],
+      order_index: 0,
+      position_x: 100,
+      position_y: 100,
+    };
+    const newActivity = { id: "new-activity-id", title: "My Activity - copia" };
+
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockQuery("activities", { data: originalActivity, error: null })
+      .mockInsert("activities", { data: newActivity, error: null })
+      .build();
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await duplicateActivity("unit-1", "activity-1");
+
+    expect(result).toEqual({ success: true });
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
+  });
+});
+
+// ─── duplicateUnit ────────────────────────────────────────────────────────────
+
+describe("duplicateUnit", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await duplicateUnit("module-1", "unit-1");
+
+    expect(result).toEqual({ error: "Not authenticated" });
+  });
+
+  it("returns error when user is not a teacher", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "student" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await duplicateUnit("module-1", "unit-1");
+
+    expect(result).toEqual({ error: "Unauthorized" });
+  });
+
+  it("duplicates unit and returns success", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "teacher" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const originalUnit = {
+      id: "unit-1",
+      name: "My Unit",
+      activities: [],
+      class_milestones: [],
+      class_badges: [],
+      order_index: 0,
+    };
+    const newUnit = { id: "new-unit-id", name: "My Unit - copia" };
+
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockQuery("units", { data: originalUnit, error: null })
+      .mockInsert("units", { data: newUnit, error: null })
+      .build();
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await duplicateUnit("module-1", "unit-1");
+
+    expect(result).toEqual({ success: true });
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/modules/module-1");
   });
 });

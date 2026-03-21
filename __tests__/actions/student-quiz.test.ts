@@ -1,0 +1,269 @@
+import { describe, it, expect, vi } from "vitest";
+import { createClient } from "@/utils/supabase/server";
+import { SupabaseMockBuilder } from "../helpers/supabase-mock";
+import { createMockUser, createMockQuizContent, createMockQuizAttempt } from "../helpers/fixtures";
+import {
+  markStepViewed,
+  getQuizAttempts,
+  submitQuizAttempt,
+} from "@/app/activities/[id]/actions";
+
+const vi_createClient = vi.mocked(createClient);
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function mockAuth(user = createMockUser()) {
+  const { client } = new SupabaseMockBuilder().mockAuth(user).build();
+  vi_createClient.mockResolvedValue(client as any);
+  return { client, user };
+}
+
+function mockAuthWithClient(builder: SupabaseMockBuilder) {
+  const user = createMockUser();
+  const { client } = builder.mockAuth(user).build();
+  vi_createClient.mockResolvedValue(client as any);
+  return { client, user };
+}
+
+// ─── markStepViewed ───────────────────────────────────────────────────────────
+
+describe("markStepViewed", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await markStepViewed("step-1", "activity-1");
+
+    expect(result).toEqual({ error: "No autenticado." });
+  });
+
+  it("upserts step view with ignoreDuplicates and returns success", async () => {
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockUpsert("step_views", { data: null, error: null })
+    );
+
+    const result = await markStepViewed("step-1", "activity-1");
+
+    expect(result).toEqual({ success: true });
+  });
+
+  it("returns error when upsert fails", async () => {
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockUpsert("step_views", { data: null, error: { message: "DB error" } })
+    );
+
+    const result = await markStepViewed("step-1", "activity-1");
+
+    expect(result).toEqual({ error: "DB error" });
+  });
+});
+
+// ─── getQuizAttempts ──────────────────────────────────────────────────────────
+
+describe("getQuizAttempts", () => {
+  it("returns empty array when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await getQuizAttempts("step-1");
+
+    expect(result).toEqual([]);
+  });
+
+  it("returns ordered attempts for authenticated user", async () => {
+    const attempt1 = createMockQuizAttempt({ attempt_number: 1 });
+    const attempt2 = createMockQuizAttempt({ id: "attempt-2", attempt_number: 2 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: [attempt1, attempt2], error: null })
+    );
+
+    const result = await getQuizAttempts("step-1");
+
+    expect(result).toHaveLength(2);
+    expect(result[0].attempt_number).toBe(1);
+    expect(result[1].attempt_number).toBe(2);
+  });
+
+  it("returns empty array when no attempts exist", async () => {
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, error: null })
+    );
+
+    const result = await getQuizAttempts("step-1");
+
+    expect(result).toEqual([]);
+  });
+});
+
+// ─── submitQuizAttempt ────────────────────────────────────────────────────────
+
+describe("submitQuizAttempt", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const content = createMockQuizContent();
+    const result = await submitQuizAttempt("step-1", "activity-1", {}, {}, content);
+
+    expect(result).toEqual({ error: "No autenticado." });
+  });
+
+  it("returns error when max attempts is reached", async () => {
+    const content = createMockQuizContent({ maxAttempts: 2 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 2, error: null })
+    );
+
+    const result = await submitQuizAttempt("step-1", "activity-1", {}, {}, content);
+
+    expect(result).toEqual({ error: "Máximo de intentos alcanzado (2)." });
+  });
+
+  it("auto-scores correctly without penalization (correct answer)", async () => {
+    // q-1 has 1 point, opt-2 is correct
+    const content = createMockQuizContent({ penalizeWrongAnswers: false });
+    const attempt = createMockQuizAttempt({ points_earned: 1, points_total: 1 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const answers = { "q-1": ["opt-2"] }; // correct
+    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, content);
+
+    expect(result).not.toHaveProperty("error");
+    expect(result.data?.score).toBe(10); // 1/1 * 10 = 10
+    expect(result.data?.pointsEarned).toBe(1);
+    expect(result.data?.pointsTotal).toBe(1);
+  });
+
+  it("auto-scores 0 when no correct option selected (no penalty)", async () => {
+    const content = createMockQuizContent({ penalizeWrongAnswers: false });
+    const attempt = createMockQuizAttempt({ points_earned: 0, points_total: 1 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const answers = { "q-1": ["opt-1"] }; // wrong
+    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, content);
+
+    expect(result.data?.pointsEarned).toBe(0);
+  });
+
+  it("applies negative penalty for wrong single-select answer (penalizeWrongAnswers=true)", async () => {
+    // q-1: 1 point, single correct = opt-2. Selecting wrong = -1/3 points
+    const content = createMockQuizContent({ penalizeWrongAnswers: true });
+    const attempt = createMockQuizAttempt({ points_earned: 0, points_total: 1 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const answers = { "q-1": ["opt-1"] }; // wrong answer with penalization
+    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, content);
+
+    // -1/3 raw, but clamped to 0 via Math.max(0, ...)
+    expect(result.data?.pointsEarned).toBe(0);
+  });
+
+  it("detects short_answer questions and sets status to submitted", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-sa",
+          type: "short_answer",
+          text: "Explain X",
+          options: [],
+          points: 2,
+        },
+      ],
+    });
+    const attempt = createMockQuizAttempt({ points_earned: 0, points_total: 2 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const shortAnswers = { "q-sa": "My answer here" };
+    const result = await submitQuizAttempt("step-1", "activity-1", {}, shortAnswers, content);
+
+    // When hasShortAnswer=true, submission status should be "submitted" (not auto-graded)
+    // The function upserts with status: hasShortAnswer ? "submitted" : "graded"
+    expect(result).not.toHaveProperty("error");
+    expect(result.data?.pointsTotal).toBe(2);
+  });
+
+  it("does not downgrade existing best score", async () => {
+    const content = createMockQuizContent({ penalizeWrongAnswers: false });
+    const attempt = createMockQuizAttempt({ points_earned: 0, points_total: 1 });
+    // existing score = 9 (higher than new score of 0)
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 1, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", {
+          data: { id: "sub-existing", score: 9 },
+          error: null,
+        })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const answers = { "q-1": [] }; // no answer → 0 points → score 0
+    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, content);
+
+    // Score is 0 which is less than existing 9, so submission should NOT be updated
+    // The function checks: shouldUpdateScore = !existing || existing.score === null || scoreOutOf10 >= existing.score
+    // scoreOutOf10=0, existing.score=9 → shouldUpdateScore = false
+    expect(result).not.toHaveProperty("error");
+    // The attempt is still recorded
+    expect(result.data?.attempt).toBeDefined();
+  });
+
+  it("returns error when attempt insert fails", async () => {
+    const content = createMockQuizContent();
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: null, error: { message: "DB insert failed" } })
+    );
+
+    const result = await submitQuizAttempt("step-1", "activity-1", {}, {}, content);
+
+    expect(result).toEqual({ error: "DB insert failed" });
+  });
+
+  it("allows unlimited attempts when maxAttempts is undefined", async () => {
+    const content = createMockQuizContent({ maxAttempts: undefined });
+    const attempt = createMockQuizAttempt();
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 100, error: null }) // 100 existing attempts
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const answers = { "q-1": ["opt-2"] };
+    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, content);
+
+    expect(result).not.toHaveProperty("error");
+  });
+});

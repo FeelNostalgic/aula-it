@@ -10,6 +10,8 @@ import type {
   ActivityStep,
   ActivitySubmission,
   SubmissionStatus,
+  QuizContent,
+  QuizAttempt,
 } from "@/types/activity";
 
 // ─── User / Auth ───────────────────────────────────────────────────────────
@@ -222,6 +224,109 @@ export interface MockDriveToken {
   created_at: string;
   updated_at: string;
 }
+
+// ─── Quiz ─────────────────────────────────────────────────────────────────────
+
+export function createMockQuizContent(
+  overrides: Partial<QuizContent> = {}
+): QuizContent {
+  return {
+    questions: [
+      {
+        id: "q-1",
+        type: "multiple_choice",
+        text: "What is 2+2?",
+        options: [
+          { id: "opt-1", text: "3", isCorrect: false },
+          { id: "opt-2", text: "4", isCorrect: true },
+          { id: "opt-3", text: "5", isCorrect: false },
+        ],
+        points: 1,
+      },
+    ],
+    maxAttempts: 3,
+    penalizeWrongAnswers: false,
+    showCorrectAnswers: true,
+    ...overrides,
+  };
+}
+
+export function createMockQuizAttempt(
+  overrides: Partial<QuizAttempt> = {}
+): QuizAttempt {
+  return {
+    id: "attempt-00000000-0000-0000-0000-000000000001",
+    student_id: "user-00000000-0000-0000-0000-000000000001",
+    step_id: "step-00000000-0000-0000-0000-000000000001",
+    attempt_number: 1,
+    answers: { "q-1": ["opt-2"] },
+    short_answers: {},
+    short_answer_scores: {},
+    short_answer_feedback: {},
+    points_earned: 1,
+    points_total: 1,
+    completed_at: "2024-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+// ─── Class Milestone / Badge ─────────────────────────────────────────────────
+
+export interface MockClassMilestone {
+  id: string;
+  unit_id: string;
+  title: string;
+  description: string | null;
+  target_points: number;
+  reward: string | null;
+  status: string;
+  order_index: number;
+}
+
+export function createMockClassMilestone(
+  overrides: Partial<MockClassMilestone> = {}
+): MockClassMilestone {
+  return {
+    id: "milestone-00000000-0000-0000-0000-000000000001",
+    unit_id: "unit-00000000-0000-0000-0000-000000000001",
+    title: "First Milestone",
+    description: null,
+    target_points: 100,
+    reward: null,
+    status: "draft",
+    order_index: 0,
+    ...overrides,
+  };
+}
+
+export interface MockClassBadge {
+  id: string;
+  unit_id: string;
+  title: string;
+  description: string | null;
+  icon_url: string | null;
+  is_hidden: boolean;
+  condition_payload: Record<string, unknown> | null;
+  xp_reward: number;
+}
+
+export function createMockClassBadge(
+  overrides: Partial<MockClassBadge> = {}
+): MockClassBadge {
+  return {
+    id: "badge-00000000-0000-0000-0000-000000000001",
+    unit_id: "unit-00000000-0000-0000-0000-000000000001",
+    title: "First Badge",
+    description: null,
+    icon_url: null,
+    is_hidden: false,
+    condition_payload: { allOf: [{ field: "score", operator: "eq", value: 100 }] },
+    xp_reward: 50,
+    ...overrides,
+  };
+}
+
+// ─── Drive Token ─────────────────────────────────────────────────────────────
 
 export function createMockDriveToken(
   overrides: Partial<MockDriveToken> = {}

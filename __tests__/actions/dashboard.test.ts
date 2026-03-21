@@ -2,11 +2,19 @@ import { describe, it, expect, vi } from "vitest";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { SupabaseMockBuilder } from "../helpers/supabase-mock";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { createFormData } from "../helpers/form-data";
-import { createMockUser, createMockProfile } from "../helpers/fixtures";
-import { createModule } from "@/app/dashboard/actions";
+import { createMockUser, createMockProfile, createMockModule, createMockUnit, createMockActivity } from "../helpers/fixtures";
+import {
+  createModule,
+  updateDashboardSettings,
+  reorderModules,
+  reorderUnits,
+  duplicateModule,
+} from "@/app/dashboard/actions";
 
 const vi_createClient = vi.mocked(createClient);
+const vi_createAdminClient = vi.mocked(createAdminClient);
 const vi_revalidatePath = vi.mocked(revalidatePath);
 
 // ─── createModule ─────────────────────────────────────────────────────────────
@@ -135,6 +143,200 @@ describe("createModule", () => {
     const result = await createModule(null, formData);
 
     // icon defaults to "BookOpen" — the action succeeds and revalidates
+    expect(result).toEqual({ success: true });
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
+});
+
+// ─── updateDashboardSettings ──────────────────────────────────────────────────
+
+describe("updateDashboardSettings", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await updateDashboardSettings(3);
+
+    expect(result).toEqual({ error: "Not authenticated" });
+  });
+
+  it("upserts grid_columns and returns success", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockUpsert("app_settings", { data: null, error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await updateDashboardSettings(4);
+
+    expect(result).toEqual({ success: true });
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("returns error when upsert fails", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockUpsert("app_settings", { data: null, error: { message: "DB error" } })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await updateDashboardSettings(4);
+
+    expect(result).toEqual({ error: "DB error" });
+  });
+});
+
+// ─── reorderModules ───────────────────────────────────────────────────────────
+
+describe("reorderModules", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await reorderModules([{ id: "m1", order_index: 0 }]);
+
+    expect(result).toEqual({ error: "Not authenticated" });
+  });
+
+  it("returns error when user is not a teacher", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "student" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await reorderModules([{ id: "m1", order_index: 0 }]);
+
+    expect(result).toEqual({ error: "Unauthorized: only teachers can reorder modules" });
+  });
+
+  it("updates all modules in parallel via admin client and returns success", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "teacher" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockUpdate("modules", { data: null, error: null })
+      .build();
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await reorderModules([
+      { id: "m1", order_index: 0 },
+      { id: "m2", order_index: 1 },
+    ]);
+
+    expect(result).toEqual({ success: true });
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
+});
+
+// ─── reorderUnits ─────────────────────────────────────────────────────────────
+
+describe("reorderUnits", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await reorderUnits("m1", [{ id: "u1", order_index: 0 }]);
+
+    expect(result).toEqual({ error: "Not authenticated" });
+  });
+
+  it("returns error when user is not a teacher", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "student" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await reorderUnits("m1", [{ id: "u1", order_index: 0 }]);
+
+    expect(result).toEqual({ error: "Unauthorized: only teachers can reorder units" });
+  });
+
+  it("updates all units and revalidates module path", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "teacher" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockUpdate("units", { data: null, error: null })
+      .build();
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await reorderUnits("m1", [
+      { id: "u1", order_index: 0 },
+      { id: "u2", order_index: 1 },
+    ]);
+
+    expect(result).toEqual({ success: true });
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/modules/m1");
+  });
+});
+
+// ─── duplicateModule ──────────────────────────────────────────────────────────
+
+describe("duplicateModule", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await duplicateModule("m1");
+
+    expect(result).toEqual({ error: "Not authenticated" });
+  });
+
+  it("returns error when user is not a teacher", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "student" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await duplicateModule("m1");
+
+    expect(result).toEqual({ error: "Unauthorized" });
+  });
+
+  it("returns error when module is not found", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", { data: createMockProfile({ role: "teacher" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockQuery("modules", { data: null, error: { message: "not found" } })
+      .build();
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await duplicateModule("m1");
+
+    expect(result).toEqual({ error: "Module not found" });
+  });
+
+  it("duplicates module with - copia suffix and returns success", async () => {
+    const user = createMockUser();
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(user)
+      .mockQuery("profiles", { data: createMockProfile({ role: "teacher" }), error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const originalModule = createMockModule({ name: "My Module", units: [] } as any);
+    const newModule = createMockModule({ id: "new-module-id", name: "My Module - copia" });
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockQuery("modules", { data: originalModule, error: null })
+      .mockInsert("modules", { data: newModule, error: null })
+      .build();
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await duplicateModule("module-00000000-0000-0000-0000-000000000001");
+
     expect(result).toEqual({ success: true });
     expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard");
   });

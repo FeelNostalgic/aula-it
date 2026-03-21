@@ -5,6 +5,7 @@ import { vi, type Mock } from "vitest";
 export interface SupabaseResponse<T = unknown> {
   data: T | null;
   error: { message: string; code?: string } | null;
+  count?: number | null;
 }
 
 export interface MockAuthUser {
@@ -126,6 +127,10 @@ export class SupabaseMockBuilder {
     signInWithOAuth?: SupabaseResponse;
     exchangeCodeForSession?: SupabaseResponse;
     adminListUsers?: SupabaseResponse;
+    adminCreateUser?: SupabaseResponse;
+    adminGetUserById?: SupabaseResponse;
+    adminDeleteUser?: SupabaseResponse;
+    adminUpdateUserById?: SupabaseResponse;
   } = {};
 
   private tableConfigs: Map<string, TableConfig> = new Map();
@@ -175,6 +180,26 @@ export class SupabaseMockBuilder {
 
   mockAdminListUsers(response: SupabaseResponse = DEFAULT_RESPONSE): this {
     this.authConfig.adminListUsers = response;
+    return this;
+  }
+
+  mockAdminCreateUser(response: SupabaseResponse = DEFAULT_RESPONSE): this {
+    this.authConfig.adminCreateUser = response;
+    return this;
+  }
+
+  mockAdminGetUserById(response: SupabaseResponse = DEFAULT_RESPONSE): this {
+    this.authConfig.adminGetUserById = response;
+    return this;
+  }
+
+  mockAdminDeleteUser(response: SupabaseResponse = DEFAULT_RESPONSE): this {
+    this.authConfig.adminDeleteUser = response;
+    return this;
+  }
+
+  mockAdminUpdateUserById(response: SupabaseResponse = DEFAULT_RESPONSE): this {
+    this.authConfig.adminUpdateUserById = response;
     return this;
   }
 
@@ -275,6 +300,18 @@ export class SupabaseMockBuilder {
       admin: {
         listUsers: vi.fn().mockResolvedValue(
           authConfig.adminListUsers ?? DEFAULT_RESPONSE
+        ),
+        createUser: vi.fn().mockResolvedValue(
+          authConfig.adminCreateUser ?? DEFAULT_RESPONSE
+        ),
+        getUserById: vi.fn().mockResolvedValue(
+          authConfig.adminGetUserById ?? { data: { user: null }, error: null }
+        ),
+        deleteUser: vi.fn().mockResolvedValue(
+          authConfig.adminDeleteUser ?? DEFAULT_RESPONSE
+        ),
+        updateUserById: vi.fn().mockResolvedValue(
+          authConfig.adminUpdateUserById ?? DEFAULT_RESPONSE
         ),
       },
     };
