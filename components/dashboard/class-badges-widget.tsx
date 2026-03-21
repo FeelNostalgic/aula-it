@@ -2,7 +2,6 @@ import { ClassBadge, StudentBadge } from "@/types/database";
 import { BadgeDisplay } from "./badge-display";
 import { Award } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
 
 interface ClassBadgesWidgetProps {
     badges: ClassBadge[];
@@ -38,12 +37,9 @@ export function ClassBadgesWidget({ badges, studentBadges, isTeacher, onToggle }
                 )}
                 onClick={onToggle}
             >
-                <motion.div 
-                    layoutId="badges-icon"
-                    className="p-2 rounded-lg bg-amber-500/10 text-amber-500 shrink-0 group-hover/badges:bg-amber-500/20 transition-colors"
-                >
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 shrink-0 group-hover/badges:bg-amber-500/20 transition-colors">
                     <Award className="size-5" />
-                </motion.div>
+                </div>
                 <div>
                    <h3 className="text-lg font-black text-foreground tracking-tight uppercase group-hover/badges:text-foreground/90 transition-colors">
                        Insignias Globales

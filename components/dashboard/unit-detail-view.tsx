@@ -247,45 +247,41 @@ export function UnitDetailView({
                 </div>
             </div>
 
-            <motion.div layout className="flex flex-col gap-6">
+            <div className="flex flex-col gap-6">
                 {isReady && (activeMilestone || milestones.some(m => m.status === 'completed')) && (
                     <div className="px-12 relative">
                         <AnimatePresence mode="wait" initial={false}>
                             {isMilestoneExpanded ? (
                                 <motion.div
                                     key="milestone-expanded"
-                                    layoutId="milestone-section"
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.95 }}
-                                    transition={{ duration: 0.3, ease: "easeOut" }}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.15, ease: "easeInOut" }}
                                 >
-                                    <ClassMilestoneWidget 
-                                        milestones={milestones} 
-                                        activeMilestone={activeMilestone} 
-                                        label="Objetivo de la Unidad" 
+                                    <ClassMilestoneWidget
+                                        milestones={milestones}
+                                        activeMilestone={activeMilestone}
+                                        label="Objetivo de la Unidad"
                                         onToggle={() => handleToggleMilestone(false)}
                                     />
                                 </motion.div>
                             ) : (
                                 <motion.div
                                     key="milestone-collapsed"
-                                    layoutId="milestone-section"
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, y: 10 }}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.15, ease: "easeInOut" }}
                                     className="relative overflow-hidden bg-linear-to-br from-indigo-500/20 via-purple-500/15 to-pink-500/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 flex items-center gap-4 cursor-pointer hover:border-accent-blue/40 transition-all shadow-xl group ring-1 ring-white/5"
                                     onClick={() => handleToggleMilestone(true)}
                                 >
                                     {/* Decorative background flare */}
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
-                                    
-                                    <motion.div 
-                                        layoutId="milestone-icon"
-                                        className="relative z-10 size-10 rounded-xl bg-accent-blue/20 flex items-center justify-center text-accent-blue border border-accent-blue/30 shadow-[0_0_15px_rgba(34,211,238,0.2)]"
-                                    >
+
+                                    <div className="relative z-10 size-10 rounded-xl bg-accent-blue/20 flex items-center justify-center text-accent-blue border border-accent-blue/30 shadow-[0_0_15px_rgba(34,211,238,0.2)]">
                                         <Target className="size-5" />
-                                    </motion.div>
+                                    </div>
                                     <div className="flex-1 relative z-10">
                                         <h3 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-2">
                                             {activeMilestone ? "Objetivo Actual" : "Objetivos de Unidad"}
@@ -310,41 +306,37 @@ export function UnitDetailView({
                     </div>
                 )}
 
-                {isReady && classBadges && classBadges.length > 0 && (
+                {isReady && globalBadges && globalBadges.length > 0 && (
                     <div className="px-12 relative mt-2">
                         <AnimatePresence mode="wait" initial={false}>
                             {isBadgesExpanded ? (
                                 <motion.div
                                     key="badges-expanded"
-                                    layoutId="badges-section"
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.95 }}
-                                    transition={{ duration: 0.3, ease: "easeOut" }}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.15, ease: "easeInOut" }}
                                 >
-                                    <ClassBadgesWidget 
-                                        badges={globalBadges} 
-                                        studentBadges={studentBadges} 
-                                        isTeacher={isTeacher} 
+                                    <ClassBadgesWidget
+                                        badges={globalBadges}
+                                        studentBadges={studentBadges}
+                                        isTeacher={isTeacher}
                                         onToggle={() => handleToggleBadges(false)}
                                     />
                                 </motion.div>
                             ) : (
                                 <motion.div
                                     key="badges-collapsed"
-                                    layoutId="badges-section"
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, y: 10 }}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.15, ease: "easeInOut" }}
                                     className="bg-surface border border-border-subtle rounded-2xl p-4 flex items-center gap-4 cursor-pointer hover:border-accent-amber/30 transition-colors shadow-sm"
                                     onClick={() => handleToggleBadges(true)}
                                 >
-                                    <motion.div 
-                                        layoutId="badges-icon"
-                                        className="size-10 rounded-xl bg-accent-amber/10 flex items-center justify-center text-accent-amber"
-                                    >
+                                    <div className="size-10 rounded-xl bg-accent-amber/10 flex items-center justify-center text-accent-amber">
                                         <Award className="size-5" />
-                                    </motion.div>
+                                    </div>
                                     <div className="flex-1">
                                         <h3 className="text-sm font-bold text-foreground uppercase tracking-tight">Insignias Globales</h3>
                                         <p className="text-xs text-text-muted">Pulsa sobre el icono para expandir</p>
@@ -352,7 +344,7 @@ export function UnitDetailView({
                                     <div className="flex items-center gap-2">
                                         <span className="text-[10px] font-bold text-text-muted uppercase">Disponibles:</span>
                                         <div className="flex -space-x-2">
-                                            {globalBadges.slice(0, 3).map((b, i) => (
+                                            {globalBadges.slice(0, 3).map((b) => (
                                                 <div key={b.id} className="size-6 rounded-full bg-surface border-2 border-background flex items-center justify-center shadow-sm">
                                                     <Award className="size-3 text-accent-amber" />
                                                 </div>
@@ -765,7 +757,7 @@ export function UnitDetailView({
                         </TabsContent>
                     )}
                 </Tabs>
-            </motion.div>
+            </div>
         </div>
     );
 }

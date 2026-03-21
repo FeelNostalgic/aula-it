@@ -22,9 +22,12 @@ import {
     Clock,
     Zap,
     BarChart3,
-    Copy
+    Copy,
+    Play,
+    Lock,
+    EyeOff
 } from "lucide-react";
-import { reorderMultipleActivities, deleteActivity, duplicateActivity } from "@/app/dashboard/units/[id]/actions";
+import { reorderMultipleActivities, deleteActivity, duplicateActivity, updateActivityStatus } from "@/app/dashboard/units/[id]/actions";
 import { CreateActivityDialog } from "./create-activity-dialog";
 import { toast } from "sonner";
 import {
@@ -41,6 +44,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +108,8 @@ interface UnitActivitiesTabProps {
     viewModeExternal?: 'grid' | 'list' | null;
     setViewModeExternal?: (mode: 'grid' | 'list') => void;
 }
+
+import { getDurationConfig } from "@/lib/activity-config";
 
 // Difficulty color helper
 const getDifficultyConfig = (difficulty?: string | null) => {
@@ -185,6 +191,7 @@ function SortableActivityItem({
 
     const router = useRouter();
     const diffConfig = getDifficultyConfig(activity.difficulty);
+    const durationConfig = getDurationConfig(activity.duration);
 
     const handleDelete = async () => {
         setIsPending(true);
@@ -248,6 +255,29 @@ function SortableActivityItem({
                     <Copy className="size-4 mr-2" />
                     Duplicar
                 </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-border-subtle" />
+                <DropdownMenuItem
+                    className="gap-2 cursor-pointer focus:bg-green-500/10 focus:text-green-400"
+                    onClick={async (e) => { e.stopPropagation(); const res = await updateActivityStatus(activity.id, 'published'); if (res.error) toast.error("Error al cambiar estado"); else { toast.success("Actividad publicada"); router.refresh(); } }}
+                >
+                    <Play className="size-4 text-green-400" />
+                    <span className="text-xs font-bold uppercase tracking-tight text-green-400">Publicar</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    className="gap-2 cursor-pointer focus:bg-zinc-700/50 focus:text-zinc-300"
+                    onClick={async (e) => { e.stopPropagation(); const res = await updateActivityStatus(activity.id, 'blocked'); if (res.error) toast.error("Error al cambiar estado"); else { toast.success("Actividad bloqueada"); router.refresh(); } }}
+                >
+                    <Lock className="size-4 text-zinc-400" />
+                    <span className="text-xs font-bold uppercase tracking-tight text-zinc-400">Bloquear</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    className="gap-2 cursor-pointer focus:bg-accent-orange/10 focus:text-accent-orange"
+                    onClick={async (e) => { e.stopPropagation(); const res = await updateActivityStatus(activity.id, 'draft'); if (res.error) toast.error("Error al cambiar estado"); else { toast.success("Cambiada a borrador"); router.refresh(); } }}
+                >
+                    <EyeOff className="size-4 text-accent-orange/60" />
+                    <span className="text-xs font-bold uppercase tracking-tight text-accent-orange/80">Borrador</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-border-subtle" />
                 <DropdownMenuItem
                     className="text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer"
                     onClick={(e) => {
@@ -356,9 +386,9 @@ function SortableActivityItem({
                                     {diffConfig.label}
                                 </div>
                                 {activity.duration && (
-                                    <div className="flex items-center gap-1 text-[10px] font-bold text-text-muted">
+                                    <div className={`flex items-center gap-1 text-[10px] font-bold ${durationConfig.color}`}>
                                         <Clock className="size-2.5" />
-                                        {activity.duration}
+                                        {activity.duration} min
                                     </div>
                                 )}
                             </div>
@@ -489,9 +519,9 @@ function SortableActivityItem({
                             {activity.description || "Explora este reto y completa tus objetivos."}
                         </p>
                         {activity.duration && (
-                            <span className="text-[10px] text-text-muted flex items-center gap-1 shrink-0">
+                            <span className={`text-[10px] flex items-center gap-1 shrink-0 font-bold ${durationConfig.color}`}>
                                 <Clock className="size-2.5" />
-                                {activity.duration}
+                                {activity.duration} min
                             </span>
                         )}
                     </div>

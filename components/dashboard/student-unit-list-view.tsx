@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { getDurationConfig } from "@/lib/activity-config";
 
 interface Activity {
     id: string;
@@ -124,6 +125,7 @@ export function StudentUnitListView({ unit, activities, onStartActivity }: Stude
                         {visibleActivities.map((activity) => {
                             const isBlocked = activity.status === 'blocked';
                             const diffConfig = getDifficultyConfig(activity.difficulty);
+                            const durationConfig = getDurationConfig(activity.duration);
                             const Icon = getActivityIcon(activity.type || 'theory');
 
                             return (
@@ -183,7 +185,7 @@ export function StudentUnitListView({ unit, activities, onStartActivity }: Stude
                                                 {activity.description || "Explora este desafío y completa tus objetivos."}
                                             </p>
                                             {activity.duration && (
-                                                <span className="text-[10px] text-zinc-600 flex items-center gap-1 shrink-0 font-bold uppercase tracking-tighter">
+                                                <span className={`text-[10px] flex items-center gap-1 shrink-0 font-bold uppercase tracking-tighter ${durationConfig.color}`}>
                                                     <Clock className="size-2.5" />
                                                     {activity.duration} min
                                                 </span>

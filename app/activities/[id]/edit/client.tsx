@@ -2,8 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileText, Settings as SettingsIcon, Eye, Award } from "lucide-react";
+import { ArrowLeft, FileText, Settings as SettingsIcon, Eye, Award, Play, Lock, EyeOff, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ActivityPhaseWithSteps, ActivityStepWithClientState } from "@/types/activity";
 import { toast } from "sonner";
 import { MissionBuilderSidebar } from "@/components/dashboard/activity-builder/mission-builder-sidebar";
@@ -166,24 +172,72 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                         )}
                         {isTeacher && (
                             <div className="flex items-center gap-2 mr-4">
-                                <Button
-                                    variant={activityData.status === 'published' ? "default" : "outline"}
-                                    size="sm"
-                                    onClick={async () => {
-                                        const newStatus = activityData.status === 'published' ? 'draft' : 'published';
-                                        setActivityData((prev: any) => ({ ...prev, status: newStatus }));
-                                        const res = await updateActivityStatus(activityData.id, newStatus);
-                                        if (res.error) {
-                                            toast.error("Error al cambiar estado");
-                                            setActivityData((prev: any) => ({ ...prev, status: activityData.status })); // revert
-                                        } else {
-                                            toast.success(newStatus === 'published' ? 'Actividad publicada' : 'Cambiada a borrador');
-                                        }
-                                    }}
-                                    className="text-xs h-8 px-3 transition-all"
-                                >
-                                    {activityData.status === 'published' ? 'Publicado' : 'Borrador'}
-                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className={`text-xs h-8 px-3 transition-all gap-1.5 border font-bold ${
+                                                activityData.status === 'published'
+                                                    ? 'text-green-400 border-green-500/30 bg-green-500/10 hover:bg-green-500/15'
+                                                    : activityData.status === 'blocked'
+                                                    ? 'text-zinc-400 border-zinc-600/50 bg-zinc-800/50 hover:bg-zinc-700/50'
+                                                    : 'text-accent-orange border-accent-orange/30 bg-accent-orange/10 hover:bg-accent-orange/15'
+                                            }`}
+                                        >
+                                            {activityData.status === 'published' ? (
+                                                <Play className="size-3" />
+                                            ) : activityData.status === 'blocked' ? (
+                                                <Lock className="size-3" />
+                                            ) : (
+                                                <EyeOff className="size-3" />
+                                            )}
+                                            {activityData.status === 'published' ? 'Publicado' : activityData.status === 'blocked' ? 'Bloqueado' : 'Borrador'}
+                                            <ChevronDown className="size-3 opacity-60" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="bg-surface-dark border-border-strong text-foreground w-40">
+                                        <DropdownMenuItem
+                                            className="gap-2 cursor-pointer focus:bg-green-500/10 focus:text-green-400"
+                                            onClick={async () => {
+                                                const prev = activityData.status;
+                                                setActivityData((d: any) => ({ ...d, status: 'published' }));
+                                                const res = await updateActivityStatus(activityData.id, 'published');
+                                                if (res.error) { toast.error("Error al cambiar estado"); setActivityData((d: any) => ({ ...d, status: prev })); }
+                                                else toast.success('Actividad publicada');
+                                            }}
+                                        >
+                                            <Play className="size-4 text-green-400" />
+                                            <span className="text-xs font-bold uppercase tracking-tight text-green-400">Publicar</span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            className="gap-2 cursor-pointer focus:bg-zinc-700/50 focus:text-zinc-300"
+                                            onClick={async () => {
+                                                const prev = activityData.status;
+                                                setActivityData((d: any) => ({ ...d, status: 'blocked' }));
+                                                const res = await updateActivityStatus(activityData.id, 'blocked');
+                                                if (res.error) { toast.error("Error al cambiar estado"); setActivityData((d: any) => ({ ...d, status: prev })); }
+                                                else toast.success('Actividad bloqueada');
+                                            }}
+                                        >
+                                            <Lock className="size-4 text-zinc-400" />
+                                            <span className="text-xs font-bold uppercase tracking-tight text-zinc-400">Bloquear</span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            className="gap-2 cursor-pointer focus:bg-accent-orange/10 focus:text-accent-orange"
+                                            onClick={async () => {
+                                                const prev = activityData.status;
+                                                setActivityData((d: any) => ({ ...d, status: 'draft' }));
+                                                const res = await updateActivityStatus(activityData.id, 'draft');
+                                                if (res.error) { toast.error("Error al cambiar estado"); setActivityData((d: any) => ({ ...d, status: prev })); }
+                                                else toast.success('Cambiada a borrador');
+                                            }}
+                                        >
+                                            <EyeOff className="size-4 text-accent-orange/60" />
+                                            <span className="text-xs font-bold uppercase tracking-tight text-accent-orange/80">Borrador</span>
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                                 <Button
                                     variant="ghost"
                                     size="icon"

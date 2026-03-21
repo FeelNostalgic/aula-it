@@ -95,9 +95,7 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label, onTog
                         >
                             <div className="flex items-center gap-3">
                                 <h3 className="text-[10px] font-black text-accent-blue uppercase tracking-[0.2em] flex items-center gap-2 group-hover/title:text-accent-blue/80 transition-colors">
-                                    <motion.div layoutId="milestone-icon" className="size-3 flex items-center justify-center">
-                                        <Target className="size-3" />
-                                    </motion.div>
+                                    <Target className="size-3" />
                                     {label ?? "Camino de la Unidad"}
                                 </h3>
                                 <div className="h-px w-8 bg-accent-blue/30" />
@@ -118,11 +116,7 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label, onTog
                         </div>
 
                         {/* Persistent Reward Card (Visible without hover) */}
-                        <motion.div
-                            initial={{ x: 20, opacity: 0 }}
-                            animate={{ x: 0, opacity: 1 }}
-                            className="lg:w-80 shrink-0 bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-4 shadow-xl backdrop-blur-md relative overflow-hidden group/reward transition-all hover:bg-white/10 hover:border-amber-500/20"
-                        >
+                        <div className="lg:w-80 shrink-0 bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-4 shadow-xl backdrop-blur-md relative overflow-hidden group/reward transition-all hover:bg-white/10 hover:border-amber-500/20">
                             <div className="absolute inset-0 bg-linear-to-br from-amber-500/10 via-transparent to-transparent opacity-0 group-hover/reward:opacity-100 transition-opacity duration-500" />
 
                             {/* Icon container with more punch */}
@@ -142,7 +136,7 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label, onTog
 
                             {/* Decorative element */}
                             <div className="absolute -right-4 -bottom-4 size-20 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
-                        </motion.div>
+                        </div>
                     </div>
 
                     {/* Main Cumulative Progress Bar */}
@@ -179,7 +173,6 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label, onTog
                                                 >
                                                     {isNext && (
                                                         <motion.div
-                                                            layoutId="active-ring"
                                                             className="absolute inset-0 rounded-xl border-2 border-amber-500/50"
                                                             animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0, 0.5] }}
                                                             transition={{ repeat: Infinity, duration: 2 }}

@@ -6,13 +6,16 @@ import {
     Zap,
     ChevronRight,
     Lock,
-    Trophy,
+    Target,
+    Award,
     Network,
     FileText as FileTextIcon,
     Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { getDurationConfig } from '@/lib/activity-config';
+import { BadgeDisplay } from '@/components/dashboard/badge-display';
 
 interface StudentSidebarProps {
     unit: any;
@@ -21,6 +24,13 @@ interface StudentSidebarProps {
     onStartMission?: (id: string) => void;
     activeView: 'map' | 'resources';
     onViewChange: (view: 'map' | 'resources') => void;
+    milestones?: any[];
+    classBadges?: any[];
+    studentBadges?: any[];
+    showMilestoneOverlay?: boolean;
+    showBadgesOverlay?: boolean;
+    onToggleMilestone?: () => void;
+    onToggleBadges?: () => void;
 }
 
 const getDifficultyConfig = (difficulty?: string | null) => {
@@ -39,10 +49,13 @@ const getDifficultyConfig = (difficulty?: string | null) => {
     }
 };
 
-export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMission, activeView, onViewChange }: StudentSidebarProps) {
+export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMission, activeView, onViewChange, milestones = [], classBadges = [], studentBadges = [], showMilestoneOverlay, showBadgesOverlay, onToggleMilestone, onToggleBadges }: StudentSidebarProps) {
     const isBlocked = selectedActivity?.status === 'blocked';
     const isDraft = selectedActivity?.status === 'draft';
     const isDisabled = isBlocked || isDraft;
+
+    const hasMilestones = milestones.some(m => m.status === 'active' || m.status === 'completed');
+    const visibleBadges = classBadges.filter(b => !b.is_hidden || studentBadges.some((sb: any) => sb.badge_id === b.id));
 
     return (
         <aside className="h-full flex shrink-0 z-20 overflow-hidden">
@@ -86,11 +99,48 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                     </Button>
                 </div>
 
-                <div className="mt-auto flex flex-col gap-4 items-center">
-                    <div className="size-8 rounded-lg bg-popover/50 border border-border flex items-center justify-center text-muted-foreground/30">
-                        <Trophy className="size-4" />
+                {(hasMilestones || visibleBadges.length > 0) && (
+                    <div className="mt-auto flex flex-col gap-3 items-center">
+                        {hasMilestones && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={onToggleMilestone}
+                                className={cn(
+                                    "size-10 rounded-xl transition-all duration-300 relative group",
+                                    showMilestoneOverlay
+                                        ? "bg-accent-amber/10 text-accent-amber shadow-[0_0_15px_rgba(251,191,36,0.2)]"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-accent/10"
+                                )}
+                                title="Objetivo de la Unidad"
+                            >
+                                <Target className="size-5" />
+                                {showMilestoneOverlay && (
+                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent-amber rounded-r-full shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+                                )}
+                            </Button>
+                        )}
+                        {visibleBadges.length > 0 && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={onToggleBadges}
+                                className={cn(
+                                    "size-10 rounded-xl transition-all duration-300 relative group",
+                                    showBadgesOverlay
+                                        ? "bg-amber-500/10 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)]"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-accent/10"
+                                )}
+                                title="Insignias de la Unidad"
+                            >
+                                <Award className="size-5" />
+                                {showBadgesOverlay && (
+                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-amber-500 rounded-r-full shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
+                                )}
+                            </Button>
+                        )}
                     </div>
-                </div>
+                )}
             </div>
 
             {/* Node Detail Panel — only visible when map view active and a node is selected */}
@@ -163,16 +213,49 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                                             </div>
                                         )}
                                         {/* Duration */}
-                                        {selectedActivity.duration && (
-                                            <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-xl px-4 py-3">
-                                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Tiempo</span>
-                                                <div className="text-sm font-black text-text-muted flex items-center gap-1.5">
-                                                    <Clock className="size-3.5" />
-                                                    {selectedActivity.duration} min
+                                        {selectedActivity.duration && (() => {
+                                            const durCfg = getDurationConfig(selectedActivity.duration);
+                                            return (
+                                                <div className="flex items-center justify-between bg-muted/40 border border-border/50 rounded-xl px-4 py-3">
+                                                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Tiempo</span>
+                                                    <div className={`text-sm font-black flex items-center gap-1.5 ${durCfg.color}`}>
+                                                        <Clock className="size-3.5" />
+                                                        {selectedActivity.duration} min
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            );
+                                        })()}
                                     </div>
+                                );
+                            })()}
+
+                            {/* Activity Badges */}
+                            {(() => {
+                                const activityBadges = classBadges
+                                    .filter(b => b.activity_id === selectedActivity.id)
+                                    .filter(b => !b.is_hidden || studentBadges.some((sb: any) => sb.badge_id === b.id));
+                                if (activityBadges.length === 0) return null;
+                                return (
+                                    <>
+                                        <div className="border-t border-border/50" />
+                                        <div className="space-y-2">
+                                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Insignias</span>
+                                            <div className="flex flex-wrap gap-2">
+                                                {activityBadges.map((badge: any) => {
+                                                    const earnedRecord = studentBadges.find((sb: any) => sb.badge_id === badge.id);
+                                                    return (
+                                                        <BadgeDisplay
+                                                            key={badge.id}
+                                                            badge={badge}
+                                                            isEarned={!!earnedRecord}
+                                                            earnedAt={earnedRecord?.earned_at}
+                                                            variant="compact"
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </>
                                 );
                             })()}
 
@@ -208,6 +291,7 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                     </motion.div>
                 )}
             </AnimatePresence>
+
         </aside>
     );
 }

@@ -85,6 +85,23 @@ export default async function UnitMapPage({
         redirect(`/dashboard/units/${id}`);
     }
 
+    // Fetch milestones and badges for student map view
+    const { data: milestonesData } = await supabase
+        .from("class_milestones")
+        .select("*")
+        .eq("unit_id", id)
+        .in("status", ["active", "completed"])
+        .order("order_index", { ascending: true });
+
+    const { data: classBadgesData } = await supabase
+        .from("class_badges")
+        .select("*")
+        .eq("unit_id", id);
+
+    const { data: studentBadgesData } = role === 'student'
+        ? await supabase.from("student_badges").select("*").eq("student_id", user.id)
+        : { data: [] };
+
     // Map connections format for React Flow
     const mapConnections = (unit.activity_connections || []).map((conn: any) => ({
         id: conn.id,
@@ -111,6 +128,9 @@ export default async function UnitMapPage({
             role={role as 'student' | 'teacher'}
             user={user}
             profile={profile}
+            milestones={milestonesData || []}
+            classBadges={classBadgesData || []}
+            studentBadges={studentBadgesData || []}
         />
     );
 }

@@ -26,7 +26,7 @@ import { MapBackground } from './map-background';
 import { StudentSidebar } from './student-sidebar';
 import { TeacherSidebar } from './teacher-sidebar';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Save, MousePointer2, Eraser, FolderDown, FileText, ChevronRight, ExternalLink, LayoutGrid, List, Download, Trash2, Network, Pencil } from 'lucide-react';
+import { ArrowLeft, Cloud, CloudCheck, MousePointer2, Eraser, FolderDown, FileText, ChevronRight, ExternalLink, LayoutGrid, List, Download, Trash2, Network, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { UserNav } from '@/components/dashboard/user-nav';
@@ -41,6 +41,8 @@ import {
     deleteActivityConnection,
     removeActivityFromMap
 } from '@/components/map-ide/actions';
+import { ClassMilestoneWidget } from '@/components/dashboard/class-milestone-widget';
+import { ClassBadgesWidget } from '@/components/dashboard/class-badges-widget';
 
 const nodeTypes: NodeTypes = {
     mission: MissionNodeComponent,
@@ -52,9 +54,12 @@ interface MapWorkspaceProps {
     role: 'student' | 'teacher';
     user: any;
     profile: any;
+    milestones?: any[];
+    classBadges?: any[];
+    studentBadges?: any[];
 }
 
-export function MapWorkspace({ unit, activities, role, user, profile }: MapWorkspaceProps) {
+export function MapWorkspace({ unit, activities, role, user, profile, milestones = [], classBadges = [], studentBadges = [] }: MapWorkspaceProps) {
     const router = useRouter();
     const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
     const [selectedActivity, setSelectedActivity] = useState<any | null>(null);
@@ -65,6 +70,19 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
     const [columnCount, setColumnCount] = useState<2 | 3 | 4>(3);
     const [edgeContextMenu, setEdgeContextMenu] = useState<{ edge: Edge; x: number; y: number } | null>(null);
     const [editingEdge, setEditingEdge] = useState<Edge | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [justSaved, setJustSaved] = useState(false);
+    const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [showMilestoneOverlay, setShowMilestoneOverlay] = useState(() => {
+        if (typeof window === 'undefined') return true;
+        const saved = localStorage.getItem('aula-it:map:milestone-overlay');
+        return saved !== null ? saved === 'true' : true;
+    });
+    const [showBadgesOverlay, setShowBadgesOverlay] = useState(() => {
+        if (typeof window === 'undefined') return true;
+        const saved = localStorage.getItem('aula-it:map:badges-overlay');
+        return saved !== null ? saved === 'true' : true;
+    });
 
     // Persist view mode and column count preferences
     React.useEffect(() => {
@@ -81,6 +99,17 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
         document.addEventListener('click', handler);
         return () => document.removeEventListener('click', handler);
     }, [edgeContextMenu]);
+
+    const triggerSaveIndicator = React.useCallback(() => {
+        setIsSaving(true);
+        setJustSaved(false);
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => {
+            setIsSaving(false);
+            setJustSaved(true);
+            saveTimerRef.current = setTimeout(() => setJustSaved(false), 1500);
+        }, 400);
+    }, []);
 
     const handleViewModeChange = (mode: 'grid' | 'list') => {
         setViewMode(mode);
@@ -354,21 +383,17 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
         }
     }, [unit.id, setEdges]);
 
-    const onSave = useCallback(async () => {
-        // Manual save trigger - can be used as a "Sync" or just removed
-        toast.success("Mapa sincronizado con éxito");
-    }, []);
-
     const onNodeDragStop = useCallback(async (event: React.MouseEvent, node: Node) => {
         if (!isTeacher) return;
 
+        triggerSaveIndicator();
         const { id, position } = node;
         const result = await updateActivityPosition(id, position.x, position.y, unit.id);
 
         if (!result.success) {
             toast.error("Error al guardar la posición del nodo");
         }
-    }, [isTeacher, unit.id]);
+    }, [isTeacher, unit.id, triggerSaveIndicator]);
 
     const onDragOver = useCallback((event: React.DragEvent) => {
         if (!isTeacher) return;
@@ -410,13 +435,14 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                 setNodes((nds) => nds.concat(newNode));
 
                 // Persistence
+                triggerSaveIndicator();
                 const result = await updateActivityPosition(activity.id, position.x, position.y, unit.id);
                 if (!result.success) {
                     toast.error("Error al añadir el reto al mapa");
                 }
             }
         },
-        [rfInstance, setNodes, isTeacher, unit.id]
+        [rfInstance, setNodes, isTeacher, unit.id, triggerSaveIndicator]
     );
 
     const handleStartMission = useCallback((missionId: string) => {
@@ -451,14 +477,35 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
 
                     <div className="flex items-center gap-6">
                         {isTeacher && (
-                            <Button
-                                size="sm"
-                                onClick={onSave}
-                                className="text-xs h-8 px-3 transition-all bg-accent-blue hover:bg-accent-blue/90 text-white border-0 shadow-[0_0_15px_rgba(34,211,238,0.2)]"
-                            >
-                                <Save className="size-3 mr-2" />
-                                Guardar Mapa
-                            </Button>
+                            <div className="flex items-center gap-1.5 h-8 px-2">
+                                <AnimatePresence mode="wait" initial={false}>
+                                    {isSaving ? (
+                                        <motion.div
+                                            key="saving"
+                                            initial={{ opacity: 0, scale: 0.8 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.8 }}
+                                            transition={{ duration: 0.15 }}
+                                            className="flex items-center gap-1.5 text-text-muted"
+                                        >
+                                            <Cloud className="size-3.5 animate-pulse" />
+                                            <span className="text-[10px] font-bold uppercase tracking-wider">Guardando...</span>
+                                        </motion.div>
+                                    ) : justSaved ? (
+                                        <motion.div
+                                            key="saved"
+                                            initial={{ opacity: 0, scale: 0.8 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.8 }}
+                                            transition={{ duration: 0.15 }}
+                                            className="flex items-center gap-1.5 text-accent-green"
+                                        >
+                                            <CloudCheck className="size-3.5" />
+                                            <span className="text-[10px] font-bold uppercase tracking-wider">Guardado</span>
+                                        </motion.div>
+                                    ) : null}
+                                </AnimatePresence>
+                            </div>
                         )}
                         <UserNav
                             userEmail={user.email || ""}
@@ -480,6 +527,21 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                 moduleId={unit.module_id}
                                 onStartMission={handleStartMission}
                                 activeView={activeView}
+                                milestones={milestones}
+                                classBadges={classBadges}
+                                studentBadges={studentBadges}
+                                showMilestoneOverlay={showMilestoneOverlay}
+                                showBadgesOverlay={showBadgesOverlay}
+                                onToggleMilestone={() => setShowMilestoneOverlay(v => {
+                                    const next = !v;
+                                    localStorage.setItem('aula-it:map:milestone-overlay', String(next));
+                                    return next;
+                                })}
+                                onToggleBadges={() => setShowBadgesOverlay(v => {
+                                    const next = !v;
+                                    localStorage.setItem('aula-it:map:badges-overlay', String(next));
+                                    return next;
+                                })}
                                 onViewChange={(view) => {
                                     setActiveView(view);
                                     if (view === 'resources') setCurrentFolderId(null);
@@ -897,6 +959,48 @@ export function MapWorkspace({ unit, activities, role, user, profile }: MapWorks
                                     position="bottom-right"
                                     className="bg-popover/80! border-border! dark:bg-surface-dark/80! dark:border-border-strong! rounded-lg! overflow-hidden! [&_button]:border-border-subtle! [&_button]:text-muted-foreground! dark:[&_button]:text-text-muted! hover:[&_button]:text-foreground! dark:hover:[&_button]:text-white! m-6 shadow-2xl"
                                 />
+
+                                {/* Student gamification overlays */}
+                                {role === 'student' && (
+                                    <Panel position="top-left" className="m-4 flex flex-col gap-3 min-w-[700px] max-w-[1000px] pointer-events-none">
+                                        <AnimatePresence initial={false}>
+                                            {showMilestoneOverlay && (
+                                                <motion.div
+                                                    key="milestone-overlay"
+                                                    layout
+                                                    initial={{ opacity: 0, y: -8 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: -8 }}
+                                                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                                                    className="pointer-events-auto"
+                                                >
+                                                    <ClassMilestoneWidget
+                                                        milestones={milestones}
+                                                        activeMilestone={milestones.find(m => m.status === 'active') ?? null}
+                                                        label="Objetivo de la Unidad"
+                                                    />
+                                                </motion.div>
+                                            )}
+                                            {showBadgesOverlay && (
+                                                <motion.div
+                                                    key="badges-overlay"
+                                                    layout
+                                                    initial={{ opacity: 0, y: -8 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: -8 }}
+                                                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                                                    className="pointer-events-auto"
+                                                >
+                                                    <ClassBadgesWidget
+                                                        badges={classBadges.filter(b => !b.is_hidden || studentBadges.some(sb => sb.badge_id === b.id))}
+                                                        studentBadges={studentBadges}
+                                                        isTeacher={false}
+                                                    />
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </Panel>
+                                )}
                             </ReactFlow>
 
                             {/* Edge context menu */}

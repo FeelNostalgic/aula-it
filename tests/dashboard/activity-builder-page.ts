@@ -28,7 +28,7 @@ export class ActivityBuilderPage extends BasePage {
 
         // Header
         this.headerTitle = page.locator('div.flex.items-center.gap-1\\.5.font-mono').locator('span.text-foreground.font-bold');
-        this.btnPublishToggle = page.getByRole('button', { name: /Borrador|Publicado/i });
+        this.btnPublishToggle = page.getByRole('button', { name: /Borrador|Publicado|Bloqueado/i });
         this.btnSettings = page.getByRole('button', { name: "Configuración" });
         this.btnStudentPreview = page.getByRole('button', { name: "Vista Alumno" });
 
@@ -79,6 +79,7 @@ export class ActivityBuilderPage extends BasePage {
 
     async toggleStatus(): Promise<void> {
         await this.btnPublishToggle.click();
+        await this.page.getByRole('menuitem', { name: /Publicar/i }).click();
         await this.waitForNotification();
     }
 
