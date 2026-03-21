@@ -1037,22 +1037,59 @@ function DeadlineExtensionDialog({ open, onOpenChange, stepId, studentIds, stude
 function StudentGradesSection({ unitId, students, activities, stepSubmissions }: {
     unitId: string, students: { student_id: string; name: string }[], activities: Activity[], stepSubmissions: StepSubmissionRow[]
 }) {
-    const [weights, setWeights] = useState<Record<string, number>>(() =>
-        Object.fromEntries(activities.map(a => [a.id, a.grade_weight ?? 1.0]))
-    );
+    // Normalize raw weights to percentages (sum = 100) for a group of values
+    const normalizeToPercent = (entries: { id: string; weight: number }[]): Record<string, number> => {
+        if (entries.length === 0) return {};
+        const sum = entries.reduce((a, e) => a + e.weight, 0);
+        // If all are equal or sum is very small, distribute equally
+        const allEqual = entries.every(e => e.weight === entries[0].weight);
+        if (allEqual || sum === 0) {
+            const pct = Math.round(100 / entries.length);
+            return Object.fromEntries(entries.map((e, i) => [e.id, i === entries.length - 1 ? 100 - pct * (entries.length - 1) : pct]));
+        }
+        // If sum is already ~100 (within tolerance), use as-is
+        if (Math.abs(sum - 100) < 0.5) {
+            return Object.fromEntries(entries.map(e => [e.id, Math.round(e.weight)]));
+        }
+        // Otherwise normalize proportionally
+        const result: Record<string, number> = {};
+        let assigned = 0;
+        entries.forEach((e, i) => {
+            if (i === entries.length - 1) {
+                result[e.id] = 100 - assigned;
+            } else {
+                const pct = Math.round((e.weight / sum) * 100);
+                result[e.id] = pct;
+                assigned += pct;
+            }
+        });
+        return result;
+    };
+
+    const [weights, setWeights] = useState<Record<string, number>>(() => {
+        const activitiesWithEval = activities.filter(a => (a.evaluableSteps ?? []).length > 0);
+        return normalizeToPercent(activitiesWithEval.map(a => ({ id: a.id, weight: a.grade_weight ?? 1.0 })));
+    });
     const [stepWeights, setStepWeights] = useState<Record<string, number>>(() => {
         const map: Record<string, number> = {};
         activities.forEach(a => {
-            (a.evaluableSteps ?? []).forEach(s => { map[s.id] = s.grade_weight; });
+            const steps = (a.evaluableSteps ?? []);
+            if (steps.length === 0) return;
+            const normalized = normalizeToPercent(steps.map(s => ({ id: s.id, weight: s.grade_weight })));
+            Object.assign(map, normalized);
         });
         return map;
     });
 
     useEffect(() => {
-        setWeights(Object.fromEntries(activities.map(a => [a.id, a.grade_weight ?? 1.0])));
+        const activitiesWithEval = activities.filter(a => (a.evaluableSteps ?? []).length > 0);
+        setWeights(normalizeToPercent(activitiesWithEval.map(a => ({ id: a.id, weight: a.grade_weight ?? 1.0 }))));
         const map: Record<string, number> = {};
         activities.forEach(a => {
-            (a.evaluableSteps ?? []).forEach(s => { map[s.id] = s.grade_weight; });
+            const steps = (a.evaluableSteps ?? []);
+            if (steps.length === 0) return;
+            const normalized = normalizeToPercent(steps.map(s => ({ id: s.id, weight: s.grade_weight })));
+            Object.assign(map, normalized);
         });
         setStepWeights(map);
     }, [activities]);
@@ -1149,7 +1186,9 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                             {/* Row 1: Reto group headers */}
                             <tr className="text-[9px] text-text-muted font-black uppercase tracking-widest">
                                 <th rowSpan={2} className="px-6 py-4 border-r border-border-strong min-w-[220px] w-[220px] align-middle bg-surface rounded-tl-[2rem]">Alumno</th>
-                                {activitiesWithSteps.map((activity, i) => (
+                                {activitiesWithSteps.map((activity, i) => {
+                                    const retoSum = activitiesWithSteps.reduce((s, a) => s + (weights[a.id] ?? 0), 0);
+                                    return (
                                     <th key={activity.id} colSpan={activity.evaluableSteps.length}
                                         className={cn(
                                             "px-4 py-3 text-center border-b border-border-strong/20",
@@ -1161,20 +1200,24 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                                                 <span className="opacity-30 font-mono text-[8px]">R{i + 1}</span>
                                                 <span className="truncate max-w-[140px] text-foreground/80 uppercase tracking-tight text-[9px]">{activity.title}</span>
                                             </div>
-                                            <WeightInput
-                                                activityId={activity.id}
-                                                value={weights[activity.id] ?? 1.0}
+                                            <PercentageInput
+                                                entityId={activity.id}
+                                                value={weights[activity.id] ?? 0}
+                                                groupSum={retoSum}
                                                 onChange={(v) => setWeights(prev => ({ ...prev, [activity.id]: v }))}
+                                                onSave={(v) => updateActivityWeight(activity.id, v).catch(() => toast.error("No se pudo guardar el %"))}
                                             />
                                         </div>
                                     </th>
-                                ))}
+                                    );
+                                })}
                                 <th rowSpan={2} className="px-4 py-4 text-center border-l-2 border-accent-blue/10 bg-accent-blue/[0.03] min-w-[90px] w-[90px] align-middle rounded-tr-[2rem]">Promedio</th>
                             </tr>
                             {/* Row 2: Step sub-headers */}
                             <tr className="text-[9px] text-text-muted/50 font-bold uppercase tracking-widest">
-                                {activitiesWithSteps.flatMap((activity, actIdx) =>
-                                    activity.evaluableSteps.map((step, stepIdx) => (
+                                {activitiesWithSteps.flatMap((activity, actIdx) => {
+                                    const stepSum = activity.evaluableSteps.reduce((s, st) => s + (stepWeights[st.id] ?? 0), 0);
+                                    return activity.evaluableSteps.map((step, stepIdx) => (
                                         <th key={step.id} className={cn(
                                             "px-3 py-2 text-center border-r border-border-strong/15 min-w-[100px]",
                                             stepIdx === 0 && "border-l-2 border-l-border-strong",
@@ -1182,15 +1225,18 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                                         )}>
                                             <div className="flex flex-col items-center gap-1">
                                                 <span className="truncate max-w-[80px] text-[8px] text-text-muted/40 font-black uppercase tracking-widest">{step.title}</span>
-                                                <StepWeightInput
-                                                    stepId={step.id}
-                                                    value={stepWeights[step.id] ?? 1.0}
+                                                <PercentageInput
+                                                    entityId={step.id}
+                                                    value={stepWeights[step.id] ?? 0}
+                                                    groupSum={stepSum}
                                                     onChange={(v) => setStepWeights(prev => ({ ...prev, [step.id]: v }))}
+                                                    onSave={(v) => updateStepWeight(step.id, v).catch(() => toast.error("No se pudo guardar el %"))}
+                                                    variant="step"
                                                 />
                                             </div>
                                         </th>
-                                    ))
-                                )}
+                                    ));
+                                })}
                             </tr>
                         </thead>
                         <tbody>
@@ -1268,60 +1314,48 @@ function getActivityTypeIcon(type: string) {
 
 // --- SHARED UI HELPERS (Unchanged logic, updated styles) ---
 
-function WeightInput({ activityId, value, onChange }: { activityId: string; value: number; onChange: (v: number) => void; }) {
+function PercentageInput({ entityId, value, groupSum, onChange, onSave, variant = "activity" }: {
+    entityId: string; value: number; groupSum: number; onChange: (v: number) => void; onSave: (v: number) => void; variant?: "activity" | "step";
+}) {
     const [editing, setEditing] = useState(false);
-    const [draft, setDraft] = useState(String(value));
+    const [draft, setDraft] = useState(String(Math.round(value)));
     const inputRef = useRef<HTMLInputElement>(null);
     useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+    const isValid = Math.abs(groupSum - 100) < 0.5;
     function handleBlur() {
-        const parsed = parseFloat(draft);
-        if (!isNaN(parsed) && parsed > 0) {
+        const parsed = parseInt(draft, 10);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
             onChange(parsed);
-            updateActivityWeight(activityId, parsed).catch(() => toast.error("No se pudo guardar el peso"));
-        } else setDraft(String(value));
+            onSave(parsed);
+        } else setDraft(String(Math.round(value)));
         setEditing(false);
     }
     if (editing) return (
-        <input ref={inputRef} type="number" min="0.1" step="0.1" value={draft}
+        <input ref={inputRef} type="number" min="0" max="100" step="1" value={draft}
             onChange={e => setDraft(e.target.value)} onBlur={handleBlur}
-            onKeyDown={e => { if (e.key === "Enter") handleBlur(); if (e.key === "Escape") { setDraft(String(value)); setEditing(false); } }}
-            className="w-14 text-center text-[10px] bg-background border border-accent-blue/50 rounded-lg px-1 py-1 font-mono text-accent-blue outline-none"
+            onKeyDown={e => { if (e.key === "Enter") handleBlur(); if (e.key === "Escape") { setDraft(String(Math.round(value))); setEditing(false); } }}
+            className={cn(
+                "w-12 text-center bg-background border rounded-lg px-1 font-mono outline-none",
+                variant === "step" ? "text-[9px] py-0.5 border-accent-amber/50 text-accent-amber" : "text-[10px] py-1 border-accent-blue/50 text-accent-blue"
+            )}
         />
     );
+    const isStep = variant === "step";
     return (
-        <button onClick={() => { setDraft(String(value)); setEditing(true); }}
-            className="text-[9px] font-black font-mono text-text-muted/40 hover:text-accent-blue transition-all px-2 py-1 rounded-lg border border-border-strong hover:border-accent-blue/30 bg-surface-dark"
+        <button onClick={() => { setDraft(String(Math.round(value))); setEditing(true); }}
+            className={cn(
+                "font-black font-mono transition-all rounded-md border bg-surface-dark",
+                isStep
+                    ? "text-[8px] px-1.5 py-0.5 hover:border-accent-amber/30"
+                    : "text-[9px] px-2 py-1 rounded-lg hover:border-accent-blue/30",
+                !isValid
+                    ? "text-red-400 border-red-500/30 hover:text-red-300"
+                    : isStep
+                        ? "text-text-muted/30 border-border-strong hover:text-accent-amber"
+                        : "text-text-muted/40 border-border-strong hover:text-accent-blue",
+            )}
         >
-            PESO: {value}
-        </button>
-    );
-}
-
-function StepWeightInput({ stepId, value, onChange }: { stepId: string; value: number; onChange: (v: number) => void; }) {
-    const [editing, setEditing] = useState(false);
-    const [draft, setDraft] = useState(String(value));
-    const inputRef = useRef<HTMLInputElement>(null);
-    useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
-    function handleBlur() {
-        const parsed = parseFloat(draft);
-        if (!isNaN(parsed) && parsed > 0) {
-            onChange(parsed);
-            updateStepWeight(stepId, parsed).catch(() => toast.error("No se pudo guardar el peso del paso"));
-        } else setDraft(String(value));
-        setEditing(false);
-    }
-    if (editing) return (
-        <input ref={inputRef} type="number" min="0.1" step="0.1" value={draft}
-            onChange={e => setDraft(e.target.value)} onBlur={handleBlur}
-            onKeyDown={e => { if (e.key === "Enter") handleBlur(); if (e.key === "Escape") { setDraft(String(value)); setEditing(false); } }}
-            className="w-12 text-center text-[9px] bg-background border border-accent-amber/50 rounded-lg px-1 py-0.5 font-mono text-accent-amber outline-none"
-        />
-    );
-    return (
-        <button onClick={() => { setDraft(String(value)); setEditing(true); }}
-            className="text-[8px] font-black font-mono text-text-muted/30 hover:text-accent-amber transition-all px-1.5 py-0.5 rounded-md border border-border-strong hover:border-accent-amber/30 bg-surface-dark"
-        >
-            P: {value}
+            {Math.round(value)}%
         </button>
     );
 }
