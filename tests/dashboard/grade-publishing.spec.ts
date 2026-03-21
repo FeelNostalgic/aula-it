@@ -149,8 +149,8 @@ test.describe("Grade Publishing Flow", () => {
             await submissionRow.hover();
         }
 
-        // Reopen button has title="Reabrir entrega"
-        const reopenButton = page.locator('button[title="Reabrir entrega"]').first();
+        // Reopen button has title="Deshacer corrección"
+        const reopenButton = page.locator('button[title="Deshacer corrección"]').first();
 
         if (await reopenButton.isVisible({ timeout: 3000 }).catch(() => false)) {
             await reopenButton.click();
