@@ -5,10 +5,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
     FileText, CheckCircle2, Clock, Circle, ExternalLink, Copy, Lock, Send, PencilLine,
-    ChevronDown, ChevronRight, ChevronUp, Star, RotateCcw, BookOpen, Paperclip,
+    ChevronDown, Star, Undo2, BookOpen, Paperclip, CalendarPlus,
     LayoutGrid, ListFilter, Search, Users, FolderRoot, GraduationCap, ArrowRight,
-    ChevronsUpDown, Download, RefreshCw
+    ArrowUp, ArrowDown, ArrowUpDown, Download
 } from "lucide-react";
+import {
+    useReactTable, getCoreRowModel, getSortedRowModel, flexRender,
+    type ColumnDef, type SortingState, type RowSelectionState, type Column,
+} from "@tanstack/react-table";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { getStepIcon, getTabStepIcon } from "@/lib/constants/step-icons";
 import { ActivityStepType } from "@/types/activity";
 import {
@@ -20,6 +25,8 @@ import {
     updateStepWeight,
     bulkPublishSubmissions,
     bulkReopenSubmissions,
+    createDeadlineExtension,
+    bulkCreateDeadlineExtensions,
     StepSubmissionRow,
 } from "@/app/dashboard/units/[id]/actions";
 import { criteriaMaxPoints } from "@/types/activity";
@@ -28,6 +35,7 @@ import { updateStepLock } from "@/app/activities/[id]/edit/actions";
 import { exportGradesAsCSV } from "@/lib/export-grades";
 import { toast } from "sonner";
 import { GradingModal } from "@/components/dashboard/grading-modal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -188,7 +196,14 @@ export function UnitEvaluationTab({ unitId, students, activities, submissions, a
         return map;
     }, [stepSubmissions, activities]);
 
-    const activityIdsList = Object.keys(grouped);
+    const activityIdsList = useMemo(() => {
+        const ids = Object.keys(grouped);
+        return ids.sort((a, b) => {
+            const actA = activities.find(act => act.id === a);
+            const actB = activities.find(act => act.id === b);
+            return (actA?.order_index ?? 0) - (actB?.order_index ?? 0);
+        });
+    }, [grouped, activities]);
 
     // Initial selection
     useEffect(() => {
@@ -474,15 +489,23 @@ function ChallengeAccordion({ id, index, data, selectedStepId, onSelectStep, isO
     );
 }
 
-type SortConfig = { col: 'name' | 'status' | 'score' | 'date'; dir: 'asc' | 'desc' };
+function SortableHeader({ column, label }: { column: Column<StepSubmissionRow, unknown>; label: string }) {
+    return (
+        <button className="flex items-center gap-1 cursor-pointer select-none" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+            {label}
+            {column.getIsSorted() === "asc" ? <ArrowUp className="size-3" /> : column.getIsSorted() === "desc" ? <ArrowDown className="size-3" /> : <ArrowUpDown className="size-3 opacity-40" />}
+        </button>
+    );
+}
 
 function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, allSubmissions }: {
     stepId: string, activityId: string, stepData: any, onSubmissionsChange: (rows: StepSubmissionRow[]) => void, allSubmissions: StepSubmissionRow[]
 }) {
     const [gradingState, setGradingState] = useState<{ rows: StepSubmissionRow[]; index: number } | null>(null);
     const gradingSubmission = gradingState ? gradingState.rows[gradingState.index] : null;
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    const [sortConfig, setSortConfig] = useState<SortConfig>({ col: 'name', dir: 'asc' });
+    const [sorting, setSorting] = useState<SortingState>([]);
+    const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+    const [extensionDialog, setExtensionDialog] = useState<{ open: boolean; studentIds: string[]; studentNames: string[] }>({ open: false, studentIds: [], studentNames: [] });
 
     const stats = useMemo(() => {
         const rows = stepData.rows;
@@ -493,26 +516,118 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
         return { total, pending, graded, published };
     }, [stepData]);
 
-    const sortedRows = useMemo(() => {
-        const rows = [...(stepData.rows as StepSubmissionRow[])];
-        const { col, dir } = sortConfig;
-        const mult = dir === 'asc' ? 1 : -1;
-        rows.sort((a, b) => {
-            if (col === 'name') return mult * (a.student_name ?? '').localeCompare(b.student_name ?? '');
-            if (col === 'status') return mult * a.status.localeCompare(b.status);
-            if (col === 'score') return mult * ((a.score ?? -1) - (b.score ?? -1));
-            if (col === 'date') return mult * ((a.submitted_at ?? '').localeCompare(b.submitted_at ?? ''));
-            return 0;
-        });
-        return rows;
-    }, [stepData.rows, sortConfig]);
+    const columns: ColumnDef<StepSubmissionRow>[] = useMemo(() => [
+        {
+            id: "select",
+            header: ({ table }) => (
+                <Checkbox
+                    checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+                    onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+                    aria-label="Seleccionar todos"
+                    className="border-border-strong"
+                />
+            ),
+            cell: ({ row }) => row.original.synthetic ? null : (
+                <Checkbox
+                    checked={row.getIsSelected()}
+                    onCheckedChange={(v) => row.toggleSelected(!!v)}
+                    aria-label={`Seleccionar ${row.original.student_name}`}
+                    className="border-border-strong"
+                />
+            ),
+            enableSorting: false,
+            size: 48,
+        },
+        {
+            accessorKey: "student_name",
+            header: ({ column }) => <SortableHeader column={column} label="Alumno" />,
+            cell: ({ row }) => {
+                const r = row.original;
+                return (
+                    <div className="flex items-center gap-3">
+                        <div className="size-8 rounded-xl bg-surface-dark border border-border-strong flex items-center justify-center text-[10px] font-black text-text-muted group-hover:text-accent-blue group-hover:border-accent-blue/30 transition-all shadow-inner shrink-0">
+                            {(r.student_name || r.student_email || "??").substring(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                            <span className="text-[11px] font-bold text-foreground truncate uppercase tracking-tight">{r.student_name || "Sin nombre"}</span>
+                            <span className="text-[9px] text-text-muted/50 font-mono tracking-tighter truncate">{r.student_email}</span>
+                        </div>
+                    </div>
+                );
+            },
+            size: 260,
+        },
+        {
+            id: "files",
+            header: "Entregable",
+            cell: ({ row }) => <SubmissionFileLinks row={row.original} />,
+            enableSorting: false,
+            size: 180,
+        },
+        {
+            accessorKey: "status",
+            header: ({ column }) => <SortableHeader column={column} label="Estado" />,
+            cell: ({ row }) => <SubmissionStatusBadge status={row.original.status} publishedAt={row.original.published_at} />,
+            size: 140,
+        },
+        {
+            accessorKey: "score",
+            header: ({ column }) => <SortableHeader column={column} label="Nota" />,
+            cell: ({ row }) => <ScoreDisplay row={row.original} />,
+            size: 100,
+            sortingFn: (rowA, rowB) => (rowA.original.score ?? -1) - (rowB.original.score ?? -1),
+        },
+        {
+            accessorKey: "submitted_at",
+            header: ({ column }) => <SortableHeader column={column} label="Fecha" />,
+            cell: ({ row }) => (
+                <div className="flex items-center gap-2 text-text-muted/60">
+                    <Clock className="size-3 opacity-30" />
+                    <span className="text-[10px] font-mono tracking-tighter">
+                        {row.original.submitted_at
+                            ? new Date(row.original.submitted_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+                            : "—"}
+                    </span>
+                </div>
+            ),
+            size: 160,
+        },
+        {
+            id: "actions",
+            header: () => <span className="text-right block">Acciones</span>,
+            cell: ({ row, table }) => <SubmissionActions row={row.original} table={table} onGrade={() => {
+                const rows = table.getSortedRowModel().rows.map(r => r.original);
+                const idx = rows.findIndex(r => r.id === row.original.id);
+                setGradingState({ rows, index: idx >= 0 ? idx : 0 });
+            }} onReopen={() => {
+                onSubmissionsChange(allSubmissions.map(s =>
+                    s.id === row.original.id ? { ...s, status: "submitted", graded_at: null, published_at: null } : s
+                ));
+            }} onExtendDeadline={() => {
+                setExtensionDialog({ open: true, studentIds: [row.original.student_id], studentNames: [row.original.student_name || "Sin nombre"] });
+            }} onPublish={(publishedAt) => {
+                onSubmissionsChange(allSubmissions.map(s =>
+                    s.id === row.original.id ? { ...s, status: "published", published_at: publishedAt } : s
+                ));
+            }} />,
+            enableSorting: false,
+        },
+    ], [allSubmissions, onSubmissionsChange]);
 
-    function toggleSort(col: SortConfig['col']) {
-        setSortConfig(prev => prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' });
-    }
+    const table = useReactTable({
+        data: stepData.rows as StepSubmissionRow[],
+        columns,
+        state: { sorting, rowSelection },
+        onSortingChange: setSorting,
+        onRowSelectionChange: setRowSelection,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        enableRowSelection: (row) => !row.original.synthetic,
+        getRowId: (row) => row.id,
+    });
 
-    const allSelected = sortedRows.length > 0 && sortedRows.every(r => selectedIds.has(r.id));
-    const someSelected = sortedRows.some(r => selectedIds.has(r.id));
+    const selectedRows = table.getSelectedRowModel().rows.map(r => r.original);
+    const selectedIdSet = new Set(selectedRows.map(r => r.id));
 
     return (
         <div className="flex flex-col h-full gap-6">
@@ -570,79 +685,54 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
             </div>
 
             {/* Bulk action bar */}
-            {selectedIds.size > 0 && (
+            {selectedRows.length > 0 && (
                 <BulkActionBar
-                    selectedIds={selectedIds}
-                    rows={sortedRows}
-                    onClear={() => setSelectedIds(new Set())}
+                    selectedIds={selectedIdSet}
+                    rows={selectedRows}
+                    onClear={() => table.resetRowSelection()}
                     onSubmissionsChange={onSubmissionsChange}
                     allSubmissions={allSubmissions}
+                    onExtendDeadline={() => {
+                        setExtensionDialog({
+                            open: true,
+                            studentIds: selectedRows.map(r => r.student_id),
+                            studentNames: selectedRows.map(r => r.student_name || "Sin nombre"),
+                        });
+                    }}
                 />
             )}
 
             {/* Submissions Table */}
             <div className="flex-1 min-h-0 bg-surface border border-border-strong rounded-[2rem] overflow-hidden flex flex-col shadow-xl shadow-black/5">
                 <div className="overflow-auto custom-scrollbar flex-1 rounded-[2rem]">
-                    <table className="w-full text-sm text-left border-collapse table-fixed">
-                        <thead>
-                            <tr className="text-[9px] text-text-muted font-black uppercase tracking-widest bg-surface-dark/50 border-b border-border-strong sticky top-0 z-10">
-                                <th className="px-3 py-4 w-[48px]">
-                                    <Checkbox
-                                        checked={allSelected}
-                                        onCheckedChange={(checked) => {
-                                            if (checked) setSelectedIds(new Set(sortedRows.filter(r => !r.synthetic).map(r => r.id)));
-                                            else setSelectedIds(new Set());
-                                        }}
-                                        aria-label="Seleccionar todos"
-                                        className="border-border-strong"
-                                    />
-                                </th>
-                                <th className="px-4 py-4 w-[260px] cursor-pointer select-none" onClick={() => toggleSort('name')}>
-                                    <div className="flex items-center gap-1">Alumno <SortIcon col="name" config={sortConfig} /></div>
-                                </th>
-                                <th className="px-4 py-4 w-[180px]">Entregable</th>
-                                <th className="px-4 py-4 w-[140px] cursor-pointer select-none" onClick={() => toggleSort('status')}>
-                                    <div className="flex items-center gap-1">Estado <SortIcon col="status" config={sortConfig} /></div>
-                                </th>
-                                <th className="px-4 py-4 w-[100px] cursor-pointer select-none" onClick={() => toggleSort('score')}>
-                                    <div className="flex items-center gap-1">Nota <SortIcon col="score" config={sortConfig} /></div>
-                                </th>
-                                <th className="px-4 py-4 w-[160px] cursor-pointer select-none" onClick={() => toggleSort('date')}>
-                                    <div className="flex items-center gap-1">Fecha <SortIcon col="date" config={sortConfig} /></div>
-                                </th>
-                                <th className="px-4 py-4 text-right">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border-subtle/50">
-                            {sortedRows.map((row, rowIdx) => (
-                                <SubmissionRow
-                                    key={row.id}
-                                    row={row}
-                                    selected={selectedIds.has(row.id)}
-                                    onSelect={(checked) => setSelectedIds(prev => {
-                                        const next = new Set(prev);
-                                        checked ? next.add(row.id) : next.delete(row.id);
-                                        return next;
-                                    })}
-                                    onGrade={() => setGradingState({ rows: sortedRows, index: rowIdx })}
-                                    onReopen={() => {
-                                        onSubmissionsChange(allSubmissions.map(s =>
-                                            s.id === row.id
-                                                ? { ...s, status: "submitted", graded_at: null, published_at: null }
-                                                : s
-                                        ));
-                                    }}
-                                    onPublish={(publishedAt) => {
-                                        onSubmissionsChange(allSubmissions.map(s =>
-                                            s.id === row.id
-                                                ? { ...s, status: "published", published_at: publishedAt }
-                                                : s
-                                        ));
-                                    }}
-                                />
+                    <Table className="table-fixed">
+                        <TableHeader className="sticky top-0 z-10">
+                            {table.getHeaderGroups().map(headerGroup => (
+                                <TableRow key={headerGroup.id} className="bg-surface-dark/50 border-b border-border-strong hover:bg-surface-dark/50">
+                                    {headerGroup.headers.map(header => (
+                                        <TableHead key={header.id} style={{ width: header.getSize() }}>
+                                            {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                                        </TableHead>
+                                    ))}
+                                </TableRow>
                             ))}
-                        </tbody>
-                    </table>
+                        </TableHeader>
+                        <TableBody>
+                            {table.getRowModel().rows.map(row => (
+                                <TableRow
+                                    key={row.id}
+                                    data-state={row.getIsSelected() ? "selected" : undefined}
+                                    className={cn("group", row.getIsSelected() ? "bg-accent-blue/[0.04]" : "")}
+                                >
+                                    {row.getVisibleCells().map(cell => (
+                                        <TableCell key={cell.id}>
+                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                 </div>
             </div>
 
@@ -663,24 +753,31 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
                     ));
                 }}
             />
+
+            <DeadlineExtensionDialog
+                open={extensionDialog.open}
+                onOpenChange={(open) => setExtensionDialog(prev => ({ ...prev, open }))}
+                stepId={stepId}
+                studentIds={extensionDialog.studentIds}
+                studentNames={extensionDialog.studentNames}
+                onExtended={() => {
+                    // Refresh would be ideal but for now just close
+                    table.resetRowSelection();
+                }}
+            />
         </div>
     );
 }
 
-function SortIcon({ col, config }: { col: SortConfig['col']; config: SortConfig }) {
-    if (config.col !== col) return <ChevronsUpDown className="size-3 opacity-30" />;
-    return config.dir === 'asc' ? <ChevronUp className="size-3 text-accent-blue" /> : <ChevronDown className="size-3 text-accent-blue" />;
-}
-
-function BulkActionBar({ selectedIds, rows, onClear, onSubmissionsChange, allSubmissions }: {
+function BulkActionBar({ selectedIds, rows, onClear, onSubmissionsChange, allSubmissions, onExtendDeadline }: {
     selectedIds: Set<string>; rows: StepSubmissionRow[];
     onClear: () => void; onSubmissionsChange: (rows: StepSubmissionRow[]) => void; allSubmissions: StepSubmissionRow[];
+    onExtendDeadline?: () => void;
 }) {
     const [isPendingPublish, startPublish] = useTransition();
     const [isPendingReopen, startReopen] = useTransition();
 
-    const selectedRows = rows.filter(r => selectedIds.has(r.id));
-    const gradedSelected = selectedRows.filter(r => r.status === 'graded' && !r.published_at && !r.synthetic);
+    const gradedSelected = rows.filter(r => r.status === 'graded' && !r.published_at && !r.synthetic);
 
     function handleBulkPublish() {
         startPublish(async () => {
@@ -698,12 +795,12 @@ function BulkActionBar({ selectedIds, rows, onClear, onSubmissionsChange, allSub
 
     function handleBulkReopen() {
         startReopen(async () => {
-            const ids = selectedRows.filter(r => !r.synthetic && (r.status === 'graded' || r.status === 'published')).map(r => r.id);
-            if (ids.length === 0) { toast.error("Ninguna entrega seleccionada se puede reabrir"); return; }
+            const ids = rows.filter(r => !r.synthetic && (r.status === 'graded' || r.status === 'published')).map(r => r.id);
+            if (ids.length === 0) { toast.error("Ninguna entrega seleccionada se puede deshacer"); return; }
             const res = await bulkReopenSubmissions(ids);
             if (res.error) toast.error(res.error);
             else {
-                toast.success(`${ids.length} entregas reabiertas`);
+                toast.success(`${ids.length} correcciones deshechas`);
                 onSubmissionsChange(allSubmissions.map(s => ids.includes(s.id) ? { ...s, status: 'submitted', graded_at: null, published_at: null } : s));
                 onClear();
             }
@@ -722,8 +819,14 @@ function BulkActionBar({ selectedIds, rows, onClear, onSubmissionsChange, allSub
             )}
             <Button size="sm" variant="outline" onClick={handleBulkReopen} disabled={isPendingReopen}
                 className="h-7 text-[9px] font-black uppercase gap-1.5 border-amber-500/20 text-amber-500 hover:bg-amber-500/10">
-                <RefreshCw className="size-3" /> Reabrir
+                <Undo2 className="size-3" /> Deshacer corrección
             </Button>
+            {onExtendDeadline && (
+                <Button size="sm" variant="outline" onClick={onExtendDeadline}
+                    className="h-7 text-[9px] font-black uppercase gap-1.5 border-accent-blue/20 text-accent-blue hover:bg-accent-blue/10">
+                    <CalendarPlus className="size-3" /> Reabrir entregas
+                </Button>
+            )}
             <Button size="sm" variant="ghost" onClick={onClear}
                 className="h-7 text-[9px] font-black uppercase text-text-muted hover:text-foreground ml-auto">
                 Deseleccionar
@@ -732,9 +835,8 @@ function BulkActionBar({ selectedIds, rows, onClear, onSubmissionsChange, allSub
     );
 }
 
-function SubmissionRow({ row, selected, onSelect, onGrade, onReopen, onPublish }: {
-    row: StepSubmissionRow; selected?: boolean; onSelect?: (checked: boolean) => void;
-    onGrade: () => void; onReopen: () => void; onPublish: (publishedAt: string) => void;
+function SubmissionActions({ row, table, onGrade, onReopen, onExtendDeadline, onPublish }: {
+    row: StepSubmissionRow; table: any; onGrade: () => void; onReopen: () => void; onExtendDeadline: () => void; onPublish: (publishedAt: string) => void;
 }) {
     const [isPendingReopen, startReopen] = useTransition();
     const [isPendingPublish, startPublish] = useTransition();
@@ -746,11 +848,11 @@ function SubmissionRow({ row, selected, onSelect, onGrade, onReopen, onPublish }
                 toast.error(res.error);
             } else {
                 if (res.warning === 'deadline_passed') {
-                    toast.warning("Entrega reabierta. El plazo ha vencido — el alumno no podrá re-entregar hasta que se extienda.");
+                    toast.warning("Corrección deshecha. El plazo ha vencido — el alumno no podrá re-entregar hasta que se extienda.");
                 } else if (res.warning === 'step_locked') {
-                    toast.warning("Entrega reabierta. Las entregas están cerradas — desbloquea el paso primero.");
+                    toast.warning("Corrección deshecha. Las entregas están cerradas — desbloquea el paso primero.");
                 } else {
-                    toast.success("Entrega reabierta");
+                    toast.success("Corrección deshecha");
                 }
                 onReopen();
             }
@@ -770,85 +872,165 @@ function SubmissionRow({ row, selected, onSelect, onGrade, onReopen, onPublish }
     const canGrade = !row.synthetic;
 
     return (
-        <tr className={cn("group transition-all duration-200", selected ? "bg-accent-blue/[0.04]" : "hover:bg-accent-blue/[0.02]")}>
-            <td className="px-3 py-3">
-                {!row.synthetic && (
-                    <Checkbox
-                        checked={!!selected}
-                        onCheckedChange={(v) => onSelect?.(!!v)}
-                        aria-label={`Seleccionar ${row.student_name}`}
-                        className="border-border-strong"
-                    />
-                )}
-            </td>
-            <td className="px-4 py-3">
-                <div className="flex items-center gap-3">
-                    <div className="size-8 rounded-xl bg-surface-dark border border-border-strong flex items-center justify-center text-[10px] font-black text-text-muted group-hover:text-accent-blue group-hover:border-accent-blue/30 transition-all shadow-inner shrink-0">
-                        {(row.student_name || row.student_email || "??").substring(0, 2).toUpperCase()}
+        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            {canGrade && (
+                <Button
+                    size="sm"
+                    className="h-8 text-[9px] font-black uppercase gap-2 bg-accent-blue hover:bg-accent-blue/90 text-white border-none shadow-lg shadow-accent-blue/20 px-3 rounded-lg"
+                    onClick={onGrade}
+                >
+                    <PencilLine className="size-3" /> Evaluar
+                </Button>
+            )}
+            {canReopen && !row.synthetic && (
+                <Button
+                    size="icon"
+                    variant="outline"
+                    className="size-8 border-amber-500/20 text-amber-500/60 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-all"
+                    onClick={handleReopen}
+                    disabled={isPendingReopen}
+                    title="Deshacer corrección"
+                >
+                    <Undo2 className="size-3.5" />
+                </Button>
+            )}
+            {!row.synthetic && (
+                <Button
+                    size="icon"
+                    variant="outline"
+                    className="size-8 border-accent-blue/20 text-accent-blue/60 hover:text-accent-blue hover:bg-accent-blue/10 rounded-lg transition-all"
+                    onClick={onExtendDeadline}
+                    title="Reabrir entrega"
+                >
+                    <CalendarPlus className="size-3.5" />
+                </Button>
+            )}
+            {canPublish && (
+                <Button
+                    size="icon"
+                    variant="outline"
+                    className="size-8 border-emerald-500/20 text-emerald-500/60 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all"
+                    onClick={handlePublish}
+                    disabled={isPendingPublish}
+                    title="Publicar nota"
+                >
+                    <Star className="size-3.5" />
+                </Button>
+            )}
+        </div>
+    );
+}
+
+const DEADLINE_PRESETS = [
+    { label: "1 hora", hours: 1 },
+    { label: "6 horas", hours: 6 },
+    { label: "24 horas", hours: 24 },
+    { label: "48 horas", hours: 48 },
+    { label: "1 semana", hours: 168 },
+] as const;
+
+function DeadlineExtensionDialog({ open, onOpenChange, stepId, studentIds, studentNames, onExtended }: {
+    open: boolean; onOpenChange: (open: boolean) => void;
+    stepId: string; studentIds: string[]; studentNames: string[];
+    onExtended: () => void;
+}) {
+    const [selectedPreset, setSelectedPreset] = useState<number | null>(24);
+    const [customDate, setCustomDate] = useState("");
+    const [isPending, startTransition] = useTransition();
+
+    const computedDate = useMemo(() => {
+        if (selectedPreset !== null) {
+            const d = new Date();
+            d.setHours(d.getHours() + selectedPreset);
+            return d;
+        }
+        if (customDate) return new Date(customDate);
+        return null;
+    }, [selectedPreset, customDate]);
+
+    function handleSubmit() {
+        if (!computedDate) return;
+        const iso = computedDate.toISOString();
+        startTransition(async () => {
+            const res = studentIds.length === 1
+                ? await createDeadlineExtension(stepId, studentIds[0], iso)
+                : await bulkCreateDeadlineExtensions(stepId, studentIds, iso);
+            if (res.error) toast.error(res.error);
+            else {
+                toast.success(`Plazo extendido hasta ${computedDate.toLocaleDateString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`);
+                onExtended();
+                onOpenChange(false);
+            }
+        });
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md bg-surface border-border-strong">
+                <DialogHeader>
+                    <DialogTitle className="text-base font-black uppercase tracking-tight">Extender plazo de entrega</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                    <div className="text-[11px] text-text-muted">
+                        {studentNames.length === 1
+                            ? <span>Aplicar a: <span className="font-bold text-foreground">{studentNames[0]}</span></span>
+                            : <span>Aplicar a: <span className="font-bold text-foreground">{studentNames.length} alumnos</span></span>
+                        }
                     </div>
-                    <div className="flex flex-col min-w-0">
-                        <span className="text-[11px] font-bold text-foreground truncate uppercase tracking-tight">{row.student_name || "Sin nombre"}</span>
-                        <span className="text-[9px] text-text-muted/50 font-mono tracking-tighter truncate">{row.student_email}</span>
+                    <div className="grid grid-cols-3 gap-2">
+                        {DEADLINE_PRESETS.map(p => (
+                            <button
+                                key={p.hours}
+                                onClick={() => { setSelectedPreset(p.hours); setCustomDate(""); }}
+                                className={cn(
+                                    "px-3 py-2 rounded-xl border text-[11px] font-bold transition-all",
+                                    selectedPreset === p.hours
+                                        ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
+                                        : "bg-surface-dark border-border-strong text-text-muted hover:text-foreground hover:border-border-strong/80"
+                                )}
+                            >
+                                {p.label}
+                            </button>
+                        ))}
+                        <button
+                            onClick={() => { setSelectedPreset(null); }}
+                            className={cn(
+                                "px-3 py-2 rounded-xl border text-[11px] font-bold transition-all",
+                                selectedPreset === null
+                                    ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
+                                    : "bg-surface-dark border-border-strong text-text-muted hover:text-foreground hover:border-border-strong/80"
+                            )}
+                        >
+                            Personalizado
+                        </button>
+                    </div>
+                    {selectedPreset === null && (
+                        <Input
+                            type="datetime-local"
+                            value={customDate}
+                            onChange={(e) => setCustomDate(e.target.value)}
+                            className="bg-surface-dark border-border-strong text-xs"
+                        />
+                    )}
+                    {computedDate && (
+                        <div className="text-[10px] text-text-muted flex items-center gap-2">
+                            <Clock className="size-3" />
+                            Nuevo plazo: <span className="font-bold text-foreground">{computedDate.toLocaleDateString("es-ES", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                        </div>
+                    )}
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="text-[10px] font-black uppercase">
+                            Cancelar
+                        </Button>
+                        <Button size="sm" onClick={handleSubmit} disabled={isPending || !computedDate}
+                            className="text-[10px] font-black uppercase bg-accent-blue hover:bg-accent-blue/90 text-white gap-1.5">
+                            <CalendarPlus className="size-3" />
+                            {isPending ? "Extendiendo..." : "Extender plazo"}
+                        </Button>
                     </div>
                 </div>
-            </td>
-            <td className="px-4 py-3">
-                <SubmissionFileLinks row={row} />
-            </td>
-            <td className="px-4 py-3">
-                <SubmissionStatusBadge status={row.status} publishedAt={row.published_at} />
-            </td>
-            <td className="px-4 py-3">
-                <ScoreDisplay row={row} />
-            </td>
-            <td className="px-4 py-3">
-                <div className="flex items-center gap-2 text-text-muted/60">
-                    <Clock className="size-3 opacity-30" />
-                    <span className="text-[10px] font-mono tracking-tighter">
-                        {row.submitted_at
-                            ? new Date(row.submitted_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
-                            : "—"}
-                    </span>
-                </div>
-            </td>
-            <td className="px-4 py-3 text-right">
-                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {canGrade && (
-                        <Button
-                            size="sm"
-                            className="h-8 text-[9px] font-black uppercase gap-2 bg-accent-blue hover:bg-accent-blue/90 text-white border-none shadow-lg shadow-accent-blue/20 px-3 rounded-lg"
-                            onClick={onGrade}
-                        >
-                            <PencilLine className="size-3" /> Evaluar
-                        </Button>
-                    )}
-                    {canReopen && !row.synthetic && (
-                        <Button
-                            size="icon"
-                            variant="outline"
-                            className="size-8 border-amber-500/20 text-amber-500/60 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-all"
-                            onClick={handleReopen}
-                            disabled={isPendingReopen}
-                            title="Reabrir entrega"
-                        >
-                            <RotateCcw className="size-3.5" />
-                        </Button>
-                    )}
-                    {canPublish && (
-                        <Button
-                            size="icon"
-                            variant="outline"
-                            className="size-8 border-emerald-500/20 text-emerald-500/60 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all"
-                            onClick={handlePublish}
-                            disabled={isPendingPublish}
-                            title="Publicar nota"
-                        >
-                            <Star className="size-3.5" />
-                        </Button>
-                    )}
-                </div>
-            </td>
-        </tr>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -926,55 +1108,54 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
     };
 
     return (
-        <div className="flex flex-col h-full gap-6">
-            {/* Header */}
-            <div className="flex items-center justify-between bg-surface border border-border-strong p-6 rounded-[2rem] shadow-xl shadow-black/5">
-                <div className="flex items-center gap-6">
-                    <div className="size-14 rounded-2xl bg-accent-amber/10 border border-accent-amber/20 flex items-center justify-center text-accent-amber shadow-inner">
-                        <BookOpen className="size-7" />
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-black text-foreground uppercase tracking-tighter leading-none">Libro de Notas Global</h2>
-                        <p className="text-[10px] text-text-muted font-black uppercase tracking-[0.2em] mt-2 opacity-60">Vista consolidada de rendimientos y pesos</p>
-                    </div>
-                </div>
+        <div className="flex flex-col h-full gap-4">
+            {/* Header — compact */}
+            <div className="flex items-center justify-between bg-surface border border-border-strong p-4 rounded-2xl shadow-xl shadow-black/5">
                 <div className="flex items-center gap-3">
-                    <Button
-                        variant="outline"
-                        className="h-10 text-[10px] font-black uppercase border-border-strong hover:bg-white/5 px-6 rounded-xl gap-2"
-                        onClick={() => exportGradesAsCSV({
-                            unitName: unitId,
-                            students,
-                            activitiesWithSteps,
-                            computeStepGrade,
-                            computeActivityGrade: (studentId, actId) => {
-                                const act = activitiesWithSteps.find(a => a.id === actId);
-                                return act ? computeRetoGrade(studentId, act) : null;
-                            },
-                            computeTotal,
-                        })}
-                    >
-                        <Download className="size-3.5" />
-                        Exportar Reporte
-                    </Button>
+                    <div className="size-8 rounded-xl bg-accent-amber/10 border border-accent-amber/20 flex items-center justify-center text-accent-amber shadow-inner">
+                        <BookOpen className="size-4" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-base font-black text-foreground uppercase tracking-tighter leading-none">Libro de Notas</h2>
+                        <span className="text-[9px] text-text-muted/50 font-bold uppercase tracking-wider">·</span>
+                        <span className="text-[9px] text-text-muted/50 font-bold uppercase tracking-wider">Vista consolidada</span>
+                    </div>
                 </div>
+                <Button
+                    variant="outline" size="sm"
+                    className="h-8 text-[10px] font-black uppercase border-border-strong hover:bg-white/5 px-4 rounded-xl gap-2"
+                    onClick={() => exportGradesAsCSV({
+                        unitName: unitId,
+                        students,
+                        activitiesWithSteps,
+                        computeStepGrade,
+                        computeActivityGrade: (studentId, actId) => {
+                            const act = activitiesWithSteps.find(a => a.id === actId);
+                            return act ? computeRetoGrade(studentId, act) : null;
+                        },
+                        computeTotal,
+                    })}
+                >
+                    <Download className="size-3" />
+                    Exportar
+                </Button>
             </div>
 
             {/* Matrix Table */}
             <div className="flex-1 bg-surface border border-border-strong rounded-[2rem] overflow-hidden flex flex-col shadow-xl shadow-black/5">
-                <div className="overflow-auto custom-scrollbar flex-1">
+                <div className="overflow-auto custom-scrollbar flex-1 rounded-[2rem]">
                     <table className="w-full text-sm text-left border-collapse">
-                        <thead className="bg-surface-dark/50 border-b border-border-strong sticky top-0 z-20 backdrop-blur-md">
+                        <thead className="bg-surface/80 backdrop-blur-sm border-b border-border-strong sticky top-0 z-20 shadow-[0_1px_3px_rgba(0,0,0,0.15)]">
                             {/* Row 1: Reto group headers */}
                             <tr className="text-[9px] text-text-muted font-black uppercase tracking-widest">
-                                <th rowSpan={2} className="px-8 py-5 border-r border-border-strong min-w-[240px] w-[240px] align-middle rounded-tl-[2rem]">Alumno</th>
+                                <th rowSpan={2} className="px-6 py-4 border-r border-border-strong min-w-[220px] w-[220px] align-middle bg-surface/80">Alumno</th>
                                 {activitiesWithSteps.map((activity, i) => (
                                     <th key={activity.id} colSpan={activity.evaluableSteps.length}
-                                        className="px-4 py-3 text-center border-r border-border-strong/50 bg-surface/30 border-b border-border-strong/30">
-                                        <div className="flex flex-col items-center gap-2">
+                                        className="px-4 py-3 text-center border-r border-border-strong/40 border-b border-border-strong/20">
+                                        <div className="flex flex-col items-center gap-1.5">
                                             <div className="flex items-center gap-2" title={activity.title}>
-                                                <span className="opacity-30 font-mono">R{i + 1}</span>
-                                                <span className="truncate max-w-[160px] text-foreground uppercase tracking-tight">{activity.title}</span>
+                                                <span className="opacity-30 font-mono text-[8px]">R{i + 1}</span>
+                                                <span className="truncate max-w-[140px] text-foreground/80 uppercase tracking-tight text-[9px]">{activity.title}</span>
                                             </div>
                                             <WeightInput
                                                 activityId={activity.id}
@@ -984,15 +1165,15 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                                         </div>
                                     </th>
                                 ))}
-                                <th rowSpan={2} className="px-6 py-5 text-center bg-accent-blue/5 min-w-[100px] w-[100px] align-middle rounded-tr-[2rem]">Promedio</th>
+                                <th rowSpan={2} className="px-4 py-4 text-center border-l-2 border-accent-blue/10 bg-accent-blue/[0.03] min-w-[90px] w-[90px] align-middle">Promedio</th>
                             </tr>
                             {/* Row 2: Step sub-headers */}
-                            <tr className="text-[9px] text-text-muted/60 font-bold uppercase tracking-widest">
+                            <tr className="text-[9px] text-text-muted/50 font-bold uppercase tracking-widest">
                                 {activitiesWithSteps.flatMap(activity =>
                                     activity.evaluableSteps.map(step => (
-                                        <th key={step.id} className="px-3 py-2.5 text-center border-r border-border-strong/30 min-w-[110px] bg-surface-dark/20">
-                                            <div className="flex flex-col items-center gap-1.5">
-                                                <span className="truncate max-w-[90px] text-[8px] text-text-muted/50 font-black uppercase tracking-widest">{step.title}</span>
+                                        <th key={step.id} className="px-3 py-2 text-center border-r border-border-strong/20 min-w-[100px] bg-surface-dark/10">
+                                            <div className="flex flex-col items-center gap-1">
+                                                <span className="truncate max-w-[80px] text-[8px] text-text-muted/40 font-black uppercase tracking-widest">{step.title}</span>
                                                 <StepWeightInput
                                                     stepId={step.id}
                                                     value={stepWeights[step.id] ?? 1.0}
@@ -1004,34 +1185,48 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                                 )}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-border-subtle/50">
-                            {students.map((student) => {
+                        <tbody>
+                            {students.map((student, idx) => {
                                 const total = computeTotal(student.student_id);
                                 return (
-                                    <tr key={student.student_id} className="hover:bg-accent-blue/[0.02] transition-colors group">
-                                        <td className="px-8 py-3 font-bold text-foreground border-r border-border-strong/50 uppercase tracking-tight text-[11px] bg-surface/50 whitespace-nowrap">{student.name}</td>
+                                    <tr key={student.student_id} className={cn(
+                                        "transition-colors group border-b border-border-subtle/30",
+                                        idx % 2 === 1 ? "bg-white/[0.015]" : "",
+                                        "hover:bg-accent-blue/[0.03]"
+                                    )}>
+                                        <td className="px-4 py-2.5 border-r border-border-strong/30 bg-surface/40 sticky left-0 z-10 whitespace-nowrap">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="size-7 rounded-lg bg-surface-dark border border-border-strong flex items-center justify-center text-[9px] font-black text-text-muted/60 group-hover:text-accent-blue group-hover:border-accent-blue/30 transition-all shrink-0">
+                                                    {(student.name || "??").substring(0, 2).toUpperCase()}
+                                                </div>
+                                                <span className="font-bold text-foreground uppercase tracking-tight text-[11px]">{student.name}</span>
+                                            </div>
+                                        </td>
                                         {activitiesWithSteps.flatMap(activity =>
                                             activity.evaluableSteps.map(step => {
                                                 const { grade, status } = computeStepGrade(student.student_id, step.id);
                                                 return (
-                                                    <td key={step.id} className="px-3 py-3 text-center border-r border-border-strong/20 group-hover:bg-white/[0.01]">
+                                                    <td key={step.id} className={cn(
+                                                        "px-3 py-2.5 text-center border-r border-border-strong/15",
+                                                        status === 'graded' && "bg-emerald-500/[0.02]",
+                                                    )}>
                                                         {status === 'graded' && grade !== null && (
-                                                            <span className="font-mono text-[11px] font-black text-emerald-400 tabular-nums">{grade.toFixed(1)}</span>
+                                                            <span className="font-mono text-xs font-black text-emerald-400 tabular-nums">{grade.toFixed(1)}</span>
                                                         )}
                                                         {status === 'submitted' && (
-                                                            <span className="font-mono text-[13px] font-black text-amber-400">!</span>
+                                                            <span className="font-mono text-sm font-black text-amber-400 animate-pulse">!</span>
                                                         )}
                                                         {status === 'none' && (
-                                                            <span className="text-text-muted/20 font-mono text-[11px]">−</span>
+                                                            <span className="text-border-strong/20 font-mono text-[11px]">−</span>
                                                         )}
                                                     </td>
                                                 );
                                             })
                                         )}
-                                        <td className="px-6 py-3 text-center bg-accent-blue/[0.03] group-hover:bg-accent-blue/[0.05] transition-colors">
+                                        <td className="px-4 py-2.5 text-center border-l-2 border-accent-blue/10 bg-accent-blue/[0.02] group-hover:bg-accent-blue/[0.05] transition-colors">
                                             {total !== null ? (
                                                 <div className={cn(
-                                                    "inline-flex items-center justify-center size-9 rounded-2xl font-mono text-xs font-black border tabular-nums shadow-sm",
+                                                    "inline-flex items-center justify-center size-10 rounded-2xl font-mono text-xs font-black border tabular-nums shadow-sm",
                                                     total >= 5
                                                         ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
                                                         : "text-red-400 bg-red-500/10 border-red-500/20"

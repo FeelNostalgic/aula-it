@@ -23,7 +23,13 @@ export async function submitDeliverable(stepId: string, driveFileUrl: string, ac
         .single();
     if (step?.is_locked) return { error: "Las entregas están cerradas para este paso." };
     if (step?.due_date && new Date(step.due_date) < new Date()) {
-        return { error: "El plazo de entrega ha finalizado." };
+        const { data: ext } = await supabase
+            .from("deadline_extensions")
+            .select("extended_until")
+            .eq("student_id", user.id).eq("step_id", stepId).single();
+        if (!ext || new Date(ext.extended_until) < new Date()) {
+            return { error: "El plazo de entrega ha finalizado." };
+        }
     }
 
     const { data, error } = await supabase
@@ -67,7 +73,13 @@ export async function submitFileUpload(
         .single();
     if (step?.is_locked) return { error: "Las entregas están cerradas para este paso." };
     if (step?.due_date && new Date(step.due_date) < new Date()) {
-        return { error: "El plazo de entrega ha finalizado." };
+        const { data: ext } = await supabase
+            .from("deadline_extensions")
+            .select("extended_until")
+            .eq("student_id", user.id).eq("step_id", stepId).single();
+        if (!ext || new Date(ext.extended_until) < new Date()) {
+            return { error: "El plazo de entrega ha finalizado." };
+        }
     }
 
     const { data, error } = await supabase
@@ -112,7 +124,13 @@ export async function submitFileUploadMulti(
         .single();
     if (step?.is_locked) return { error: "Las entregas están cerradas para este paso." };
     if (step?.due_date && new Date(step.due_date) < new Date()) {
-        return { error: "El plazo de entrega ha finalizado." };
+        const { data: ext } = await supabase
+            .from("deadline_extensions")
+            .select("extended_until")
+            .eq("student_id", user.id).eq("step_id", stepId).single();
+        if (!ext || new Date(ext.extended_until) < new Date()) {
+            return { error: "El plazo de entrega ha finalizado." };
+        }
     }
 
     const first = files[0];

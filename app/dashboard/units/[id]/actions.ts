@@ -389,15 +389,16 @@ export async function getUnitStepSubmissions(
     // Step 2: get deliverable, file_upload, and quiz steps in those phases
     const { data: steps, error: stepsError } = await supabase
         .from("activity_steps")
-        .select("id, type, title, phase_id, content, is_locked")
+        .select("id, type, title, phase_id, content, is_locked, order_index")
         .in("type", ["deliverable", "file_upload", "quiz"])
-        .in("phase_id", phaseIds);
+        .in("phase_id", phaseIds)
+        .order("order_index", { ascending: true });
 
     if (stepsError) return { error: stepsError.message };
     if (!steps || steps.length === 0) return { data: [] };
 
     const stepIds = steps.map(s => s.id);
-    const stepMeta: Record<string, { title: string; stepType: import('@/types/activity').ActivityStepType; activityId: string; deliveryMode: 'manual' | 'teacher_copy' | undefined; rubric: import('@/types/activity').RubricCriteria[]; quizContent: import('@/types/activity').QuizContent | null; isLocked: boolean }> = {};
+    const stepMeta: Record<string, { title: string; stepType: import('@/types/activity').ActivityStepType; activityId: string; deliveryMode: 'manual' | 'teacher_copy' | undefined; rubric: import('@/types/activity').RubricCriteria[]; quizContent: import('@/types/activity').QuizContent | null; isLocked: boolean; orderIndex: number }> = {};
     for (const s of steps) {
         const stepType = (s as any).type as import('@/types/activity').ActivityStepType;
         stepMeta[s.id] = {
@@ -408,6 +409,7 @@ export async function getUnitStepSubmissions(
             rubric: (s.content as any)?.rubric ?? [],
             quizContent: stepType === 'quiz' ? ((s.content as any) as import('@/types/activity').QuizContent) : null,
             isLocked: (s as any).is_locked ?? false,
+            orderIndex: (s as any).order_index ?? 0,
         };
     }
 
@@ -1138,6 +1140,62 @@ export async function bulkReopenSubmissions(submissionIds: string[]): Promise<{ 
         .update({ status: "submitted", graded_at: null, published_at: null })
         .in("id", submissionIds)
         .in("status", ["graded", "published"]);
+
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { success: true };
+}
+
+export async function createDeadlineExtension(
+    stepId: string,
+    studentId: string,
+    extendedUntil: string
+): Promise<{ success?: boolean; error?: string }> {
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Solo profesores." };
+
+    const admin = createAdminClient();
+    const { error } = await admin
+        .from("deadline_extensions")
+        .upsert(
+            { student_id: studentId, step_id: stepId, extended_until: extendedUntil, created_by: user.id },
+            { onConflict: "student_id,step_id" }
+        );
+
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { success: true };
+}
+
+export async function bulkCreateDeadlineExtensions(
+    stepId: string,
+    studentIds: string[],
+    extendedUntil: string
+): Promise<{ success?: boolean; error?: string }> {
+    if (studentIds.length === 0) return { error: "No hay alumnos seleccionados." };
+
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Solo profesores." };
+
+    const admin = createAdminClient();
+    const rows = studentIds.map(sid => ({
+        student_id: sid,
+        step_id: stepId,
+        extended_until: extendedUntil,
+        created_by: user.id,
+    }));
+
+    const { error } = await admin
+        .from("deadline_extensions")
+        .upsert(rows, { onConflict: "student_id,step_id" });
 
     if (error) return { error: error.message };
     revalidatePath("/dashboard/units/[id]", "layout");

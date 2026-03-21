@@ -35,7 +35,7 @@ export default async function EvaluacionPage({
             id, unit_id, title, description, type, order_index, status, created_at, duration, difficulty, logo_url, position_x, position_y, grade_weight,
             activity_phases (
                 id,
-                activity_steps ( id, title, type, xp, grade_weight )
+                activity_steps ( id, title, type, xp, grade_weight, order_index )
             )
         `)
         .eq("unit_id", unitId)
