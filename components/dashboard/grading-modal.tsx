@@ -587,7 +587,7 @@ function SubmissionFilePanel({ submission }: { submission: StepSubmissionRow | n
                         className="h-6 text-xs gap-1 text-text-muted hover:text-foreground"
                         onClick={() => window.open(file.driveFileUrl, "_blank")}
                     >
-                        <ExternalLink className="size-3" /> Abrir en Drive
+                        {/*<ExternalLink className="size-3" /> Abrir en Drive*/}
                     </Button>
                 </div>
                 <iframe
