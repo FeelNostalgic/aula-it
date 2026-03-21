@@ -357,6 +357,7 @@ export type StepSubmissionRow = {
         points_total: number;
     } | null;
     synthetic?: boolean; // true = no real submission, injected for display
+    step_is_locked?: boolean;
 };
 
 export async function getUnitStepSubmissions(
@@ -388,7 +389,7 @@ export async function getUnitStepSubmissions(
     // Step 2: get deliverable, file_upload, and quiz steps in those phases
     const { data: steps, error: stepsError } = await supabase
         .from("activity_steps")
-        .select("id, type, title, phase_id, content")
+        .select("id, type, title, phase_id, content, is_locked")
         .in("type", ["deliverable", "file_upload", "quiz"])
         .in("phase_id", phaseIds);
 
@@ -396,7 +397,7 @@ export async function getUnitStepSubmissions(
     if (!steps || steps.length === 0) return { data: [] };
 
     const stepIds = steps.map(s => s.id);
-    const stepMeta: Record<string, { title: string; stepType: import('@/types/activity').ActivityStepType; activityId: string; deliveryMode: 'manual' | 'teacher_copy' | undefined; rubric: import('@/types/activity').RubricCriteria[]; quizContent: import('@/types/activity').QuizContent | null }> = {};
+    const stepMeta: Record<string, { title: string; stepType: import('@/types/activity').ActivityStepType; activityId: string; deliveryMode: 'manual' | 'teacher_copy' | undefined; rubric: import('@/types/activity').RubricCriteria[]; quizContent: import('@/types/activity').QuizContent | null; isLocked: boolean }> = {};
     for (const s of steps) {
         const stepType = (s as any).type as import('@/types/activity').ActivityStepType;
         stepMeta[s.id] = {
@@ -406,6 +407,7 @@ export async function getUnitStepSubmissions(
             deliveryMode: (s.content as any)?.deliveryMode,
             rubric: (s.content as any)?.rubric ?? [],
             quizContent: stepType === 'quiz' ? ((s.content as any) as import('@/types/activity').QuizContent) : null,
+            isLocked: (s as any).is_locked ?? false,
         };
     }
 
@@ -474,6 +476,7 @@ export async function getUnitStepSubmissions(
             grading_mode: row.grading_mode ?? null,
             step_rubric: meta?.rubric ?? [],
             quiz_content: meta?.quizContent ?? null,
+            step_is_locked: meta?.isLocked ?? false,
             quiz_attempt: bestAttempt ? {
                 id: bestAttempt.id,
                 attempt_number: bestAttempt.attempt_number,
@@ -518,6 +521,7 @@ export async function getUnitStepSubmissions(
                         grading_mode: null,
                         step_rubric: meta?.rubric ?? [],
                         quiz_content: meta?.quizContent ?? null,
+                        step_is_locked: meta?.isLocked ?? false,
                         quiz_attempt: null,
                         synthetic: true,
                     });
@@ -555,7 +559,7 @@ export async function saveQuizShortAnswerScores(
     return { success: true };
 }
 
-export async function reopenSubmission(submissionId: string): Promise<{ success?: boolean; error?: string }> {
+export async function reopenSubmission(submissionId: string): Promise<{ success?: boolean; error?: string; warning?: 'deadline_passed' | 'step_locked' | null }> {
     const userClient = await createClient();
     const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) return { error: "No autenticado." };
@@ -564,6 +568,25 @@ export async function reopenSubmission(submissionId: string): Promise<{ success?
     if (profile?.role !== "teacher") return { error: "Solo profesores." };
 
     const admin = createAdminClient();
+
+    // Get submission's step to check deadline + lock status
+    const { data: submission } = await admin
+        .from("activity_submissions")
+        .select("step_id")
+        .eq("id", submissionId)
+        .single();
+
+    let warning: 'deadline_passed' | 'step_locked' | null = null;
+    if (submission?.step_id) {
+        const { data: step } = await admin
+            .from("activity_steps")
+            .select("due_date, is_locked")
+            .eq("id", submission.step_id)
+            .single();
+        if (step?.is_locked) warning = 'step_locked';
+        else if (step?.due_date && new Date(step.due_date) < new Date()) warning = 'deadline_passed';
+    }
+
     const { error } = await admin
         .from("activity_submissions")
         .update({ status: "submitted", graded_at: null, published_at: null })
@@ -571,7 +594,7 @@ export async function reopenSubmission(submissionId: string): Promise<{ success?
 
     if (error) return { error: error.message };
     revalidatePath("/dashboard/units/[id]", "layout");
-    return { success: true };
+    return { success: true, warning };
 }
 
 export async function publishSubmissionGrade(submissionId: string): Promise<{ success?: boolean; error?: string }> {
@@ -1076,6 +1099,48 @@ export async function deleteUnit(unitId: string) {
         revalidatePath(`/dashboard/modules/${unit.module_id}`);
     }
     revalidatePath("/dashboard");
+    return { success: true };
+}
+
+export async function bulkPublishSubmissions(submissionIds: string[]): Promise<{ success?: boolean; error?: string }> {
+    if (submissionIds.length === 0) return { error: "No hay entregas seleccionadas." };
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Solo profesores." };
+
+    const admin = createAdminClient();
+    const { error } = await admin
+        .from("activity_submissions")
+        .update({ published_at: new Date().toISOString(), status: "published" })
+        .in("id", submissionIds)
+        .eq("status", "graded");
+
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { success: true };
+}
+
+export async function bulkReopenSubmissions(submissionIds: string[]): Promise<{ success?: boolean; error?: string }> {
+    if (submissionIds.length === 0) return { error: "No hay entregas seleccionadas." };
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Solo profesores." };
+
+    const admin = createAdminClient();
+    const { error } = await admin
+        .from("activity_submissions")
+        .update({ status: "submitted", graded_at: null, published_at: null })
+        .in("id", submissionIds)
+        .in("status", ["graded", "published"]);
+
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 

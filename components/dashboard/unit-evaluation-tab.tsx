@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
     FileText, CheckCircle2, Clock, Circle, ExternalLink, Copy, Lock, Send, PencilLine,
-    ChevronDown, ChevronRight, Star, RotateCcw, BookOpen, Paperclip,
-    LayoutGrid, ListFilter, Search, Users, FolderRoot, GraduationCap, ArrowRight
+    ChevronDown, ChevronRight, ChevronUp, Star, RotateCcw, BookOpen, Paperclip,
+    LayoutGrid, ListFilter, Search, Users, FolderRoot, GraduationCap, ArrowRight,
+    ChevronsUpDown, Download, RefreshCw
 } from "lucide-react";
 import { getStepIcon, getTabStepIcon } from "@/lib/constants/step-icons";
 import { ActivityStepType } from "@/types/activity";
@@ -17,14 +18,19 @@ import {
     publishAllGradesForStep,
     updateActivityWeight,
     updateStepWeight,
+    bulkPublishSubmissions,
+    bulkReopenSubmissions,
     StepSubmissionRow,
 } from "@/app/dashboard/units/[id]/actions";
 import { criteriaMaxPoints } from "@/types/activity";
 import { cn } from "@/lib/utils";
+import { updateStepLock } from "@/app/activities/[id]/edit/actions";
+import { exportGradesAsCSV } from "@/lib/export-grades";
 import { toast } from "sonner";
 import { GradingModal } from "@/components/dashboard/grading-modal";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type Student = {
     id: string;
@@ -74,9 +80,38 @@ interface UnitEvaluationTabProps {
 
 export function UnitEvaluationTab({ unitId, students, activities, submissions, activityIds }: UnitEvaluationTabProps) {
     const [viewMode, setViewMode] = useState<'correction' | 'global'>('correction');
-    const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
-    const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+
+    const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>(() => {
+        if (typeof window === 'undefined') return {};
+        try {
+            const saved = localStorage.getItem(`aula-it:evaluation:${unitId}:sidebar`);
+            return saved ? (JSON.parse(saved).openAccordions ?? {}) : {};
+        } catch { return {}; }
+    });
+    const [selectedActivityId, setSelectedActivityId] = useState<string | null>(() => {
+        if (typeof window === 'undefined') return null;
+        try {
+            const saved = localStorage.getItem(`aula-it:evaluation:${unitId}:sidebar`);
+            return saved ? (JSON.parse(saved).selectedActivityId ?? null) : null;
+        } catch { return null; }
+    });
+    const [selectedStepId, setSelectedStepId] = useState<string | null>(() => {
+        if (typeof window === 'undefined') return null;
+        try {
+            const saved = localStorage.getItem(`aula-it:evaluation:${unitId}:sidebar`);
+            return saved ? (JSON.parse(saved).selectedStepId ?? null) : null;
+        } catch { return null; }
+    });
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+    // Persist sidebar state
+    useEffect(() => {
+        try {
+            localStorage.setItem(`aula-it:evaluation:${unitId}:sidebar`, JSON.stringify({
+                openAccordions, selectedActivityId, selectedStepId,
+            }));
+        } catch {}
+    }, [unitId, openAccordions, selectedActivityId, selectedStepId]);
 
     // Auto-collapse sidebar in global mode
     useEffect(() => {
@@ -125,6 +160,7 @@ export function UnitEvaluationTab({ unitId, students, activities, submissions, a
                 stepTitle: string;
                 stepType: ActivityStepType;
                 deliveryMode: "manual" | "teacher_copy" | undefined;
+                isLocked: boolean;
                 rows: StepSubmissionRow[];
             }>;
         }> = {};
@@ -143,6 +179,7 @@ export function UnitEvaluationTab({ unitId, students, activities, submissions, a
                     stepTitle: row.step_title,
                     stepType: row.step_type,
                     deliveryMode: row.delivery_mode,
+                    isLocked: row.step_is_locked ?? false,
                     rows: [],
                 };
             }
@@ -202,6 +239,8 @@ export function UnitEvaluationTab({ unitId, students, activities, submissions, a
                                         data={grouped[actId]}
                                         selectedStepId={selectedStepId}
                                         onSelectStep={handleSelectStep}
+                                        isOpen={openAccordions[actId] !== false}
+                                        onToggle={() => setOpenAccordions(prev => ({ ...prev, [actId]: !(prev[actId] !== false) }))}
                                     />
                                 ))}
                             </div>
@@ -304,7 +343,8 @@ export function UnitEvaluationTab({ unitId, students, activities, submissions, a
                                 transition={{ duration: 0.2 }}
                                 className="h-full p-6"
                             >
-                                <StudentGradesSection 
+                                <StudentGradesSection
+                                    unitId={unitId}
                                     students={enrolledStudents}
                                     activities={sortedActivities}
                                     stepSubmissions={stepSubmissions}
@@ -320,10 +360,10 @@ export function UnitEvaluationTab({ unitId, students, activities, submissions, a
 
 // --- SUB-COMPONENTS ---
 
-function ChallengeAccordion({ id, index, data, selectedStepId, onSelectStep }: { 
-    id: string, index: number, data: any, selectedStepId: string | null, onSelectStep: (actId: string, stepId: string) => void 
+function ChallengeAccordion({ id, index, data, selectedStepId, onSelectStep, isOpen, onToggle }: {
+    id: string, index: number, data: any, selectedStepId: string | null, onSelectStep: (actId: string, stepId: string) => void,
+    isOpen: boolean, onToggle: () => void
 }) {
-    const [isOpen, setIsOpen] = useState(true);
     const stepIds = Object.keys(data.byStep);
     
     const stats = useMemo(() => {
@@ -340,7 +380,7 @@ function ChallengeAccordion({ id, index, data, selectedStepId, onSelectStep }: {
     return (
         <div className="space-y-1">
             <button
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={onToggle}
                 className={cn(
                     "w-full flex items-center gap-3 p-2.5 rounded-2xl border transition-all text-left group",
                     isOpen 
@@ -434,11 +474,15 @@ function ChallengeAccordion({ id, index, data, selectedStepId, onSelectStep }: {
     );
 }
 
+type SortConfig = { col: 'name' | 'status' | 'score' | 'date'; dir: 'asc' | 'desc' };
+
 function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, allSubmissions }: {
     stepId: string, activityId: string, stepData: any, onSubmissionsChange: (rows: StepSubmissionRow[]) => void, allSubmissions: StepSubmissionRow[]
 }) {
     const [gradingState, setGradingState] = useState<{ rows: StepSubmissionRow[]; index: number } | null>(null);
     const gradingSubmission = gradingState ? gradingState.rows[gradingState.index] : null;
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [sortConfig, setSortConfig] = useState<SortConfig>({ col: 'name', dir: 'asc' });
 
     const stats = useMemo(() => {
         const rows = stepData.rows;
@@ -449,34 +493,54 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
         return { total, pending, graded, published };
     }, [stepData]);
 
+    const sortedRows = useMemo(() => {
+        const rows = [...(stepData.rows as StepSubmissionRow[])];
+        const { col, dir } = sortConfig;
+        const mult = dir === 'asc' ? 1 : -1;
+        rows.sort((a, b) => {
+            if (col === 'name') return mult * (a.student_name ?? '').localeCompare(b.student_name ?? '');
+            if (col === 'status') return mult * a.status.localeCompare(b.status);
+            if (col === 'score') return mult * ((a.score ?? -1) - (b.score ?? -1));
+            if (col === 'date') return mult * ((a.submitted_at ?? '').localeCompare(b.submitted_at ?? ''));
+            return 0;
+        });
+        return rows;
+    }, [stepData.rows, sortConfig]);
+
+    function toggleSort(col: SortConfig['col']) {
+        setSortConfig(prev => prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' });
+    }
+
+    const allSelected = sortedRows.length > 0 && sortedRows.every(r => selectedIds.has(r.id));
+    const someSelected = sortedRows.some(r => selectedIds.has(r.id));
+
     return (
         <div className="flex flex-col h-full gap-6">
             {/* Header: Activity Info & Quick Actions */}
-            <div className="flex items-center justify-between bg-surface border border-border-strong p-6 rounded-[2rem] shadow-xl shadow-black/5 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform duration-500">
+            <div className="flex items-center justify-between bg-surface border border-border-strong p-4 rounded-2xl shadow-xl shadow-black/5 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform duration-500">
                     {getStepIcon(stepData.stepType)}
                 </div>
 
-                <div className="flex items-center gap-6 relative z-10">
-                    <div className="size-14 rounded-2xl bg-accent-blue/10 border border-accent-blue/20 flex items-center justify-center text-accent-blue shadow-inner">
+                <div className="flex items-center gap-4 relative z-10">
+                    <div className="size-10 rounded-xl bg-accent-blue/10 border border-accent-blue/20 flex items-center justify-center text-accent-blue shadow-inner shrink-0">
                         {getStepIcon(stepData.stepType)}
                     </div>
                     <div>
-                        <div className="flex items-center gap-2 mb-1.5">
+                        <div className="flex items-center gap-2 mb-1">
                             <span className="text-[9px] font-black text-accent-blue uppercase tracking-[0.2em]">Actividad Evaluable</span>
                             <div className="size-1 rounded-full bg-border-strong mx-1" />
                             <Badge variant="outline" className="text-[8px] h-4 bg-surface-dark border-border-strong text-text-muted uppercase font-black px-1.5 py-0">
                                 {stepData.deliveryMode === 'teacher_copy' ? 'Template' : 'Manual'}
                             </Badge>
                         </div>
-                        <h2 className="text-2xl font-black text-foreground uppercase tracking-tighter leading-none">{stepData.stepTitle}</h2>
-                        
-                        <div className="flex items-center gap-4 mt-3">
+                        <div className="flex items-center gap-4">
+                            <h2 className="text-lg font-black text-foreground uppercase tracking-tighter leading-none">{stepData.stepTitle}</h2>
                             <div className="flex items-center gap-1.5">
                                 <span className="text-[9px] font-bold text-text-muted uppercase">Progreso:</span>
                                 <div className="w-24 h-1.5 bg-surface-dark rounded-full overflow-hidden border border-border-strong">
-                                    <div 
-                                        className="h-full bg-accent-blue transition-all duration-500" 
+                                    <div
+                                        className="h-full bg-accent-blue transition-all duration-500"
                                         style={{ width: `${(stats.graded / (stats.total || 1)) * 100}%` }}
                                     />
                                 </div>
@@ -490,7 +554,7 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
                     {stepData.deliveryMode === "teacher_copy" && (
                         <DistributeButton stepId={stepId} activityId={activityId} />
                     )}
-                    <LockButton stepId={stepId} />
+                    <LockButton stepId={stepId} deliveryMode={stepData.deliveryMode} initialLocked={stepData.isLocked} />
                     <PublishAllButton
                         stepId={stepId}
                         rows={stepData.rows}
@@ -505,26 +569,62 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
                 </div>
             </div>
 
+            {/* Bulk action bar */}
+            {selectedIds.size > 0 && (
+                <BulkActionBar
+                    selectedIds={selectedIds}
+                    rows={sortedRows}
+                    onClear={() => setSelectedIds(new Set())}
+                    onSubmissionsChange={onSubmissionsChange}
+                    allSubmissions={allSubmissions}
+                />
+            )}
+
             {/* Submissions Table */}
             <div className="flex-1 min-h-0 bg-surface border border-border-strong rounded-[2rem] overflow-hidden flex flex-col shadow-xl shadow-black/5">
                 <div className="overflow-auto custom-scrollbar flex-1 rounded-[2rem]">
                     <table className="w-full text-sm text-left border-collapse table-fixed">
                         <thead>
                             <tr className="text-[9px] text-text-muted font-black uppercase tracking-widest bg-surface-dark/50 border-b border-border-strong sticky top-0 z-10">
-                                <th className="px-6 py-4 w-[280px]">Alumno</th>
-                                <th className="px-6 py-4 w-[200px]">Entregable</th>
-                                <th className="px-6 py-4 w-[140px]">Estado</th>
-                                <th className="px-6 py-4 w-[100px]">Nota</th>
-                                <th className="px-6 py-4 w-[160px]">Actividad</th>
-                                <th className="px-6 py-4 text-right">Acciones</th>
+                                <th className="px-3 py-4 w-[48px]">
+                                    <Checkbox
+                                        checked={allSelected}
+                                        onCheckedChange={(checked) => {
+                                            if (checked) setSelectedIds(new Set(sortedRows.filter(r => !r.synthetic).map(r => r.id)));
+                                            else setSelectedIds(new Set());
+                                        }}
+                                        aria-label="Seleccionar todos"
+                                        className="border-border-strong"
+                                    />
+                                </th>
+                                <th className="px-4 py-4 w-[260px] cursor-pointer select-none" onClick={() => toggleSort('name')}>
+                                    <div className="flex items-center gap-1">Alumno <SortIcon col="name" config={sortConfig} /></div>
+                                </th>
+                                <th className="px-4 py-4 w-[180px]">Entregable</th>
+                                <th className="px-4 py-4 w-[140px] cursor-pointer select-none" onClick={() => toggleSort('status')}>
+                                    <div className="flex items-center gap-1">Estado <SortIcon col="status" config={sortConfig} /></div>
+                                </th>
+                                <th className="px-4 py-4 w-[100px] cursor-pointer select-none" onClick={() => toggleSort('score')}>
+                                    <div className="flex items-center gap-1">Nota <SortIcon col="score" config={sortConfig} /></div>
+                                </th>
+                                <th className="px-4 py-4 w-[160px] cursor-pointer select-none" onClick={() => toggleSort('date')}>
+                                    <div className="flex items-center gap-1">Fecha <SortIcon col="date" config={sortConfig} /></div>
+                                </th>
+                                <th className="px-4 py-4 text-right">Acciones</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border-subtle/50">
-                            {stepData.rows.map((row: any, rowIdx: number) => (
+                            {sortedRows.map((row, rowIdx) => (
                                 <SubmissionRow
                                     key={row.id}
                                     row={row}
-                                    onGrade={() => setGradingState({ rows: stepData.rows, index: rowIdx })}
+                                    selected={selectedIds.has(row.id)}
+                                    onSelect={(checked) => setSelectedIds(prev => {
+                                        const next = new Set(prev);
+                                        checked ? next.add(row.id) : next.delete(row.id);
+                                        return next;
+                                    })}
+                                    onGrade={() => setGradingState({ rows: sortedRows, index: rowIdx })}
                                     onReopen={() => {
                                         onSubmissionsChange(allSubmissions.map(s =>
                                             s.id === row.id
@@ -567,8 +667,74 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
     );
 }
 
-function SubmissionRow({ row, onGrade, onReopen, onPublish }: {
-    row: StepSubmissionRow; onGrade: () => void; onReopen: () => void; onPublish: (publishedAt: string) => void;
+function SortIcon({ col, config }: { col: SortConfig['col']; config: SortConfig }) {
+    if (config.col !== col) return <ChevronsUpDown className="size-3 opacity-30" />;
+    return config.dir === 'asc' ? <ChevronUp className="size-3 text-accent-blue" /> : <ChevronDown className="size-3 text-accent-blue" />;
+}
+
+function BulkActionBar({ selectedIds, rows, onClear, onSubmissionsChange, allSubmissions }: {
+    selectedIds: Set<string>; rows: StepSubmissionRow[];
+    onClear: () => void; onSubmissionsChange: (rows: StepSubmissionRow[]) => void; allSubmissions: StepSubmissionRow[];
+}) {
+    const [isPendingPublish, startPublish] = useTransition();
+    const [isPendingReopen, startReopen] = useTransition();
+
+    const selectedRows = rows.filter(r => selectedIds.has(r.id));
+    const gradedSelected = selectedRows.filter(r => r.status === 'graded' && !r.published_at && !r.synthetic);
+
+    function handleBulkPublish() {
+        startPublish(async () => {
+            const ids = gradedSelected.map(r => r.id);
+            const res = await bulkPublishSubmissions(ids);
+            if (res.error) toast.error(res.error);
+            else {
+                toast.success(`${ids.length} notas publicadas`);
+                const now = new Date().toISOString();
+                onSubmissionsChange(allSubmissions.map(s => ids.includes(s.id) ? { ...s, status: 'published', published_at: now } : s));
+                onClear();
+            }
+        });
+    }
+
+    function handleBulkReopen() {
+        startReopen(async () => {
+            const ids = selectedRows.filter(r => !r.synthetic && (r.status === 'graded' || r.status === 'published')).map(r => r.id);
+            if (ids.length === 0) { toast.error("Ninguna entrega seleccionada se puede reabrir"); return; }
+            const res = await bulkReopenSubmissions(ids);
+            if (res.error) toast.error(res.error);
+            else {
+                toast.success(`${ids.length} entregas reabiertas`);
+                onSubmissionsChange(allSubmissions.map(s => ids.includes(s.id) ? { ...s, status: 'submitted', graded_at: null, published_at: null } : s));
+                onClear();
+            }
+        });
+    }
+
+    return (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-accent-blue/5 border border-accent-blue/20 rounded-2xl text-[10px] font-black uppercase tracking-widest">
+            <span className="text-accent-blue">{selectedIds.size} seleccionados</span>
+            <div className="h-4 w-px bg-accent-blue/20" />
+            {gradedSelected.length > 0 && (
+                <Button size="sm" variant="outline" onClick={handleBulkPublish} disabled={isPendingPublish}
+                    className="h-7 text-[9px] font-black uppercase gap-1.5 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10">
+                    <Star className="size-3" /> Publicar notas ({gradedSelected.length})
+                </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={handleBulkReopen} disabled={isPendingReopen}
+                className="h-7 text-[9px] font-black uppercase gap-1.5 border-amber-500/20 text-amber-500 hover:bg-amber-500/10">
+                <RefreshCw className="size-3" /> Reabrir
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onClear}
+                className="h-7 text-[9px] font-black uppercase text-text-muted hover:text-foreground ml-auto">
+                Deseleccionar
+            </Button>
+        </div>
+    );
+}
+
+function SubmissionRow({ row, selected, onSelect, onGrade, onReopen, onPublish }: {
+    row: StepSubmissionRow; selected?: boolean; onSelect?: (checked: boolean) => void;
+    onGrade: () => void; onReopen: () => void; onPublish: (publishedAt: string) => void;
 }) {
     const [isPendingReopen, startReopen] = useTransition();
     const [isPendingPublish, startPublish] = useTransition();
@@ -576,8 +742,18 @@ function SubmissionRow({ row, onGrade, onReopen, onPublish }: {
     function handleReopen() {
         startReopen(async () => {
             const res = await reopenSubmission(row.id);
-            if (res.error) toast.error(res.error);
-            else { toast.success("Entrega reabierta"); onReopen(); }
+            if (res.error) {
+                toast.error(res.error);
+            } else {
+                if (res.warning === 'deadline_passed') {
+                    toast.warning("Entrega reabierta. El plazo ha vencido — el alumno no podrá re-entregar hasta que se extienda.");
+                } else if (res.warning === 'step_locked') {
+                    toast.warning("Entrega reabierta. Las entregas están cerradas — desbloquea el paso primero.");
+                } else {
+                    toast.success("Entrega reabierta");
+                }
+                onReopen();
+            }
         });
     }
 
@@ -594,10 +770,20 @@ function SubmissionRow({ row, onGrade, onReopen, onPublish }: {
     const canGrade = !row.synthetic;
 
     return (
-        <tr className="hover:bg-accent-blue/[0.02] group transition-all duration-200">
-            <td className="px-6 py-3">
+        <tr className={cn("group transition-all duration-200", selected ? "bg-accent-blue/[0.04]" : "hover:bg-accent-blue/[0.02]")}>
+            <td className="px-3 py-3">
+                {!row.synthetic && (
+                    <Checkbox
+                        checked={!!selected}
+                        onCheckedChange={(v) => onSelect?.(!!v)}
+                        aria-label={`Seleccionar ${row.student_name}`}
+                        className="border-border-strong"
+                    />
+                )}
+            </td>
+            <td className="px-4 py-3">
                 <div className="flex items-center gap-3">
-                    <div className="size-8 rounded-xl bg-surface-dark border border-border-strong flex items-center justify-center text-[10px] font-black text-text-muted group-hover:text-accent-blue group-hover:border-accent-blue/30 transition-all shadow-inner">
+                    <div className="size-8 rounded-xl bg-surface-dark border border-border-strong flex items-center justify-center text-[10px] font-black text-text-muted group-hover:text-accent-blue group-hover:border-accent-blue/30 transition-all shadow-inner shrink-0">
                         {(row.student_name || row.student_email || "??").substring(0, 2).toUpperCase()}
                     </div>
                     <div className="flex flex-col min-w-0">
@@ -606,16 +792,16 @@ function SubmissionRow({ row, onGrade, onReopen, onPublish }: {
                     </div>
                 </div>
             </td>
-            <td className="px-6 py-3">
+            <td className="px-4 py-3">
                 <SubmissionFileLinks row={row} />
             </td>
-            <td className="px-6 py-3">
+            <td className="px-4 py-3">
                 <SubmissionStatusBadge status={row.status} publishedAt={row.published_at} />
             </td>
-            <td className="px-6 py-3">
+            <td className="px-4 py-3">
                 <ScoreDisplay row={row} />
             </td>
-            <td className="px-6 py-3">
+            <td className="px-4 py-3">
                 <div className="flex items-center gap-2 text-text-muted/60">
                     <Clock className="size-3 opacity-30" />
                     <span className="text-[10px] font-mono tracking-tighter">
@@ -625,7 +811,7 @@ function SubmissionRow({ row, onGrade, onReopen, onPublish }: {
                     </span>
                 </div>
             </td>
-            <td className="px-6 py-3 text-right">
+            <td className="px-4 py-3 text-right">
                 <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     {canGrade && (
                         <Button
@@ -666,8 +852,8 @@ function SubmissionRow({ row, onGrade, onReopen, onPublish }: {
     );
 }
 
-function StudentGradesSection({ students, activities, stepSubmissions }: {
-    students: { student_id: string; name: string }[], activities: Activity[], stepSubmissions: StepSubmissionRow[]
+function StudentGradesSection({ unitId, students, activities, stepSubmissions }: {
+    unitId: string, students: { student_id: string; name: string }[], activities: Activity[], stepSubmissions: StepSubmissionRow[]
 }) {
     const [weights, setWeights] = useState<Record<string, number>>(() =>
         Object.fromEntries(activities.map(a => [a.id, a.grade_weight ?? 1.0]))
@@ -753,7 +939,22 @@ function StudentGradesSection({ students, activities, stepSubmissions }: {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Button variant="outline" className="h-10 text-[10px] font-black uppercase border-border-strong hover:bg-white/5 px-6 rounded-xl">
+                    <Button
+                        variant="outline"
+                        className="h-10 text-[10px] font-black uppercase border-border-strong hover:bg-white/5 px-6 rounded-xl gap-2"
+                        onClick={() => exportGradesAsCSV({
+                            unitName: unitId,
+                            students,
+                            activitiesWithSteps,
+                            computeStepGrade,
+                            computeActivityGrade: (studentId, actId) => {
+                                const act = activitiesWithSteps.find(a => a.id === actId);
+                                return act ? computeRetoGrade(studentId, act) : null;
+                            },
+                            computeTotal,
+                        })}
+                    >
+                        <Download className="size-3.5" />
                         Exportar Reporte
                     </Button>
                 </div>
@@ -766,7 +967,7 @@ function StudentGradesSection({ students, activities, stepSubmissions }: {
                         <thead className="bg-surface-dark/50 border-b border-border-strong sticky top-0 z-20 backdrop-blur-md">
                             {/* Row 1: Reto group headers */}
                             <tr className="text-[9px] text-text-muted font-black uppercase tracking-widest">
-                                <th rowSpan={2} className="px-8 py-5 border-r border-border-strong min-w-[240px] w-[240px] align-middle">Alumno</th>
+                                <th rowSpan={2} className="px-8 py-5 border-r border-border-strong min-w-[240px] w-[240px] align-middle rounded-tl-[2rem]">Alumno</th>
                                 {activitiesWithSteps.map((activity, i) => (
                                     <th key={activity.id} colSpan={activity.evaluableSteps.length}
                                         className="px-4 py-3 text-center border-r border-border-strong/50 bg-surface/30 border-b border-border-strong/30">
@@ -783,7 +984,7 @@ function StudentGradesSection({ students, activities, stepSubmissions }: {
                                         </div>
                                     </th>
                                 ))}
-                                <th rowSpan={2} className="px-6 py-5 text-center bg-accent-blue/5 min-w-[100px] w-[100px] align-middle">Promedio</th>
+                                <th rowSpan={2} className="px-6 py-5 text-center bg-accent-blue/5 min-w-[100px] w-[100px] align-middle rounded-tr-[2rem]">Promedio</th>
                             </tr>
                             {/* Row 2: Step sub-headers */}
                             <tr className="text-[9px] text-text-muted/60 font-bold uppercase tracking-widest">
@@ -983,30 +1184,47 @@ function DistributeButton({ stepId, activityId }: { stepId: string; activityId: 
     }
     return (
         <Button size="sm" variant="outline" onClick={handleDistribute} disabled={isPending}
-            className="h-9 text-[10px] font-black uppercase gap-2 border-border-strong hover:bg-white/5"
+            className="h-9 text-[10px] font-black uppercase gap-2 border-accent-blue/20 text-accent-blue hover:bg-accent-blue/10"
         >
             <Send className="size-3.5" /> {isPending ? "..." : "Distribuir"}
         </Button>
     );
 }
 
-function LockButton({ stepId }: { stepId: string }) {
+function LockButton({ stepId, deliveryMode, initialLocked }: { stepId: string; deliveryMode?: string; initialLocked?: boolean }) {
     const [isPending, startTransition] = useTransition();
-    function handleLock() {
+    const [isLocked, setIsLocked] = useState(initialLocked ?? false);
+
+    function handleToggle() {
         startTransition(async () => {
-            try {
-                const res = await fetch("/api/drive/lock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stepId }) });
-                const data = await res.json();
-                if (!res.ok) toast.error(data.error);
-                else toast.success("Cerrado");
-            } catch { toast.error("Error"); }
+            const nextLocked = !isLocked;
+            // Update DB lock flag
+            const res = await updateStepLock(stepId, nextLocked);
+            if (res.error) { toast.error(res.error); return; }
+
+            // For teacher_copy, also revoke/restore Drive permissions
+            if (deliveryMode === 'teacher_copy' && nextLocked) {
+                try {
+                    await fetch("/api/drive/lock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stepId }) });
+                } catch { /* non-critical */ }
+            }
+
+            setIsLocked(nextLocked);
+            toast.success(nextLocked ? "Entregas cerradas" : "Entregas reabiertas");
         });
     }
+
     return (
-        <Button size="sm" variant="outline" onClick={handleLock} disabled={isPending}
-            className="h-9 text-[10px] font-black uppercase gap-2 border-border-strong hover:bg-white/5"
+        <Button size="sm" variant="outline" onClick={handleToggle} disabled={isPending}
+            className={cn(
+                "h-9 text-[10px] font-black uppercase gap-2",
+                isLocked
+                    ? "border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10"
+                    : "border-amber-500/20 text-amber-500 hover:bg-amber-500/10"
+            )}
         >
-            <Lock className="size-3.5" /> {isPending ? "..." : "Cerrar"}
+            <Lock className="size-3.5" />
+            {isPending ? "..." : isLocked ? "Abrir" : "Cerrar"}
         </Button>
     );
 }

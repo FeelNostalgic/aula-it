@@ -15,12 +15,13 @@ export async function submitDeliverable(stepId: string, driveFileUrl: string, ac
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return { error: "No autenticado." };
 
-    // Deadline check
+    // Deadline + lock check
     const { data: step } = await supabase
         .from("activity_steps")
-        .select("due_date")
+        .select("due_date, is_locked")
         .eq("id", stepId)
         .single();
+    if (step?.is_locked) return { error: "Las entregas están cerradas para este paso." };
     if (step?.due_date && new Date(step.due_date) < new Date()) {
         return { error: "El plazo de entrega ha finalizado." };
     }
@@ -58,12 +59,13 @@ export async function submitFileUpload(
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return { error: "No autenticado." };
 
-    // Deadline check
+    // Deadline + lock check
     const { data: step } = await supabase
         .from("activity_steps")
-        .select("due_date")
+        .select("due_date, is_locked")
         .eq("id", stepId)
         .single();
+    if (step?.is_locked) return { error: "Las entregas están cerradas para este paso." };
     if (step?.due_date && new Date(step.due_date) < new Date()) {
         return { error: "El plazo de entrega ha finalizado." };
     }
@@ -105,9 +107,10 @@ export async function submitFileUploadMulti(
 
     const { data: step } = await supabase
         .from("activity_steps")
-        .select("due_date")
+        .select("due_date, is_locked")
         .eq("id", stepId)
         .single();
+    if (step?.is_locked) return { error: "Las entregas están cerradas para este paso." };
     if (step?.due_date && new Date(step.due_date) < new Date()) {
         return { error: "El plazo de entrega ha finalizado." };
     }

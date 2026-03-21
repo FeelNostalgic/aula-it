@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { gradeSubmission, saveQuizShortAnswerScores, StepSubmissionRow, SubmissionFile } from "@/app/dashboard/units/[id]/actions";
+import { urlToPreviewUrl } from "@/lib/google-drive-urls";
 import { RubricCriteria, criteriaMaxPoints, QuizContent } from "@/types/activity";
 import { toast } from "sonner";
 import { ExternalLink, FileText, File, Image, Video, User, Calendar, CheckCircle2, XCircle, Circle, AlertTriangle, ChevronLeft, ChevronRight, AlignLeft } from "lucide-react";
@@ -572,8 +573,10 @@ function SubmissionFilePanel({ submission }: { submission: StepSubmissionRow | n
         );
     }
 
-    // Single PDF → iframe
-    if (allFiles.length === 1 && allFiles[0].driveMimeType === "application/pdf") {
+    // Single file → iframe (use preview URL to avoid auth/account issues)
+    if (allFiles.length === 1) {
+        const file = allFiles[0];
+        const previewUrl = urlToPreviewUrl(file.driveFileUrl, file.driveMimeType) ?? file.driveFileUrl;
         return (
             <>
                 <div className="shrink-0 h-9 flex items-center justify-between px-4 border-b border-border-strong bg-surface">
@@ -582,15 +585,16 @@ function SubmissionFilePanel({ submission }: { submission: StepSubmissionRow | n
                         variant="ghost"
                         size="sm"
                         className="h-6 text-xs gap-1 text-text-muted hover:text-foreground"
-                        onClick={() => window.open(allFiles[0].driveFileUrl, "_blank")}
+                        onClick={() => window.open(file.driveFileUrl, "_blank")}
                     >
                         <ExternalLink className="size-3" /> Abrir en Drive
                     </Button>
                 </div>
                 <iframe
-                    src={allFiles[0].driveFileUrl}
+                    src={previewUrl}
                     className="flex-1 w-full border-none bg-white"
                     title="Documento del alumno"
+                    allow="autoplay"
                 />
             </>
         );

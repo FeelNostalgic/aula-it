@@ -83,6 +83,28 @@ export function toDriveDownloadUrl(url: string): string | null {
 }
 
 /**
+ * Convert a raw Drive/Docs URL string to an embeddable preview URL.
+ * Used for iframes where only the URL (not a DriveFile object) is available.
+ */
+export function urlToPreviewUrl(url: string, mimeType?: string | null): string | null {
+    if (!url) return null;
+    const fileId = extractGoogleFileId(url);
+    if (!fileId) return null;
+
+    if (mimeType === GOOGLE_MIME.PRESENTATION || url.includes('docs.google.com/presentation')) {
+        return `https://docs.google.com/presentation/d/${fileId}/embed?start=false&loop=false&delayms=3000`;
+    }
+    if (mimeType === GOOGLE_MIME.DOCUMENT || url.includes('docs.google.com/document')) {
+        return `https://docs.google.com/document/d/${fileId}/preview`;
+    }
+    if (mimeType === GOOGLE_MIME.SPREADSHEET || url.includes('docs.google.com/spreadsheets')) {
+        return `https://docs.google.com/spreadsheets/d/${fileId}/preview`;
+    }
+    // Drive file (PDF, image, etc.)
+    return `https://drive.google.com/file/d/${fileId}/preview`;
+}
+
+/**
  * Build a download URL for a Google Slides presentation (exports as .pptx).
  * Returns null if the URL is not a Google Slides URL.
  */
