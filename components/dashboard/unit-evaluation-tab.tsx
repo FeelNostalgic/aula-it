@@ -491,7 +491,7 @@ function ChallengeAccordion({ id, index, data, selectedStepId, onSelectStep, isO
 
 function SortableHeader({ column, label }: { column: Column<StepSubmissionRow, unknown>; label: string }) {
     return (
-        <button className="flex items-center gap-1 cursor-pointer select-none" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <button className="flex items-center gap-1 cursor-pointer select-none uppercase tracking-wider text-[11px] font-mono font-medium" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
             {label}
             {column.getIsSorted() === "asc" ? <ArrowUp className="size-3" /> : column.getIsSorted() === "desc" ? <ArrowDown className="size-3" /> : <ArrowUpDown className="size-3 opacity-40" />}
         </button>
@@ -549,8 +549,8 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
                             {(r.student_name || r.student_email || "??").substring(0, 2).toUpperCase()}
                         </div>
                         <div className="flex flex-col min-w-0">
-                            <span className="text-[11px] font-bold text-foreground truncate uppercase tracking-tight">{r.student_name || "Sin nombre"}</span>
-                            <span className="text-[9px] text-text-muted/50 font-mono tracking-tighter truncate">{r.student_email}</span>
+                            <span className="text-[14px] font-bold text-foreground truncate uppercase tracking-tight font-mono">{r.student_name || "Sin nombre"}</span>
+                           {/* <span className="text-[9px] text-text-muted/50 font-mono tracking-tighter truncate">{r.student_email}</span> */}
                         </div>
                     </div>
                 );
@@ -559,7 +559,7 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
         },
         {
             id: "files",
-            header: "Entregable",
+            header: () => <span className="uppercase text-[11px] font-mono font-medium tracking-wider">Entregable</span>,
             cell: ({ row }) => <SubmissionFileLinks row={row.original} />,
             enableSorting: false,
             size: 180,
@@ -583,7 +583,7 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
             cell: ({ row }) => (
                 <div className="flex items-center gap-2 text-text-muted/60">
                     <Clock className="size-3 opacity-30" />
-                    <span className="text-[10px] font-mono tracking-tighter">
+                    <span className="text-[12px] font-mono tracking-tighter">
                         {row.original.submitted_at
                             ? new Date(row.original.submitted_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
                             : "—"}
@@ -594,7 +594,7 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
         },
         {
             id: "actions",
-            header: () => <span className="text-right block">Acciones</span>,
+            header: () => <span className="text-right block uppercase text-[11px] font-mono font-medium tracking-wider">Acciones</span>,
             cell: ({ row, table }) => <SubmissionActions row={row.original} table={table} onGrade={() => {
                 const rows = table.getSortedRowModel().rows.map(r => r.original);
                 const idx = rows.findIndex(r => r.id === row.original.id);
@@ -1398,7 +1398,7 @@ function PercentageInput({ entityId, value, groupSum, onChange, onSave, variant 
 
 function SubmissionFileLinks({ row }: { row: StepSubmissionRow }) {
     const files = row.files && row.files.length > 0 ? row.files : row.drive_file_url ? [{ driveFileId: row.drive_file_id ?? "", driveFileUrl: row.drive_file_url, driveFileName: row.drive_file_url, driveMimeType: "application/pdf" }] : [];
-    if (files.length === 0) return <span className="text-text-muted/30 text-[10px] uppercase font-bold tracking-tighter">Sin entrega</span>;
+    if (files.length === 0) return <span className="text-text-muted/40 text-[11px] uppercase font-bold tracking-tighter">Sin entrega</span>;
     return (
         <div className="flex flex-col gap-1.5">
             {files.map((f, i) => (
@@ -1407,7 +1407,7 @@ function SubmissionFileLinks({ row }: { row: StepSubmissionRow }) {
                     <div className="size-6 rounded-lg bg-accent-blue/10 border border-accent-blue/20 flex items-center justify-center shrink-0 group-hover/link:bg-accent-blue group-hover/link:text-white transition-all">
                         {files.length > 1 ? <Paperclip className="size-3" /> : <ExternalLink className="size-3" />}
                     </div>
-                    <span className="truncate text-[11px] font-bold tracking-tight">{f.driveFileName || "Archivo"}</span>
+                    <span className="truncate text-[13px] font-bold tracking-tight">{f.driveFileName || "Archivo"}</span>
                 </a>
             ))}
         </div>
