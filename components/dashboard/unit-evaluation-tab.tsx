@@ -1037,21 +1037,22 @@ function DeadlineExtensionDialog({ open, onOpenChange, stepId, studentIds, stude
 function StudentGradesSection({ unitId, students, activities, stepSubmissions }: {
     unitId: string, students: { student_id: string; name: string }[], activities: Activity[], stepSubmissions: StepSubmissionRow[]
 }) {
-    // Normalize raw weights to percentages (sum = 100) for a group of values
-    const normalizeToPercent = (entries: { id: string; weight: number }[]): Record<string, number> => {
+    // Normalize legacy weights (all 1.0) to equal percentages on first load only.
+    // If values already look like percentages (sum near 100), use them as-is.
+    const initPercentages = (entries: { id: string; weight: number }[]): Record<string, number> => {
         if (entries.length === 0) return {};
         const sum = entries.reduce((a, e) => a + e.weight, 0);
-        // If all are equal or sum is very small, distribute equally
+        // Already percentages (sum ≈ 100) — use raw values rounded
+        if (Math.abs(sum - 100) < 1) {
+            return Object.fromEntries(entries.map(e => [e.id, Math.round(e.weight)]));
+        }
+        // Legacy weights (all equal, typically 1.0) — distribute equally
         const allEqual = entries.every(e => e.weight === entries[0].weight);
         if (allEqual || sum === 0) {
             const pct = Math.round(100 / entries.length);
             return Object.fromEntries(entries.map((e, i) => [e.id, i === entries.length - 1 ? 100 - pct * (entries.length - 1) : pct]));
         }
-        // If sum is already ~100 (within tolerance), use as-is
-        if (Math.abs(sum - 100) < 0.5) {
-            return Object.fromEntries(entries.map(e => [e.id, Math.round(e.weight)]));
-        }
-        // Otherwise normalize proportionally
+        // Mixed legacy — normalize proportionally
         const result: Record<string, number> = {};
         let assigned = 0;
         entries.forEach((e, i) => {
@@ -1068,30 +1069,50 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
 
     const [weights, setWeights] = useState<Record<string, number>>(() => {
         const activitiesWithEval = activities.filter(a => (a.evaluableSteps ?? []).length > 0);
-        return normalizeToPercent(activitiesWithEval.map(a => ({ id: a.id, weight: a.grade_weight ?? 1.0 })));
+        return initPercentages(activitiesWithEval.map(a => ({ id: a.id, weight: a.grade_weight ?? 1.0 })));
     });
     const [stepWeights, setStepWeights] = useState<Record<string, number>>(() => {
         const map: Record<string, number> = {};
         activities.forEach(a => {
             const steps = (a.evaluableSteps ?? []);
             if (steps.length === 0) return;
-            const normalized = normalizeToPercent(steps.map(s => ({ id: s.id, weight: s.grade_weight })));
-            Object.assign(map, normalized);
+            Object.assign(map, initPercentages(steps.map(s => ({ id: s.id, weight: s.grade_weight }))));
         });
         return map;
     });
 
+    // Only sync new activities/steps added after mount — never re-normalize existing values
     useEffect(() => {
-        const activitiesWithEval = activities.filter(a => (a.evaluableSteps ?? []).length > 0);
-        setWeights(normalizeToPercent(activitiesWithEval.map(a => ({ id: a.id, weight: a.grade_weight ?? 1.0 }))));
-        const map: Record<string, number> = {};
-        activities.forEach(a => {
-            const steps = (a.evaluableSteps ?? []);
-            if (steps.length === 0) return;
-            const normalized = normalizeToPercent(steps.map(s => ({ id: s.id, weight: s.grade_weight })));
-            Object.assign(map, normalized);
+        setWeights(prev => {
+            const activitiesWithEval = activities.filter(a => (a.evaluableSteps ?? []).length > 0);
+            const existingIds = new Set(Object.keys(prev));
+            const newOnes = activitiesWithEval.filter(a => !existingIds.has(a.id));
+            // Remove deleted activities
+            const currentIds = new Set(activitiesWithEval.map(a => a.id));
+            const cleaned: Record<string, number> = {};
+            for (const [id, v] of Object.entries(prev)) { if (currentIds.has(id)) cleaned[id] = v; }
+            if (newOnes.length === 0) return cleaned;
+            // Give new activities an equal share
+            const perNew = Math.round(100 / (Object.keys(cleaned).length + newOnes.length));
+            newOnes.forEach(a => { cleaned[a.id] = perNew; });
+            return cleaned;
         });
-        setStepWeights(map);
+        setStepWeights(prev => {
+            const updated = { ...prev };
+            const allCurrentStepIds = new Set<string>();
+            activities.forEach(a => {
+                const steps = (a.evaluableSteps ?? []);
+                steps.forEach(s => allCurrentStepIds.add(s.id));
+                const newSteps = steps.filter(s => !(s.id in updated));
+                if (newSteps.length > 0) {
+                    const perNew = Math.round(100 / steps.length);
+                    newSteps.forEach(s => { updated[s.id] = perNew; });
+                }
+            });
+            // Remove deleted steps
+            for (const id of Object.keys(updated)) { if (!allCurrentStepIds.has(id)) delete updated[id]; }
+            return updated;
+        });
     }, [activities]);
 
     // Activities that have at least one evaluable step
@@ -1184,22 +1205,21 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                     <table className="w-full text-sm text-left border-collapse">
                         <thead className="border-b border-border-strong sticky top-0 z-20 shadow-[0_1px_3px_rgba(0,0,0,0.15)]">
                             {/* Row 1: Reto group headers */}
-                            <tr className="text-[9px] text-text-muted font-black uppercase tracking-widest">
-                                <th rowSpan={2} className="px-6 py-4 border-r border-border-strong min-w-[220px] w-[220px] align-middle bg-surface rounded-tl-[2rem]">Alumno</th>
-                                {activitiesWithSteps.map((activity, i) => {
-                                    const retoSum = activitiesWithSteps.reduce((s, a) => s + (weights[a.id] ?? 0), 0);
-                                    return (
+                            {(() => {
+                                const retoSum = activitiesWithSteps.reduce((s, a) => s + (weights[a.id] ?? 0), 0);
+                                const retoSumValid = Math.abs(retoSum - 100) < 0.5;
+                                return (
+                            <tr className="text-text-muted font-black uppercase tracking-widest">
+                                <th rowSpan={2} className="px-6 py-4 border-r border-border-strong min-w-[220px] w-[220px] align-middle bg-surface rounded-tl-[2rem] text-xs">Alumno</th>
+                                {activitiesWithSteps.map((activity, i) => (
                                     <th key={activity.id} colSpan={activity.evaluableSteps.length}
                                         className={cn(
                                             "px-4 py-3 text-center border-b border-border-strong/20",
                                             "border-l-2 border-l-border-strong",
                                             i % 2 === 0 ? "bg-surface" : "bg-white/[0.02]",
                                         )}>
-                                        <div className="flex flex-col items-center gap-1.5">
-                                            <div className="flex items-center gap-2" title={activity.title}>
-                                                <span className="opacity-30 font-mono text-[8px]">R{i + 1}</span>
-                                                <span className="truncate max-w-[140px] text-foreground/80 uppercase tracking-tight text-[9px]">{activity.title}</span>
-                                            </div>
+                                        <div className="flex flex-col items-center gap-2">
+                                            <span className="truncate max-w-[180px] text-foreground/80 uppercase tracking-tight text-[11px]" title={activity.title}>{activity.title}</span>
                                             <PercentageInput
                                                 entityId={activity.id}
                                                 value={weights[activity.id] ?? 0}
@@ -1209,22 +1229,33 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                                             />
                                         </div>
                                     </th>
-                                    );
-                                })}
-                                <th rowSpan={2} className="px-4 py-4 text-center border-l-2 border-accent-blue/10 bg-accent-blue/[0.03] min-w-[90px] w-[90px] align-middle rounded-tr-[2rem]">Promedio</th>
+                                ))}
+                                <th rowSpan={2} className="px-4 py-4 text-center border-l-2 border-accent-blue/10 bg-accent-blue/[0.03] min-w-[100px] w-[100px] align-middle rounded-tr-[2rem]">
+                                    <div className="flex flex-col items-center gap-1">
+                                        <span className="text-xs">Promedio</span>
+                                        <span className={cn(
+                                            "text-[10px] font-mono tabular-nums px-2 py-0.5 rounded-md",
+                                            retoSumValid ? "text-emerald-400/60" : "text-red-400 bg-red-500/10"
+                                        )}>
+                                            Σ {Math.round(retoSum)}%
+                                        </span>
+                                    </div>
+                                </th>
                             </tr>
+                                );
+                            })()}
                             {/* Row 2: Step sub-headers */}
-                            <tr className="text-[9px] text-text-muted/50 font-bold uppercase tracking-widest">
+                            <tr className="text-text-muted/50 font-bold uppercase tracking-widest">
                                 {activitiesWithSteps.flatMap((activity, actIdx) => {
                                     const stepSum = activity.evaluableSteps.reduce((s, st) => s + (stepWeights[st.id] ?? 0), 0);
                                     return activity.evaluableSteps.map((step, stepIdx) => (
                                         <th key={step.id} className={cn(
-                                            "px-3 py-2 text-center border-r border-border-strong/15 min-w-[100px]",
+                                            "px-3 py-2.5 text-center border-r border-border-strong/15 min-w-[120px]",
                                             stepIdx === 0 && "border-l-2 border-l-border-strong",
                                             actIdx % 2 === 0 ? "bg-surface-dark/10" : "bg-white/[0.03]",
                                         )}>
-                                            <div className="flex flex-col items-center gap-1">
-                                                <span className="truncate max-w-[80px] text-[8px] text-text-muted/40 font-black uppercase tracking-widest">{step.title}</span>
+                                            <div className="flex flex-col items-center gap-1.5">
+                                                <span className="truncate max-w-[100px] text-[10px] text-text-muted/50 font-black uppercase tracking-widest">{step.title}</span>
                                                 <PercentageInput
                                                     entityId={step.id}
                                                     value={stepWeights[step.id] ?? 0}
@@ -1320,39 +1351,44 @@ function PercentageInput({ entityId, value, groupSum, onChange, onSave, variant 
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(String(Math.round(value)));
     const inputRef = useRef<HTMLInputElement>(null);
-    useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+    useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
     const isValid = Math.abs(groupSum - 100) < 0.5;
+    const isStep = variant === "step";
+
     function handleBlur() {
         const parsed = parseInt(draft, 10);
         if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
             onChange(parsed);
             onSave(parsed);
-        } else setDraft(String(Math.round(value)));
+        } else {
+            setDraft(String(Math.round(value)));
+        }
         setEditing(false);
     }
+
     if (editing) return (
         <input ref={inputRef} type="number" min="0" max="100" step="1" value={draft}
             onChange={e => setDraft(e.target.value)} onBlur={handleBlur}
             onKeyDown={e => { if (e.key === "Enter") handleBlur(); if (e.key === "Escape") { setDraft(String(Math.round(value))); setEditing(false); } }}
             className={cn(
-                "w-12 text-center bg-background border rounded-lg px-1 font-mono outline-none",
-                variant === "step" ? "text-[9px] py-0.5 border-accent-amber/50 text-accent-amber" : "text-[10px] py-1 border-accent-blue/50 text-accent-blue"
+                "text-center bg-background border rounded-lg font-mono font-black outline-none tabular-nums",
+                isStep ? "w-14 text-[11px] px-1.5 py-1 border-accent-amber/50 text-accent-amber" : "w-16 text-xs px-2 py-1.5 border-accent-blue/50 text-accent-blue"
             )}
         />
     );
-    const isStep = variant === "step";
+
     return (
         <button onClick={() => { setDraft(String(Math.round(value))); setEditing(true); }}
             className={cn(
-                "font-black font-mono transition-all rounded-md border bg-surface-dark",
+                "font-black font-mono transition-all border bg-surface-dark tabular-nums",
                 isStep
-                    ? "text-[8px] px-1.5 py-0.5 hover:border-accent-amber/30"
-                    : "text-[9px] px-2 py-1 rounded-lg hover:border-accent-blue/30",
+                    ? "text-[11px] px-2 py-1 rounded-lg hover:border-accent-amber/30"
+                    : "text-xs px-2.5 py-1.5 rounded-lg hover:border-accent-blue/30",
                 !isValid
                     ? "text-red-400 border-red-500/30 hover:text-red-300"
                     : isStep
-                        ? "text-text-muted/30 border-border-strong hover:text-accent-amber"
-                        : "text-text-muted/40 border-border-strong hover:text-accent-blue",
+                        ? "text-text-muted/40 border-border-strong hover:text-accent-amber"
+                        : "text-text-muted/50 border-border-strong hover:text-accent-blue",
             )}
         >
             {Math.round(value)}%
