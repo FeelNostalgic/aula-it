@@ -70,6 +70,33 @@ export default async function ActivityPage({
     const allStepIds = initialPhases.flatMap((phase: any) =>
         (phase.steps || []).map((s: any) => s.id)
     );
+
+    // Load deadline extensions for this student and override due_date where applicable
+    if (allStepIds.length > 0) {
+        const { data: extensions } = await supabase
+            .from('deadline_extensions')
+            .select('step_id, extended_until')
+            .eq('student_id', user.id)
+            .in('step_id', allStepIds);
+        if (extensions && extensions.length > 0) {
+            const extMap = Object.fromEntries(extensions.map((e: any) => [e.step_id, e.extended_until]));
+            initialPhases = initialPhases.map((phase: any) => ({
+                ...phase,
+                steps: (phase.steps || []).map((step: any) => {
+                    const ext = extMap[step.id];
+                    if (ext) {
+                        const extDate = new Date(ext);
+                        const dueDate = step.due_date ? new Date(step.due_date) : null;
+                        if (!dueDate || extDate > dueDate) {
+                            return { ...step, due_date: ext };
+                        }
+                    }
+                    return step;
+                }),
+            }));
+        }
+    }
+
     let viewsMap: Record<string, boolean> = {};
     if (allStepIds.length > 0) {
         const { data: views } = await supabase
