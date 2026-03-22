@@ -91,12 +91,20 @@ export type QuizQuestion = {
     options: QuizOption[];    // empty if type === 'short_answer'
     points: number;           // default: 1
     explanation?: string;     // shown after submission if showCorrectAnswers
+    poolId?: string;          // if set, question belongs to a pool; undefined = always shown
+};
+
+export type QuizPool = {
+    id: string;
+    name: string;
+    pickCount: number;        // how many questions to pick from this pool per attempt
 };
 
 export type QuizMode = 'builtin' | 'google_form';
 
 export type QuizContent = {
     questions: QuizQuestion[];
+    pools?: QuizPool[];             // optional pool definitions; questions reference pools via poolId
     passingScore?: number;          // % (0–100)
     maxAttempts?: number;           // undefined = unlimited
     showCorrectAnswers?: boolean;

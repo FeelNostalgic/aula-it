@@ -27,6 +27,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { cn } from "@/lib/utils";
 import { ResourceIcon } from "../../resource-icon";
 import { toSlidesDownloadUrl, toDriveDownloadUrl } from "@/lib/google-drive-urls";
+import { selectQuestionsForAttempt } from "@/lib/quiz-pool-selection";
 
 interface StepViewerProps {
     step: ActivityStepWithClientState;
@@ -318,14 +319,18 @@ function BuiltinQuizViewer({
 
     const displayQuestions = useMemo(() => {
         if (!content?.questions) return [];
-        const qs = content.randomizeQuestions
-            ? [...content.questions].sort(() => Math.random() - 0.5)
+        // Apply pool selection when pools are defined (uses userId + stepId for determinism)
+        const selected = (content.pools?.length && userId && stepId)
+            ? selectQuestionsForAttempt(content, userId, stepId, (attempts.length ?? 0) + 1)
             : content.questions;
+        const qs = content.randomizeQuestions
+            ? [...selected].sort(() => Math.random() - 0.5)
+            : selected;
         if (content.randomizeOptions) {
             return qs.map(q => ({ ...q, options: [...q.options].sort(() => Math.random() - 0.5) }));
         }
         return qs;
-    }, [content?.questions, content?.randomizeQuestions, content?.randomizeOptions]);
+    }, [content?.questions, content?.pools, content?.randomizeQuestions, content?.randomizeOptions, userId, stepId, attempts.length]);
 
     const maxAttempts = content?.maxAttempts;
     const attemptsDone = attempts.length;
