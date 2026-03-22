@@ -94,23 +94,33 @@ export type QuizQuestion = {
     poolId?: string;          // if set, question belongs to a pool; undefined = always shown
 };
 
-export type QuizPool = {
-    id: string;
-    name: string;
-    pickCount: number;        // how many questions to pick from this pool per attempt
+export type QuizMode = 'builtin' | 'google_form';
+
+export type QuizBankSelection = {
+    bankId: string;
+    pickCount: number;  // how many questions to pick from this bank per attempt
 };
 
-export type QuizMode = 'builtin' | 'google_form';
+export type QuestionBank = {
+    id: string;
+    name: string;
+    description?: string | null;
+    created_by: string;
+    questions: QuizQuestion[];
+    created_at: string;
+    updated_at: string;
+};
 
 export type QuizContent = {
     questions: QuizQuestion[];
-    pools?: QuizPool[];             // optional pool definitions; questions reference pools via poolId
+    bankSelections?: QuizBankSelection[];  // global bank references (replaces per-quiz pools)
     passingScore?: number;          // % (0–100)
     maxAttempts?: number;           // undefined = unlimited
     showCorrectAnswers?: boolean;
     randomizeQuestions?: boolean;
     randomizeOptions?: boolean;
     penalizeWrongAnswers?: boolean;
+    questionsPerPage?: number;   // undefined = all on one page
     googleFormUrl?: string;
     quizMode?: QuizMode;
 };

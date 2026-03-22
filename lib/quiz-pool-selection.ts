@@ -28,30 +28,33 @@ function seededShuffle<T>(arr: T[], seed: string): T[] {
 
 /**
  * Returns the set of questions a student should see for a given attempt.
- * - Questions without a poolId are always included.
- * - Pool questions: deterministically pick `pool.pickCount` from the pool
- *   using seed = `${userId}:${stepId}:${poolId}:${attemptNumber}`.
- * - Falls back to all questions when no pools are defined (backwards-compat).
+ *
+ * - `content.questions` are always shown (fixed questions defined in the quiz).
+ * - `bankQuestions`: map of bankId → QuizQuestion[] fetched from global question banks.
+ * - For each `bankSelection`, deterministically picks `pickCount` questions from the bank
+ *   using seed = `${userId}:${stepId}:${bankId}:${attemptNumber}`.
+ * - Falls back to content.questions only when no bankSelections are defined.
  */
 export function selectQuestionsForAttempt(
     content: QuizContent,
+    bankQuestions: Record<string, QuizQuestion[]>,
     userId: string,
     stepId: string,
     attemptNumber: number,
 ): QuizQuestion[] {
-    const pools = content.pools;
-    if (!pools || pools.length === 0) return content.questions;
+    const selections = content.bankSelections;
+    if (!selections || selections.length === 0) return content.questions;
 
-    const alwaysShown = content.questions.filter(q => !q.poolId);
-    const poolQuestions: QuizQuestion[] = [];
+    const selectedFromBanks: QuizQuestion[] = [];
 
-    for (const pool of pools) {
-        const candidates = content.questions.filter(q => q.poolId === pool.id);
+    for (const selection of selections) {
+        const candidates = bankQuestions[selection.bankId] ?? [];
         if (candidates.length === 0) continue;
-        const seed = `${userId}:${stepId}:${pool.id}:${attemptNumber}`;
+        const seed = `${userId}:${stepId}:${selection.bankId}:${attemptNumber}`;
         const shuffled = seededShuffle(candidates, seed);
-        poolQuestions.push(...shuffled.slice(0, Math.min(pool.pickCount, shuffled.length)));
+        selectedFromBanks.push(...shuffled.slice(0, Math.min(selection.pickCount, shuffled.length)));
     }
 
-    return [...alwaysShown, ...poolQuestions];
+    // Fixed quiz questions + randomly selected bank questions
+    return [...content.questions, ...selectedFromBanks];
 }

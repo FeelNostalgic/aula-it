@@ -515,3 +515,99 @@ export async function updateStepCompletionMode(stepId: string, mode: CompletionM
     return { data };
 }
 
+// ---------------------------------------------------------------------------
+// Question Banks — CRUD
+// ---------------------------------------------------------------------------
+
+export async function getQuestionBanks() {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado.", banks: [] };
+
+    const { data, error } = await supabase
+        .from('question_banks')
+        .select('*')
+        .eq('created_by', user.id)
+        .order('created_at', { ascending: false });
+
+    if (error) return { error: error.message, banks: [] };
+    return { banks: data ?? [] };
+}
+
+export async function createQuestionBank(name: string, description?: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+        .from('question_banks')
+        .insert({ name, description: description ?? null, created_by: user.id, questions: [] })
+        .select()
+        .single();
+
+    if (error) return { error: error.message };
+    return { bank: data };
+}
+
+export async function updateQuestionBank(bankId: string, updates: { name?: string; description?: string | null; questions?: any[] }) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+
+    const { data: bank } = await supabase.from('question_banks').select('created_by').eq('id', bankId).single();
+    if (bank?.created_by !== user.id) return { error: "No autorizado." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+        .from('question_banks')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', bankId)
+        .select()
+        .single();
+
+    if (error) return { error: error.message };
+    return { bank: data };
+}
+
+export async function deleteQuestionBank(bankId: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+
+    const { data: bank } = await supabase.from('question_banks').select('created_by').eq('id', bankId).single();
+    if (bank?.created_by !== user.id) return { error: "No autorizado." };
+
+    const admin = createAdminClient();
+    const { error } = await admin.from('question_banks').delete().eq('id', bankId);
+    if (error) return { error: error.message };
+    return { success: true };
+}
+
+export async function getBankQuestionsForStep(stepId: string): Promise<Record<string, any[]>> {
+    const supabase = await createClient();
+
+    const { data: step } = await supabase
+        .from('activity_steps')
+        .select('content')
+        .eq('id', stepId)
+        .single();
+
+    if (!step?.content) return {};
+    const bankSelections = (step.content as any).bankSelections as { bankId: string; pickCount: number }[] | undefined;
+    if (!bankSelections?.length) return {};
+
+    const bankIds = bankSelections.map((s: any) => s.bankId);
+    // Must use admin client — students are not the bank owner so RLS blocks regular reads
+    const admin = createAdminClient();
+    const { data: banks } = await admin
+        .from('question_banks')
+        .select('id, questions')
+        .in('id', bankIds);
+
+    const result: Record<string, any[]> = {};
+    for (const bank of banks ?? []) {
+        result[bank.id] = bank.questions ?? [];
+    }
+    return result;
+}
