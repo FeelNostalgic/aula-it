@@ -748,6 +748,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                 onDelete={() => { }}
                                 onToggleVisibility={() => { }}
                                 onToggleLock={() => { }}
+                                onToggleActivityClosed={() => { }}
                             />
                         ) : null}
                     </DragOverlay>
