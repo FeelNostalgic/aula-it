@@ -9,9 +9,10 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
-import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, XCircle, Circle, PencilRuler, Zap, Copy, AlignLeft, RefreshCw, Trophy, AlertCircle, ChevronRight, Clock, ArrowLeft, Plus, MessageSquare, Printer, ClipboardList } from "lucide-react";
+import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, XCircle, Circle, PencilRuler, Zap, Copy, AlignLeft, RefreshCw, Trophy, AlertCircle, ChevronRight, ChevronLeft, Clock, ArrowLeft, Plus, MessageSquare, Printer, ClipboardList } from "lucide-react";
 import { useState, useEffect, useTransition, useMemo } from "react";
 import { getQuizAttempts, submitQuizAttempt } from "@/app/activities/[id]/actions";
+import { getBankQuestionsForStep } from "@/app/activities/[id]/edit/actions";
 import { generateMarkdownPdf } from "@/app/actions/generate-pdf";
 import { Textarea } from "@/components/ui/textarea";
 import { animationRegistry } from "@/lib/animations/registry";
@@ -46,7 +47,7 @@ export function StepViewer({ step, activityId, submission, googleEmail, userId, 
         case 'theory':
             return <TheoryViewer content={step.content as TheoryContent} />;
         case 'quiz':
-            return <QuizViewer content={step.content as QuizContent} userId={userId} studentName={studentName} stepId={step.id} activityId={activityId} submission={submission} isPreview={isPreview} />;
+            return <QuizViewer content={step.content as QuizContent} userId={userId} studentName={studentName} stepId={step.id} activityId={activityId} submission={submission} isPreview={isPreview} isClosed={step.is_activity_closed ?? false} />;
         case 'presentation':
             return <PresentationViewer content={step.content as PresentationContent} />;
         case 'resource':
@@ -62,6 +63,7 @@ export function StepViewer({ step, activityId, submission, googleEmail, userId, 
                         googleEmail={googleEmail}
                         dueDate={step.due_date}
                         isPreview={isPreview}
+                        isClosed={step.is_activity_closed ?? false}
                     />
                 );
             }
@@ -76,6 +78,7 @@ export function StepViewer({ step, activityId, submission, googleEmail, userId, 
                         initialSubmission={submission}
                         dueDate={step.due_date}
                         isPreview={isPreview}
+                        isClosed={step.is_activity_closed ?? false}
                     />
                 );
             }
@@ -230,6 +233,7 @@ function QuizViewer({
     activityId,
     submission,
     isPreview,
+    isClosed,
 }: {
     content: QuizContent;
     userId?: string | null;
@@ -238,6 +242,7 @@ function QuizViewer({
     activityId?: string;
     submission?: ActivitySubmission;
     isPreview?: boolean;
+    isClosed?: boolean;
 }) {
     const isGoogleFormMode = content?.quizMode === 'google_form' || (!content?.quizMode && !!content?.googleFormUrl);
 
@@ -272,7 +277,7 @@ function QuizViewer({
         );
     }
 
-    return <BuiltinQuizViewer content={content} userId={userId} stepId={stepId} activityId={activityId} submission={submission} isPreview={isPreview} />;
+    return <BuiltinQuizViewer content={content} userId={userId} stepId={stepId} activityId={activityId} submission={submission} isPreview={isPreview} isClosed={isClosed} />;
 }
 
 function BuiltinQuizViewer({
@@ -282,6 +287,7 @@ function BuiltinQuizViewer({
     activityId,
     submission,
     isPreview,
+    isClosed,
 }: {
     content: QuizContent;
     userId?: string | null;
@@ -289,6 +295,7 @@ function BuiltinQuizViewer({
     activityId?: string;
     submission?: ActivitySubmission;
     isPreview?: boolean;
+    isClosed?: boolean;
 }) {
     const [phase, setPhase] = useState<'answering' | 'result' | 'list'>('answering');
     const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string[]>>({});
@@ -298,6 +305,8 @@ function BuiltinQuizViewer({
     const [isPending, startTransition] = useTransition();
     const [showConfirm, setShowConfirm] = useState(false);
     const [loadingAttempts, setLoadingAttempts] = useState(true);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [bankQuestions, setBankQuestions] = useState<Record<string, any[]>>({});
 
     useEffect(() => {
         if (!stepId) { setLoadingAttempts(false); return; }
@@ -307,9 +316,15 @@ function BuiltinQuizViewer({
         setShortAnswers({});
         setAttempts([]);
         setLastAttempt(null);
+        setCurrentPage(0);
+        setBankQuestions({});
         setLoadingAttempts(true);
-        getQuizAttempts(stepId).then(data => {
+        Promise.all([
+            getQuizAttempts(stepId),
+            content?.bankSelections?.length ? getBankQuestionsForStep(stepId) : Promise.resolve({}),
+        ]).then(([data, bq]) => {
             setAttempts(data);
+            setBankQuestions(bq);
             const isLimited = content?.maxAttempts != null;
             // Limited: always show list (even with 0 attempts, so student sees remaining count)
             // Unlimited: show list only if there are previous attempts; otherwise go straight to quiz
@@ -320,9 +335,9 @@ function BuiltinQuizViewer({
 
     const displayQuestions = useMemo(() => {
         if (!content?.questions) return [];
-        // Apply pool selection when pools are defined (uses userId + stepId for determinism)
-        const selected = (content.pools?.length && userId && stepId)
-            ? selectQuestionsForAttempt(content, userId, stepId, (attempts.length ?? 0) + 1)
+        // Apply bank selection when bankSelections are defined
+        const selected = (content.bankSelections?.length && userId && stepId)
+            ? selectQuestionsForAttempt(content, bankQuestions, userId, stepId, (attempts.length ?? 0) + 1)
             : content.questions;
         const qs = content.randomizeQuestions
             ? [...selected].sort(() => Math.random() - 0.5)
@@ -331,7 +346,7 @@ function BuiltinQuizViewer({
             return qs.map(q => ({ ...q, options: [...q.options].sort(() => Math.random() - 0.5) }));
         }
         return qs;
-    }, [content?.questions, content?.pools, content?.randomizeQuestions, content?.randomizeOptions, userId, stepId, attempts.length]);
+    }, [content?.questions, content?.bankSelections, content?.randomizeQuestions, content?.randomizeOptions, userId, stepId, attempts.length, bankQuestions]);
 
     const maxAttempts = content?.maxAttempts;
     const attemptsDone = attempts.length;
@@ -351,6 +366,11 @@ function BuiltinQuizViewer({
     }, [attempts]);
 
     const totalPoints = (content?.questions ?? []).reduce((s, q) => s + (q.points ?? 1), 0);
+
+    const qpp = content?.questionsPerPage;
+    const totalPages = qpp ? Math.ceil(displayQuestions.length / qpp) : 1;
+    const paginatedQuestions = qpp ? displayQuestions.slice(currentPage * qpp, (currentPage + 1) * qpp) : displayQuestions;
+    const isLastPage = currentPage >= totalPages - 1;
 
     function toggleOption(qId: string, optId: string, singleSelect: boolean) {
         setSelectedAnswers(prev => {
@@ -408,11 +428,16 @@ function BuiltinQuizViewer({
                             {attemptsDone} intento{attemptsDone !== 1 ? 's' : ''}{maxAttempts !== undefined ? ` de ${maxAttempts}` : ''}
                         </p>
                     </div>
-                    {!attemptsExhausted && (
+                    {!attemptsExhausted && !isClosed && (
                         <Button onClick={handleRetry} size="sm" className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white">
                             <Plus className="size-3.5" />
                             Nuevo intento
                         </Button>
+                    )}
+                    {isClosed && (
+                        <span className="text-xs text-red-400 font-medium flex items-center gap-1.5">
+                            <AlertCircle className="size-3.5" /> Entregas cerradas
+                        </span>
                     )}
                 </div>
 
@@ -679,6 +704,13 @@ function BuiltinQuizViewer({
                     </p>
                 </div>
 
+                {isClosed && (
+                    <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-500/8 border border-red-500/20 text-red-400 text-sm font-medium">
+                        <AlertCircle className="size-4 shrink-0" />
+                        Las entregas de esta actividad están cerradas.
+                    </div>
+                )}
+
                 {content.penalizeWrongAnswers && (
                     <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-amber-500/8 border border-amber-500/20 text-amber-300 text-xs">
                         <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
@@ -686,17 +718,18 @@ function BuiltinQuizViewer({
                     </div>
                 )}
 
-                {displayQuestions.map((q, idx) => {
+                {paginatedQuestions.map((q, idx) => {
                     const qType = q.type ?? 'multiple_choice';
                     const correctCount = q.options.filter(o => o.isCorrect).length;
                     const isSingleSelect = correctCount <= 1;
+                    const globalIdx = qpp ? currentPage * qpp + idx : idx;
 
                     return (
                         <div key={q.id} className="p-8 bg-surface border border-white/5 rounded-2xl space-y-6 shadow-xl">
                             <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-start gap-4 flex-1">
                                     <span className="size-8 rounded-lg bg-accent-blue/10 text-accent-blue flex items-center justify-center text-sm font-bold shrink-0">
-                                        {idx + 1}
+                                        {globalIdx + 1}
                                     </span>
                                     <h3 className="text-xl font-bold text-foreground leading-tight mt-0.5">{q.text}</h3>
                                 </div>
@@ -748,18 +781,45 @@ function BuiltinQuizViewer({
                     );
                 })}
 
-                <div className="flex justify-center pt-8">
-                    <Button
-                        onClick={() => setShowConfirm(true)}
-                        disabled={isPending || !stepId || !activityId || isPreview}
-                        className="bg-emerald-500 hover:bg-emerald-600 text-white px-10 h-12 text-base font-bold rounded-full shadow-lg shadow-emerald-500/20"
-                    >
-                        {isPending ? "Enviando..." : "Enviar Cuestionario"}
-                    </Button>
-                    {isPreview && (
-                        <p className="text-xs text-amber-400/80 text-center mt-2">No disponible en vista previa</p>
-                    )}
-                </div>
+                {qpp && totalPages > 1 && (
+                    <div className="flex items-center justify-between bg-surface border border-border/40 rounded-xl px-4 py-2.5">
+                        <button
+                            onClick={() => setCurrentPage(p => p - 1)}
+                            disabled={currentPage === 0}
+                            className="flex items-center gap-1 text-xs font-medium text-text-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        >
+                            <ChevronLeft className="size-3.5" /> Anterior
+                        </button>
+                        <span className="text-xs font-mono text-text-muted/70 bg-surface-dark border border-border/50 rounded-md px-2.5 py-1 tabular-nums">
+                            {currentPage + 1} / {totalPages}
+                        </span>
+                        {!isLastPage ? (
+                            <button
+                                onClick={() => setCurrentPage(p => p + 1)}
+                                className="flex items-center gap-1 text-xs font-medium text-text-muted hover:text-foreground transition-colors"
+                            >
+                                Siguiente <ChevronRight className="size-3.5" />
+                            </button>
+                        ) : (
+                            <div className="w-16" />
+                        )}
+                    </div>
+                )}
+
+                {isLastPage && (
+                    <div className="flex justify-center pt-8">
+                        <Button
+                            onClick={() => setShowConfirm(true)}
+                            disabled={isPending || !stepId || !activityId || isPreview || isClosed}
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white px-10 h-12 text-base font-bold rounded-full shadow-lg shadow-emerald-500/20"
+                        >
+                            {isPending ? "Enviando..." : "Enviar Cuestionario"}
+                        </Button>
+                        {isPreview && (
+                            <p className="text-xs text-amber-400/80 text-center mt-2">No disponible en vista previa</p>
+                        )}
+                    </div>
+                )}
             </div>
 
             <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>

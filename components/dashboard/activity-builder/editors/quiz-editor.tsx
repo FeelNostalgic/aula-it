@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { ActivityStepWithClientState, QuizContent, QuizMode, QuizPool, QuizQuestion, QuizQuestionType } from "@/types/activity";
+import { ActivityStepWithClientState, QuizContent, QuizMode, QuestionBank, QuizQuestion, QuizQuestionType } from "@/types/activity";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { updateStepContent } from "@/app/activities/[id]/edit/actions";
+import { updateStepContent, getQuestionBanks } from "@/app/activities/[id]/edit/actions";
+import { QuestionBankManagerDialog } from "./question-bank-manager";
 import { StepConfigSection, ConfigSection, ConfigToggle } from "./step-config-section";
 import { toast } from "sonner";
 import { Plus, Trash2, CheckCircle2, Circle, HardDrive, ExternalLink, BarChart2, AlignLeft, GripVertical, Layers, FileUp } from "lucide-react";
@@ -150,26 +151,31 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
         handleUpdate({ ...content, questions: arrayMove(content.questions, oldIdx, newIdx) });
     };
 
-    const addPool = () => {
-        const newPool: QuizPool = { id: crypto.randomUUID(), name: "Nuevo banco", pickCount: 1 };
-        handleUpdate({ ...content, pools: [...(content.pools ?? []), newPool] });
-    };
+    const [activeTab, setActiveTab] = useState("contenido");
+    const [showBankManager, setShowBankManager] = useState(false);
+    const [availableBanks, setAvailableBanks] = useState<QuestionBank[]>([]);
 
-    const updatePool = (poolId: string, updates: Partial<QuizPool>) => {
-        handleUpdate({ ...content, pools: (content.pools ?? []).map(p => p.id === poolId ? { ...p, ...updates } : p) });
-    };
+    useEffect(() => {
+        setActiveTab("contenido");
+    }, [step.id]);
 
-    const removePool = (poolId: string) => {
-        // Remove pool and unassign questions from it
-        handleUpdate({
-            ...content,
-            pools: (content.pools ?? []).filter(p => p.id !== poolId),
-            questions: content.questions.map(q => q.poolId === poolId ? { ...q, poolId: undefined } : q),
+    useEffect(() => {
+        getQuestionBanks().then(({ banks }) => {
+            if (banks) setAvailableBanks(banks as QuestionBank[]);
         });
+    }, []);
+
+    const addBankSelection = (bank: QuestionBank) => {
+        if ((content.bankSelections ?? []).some(s => s.bankId === bank.id)) return;
+        handleUpdate({ ...content, bankSelections: [...(content.bankSelections ?? []), { bankId: bank.id, pickCount: 1 }] });
     };
 
-    const setQuestionPool = (qId: string, poolId: string | undefined) => {
-        handleUpdate({ ...content, questions: content.questions.map(q => q.id === qId ? { ...q, poolId } : q) });
+    const updateBankSelection = (bankId: string, pickCount: number) => {
+        handleUpdate({ ...content, bankSelections: (content.bankSelections ?? []).map(s => s.bankId === bankId ? { ...s, pickCount } : s) });
+    };
+
+    const removeBankSelection = (bankId: string) => {
+        handleUpdate({ ...content, bankSelections: (content.bankSelections ?? []).filter(s => s.bankId !== bankId) });
     };
 
     const handleOptionDragEnd = (qId: string, event: DragEndEvent) => {
@@ -198,7 +204,7 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
     const tabTriggerClass = "h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none";
 
     return (
-        <Tabs defaultValue="contenido" className="flex flex-col h-full w-full bg-background">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full w-full bg-background">
             {/* Tab bar */}
             <div className="shrink-0 border-b border-border/50 bg-surface-dark/10 px-4 flex items-center gap-2">
                 <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">
@@ -210,7 +216,7 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                     </TabsTrigger>
                     {effectiveMode === 'builtin' && (
                         <TabsTrigger value="pools" className={tabTriggerClass}>
-                            Bancos{(content.pools?.length ?? 0) > 0 && <span className="ml-1.5 text-[10px] font-mono opacity-60">({content.pools!.length})</span>}
+                            Bancos{(content.bankSelections?.length ?? 0) > 0 && <span className="ml-1.5 text-[10px] font-mono opacity-60">({content.bankSelections!.length})</span>}
                         </TabsTrigger>
                     )}
                     <TabsTrigger value="configuracion" className={tabTriggerClass}>Configuración</TabsTrigger>
@@ -294,7 +300,6 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                                                 q={q}
                                                 idx={idx}
                                                 sensors={sensors}
-                                                pools={content.pools ?? []}
                                                 onChangeType={changeQuestionType}
                                                 onUpdate={updateQuestion}
                                                 onRemove={removeQuestion}
@@ -302,7 +307,6 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                                                 onUpdateOption={updateOption}
                                                 onRemoveOption={removeOption}
                                                 onOptionDragEnd={handleOptionDragEnd}
-                                                onSetPool={setQuestionPool}
                                             />
                                         ))}
                                     </div>
@@ -320,64 +324,67 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                 )}
             </TabsContent>
 
-            {/* Pools tab */}
+            {/* Bancos tab — global banks */}
             <TabsContent value="pools" className="mt-0 flex-1 min-h-0 overflow-y-auto">
                 <div className="max-w-2xl mx-auto p-8 space-y-6 pb-16">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                                <Layers className="size-4 text-accent-blue" />
-                                Bancos de preguntas
-                            </h3>
-                            <p className="text-xs text-text-muted mt-1">
-                                Agrupa preguntas en bancos. Se selecciona aleatoriamente el número indicado por alumno e intento, siempre de forma consistente.
+                    <div className="space-y-3">
+                        <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                            <Layers className="size-4 text-accent-blue" />
+                            Bancos de preguntas
+                        </h3>
+                        <div className="flex items-center justify-between gap-4">
+                            <p className="text-xs text-text-muted">
+                                Incluye preguntas aleatorias de bancos globales. Los bancos son compartidos entre cuestionarios.
                             </p>
+                            <Button onClick={() => setShowBankManager(true)} size="sm" variant="outline" className="gap-2 border-accent-blue/30 text-accent-blue hover:bg-accent-blue/10 shrink-0">
+                                <Layers className="size-3.5" /> Gestionar bancos
+                            </Button>
                         </div>
-                        <Button onClick={addPool} size="sm" variant="outline" className="gap-2 border-accent-blue/30 text-accent-blue hover:bg-accent-blue/10">
-                            <Plus className="size-3.5" /> Nuevo banco
-                        </Button>
                     </div>
 
-                    {!content.pools?.length ? (
+                    {!content.bankSelections?.length ? (
                         <div className="text-center p-10 border border-dashed border-border/50 rounded-xl bg-surface/20">
                             <Layers className="size-8 text-text-muted/20 mx-auto mb-3" />
-                            <p className="text-sm text-text-muted">Sin bancos creados. Las preguntas se muestran todas a todos los alumnos.</p>
+                            <p className="text-sm text-text-muted">Sin bancos incluidos. Crea bancos globales y añádelos aquí.</p>
+                            <Button onClick={() => setShowBankManager(true)} size="sm" variant="ghost" className="mt-3 gap-1.5 text-accent-blue">
+                                <Plus className="size-3.5" /> Gestionar bancos globales
+                            </Button>
                         </div>
                     ) : (
-                        <div className="space-y-4">
-                            {content.pools.map(pool => {
-                                const assigned = content.questions.filter(q => q.poolId === pool.id);
+                        <div className="space-y-3">
+                            {content.bankSelections.map(selection => {
+                                const bank = availableBanks.find(b => b.id === selection.bankId);
+                                const bankName = bank?.name ?? selection.bankId;
+                                const bankSize = bank?.questions.length ?? 0;
                                 return (
-                                    <div key={pool.id} className="p-4 bg-surface-dark border border-white/5 rounded-xl space-y-3">
+                                    <div key={selection.bankId} className="p-4 bg-surface-dark border border-white/5 rounded-xl">
                                         <div className="flex items-center gap-3">
-                                            <Input
-                                                value={pool.name}
-                                                onChange={(e) => updatePool(pool.id, { name: e.target.value })}
-                                                placeholder="Nombre del banco"
-                                                className="flex-1 bg-surface border-border text-sm font-medium"
-                                            />
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                <span className="text-xs text-text-muted">Seleccionar:</span>
-                                                <Input
-                                                    type="number"
-                                                    min={1}
-                                                    max={assigned.length || 1}
-                                                    value={pool.pickCount}
-                                                    onChange={(e) => updatePool(pool.id, { pickCount: Math.max(1, Number(e.target.value)) })}
-                                                    className="w-16 h-8 text-xs font-mono bg-surface border-border text-center px-1"
-                                                />
-                                                <span className="text-xs text-text-muted">/ {assigned.length}</span>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-semibold text-foreground truncate">{bankName}</p>
+                                                {bankSize > 0 && <p className="text-xs text-text-muted">{bankSize} preguntas en el banco</p>}
                                             </div>
-                                            <Button variant="ghost" size="icon" onClick={() => removePool(pool.id)}
+                                            {bankSize === 0 ? (
+                                                <span className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-lg">
+                                                    Banco vacío
+                                                </span>
+                                            ) : (
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <span className="text-xs text-text-muted">Coger:</span>
+                                                    <Input
+                                                        type="number"
+                                                        min={1}
+                                                        max={bankSize}
+                                                        value={selection.pickCount}
+                                                        onChange={(e) => updateBankSelection(selection.bankId, Math.max(1, Math.min(bankSize, Number(e.target.value))))}
+                                                        className="w-16 h-8 text-xs font-mono bg-surface border-border text-center px-1"
+                                                    />
+                                                    <span className="text-xs text-text-muted">/ {bankSize}</span>
+                                                </div>
+                                            )}
+                                            <Button variant="ghost" size="icon" onClick={() => removeBankSelection(selection.bankId)}
                                                 className="size-8 text-text-muted hover:text-red-400 shrink-0">
                                                 <Trash2 className="size-3.5" />
                                             </Button>
-                                        </div>
-                                        <div className="text-xs text-text-muted pl-1">
-                                            {assigned.length === 0
-                                                ? <span className="italic">Sin preguntas asignadas. Asígnalas desde la pestaña Preguntas.</span>
-                                                : assigned.map(q => <span key={q.id} className="inline-block mr-2 bg-surface px-2 py-0.5 rounded border border-border/30 mb-1">{q.text || "Sin texto"}</span>
-                                            )}
                                         </div>
                                     </div>
                                 );
@@ -385,12 +392,19 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                         </div>
                     )}
 
-                    {content.pools?.length > 0 && (
-                        <div className="p-4 bg-accent-blue/5 border border-accent-blue/15 rounded-xl text-xs text-text-muted space-y-1">
-                            <p><strong className="text-foreground">Sin banco asignado:</strong> {content.questions.filter(q => !q.poolId).length} preguntas — siempre visibles para todos.</p>
-                            <p><strong className="text-foreground">En algún banco:</strong> {content.questions.filter(q => q.poolId).length} preguntas — selección determinista por alumno e intento.</p>
-                        </div>
-                    )}
+                    <div className="p-4 bg-accent-blue/5 border border-accent-blue/15 rounded-xl text-xs text-text-muted space-y-1">
+                        <p><strong className="text-foreground">Preguntas fijas del quiz:</strong> {content.questions.length} — siempre visibles para todos.</p>
+                        <p><strong className="text-foreground">Bancos incluidos:</strong> {content.bankSelections?.length ?? 0} — selección aleatoria determinista por alumno e intento.</p>
+                    </div>
+
+                    <QuestionBankManagerDialog
+                        open={showBankManager}
+                        onClose={() => setShowBankManager(false)}
+                        onBanksLoaded={setAvailableBanks}
+                        onSelectBank={addBankSelection}
+                        onRemoveBank={removeBankSelection}
+                        selectedBankIds={(content.bankSelections ?? []).map(s => s.bankId)}
+                    />
                 </div>
             </TabsContent>
 
@@ -486,6 +500,21 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                                     description="Las opciones de cada pregunta se muestran en orden aleatorio. No aplica a preguntas de Verdadero/Falso."
                                 />
                             </ConfigSection>
+
+                            <ConfigSection title="Presentación">
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Preguntas por página</label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        value={content.questionsPerPage ?? ""}
+                                        onChange={(e) => handleUpdate({ ...content, questionsPerPage: e.target.value ? Number(e.target.value) : undefined })}
+                                        placeholder="Todas"
+                                        className="w-32 font-mono bg-surface border-border"
+                                    />
+                                    <p className="text-xs text-text-muted/70">Vacío = todas las preguntas en una sola página.</p>
+                                </div>
+                            </ConfigSection>
                         </>
                     )}
                 </div>
@@ -505,14 +534,13 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
 // ---------------------------------------------------------------------------
 
 function SortableQuestion({
-    q, idx, sensors, pools,
+    q, idx, sensors,
     onChangeType, onUpdate, onRemove,
-    onAddOption, onUpdateOption, onRemoveOption, onOptionDragEnd, onSetPool,
+    onAddOption, onUpdateOption, onRemoveOption, onOptionDragEnd,
 }: {
     q: QuizQuestion;
     idx: number;
     sensors: ReturnType<typeof useSensors>;
-    pools: QuizPool[];
     onChangeType: (id: string, t: QuizQuestionType) => void;
     onUpdate: (id: string, updates: Partial<QuizQuestion>) => void;
     onRemove: (id: string) => void;
@@ -520,7 +548,6 @@ function SortableQuestion({
     onUpdateOption: (qId: string, optId: string, u: Partial<{ text: string; isCorrect: boolean }>) => void;
     onRemoveOption: (qId: string, optId: string) => void;
     onOptionDragEnd: (qId: string, event: DragEndEvent) => void;
-    onSetPool: (qId: string, poolId: string | undefined) => void;
 }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: q.id });
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
@@ -573,19 +600,6 @@ function SortableQuestion({
                         onChange={(e) => onUpdate(q.id, { points: Number(e.target.value) })}
                         className="w-16 h-7 text-xs font-mono bg-surface border-border text-center px-1" />
                 </div>
-                {pools.length > 0 && (
-                    <div className="flex items-center gap-1.5 ml-auto">
-                        <Layers className="size-3 text-text-muted shrink-0" />
-                        <select
-                            value={q.poolId ?? ""}
-                            onChange={(e) => onSetPool(q.id, e.target.value || undefined)}
-                            className="h-7 text-xs bg-surface border border-border rounded-md px-2 text-text-muted"
-                        >
-                            <option value="">Siempre visible</option>
-                            {pools.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                    </div>
-                )}
             </div>
 
             {/* Options with DnD */}
