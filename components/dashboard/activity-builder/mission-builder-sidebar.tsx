@@ -182,7 +182,7 @@ function SortableStepItem({
 
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="size-6 opacity-0 group-hover:opacity-100 text-text-muted" onClick={e => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="size-6 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted" onClick={e => e.stopPropagation()}>
                         <MoreVertical className="size-3.5" />
                     </Button>
                 </DropdownMenuTrigger>

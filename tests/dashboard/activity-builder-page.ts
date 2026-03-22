@@ -112,11 +112,12 @@ export class ActivityBuilderPage extends BasePage {
         const step = this.sidebarContainer.locator(`div[data-step-title="${stepTitle}"]`);
         await step.scrollIntoViewIfNeeded();
         await step.click();
-        // Wait for the editor panel header to reflect the selected step.
-        // StepEditorPanel renders the h2 immediately (no dynamic import), so this
-        // confirms the step is selected before the caller checks for editor-specific UI
-        // that may come from a dynamic import (e.g. ResourceEditor).
-        await expect(this.page.locator('#editor-panel h2').filter({ hasText: stepTitle })).toBeVisible({ timeout: 10000 });
+        // Wait for the active content panel (editor or student preview) to show the step title.
+        // StepEditorPanel (#editor-panel) and StudentPreview (#main-content) both render an h2
+        // with the step title immediately — no dynamic import needed for this header element.
+        await expect(
+            this.page.locator('#editor-panel h2, #main-content h2').filter({ hasText: stepTitle })
+        ).toBeVisible({ timeout: 10000 });
     }
 
     async verifyStepVisible(stepTitle: string): Promise<void> {
