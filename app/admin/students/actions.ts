@@ -20,8 +20,8 @@ export async function createBulkStudents(
   const count = parseInt(formData.get("count") as string, 10);
   const password = formData.get("password") as string;
 
-  if (!prefix || !/^[A-Z0-9]+$/.test(prefix)) {
-    return { error: "El prefijo solo puede contener letras y números (ej: ALU, 1DAW)" };
+  if (!prefix || !/^[A-Z0-9][A-Z0-9_-]*$/.test(prefix)) {
+    return { error: "El prefijo solo puede contener letras, números, guiones y guiones bajos (ej: ALU, 1-DAW, 1_DAW)" };
   }
   if (isNaN(count) || count < 1 || count > 60) {
     return { error: "El número de alumnos debe estar entre 1 y 60" };
@@ -35,17 +35,24 @@ export async function createBulkStudents(
 
   const { data: existingUsers } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
   const prefixEmail = prefix.toLowerCase() + "-";
-  const existingNumbers = (existingUsers?.users ?? [])
-    .filter((u) => u.email?.startsWith(prefixEmail) && u.email?.endsWith("@aula.local"))
-    .map((u) => {
-      const match = u.email!.replace("@aula.local", "").slice(prefixEmail.length);
-      return parseInt(match, 10);
-    })
-    .filter((n) => !isNaN(n));
-  const startIndex = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
+  const existingSet = new Set(
+    (existingUsers?.users ?? [])
+      .filter((u) => u.email?.startsWith(prefixEmail) && u.email?.endsWith("@aula.local"))
+      .map((u) => {
+        const match = u.email!.replace("@aula.local", "").slice(prefixEmail.length);
+        return parseInt(match, 10);
+      })
+      .filter((n) => !isNaN(n))
+  );
 
-  for (let i = startIndex; i < startIndex + count; i++) {
-    const num = String(i).padStart(3, "0");
+  // Find the first `count` available slot numbers (fills gaps left by deleted accounts)
+  const availableSlots: number[] = [];
+  for (let candidate = 1; availableSlots.length < count; candidate++) {
+    if (!existingSet.has(candidate)) availableSlots.push(candidate);
+  }
+
+  for (const slot of availableSlots) {
+    const num = String(slot).padStart(2, "0");
     const identifier = `${prefix}-${num}`;
     const email = `${prefix.toLowerCase()}-${num}@aula.local`;
 
