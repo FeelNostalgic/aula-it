@@ -147,7 +147,7 @@ function SortableStepItem({
                     aria-label={step.is_visible !== false ? "Ocultar paso" : "Mostrar paso"}
                     className={cn(
                         "size-6 transition-all",
-                        step.is_visible !== false ? "opacity-0 group-hover:opacity-100 text-text-muted hover:text-foreground" : "opacity-100 text-accent-blue"
+                        step.is_visible !== false ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-accent-blue"
                     )}
                     onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}
                 >
@@ -159,7 +159,7 @@ function SortableStepItem({
                     aria-label={!step.is_locked ? "Bloquear paso" : "Desbloquear paso"}
                     className={cn(
                         "size-6 transition-all",
-                        !step.is_locked ? "opacity-0 group-hover:opacity-100 text-text-muted hover:text-foreground" : "opacity-100 text-accent-orange"
+                        !step.is_locked ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-accent-orange"
                     )}
                     onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
                 >
@@ -172,7 +172,7 @@ function SortableStepItem({
                     title={!step.is_activity_closed ? "Cerrar entregas" : "Abrir entregas"}
                     className={cn(
                         "size-6 transition-all",
-                        !step.is_activity_closed ? "opacity-0 group-hover:opacity-100 text-text-muted hover:text-foreground" : "opacity-100 text-red-400"
+                        !step.is_activity_closed ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-red-400"
                     )}
                     onClick={(e) => { e.stopPropagation(); onToggleActivityClosed(); }}
                 >
