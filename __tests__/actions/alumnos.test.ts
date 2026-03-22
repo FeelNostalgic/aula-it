@@ -45,11 +45,16 @@ function mockAdminOps(builder: SupabaseMockBuilder) {
 }
 
 function mockAdminAuth(user = createMockUser()) {
-  const { client } = new SupabaseMockBuilder()
-    .mockAuth(user)
+  // Server client: only for auth.getUser() in requireAdmin
+  const { client: serverClient } = new SupabaseMockBuilder().mockAuth(user).build();
+  vi_createClient.mockResolvedValue(serverClient as any);
+
+  // Admin client (first call): requireAdmin queries profiles via createAdminClient()
+  const { client: adminProfilesClient } = new SupabaseMockBuilder()
     .mockQuery("profiles", { data: { role: "admin" }, error: null })
     .build();
-  vi_createClient.mockResolvedValue(client as any);
+  vi_createAdminClient.mockReturnValueOnce(adminProfilesClient as any);
+
   return user;
 }
 
@@ -67,16 +72,22 @@ describe("createBulkStudents", () => {
   });
 
   it("returns error when user is not an admin", async () => {
-    const { client } = new SupabaseMockBuilder()
+    // Server client: only for auth.getUser()
+    const { client: serverClient } = new SupabaseMockBuilder()
       .mockAuth(createMockUser())
+      .build();
+    vi_createClient.mockResolvedValue(serverClient as any);
+
+    // Admin client: profiles returns teacher role → requireAdmin throws "Sin permisos"
+    const { client: adminClient } = new SupabaseMockBuilder()
       .mockQuery("profiles", { data: { role: "teacher" }, error: null })
       .build();
-    vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(adminClient as any);
 
     const formData = createFormData({ prefix: "ALU", count: "5", password: "password123" });
     const result = await createBulkStudents(null, formData);
 
-    expect(result).toEqual({ error: "Sin permisos de administrador" });
+    expect(result).toEqual({ error: "Sin permisos" });
   });
 
   it("returns error when prefix contains special characters", async () => {
@@ -184,16 +195,15 @@ describe("getClassroomStudents", () => {
     expect(result).toEqual({ error: "No autenticado" });
   });
 
-  it("returns empty list when no @aula.local students exist", async () => {
-    mockTeacherAuth();
-    mockAdminOps(
-      new SupabaseMockBuilder()
-        .mockAdminListUsers({
-          data: { users: [{ id: "u1", email: "teacher@example.com", user_metadata: {} }] },
-          error: null,
-        })
-        .mockQuery("module_enrollments", { data: [], error: null })
-    );
+  it("returns empty list when teacher has no modules", async () => {
+    const user = createMockUser();
+    // Server client: auth + profiles + modules returns empty (no modules for this teacher)
+    const { client: serverClient } = new SupabaseMockBuilder()
+      .mockAuth(user)
+      .mockQuery("profiles", { data: { role: "teacher" }, error: null })
+      .mockQuery("modules", { data: [], error: null })
+      .build();
+    vi_createClient.mockResolvedValue(serverClient as any);
 
     const result = await getClassroomStudents();
 
@@ -202,9 +212,26 @@ describe("getClassroomStudents", () => {
   });
 
   it("returns students filtered to @aula.local and sorted alphabetically", async () => {
-    mockTeacherAuth();
+    const user = createMockUser();
     const now = new Date();
     const futureBan = new Date(now.getTime() + 1000 * 60 * 60).toISOString();
+
+    // Server client: auth + requireTeacher profiles + modules + module_enrollments
+    const { client: serverClient } = new SupabaseMockBuilder()
+      .mockAuth(user)
+      .mockQuery("profiles", { data: { role: "teacher" }, error: null })
+      .mockQuery("modules", { data: [{ id: "m1" }], error: null })
+      .mockQuery("module_enrollments", {
+        data: [
+          { student_id: "u1", modules: { id: "m1", name: "M1" } },
+          { student_id: "u2", modules: { id: "m1", name: "M1" } },
+        ],
+        error: null,
+      })
+      .build();
+    vi_createClient.mockResolvedValue(serverClient as any);
+
+    // Admin client: listUsers with both aula.local students
     mockAdminOps(
       new SupabaseMockBuilder()
         .mockAdminListUsers({
@@ -216,7 +243,6 @@ describe("getClassroomStudents", () => {
           },
           error: null,
         })
-        .mockQuery("module_enrollments", { data: [], error: null })
     );
 
     const result = await getClassroomStudents();
