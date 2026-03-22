@@ -6,7 +6,6 @@ import { SupabaseMockBuilder } from "../helpers/supabase-mock";
 import { createFormData } from "../helpers/form-data";
 import { createMockUser } from "../helpers/fixtures";
 import {
-  createBulkStudents,
   getClassroomStudents,
   getTeacherModules,
   bulkEnrollByPrefix,
@@ -15,11 +14,14 @@ import {
   unenrollStudentFromModule,
   bulkResetPasswords,
   bulkToggleStatus,
-  bulkDeleteStudents,
   resetStudentPassword,
   toggleStudentStatus,
-  deleteStudent,
 } from "@/app/alumnos/actions";
+import {
+  createBulkStudents,
+  bulkDeleteStudents,
+  deleteStudent,
+} from "@/app/admin/students/actions";
 
 const vi_createClient = vi.mocked(createClient);
 const vi_createAdminClient = vi.mocked(createAdminClient);
@@ -42,6 +44,15 @@ function mockAdminOps(builder: SupabaseMockBuilder) {
   return client;
 }
 
+function mockAdminAuth(user = createMockUser()) {
+  const { client } = new SupabaseMockBuilder()
+    .mockAuth(user)
+    .mockQuery("profiles", { data: { role: "admin" }, error: null })
+    .build();
+  vi_createClient.mockResolvedValue(client as any);
+  return user;
+}
+
 // ─── createBulkStudents ───────────────────────────────────────────────────────
 
 describe("createBulkStudents", () => {
@@ -55,21 +66,21 @@ describe("createBulkStudents", () => {
     expect(result).toEqual({ error: "No autenticado" });
   });
 
-  it("returns error when user is not a teacher", async () => {
+  it("returns error when user is not an admin", async () => {
     const { client } = new SupabaseMockBuilder()
       .mockAuth(createMockUser())
-      .mockQuery("profiles", { data: { role: "student" }, error: null })
+      .mockQuery("profiles", { data: { role: "teacher" }, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
 
     const formData = createFormData({ prefix: "ALU", count: "5", password: "password123" });
     const result = await createBulkStudents(null, formData);
 
-    expect(result).toEqual({ error: "Sin permisos" });
+    expect(result).toEqual({ error: "Sin permisos de administrador" });
   });
 
   it("returns error when prefix contains special characters", async () => {
-    mockTeacherAuth();
+    mockAdminAuth();
     mockAdminOps(new SupabaseMockBuilder());
 
     const formData = createFormData({ prefix: "ALU-TEST", count: "5", password: "password123" });
@@ -79,7 +90,7 @@ describe("createBulkStudents", () => {
   });
 
   it("returns error when count is 0", async () => {
-    mockTeacherAuth();
+    mockAdminAuth();
     mockAdminOps(new SupabaseMockBuilder());
 
     const formData = createFormData({ prefix: "ALU", count: "0", password: "password123" });
@@ -89,7 +100,7 @@ describe("createBulkStudents", () => {
   });
 
   it("returns error when count exceeds 60", async () => {
-    mockTeacherAuth();
+    mockAdminAuth();
     mockAdminOps(new SupabaseMockBuilder());
 
     const formData = createFormData({ prefix: "ALU", count: "61", password: "password123" });
@@ -99,7 +110,7 @@ describe("createBulkStudents", () => {
   });
 
   it("returns error when password is shorter than 6 chars", async () => {
-    mockTeacherAuth();
+    mockAdminAuth();
     mockAdminOps(new SupabaseMockBuilder());
 
     const formData = createFormData({ prefix: "ALU", count: "5", password: "abc" });
@@ -109,7 +120,7 @@ describe("createBulkStudents", () => {
   });
 
   it("creates students starting at index 1 when no existing students", async () => {
-    mockTeacherAuth();
+    mockAdminAuth();
     mockAdminOps(
       new SupabaseMockBuilder()
         .mockAdminListUsers({ data: { users: [] }, error: null })
@@ -127,7 +138,7 @@ describe("createBulkStudents", () => {
   });
 
   it("continues numbering from existing students", async () => {
-    mockTeacherAuth();
+    mockAdminAuth();
     const existingUsers = [
       { email: "daw-001@aula.local" },
       { email: "daw-002@aula.local" },
@@ -146,7 +157,7 @@ describe("createBulkStudents", () => {
   });
 
   it("records error for failed student creation", async () => {
-    mockTeacherAuth();
+    mockAdminAuth();
     mockAdminOps(
       new SupabaseMockBuilder()
         .mockAdminListUsers({ data: { users: [] }, error: null })
@@ -551,7 +562,7 @@ describe("bulkDeleteStudents", () => {
   });
 
   it("returns error when studentIds is empty", async () => {
-    mockTeacherAuth();
+    mockAdminAuth();
     mockAdminOps(new SupabaseMockBuilder());
 
     const result = await bulkDeleteStudents([]);
@@ -560,7 +571,7 @@ describe("bulkDeleteStudents", () => {
   });
 
   it("skips non-@aula.local accounts", async () => {
-    mockTeacherAuth();
+    mockAdminAuth();
     mockAdminOps(
       new SupabaseMockBuilder()
         .mockAdminGetUserById({ data: { user: { id: "s1", email: "teacher@example.com" } }, error: null })
@@ -573,7 +584,7 @@ describe("bulkDeleteStudents", () => {
   });
 
   it("deletes only @aula.local accounts", async () => {
-    mockTeacherAuth();
+    mockAdminAuth();
     mockAdminOps(
       new SupabaseMockBuilder()
         .mockAdminGetUserById({ data: { user: { id: "s1", email: "alu-001@aula.local" } }, error: null })
@@ -671,7 +682,7 @@ describe("deleteStudent", () => {
   });
 
   it("returns error when trying to delete non-@aula.local account", async () => {
-    mockTeacherAuth();
+    mockAdminAuth();
     mockAdminOps(
       new SupabaseMockBuilder()
         .mockAdminGetUserById({ data: { user: { id: "s1", email: "teacher@example.com" } }, error: null })
@@ -683,7 +694,7 @@ describe("deleteStudent", () => {
   });
 
   it("deletes @aula.local account successfully", async () => {
-    mockTeacherAuth();
+    mockAdminAuth();
     mockAdminOps(
       new SupabaseMockBuilder()
         .mockAdminGetUserById({ data: { user: { id: "s1", email: "alu-001@aula.local" } }, error: null })
