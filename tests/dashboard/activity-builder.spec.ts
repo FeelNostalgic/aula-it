@@ -135,8 +135,9 @@ test.describe("Dashboard Activity Builder", () => {
         await builder.goto(testActivityId);
 
         await builder.clickStep("Recursos 1");
-        // Verify central editor opens (Recursos tab is active by default)
-        await expect(page.getByRole('button', { name: 'Añadir Enlace' })).toBeVisible();
+        // Verify central editor opens (Recursos tab is active by default).
+        // ResourceEditor is a dynamic import so allow extra time for the chunk to load.
+        await expect(page.getByRole('button', { name: 'Añadir Enlace' })).toBeVisible({ timeout: 10000 });
 
         await builder.addResource("https://google.com", "Enlace a Google");
         await builder.addResource("https://example.com/file.pdf", "Un PDF de prueba");
