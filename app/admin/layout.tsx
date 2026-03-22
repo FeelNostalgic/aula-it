@@ -4,6 +4,7 @@ import { BreadcrumbProvider } from "@/components/dashboard/breadcrumb-context";
 import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb";
 import { UserNav } from "@/components/dashboard/user-nav";
 import { SessionTimeoutGuard } from "@/components/auth/session-timeout-guard";
+import { AdminSidebar } from "./admin-sidebar";
 
 export default async function AdminLayout({
   children,
@@ -38,9 +39,12 @@ export default async function AdminLayout({
               userAvatar={user.user_metadata?.avatar_url}
             />
           </header>
-          <main className="flex-1 overflow-y-auto px-24 py-8">
-            {children}
-          </main>
+          <div className="flex flex-1 overflow-hidden">
+            <AdminSidebar />
+            <main className="flex-1 overflow-y-auto px-16 py-8">
+              {children}
+            </main>
+          </div>
         </div>
       </SessionTimeoutGuard>
     </BreadcrumbProvider>
