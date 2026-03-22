@@ -1,6 +1,5 @@
 import { test, expect } from "@playwright/test";
 import { LoginPage } from "../auth/login-page";
-import { StudentManagementPage } from "./student-management-page";
 import { getSupabaseAdmin, generateTestEmail } from "../helpers";
 
 test.describe.configure({ mode: "serial" });
@@ -67,70 +66,6 @@ test.describe("Student Management (/alumnos)", () => {
         await page.goto("/alumnos");
         await expect(page).toHaveURL(/\/alumnos/, { timeout: 10000 });
         await expect(page.locator("h1, h2").filter({ hasText: /alumnos|students/i }).first()).toBeVisible({ timeout: 5000 });
-    });
-
-    test.skip("teacher can create students in bulk with valid prefix", async ({ page }) => {
-        // Bulk student creation was moved to /admin/students (admin-only)
-        const loginPage = new LoginPage(page);
-        await loginPage.loginTeacher(teacherEmail, password);
-        await page.waitForURL(/\/dashboard/, { timeout: 15000 });
-
-        const studentPage = new StudentManagementPage(page);
-        await studentPage.goto();
-
-        // Switch to "Crear cuentas" tab
-        await studentPage.openCreateDialog();
-
-        // Wait for the create form to be visible
-        await expect(page.locator('button[type="submit"]').filter({ hasText: /generar/i }).first()).toBeVisible({ timeout: 5000 });
-
-        // Fill and submit
-        await studentPage.fillCreateForm(createdStudentPrefix, 2, "testpass123");
-        await studentPage.submitCreateForm();
-
-        // Wait for server action to complete — success shows a results table or no error
-        await page.waitForTimeout(3000);
-        const errorMsg = page.locator('p.text-destructive').first();
-        await expect(errorMsg).not.toBeVisible({ timeout: 3000 });
-    });
-
-    test.skip("shows validation error for invalid prefix (special chars)", async ({ page }) => {
-        // Bulk student creation was moved to /admin/students (admin-only)
-        const loginPage = new LoginPage(page);
-        await loginPage.loginTeacher(teacherEmail, password);
-        await page.waitForURL(/\/dashboard/, { timeout: 15000 });
-
-        const studentPage = new StudentManagementPage(page);
-        await studentPage.goto();
-        await studentPage.openCreateDialog();
-        await expect(page.locator('button[type="submit"]').filter({ hasText: /generar/i }).first()).toBeVisible({ timeout: 5000 });
-
-        // Invalid prefix with special chars (hyphen not allowed)
-        await studentPage.fillCreateForm("INVAL-ID", 2, "testpass123");
-        await studentPage.submitCreateForm();
-
-        // Error: "El prefijo solo puede contener letras y números"
-        await expect(page.locator('p').filter({ hasText: /prefijo|letras|n.meros/i }).first()).toBeVisible({ timeout: 5000 });
-    });
-
-    test.skip("shows validation error for count exceeding 60", async ({ page }) => {
-        // Bulk student creation was moved to /admin/students (admin-only)
-        const loginPage = new LoginPage(page);
-        await loginPage.loginTeacher(teacherEmail, password);
-        await page.waitForURL(/\/dashboard/, { timeout: 15000 });
-
-        const studentPage = new StudentManagementPage(page);
-        await studentPage.goto();
-        await studentPage.openCreateDialog();
-        await expect(page.locator('button[type="submit"]').filter({ hasText: /generar/i }).first()).toBeVisible({ timeout: 5000 });
-
-        // Remove HTML5 max constraint so the server action runs and returns the error
-        await page.locator('input#count').evaluate((el) => el.removeAttribute('max'));
-        await studentPage.fillCreateForm("VALID", 61, "testpass123");
-        await studentPage.submitCreateForm();
-
-        // Error: "El número de alumnos debe estar entre 1 y 60"
-        await expect(page.locator('p').filter({ hasText: /n.mero.*alumnos|entre.*60/i }).first()).toBeVisible({ timeout: 8000 });
     });
 
     test("teacher can list created students", async ({ page }) => {
