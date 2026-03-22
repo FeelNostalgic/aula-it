@@ -116,6 +116,14 @@ export function UserNav({ userEmail, userName, isTeacher, isAdmin, userId, userA
                             </NextLink>
                         </DropdownMenuItem>
                     )}
+                    {isAdmin && (
+                        <DropdownMenuItem asChild className="cursor-pointer gap-2 py-2">
+                            <NextLink href="/admin/students" className="flex items-center gap-2 w-full">
+                                <Users className="size-4" />
+                                <span>Gestión de alumnos</span>
+                            </NextLink>
+                        </DropdownMenuItem>
+                    )}
 
 
                     {/* Theme Sub-menu */}
