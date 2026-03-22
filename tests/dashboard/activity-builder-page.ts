@@ -111,7 +111,10 @@ export class ActivityBuilderPage extends BasePage {
     async clickStep(stepTitle: string): Promise<void> {
         const step = this.sidebarContainer.locator(`div[data-step-title="${stepTitle}"]`);
         await step.scrollIntoViewIfNeeded();
-        await step.click();
+        // dispatchEvent bypasses coordinate-based routing: Playwright's normal click() moves
+        // the mouse first (triggering group-hover), making opacity-0 buttons pointer-events-auto,
+        // which then intercept the click and call stopPropagation before onSelect fires.
+        await step.dispatchEvent('click');
         // Wait for the active content panel (editor or student preview) to show the step title.
         // StepEditorPanel (#editor-panel) and StudentPreview (#main-content) both render an h2
         // with the step title immediately — no dynamic import needed for this header element.
