@@ -194,7 +194,8 @@ test.describe("Module Detail", () => {
             const searchInput = dialog.getByRole("textbox");
             await searchInput.fill("Test Student Detail");
             // Debounced search (300ms) — wait for the student row to appear
-            const studentRow = dialog.locator("div").filter({ hasText: "Test Student Detail" }).filter({ has: dialog.locator('[role="checkbox"]') }).first();
+            // Student rows have cursor-pointer class; this scopes away from ancestor divs
+            const studentRow = dialog.locator("div.cursor-pointer").filter({ hasText: "Test Student Detail" });
             await expect(studentRow).toBeVisible({ timeout: 10000 });
             await studentRow.click(); // selects via checkbox
 
