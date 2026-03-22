@@ -172,7 +172,7 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
             <TabsContent value="configuracion" className="mt-0 flex-1 min-h-0 overflow-y-auto">
                 <div className="max-w-2xl mx-auto p-8 space-y-4">
                     <div className="mb-2">
-                        <h3 className="text-lg font-bold text-foreground">Configuración del paso</h3>
+                        <h3 className="text-lg font-bold text-foreground">Configuración de la actividad</h3>
                         <p className="text-sm text-text-muted mt-1">Ajusta la experiencia, el modo de completado y las notas del profesor.</p>
                     </div>
 

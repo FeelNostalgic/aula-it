@@ -52,9 +52,9 @@ export function StepEditorPanel({ step, onUpdateStep }: StepEditorPanelProps) {
                 <div className="size-16 bg-surface rounded-2xl flex items-center justify-center mb-4">
                     <Copy className="size-6 text-text-muted/50" />
                 </div>
-                <h2 className="text-xl font-bold text-foreground mb-2">Selecciona un Paso</h2>
+                <h2 className="text-xl font-bold text-foreground mb-2">Selecciona una Actividad</h2>
                 <p className="max-w-md mx-auto">
-                    Haz clic en cualquier paso de la barra lateral para empezar a editar su contenido, o crea uno nuevo en una fase existente.
+                    Haz clic en cualquier actividad de la barra lateral para empezar a editar su contenido, o crea una nueva en una fase existente.
                 </p>
             </div>
         );

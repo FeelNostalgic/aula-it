@@ -43,7 +43,7 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
         timeoutRef.current = setTimeout(async () => {
             const res = await updateStepContent(step.id, newContent);
             if (res.error) {
-                toast.error("Error al guardar el contenido del paso");
+                toast.error("Error al guardar el contenido de la actividad");
             }
             setIsSaving(false);
         }, 1000);
@@ -143,8 +143,8 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
             <TabsContent value="configuracion" className="mt-0 flex-1 min-h-0 overflow-y-auto">
                 <div className="max-w-2xl mx-auto p-8 space-y-4">
                     <div className="mb-2">
-                        <h3 className="text-lg font-bold text-foreground">Configuración del paso</h3>
-                        <p className="text-sm text-text-muted mt-1">Ajusta la experiencia y el modo de completado de este paso.</p>
+                        <h3 className="text-lg font-bold text-foreground">Configuración de la actividad</h3>
+                        <p className="text-sm text-text-muted mt-1">Ajusta la experiencia y el modo de completado de esta actividad.</p>
                     </div>
                     <StepConfigSection step={step} onUpdateStep={onUpdate} />
                 </div>

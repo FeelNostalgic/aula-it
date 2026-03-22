@@ -177,7 +177,7 @@ export function EditorTabsBar({
     };
 
     if (openedStepsIds.length === 0) {
-        return <div className="h-10 shrink-0 bg-surface-dark border-b border-border/50 flex items-center px-4 text-xs text-text-muted">Ningún paso abierto</div>;
+        return <div className="h-10 shrink-0 bg-surface-dark border-b border-border/50 flex items-center px-4 text-xs text-text-muted">Ninguna actividad abierta</div>;
     }
 
     return (

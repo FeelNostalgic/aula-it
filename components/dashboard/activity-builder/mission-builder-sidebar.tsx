@@ -144,7 +144,7 @@ function SortableStepItem({
                 <Button
                     variant="ghost"
                     size="icon"
-                    aria-label={step.is_visible !== false ? "Ocultar paso" : "Mostrar paso"}
+                    aria-label={step.is_visible !== false ? "Ocultar actividad" : "Mostrar actividad"}
                     className={cn(
                         "size-6 transition-all",
                         step.is_visible !== false ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-accent-blue"
@@ -156,7 +156,7 @@ function SortableStepItem({
                 <Button
                     variant="ghost"
                     size="icon"
-                    aria-label={!step.is_locked ? "Bloquear paso" : "Desbloquear paso"}
+                    aria-label={!step.is_locked ? "Bloquear actividad" : "Desbloquear actividad"}
                     className={cn(
                         "size-6 transition-all",
                         !step.is_locked ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-accent-orange"
@@ -283,7 +283,7 @@ function SortablePhaseHeader({
             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label="Añadir Paso" className="size-7 text-text-muted hover:text-foreground shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" aria-label="Añadir Actividad" className="size-7 text-text-muted hover:text-foreground shrink-0" onClick={(e) => e.stopPropagation()}>
                             <Plus className="size-4" />
                         </Button>
                     </DropdownMenuTrigger>
@@ -409,7 +409,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
         const result = await createStep(activePhaseForStep, newStepTitle.trim(), activeStepType, newOrderIndex);
 
         if (result.error) {
-            toast.error("Error al crear el paso");
+            toast.error("Error al crear la actividad");
             return;
         }
 
@@ -421,12 +421,12 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
             setSelectedStepId(result.data.id);
             setIsAddingStep(false);
             setNewStepTitle("");
-            toast.success("Paso añadido");
+            toast.success("Actividad añadida");
         }
     };
 
     const handleDeletePhase = async (phaseId: string) => {
-        if (!confirm("¿Seguro que quieres eliminar esta fase y todos sus pasos?")) return;
+        if (!confirm("¿Seguro que quieres eliminar esta fase y todas sus actividades?")) return;
 
         const result = await deletePhase(phaseId, activityId);
         if (result.error) {
@@ -443,14 +443,14 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
     const handleDeleteStep = async (phaseId: string, stepId: string) => {
         const result = await deleteStep(stepId);
         if (result.error) {
-            toast.error("Error al eliminar el paso");
+            toast.error("Error al eliminar la actividad");
         } else {
             const newPhases = [...phases];
             const phaseIndex = newPhases.findIndex(p => p.id === phaseId);
             newPhases[phaseIndex].steps = newPhases[phaseIndex].steps.filter(s => s.id !== stepId);
             setPhases(newPhases);
             if (selectedStepId === stepId) setSelectedStepId(null);
-            toast.success("Paso eliminado");
+            toast.success("Actividad eliminada");
         }
     };
 
@@ -649,11 +649,11 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
             <Dialog open={isAddingStep} onOpenChange={setIsAddingStep}>
                 <DialogContent className="bg-surface-dark border-border/50 text-foreground">
                     <DialogHeader>
-                        <DialogTitle>Nuevo Paso</DialogTitle>
+                        <DialogTitle>Nueva Actividad</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="step-title">Título del paso</Label>
+                            <Label htmlFor="step-title">Título de la actividad</Label>
                             <Input
                                 id="step-title"
                                 autoFocus
@@ -668,7 +668,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                     </div>
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setIsAddingStep(false)}>Cancelar</Button>
-                        <Button onClick={handleAddStep}>Crear Paso</Button>
+                        <Button onClick={handleAddStep}>Crear Actividad</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -707,7 +707,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                     {isExpanded && (
                                         <div className="mt-1 flex flex-col">
                                             {phase.steps.length === 0 ? (
-                                                <div className="text-xs text-text-muted italic pl-8 py-2 border-l-2 border-transparent">Sin pasos. Añade uno desde el botón +.</div>
+                                                <div className="text-xs text-text-muted italic pl-8 py-2 border-l-2 border-transparent">Sin actividades. Añade una desde el botón +.</div>
                                             ) : (
                                                 <SortableContext items={phase.steps.map(s => `step-${s.id}`)} strategy={verticalListSortingStrategy}>
                                                     {phase.steps.map(step => (

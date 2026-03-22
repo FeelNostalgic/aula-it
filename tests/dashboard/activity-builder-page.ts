@@ -95,16 +95,16 @@ export class ActivityBuilderPage extends BasePage {
 
     async addStep(phaseTitle: string, title: string, type: 'Teoría' | 'Animación' | 'Entregable' | 'Cuestionario' | 'Presentación' | 'Recursos'): Promise<void> { // Modified
         const phase = this.page.locator(`[data-phase-title="${phaseTitle}"]`);
-        await phase.getByRole('button', { name: 'Añadir Paso' }).click();
+        await phase.getByRole('button', { name: 'Añadir Actividad' }).click();
 
         // Menu item mapping
         const menuLabel = `Añadir ${type}`;
         await this.page.getByRole('menuitem', { name: menuLabel }).click();
 
-        const dialog = this.page.getByRole('dialog', { name: 'Nuevo Paso' });
+        const dialog = this.page.getByRole('dialog', { name: 'Nueva Actividad' });
         await expect(dialog).toBeVisible();
-        await dialog.getByLabel('Título del paso').fill(title);
-        await dialog.getByRole('button', { name: 'Crear Paso' }).click();
+        await dialog.getByLabel('Título de la actividad').fill(title);
+        await dialog.getByRole('button', { name: 'Crear Actividad' }).click();
         await expect(dialog).toBeHidden();
     }
 
