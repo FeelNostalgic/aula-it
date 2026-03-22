@@ -238,6 +238,14 @@ export async function submitQuizAttempt(
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return { error: "No autenticado." };
 
+    // Check if activity is closed
+    const { data: step } = await supabase
+        .from("activity_steps")
+        .select("is_activity_closed")
+        .eq("id", stepId)
+        .single();
+    if (step?.is_activity_closed) return { error: "Las entregas de esta actividad están cerradas." };
+
     // Check max attempts
     const { count } = await supabase
         .from("quiz_attempts")

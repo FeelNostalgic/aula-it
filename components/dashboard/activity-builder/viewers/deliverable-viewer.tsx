@@ -24,6 +24,7 @@ interface DeliverableViewerProps {
     googleEmail?: string | null;
     dueDate?: string | null;
     isPreview?: boolean;
+    isClosed?: boolean;
 }
 
 const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.ElementType; className: string }> = {
@@ -77,7 +78,7 @@ function RubricDisplay({ rubric }: { rubric: RubricCriteria[] }) {
     );
 }
 
-export function DeliverableViewer({ content, stepId, activityId, initialSubmission, googleEmail: initialGoogleEmail, dueDate, isPreview }: DeliverableViewerProps) {
+export function DeliverableViewer({ content, stepId, activityId, initialSubmission, googleEmail: initialGoogleEmail, dueDate, isPreview, isClosed }: DeliverableViewerProps) {
     const [submission, setSubmission] = useState<ActivitySubmission | null>(initialSubmission ?? null);
     const [url, setUrl] = useState(initialSubmission?.drive_file_url ?? "");
     const [isPending, startTransition] = useTransition();
@@ -207,31 +208,40 @@ export function DeliverableViewer({ content, stepId, activityId, initialSubmissi
                             </a>
                         )}
 
-                        <form onSubmit={handleSubmit} className="flex gap-3">
-                            <Input
-                                value={url}
-                                onChange={(e) => setUrl(e.target.value)}
-                                placeholder="https://docs.google.com/..."
-                                className="flex-1 bg-background border-border/50 text-sm"
-                                disabled={isPending || status === "graded" || isDeadlinePassed || isPreview}
-                            />
-                            <Button
-                                type="submit"
-                                disabled={isPending || !url || status === "graded" || isDeadlinePassed || isPreview}
-                                className="gap-2 shrink-0"
-                            >
-                                <Send className="size-4" />
-                                {submission ? "Actualizar" : "Entregar"}
-                            </Button>
-                        </form>
+                        {isClosed ? (
+                            <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-500/8 border border-red-500/20 text-red-400 text-sm font-medium">
+                                <AlertTriangle className="size-4 shrink-0" />
+                                Entrega cerrada. El profesor ha cerrado las entregas de esta actividad.
+                            </div>
+                        ) : (
+                            <>
+                                <form onSubmit={handleSubmit} className="flex gap-3">
+                                    <Input
+                                        value={url}
+                                        onChange={(e) => setUrl(e.target.value)}
+                                        placeholder="https://docs.google.com/..."
+                                        className="flex-1 bg-background border-border/50 text-sm"
+                                        disabled={isPending || status === "graded" || isDeadlinePassed || isPreview}
+                                    />
+                                    <Button
+                                        type="submit"
+                                        disabled={isPending || !url || status === "graded" || isDeadlinePassed || isPreview}
+                                        className="gap-2 shrink-0"
+                                    >
+                                        <Send className="size-4" />
+                                        {submission ? "Actualizar" : "Entregar"}
+                                    </Button>
+                                </form>
 
-                        {isPreview && (
-                            <p className="text-xs text-amber-400/80">No disponible en vista previa</p>
-                        )}
-                        {status === "graded" && (
-                            <p className="text-xs text-text-muted">
-                                Esta entrega ya ha sido corregida y no puede modificarse.
-                            </p>
+                                {isPreview && (
+                                    <p className="text-xs text-amber-400/80">No disponible en vista previa</p>
+                                )}
+                                {status === "graded" && (
+                                    <p className="text-xs text-text-muted">
+                                        Esta entrega ya ha sido corregida y no puede modificarse.
+                                    </p>
+                                )}
+                            </>
                         )}
                     </div>
                 </>
