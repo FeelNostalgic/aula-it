@@ -21,6 +21,7 @@ import {
     EyeOff,
     Lock,
     Unlock,
+    Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType } from "@/types/activity";
@@ -66,7 +67,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 // Mock imports for server actions
-import { createPhase, createStep, deletePhase, deleteStep, reorderSteps, reorderPhases, updatePhaseTitle, updateStepVisibility, updateStepLock } from "@/app/activities/[id]/edit/actions";
+import { createPhase, createStep, deletePhase, deleteStep, reorderSteps, reorderPhases, updatePhaseTitle, updateStepVisibility, updateStepLock, updateStepActivityClosed } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 
 interface MissionBuilderSidebarProps {
@@ -85,14 +86,16 @@ function SortableStepItem({
     onSelect,
     onDelete,
     onToggleVisibility,
-    onToggleLock
+    onToggleLock,
+    onToggleActivityClosed,
 }: {
     step: ActivityStepWithClientState,
     isSelected: boolean,
     onSelect: () => void,
     onDelete: () => void,
     onToggleVisibility: () => void,
-    onToggleLock: () => void
+    onToggleLock: () => void,
+    onToggleActivityClosed: () => void,
 }) {
     const {
         attributes,
@@ -161,6 +164,19 @@ function SortableStepItem({
                     onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
                 >
                     {!step.is_locked ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={!step.is_activity_closed ? "Cerrar entregas" : "Abrir entregas"}
+                    title={!step.is_activity_closed ? "Cerrar entregas" : "Abrir entregas"}
+                    className={cn(
+                        "size-6 transition-all",
+                        !step.is_activity_closed ? "opacity-0 group-hover:opacity-100 text-text-muted hover:text-foreground" : "opacity-100 text-red-400"
+                    )}
+                    onClick={(e) => { e.stopPropagation(); onToggleActivityClosed(); }}
+                >
+                    <Ban className="size-3.5" />
                 </Button>
             </div>
 
@@ -463,6 +479,15 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
         }
     };
 
+    const handleToggleActivityClosed = async (phaseId: string, stepId: string, currentClosed: boolean) => {
+        const result = await updateStepActivityClosed(stepId, !currentClosed);
+        if (result.error) {
+            toast.error("Error al actualizar cierre de entregas");
+        } else {
+            setPhases(phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => s.id === stepId ? { ...s, is_activity_closed: !currentClosed } : s) } : p));
+        }
+    };
+
     // --- Drag and Drop Logic ---
 
     const handleDragStart = (e: DragStartEvent) => {
@@ -694,6 +719,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                                             onDelete={() => handleDeleteStep(phase.id, step.id)}
                                                             onToggleVisibility={() => handleToggleVisibility(phase.id, step.id, step.is_visible !== false)}
                                                             onToggleLock={() => handleToggleLock(phase.id, step.id, !!step.is_locked)}
+                                                            onToggleActivityClosed={() => handleToggleActivityClosed(phase.id, step.id, !!step.is_activity_closed)}
                                                         />
                                                     ))}
                                                 </SortableContext>

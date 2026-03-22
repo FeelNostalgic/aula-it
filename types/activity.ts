@@ -25,6 +25,7 @@ export type ActivityStep = {
     order_index: number;
     is_visible: boolean;
     is_locked: boolean;
+    is_activity_closed?: boolean;
     due_date?: string | null;
     xp?: number;
     completion_mode?: CompletionMode;

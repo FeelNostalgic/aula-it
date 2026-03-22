@@ -582,10 +582,10 @@ export async function reopenSubmission(submissionId: string): Promise<{ success?
     if (submission?.step_id) {
         const { data: step } = await admin
             .from("activity_steps")
-            .select("due_date, is_locked")
+            .select("due_date, is_activity_closed")
             .eq("id", submission.step_id)
             .single();
-        if (step?.is_locked) warning = 'step_locked';
+        if (step?.is_activity_closed) warning = 'step_locked';
         else if (step?.due_date && new Date(step.due_date) < new Date()) warning = 'deadline_passed';
     }
 

@@ -335,17 +335,16 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                         <div
                                                             key={step.id}
                                                             data-step-title={step.title}
-                                                            onClick={() => !step.is_locked && handleStepSelect(step.id)}
+                                                            onClick={() => handleStepSelect(step.id)}
                                                             className={cn(
                                                                 "group flex items-center gap-2.5 py-2.5 px-3 pl-8 text-[13px] cursor-pointer transition-all border-l-2",
                                                                 isActive
                                                                     ? "bg-surface/50 border-accent-blue text-foreground shadow-sm"
                                                                     : "border-transparent hover:bg-surface-dark/50 text-text-muted hover:text-foreground",
-                                                                step.is_locked && "opacity-40 cursor-not-allowed"
                                                             )}
                                                         >
-                                                            {step.is_locked ? (
-                                                                <Lock className="size-3.5 text-text-muted shrink-0" />
+                                                            {step.is_activity_closed ? (
+                                                                <Lock className="size-3.5 text-accent-orange shrink-0" />
                                                             ) : (
                                                                 <div className={cn("shrink-0", isActive ? "text-accent-blue" : "text-text-muted group-hover:text-foreground")}>
                                                                     {getStepIcon(step.type)}

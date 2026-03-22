@@ -367,6 +367,26 @@ export async function updateStepLock(stepId: string, isLocked: boolean) {
     return { data };
 }
 
+export async function updateStepActivityClosed(stepId: string, isClosed: boolean) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+        .from('activity_steps')
+        .update({ is_activity_closed: isClosed })
+        .eq('id', stepId)
+        .select()
+        .single();
+    if (error) {
+        console.error("Error updating step activity closed:", error);
+        return { error: error.message };
+    }
+    return { data };
+}
+
 export async function updateStepXp(stepId: string, xp: number | null) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

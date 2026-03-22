@@ -18,10 +18,10 @@ export async function submitDeliverable(stepId: string, driveFileUrl: string, ac
     // Deadline + lock check
     const { data: step } = await supabase
         .from("activity_steps")
-        .select("due_date, is_locked")
+        .select("due_date, is_activity_closed")
         .eq("id", stepId)
         .single();
-    if (step?.is_locked) return { error: "Las entregas están cerradas para este paso." };
+    if (step?.is_activity_closed) return { error: "Las entregas están cerradas para este paso." };
     if (step?.due_date && new Date(step.due_date) < new Date()) {
         const { data: ext } = await supabase
             .from("deadline_extensions")
@@ -68,10 +68,10 @@ export async function submitFileUpload(
     // Deadline + lock check
     const { data: step } = await supabase
         .from("activity_steps")
-        .select("due_date, is_locked")
+        .select("due_date, is_activity_closed")
         .eq("id", stepId)
         .single();
-    if (step?.is_locked) return { error: "Las entregas están cerradas para este paso." };
+    if (step?.is_activity_closed) return { error: "Las entregas están cerradas para este paso." };
     if (step?.due_date && new Date(step.due_date) < new Date()) {
         const { data: ext } = await supabase
             .from("deadline_extensions")
@@ -119,10 +119,10 @@ export async function submitFileUploadMulti(
 
     const { data: step } = await supabase
         .from("activity_steps")
-        .select("due_date, is_locked")
+        .select("due_date, is_activity_closed")
         .eq("id", stepId)
         .single();
-    if (step?.is_locked) return { error: "Las entregas están cerradas para este paso." };
+    if (step?.is_activity_closed) return { error: "Las entregas están cerradas para este paso." };
     if (step?.due_date && new Date(step.due_date) < new Date()) {
         const { data: ext } = await supabase
             .from("deadline_extensions")
