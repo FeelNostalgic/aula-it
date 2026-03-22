@@ -193,16 +193,16 @@ test.describe("Module Detail", () => {
             // Search for the specific test student to avoid multi-student race conditions
             const searchInput = dialog.getByRole("textbox");
             await searchInput.fill("Test Student Detail");
-            await dialog.getByRole("button", { name: "Buscar" }).click();
+            // Debounced search (300ms) — wait for the student row to appear
+            const studentRow = dialog.locator("div").filter({ hasText: "Test Student Detail" }).filter({ has: dialog.locator('[role="checkbox"]') }).first();
+            await expect(studentRow).toBeVisible({ timeout: 10000 });
+            await studentRow.click(); // selects via checkbox
 
-            // Wait for the specific results to appear (filtering out initial list)
-            const studentResultRow = dialog.locator('div.group').filter({ hasText: "Test Student Detail" }).first();
-            const addButton = studentResultRow.getByRole("button", { name: "Añadir" });
-            await expect(addButton).toBeVisible({ timeout: 10000 });
-            await addButton.click();
+            // Click the bulk enroll button ("Matricular 1")
+            await dialog.getByRole("button", { name: /Matricular/ }).click();
 
             // Verify success toast appears
-            await expect(page.getByText("Alumno matriculado correctamente")).toBeVisible();
+            await expect(page.getByText(/alumno.*matriculado/i)).toBeVisible();
 
             // Wait for the dialog to close (either by Escape or maybe it closes on its own)
             await page.keyboard.press("Escape");
@@ -222,7 +222,7 @@ test.describe("Module Detail", () => {
 
             // Now find the actions button related to this student
             // We use the grid row container that contains this text
-            const studentRow = page.locator('div.grid').filter({ hasText: "Test Student Detail" }).first();
+            const studentRow = page.locator('tr').filter({ hasText: "Test Student Detail" }).first();
             const actionsButton = studentRow.getByTestId("student-actions-button");
 
             await expect(actionsButton).toBeVisible({ timeout: 5000 });

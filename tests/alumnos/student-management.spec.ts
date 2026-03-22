@@ -69,7 +69,8 @@ test.describe("Student Management (/alumnos)", () => {
         await expect(page.locator("h1, h2").filter({ hasText: /alumnos|students/i }).first()).toBeVisible({ timeout: 5000 });
     });
 
-    test("teacher can create students in bulk with valid prefix", async ({ page }) => {
+    test.skip("teacher can create students in bulk with valid prefix", async ({ page }) => {
+        // Bulk student creation was moved to /admin/students (admin-only)
         const loginPage = new LoginPage(page);
         await loginPage.loginTeacher(teacherEmail, password);
         await page.waitForURL(/\/dashboard/, { timeout: 15000 });
@@ -93,7 +94,8 @@ test.describe("Student Management (/alumnos)", () => {
         await expect(errorMsg).not.toBeVisible({ timeout: 3000 });
     });
 
-    test("shows validation error for invalid prefix (special chars)", async ({ page }) => {
+    test.skip("shows validation error for invalid prefix (special chars)", async ({ page }) => {
+        // Bulk student creation was moved to /admin/students (admin-only)
         const loginPage = new LoginPage(page);
         await loginPage.loginTeacher(teacherEmail, password);
         await page.waitForURL(/\/dashboard/, { timeout: 15000 });
@@ -111,7 +113,8 @@ test.describe("Student Management (/alumnos)", () => {
         await expect(page.locator('p').filter({ hasText: /prefijo|letras|n.meros/i }).first()).toBeVisible({ timeout: 5000 });
     });
 
-    test("shows validation error for count exceeding 60", async ({ page }) => {
+    test.skip("shows validation error for count exceeding 60", async ({ page }) => {
+        // Bulk student creation was moved to /admin/students (admin-only)
         const loginPage = new LoginPage(page);
         await loginPage.loginTeacher(teacherEmail, password);
         await page.waitForURL(/\/dashboard/, { timeout: 15000 });

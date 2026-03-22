@@ -79,10 +79,7 @@ test.describe("Module Details Tabs", () => {
         const searchInput = dialog.getByRole('textbox');
         await searchInput.fill('Ana');
 
-        // 2. Actually click the search button instead of hoping for a debounce
-        await dialog.getByRole('button', { name: 'Buscar' }).click();
-
-        // 3. Let Playwright do the waiting natively (NO hardcoded waitForTimeout!)
+        // 2. Search is debounced (300ms) — Playwright waits natively for results
         const noResults = dialog.getByText('No se encontraron alumnos');
         const anaResult = dialog.getByText('Ana').first();
         await expect(noResults.or(anaResult)).toBeVisible({ timeout: 5000 });
