@@ -74,7 +74,7 @@ test.describe("Admin Student Management (/admin/students)", () => {
         await adminPage.openCreateTab();
         await expect(page.locator('button[type="submit"]').filter({ hasText: /generar/i }).first()).toBeVisible({ timeout: 5000 });
 
-        await adminPage.fillCreateForm("INVAL-ID", 2, "testpass123");
+        await adminPage.fillCreateForm("INVAL@ID", 2, "testpass123");
         await adminPage.submitCreateForm();
 
         await expect(page.locator('p').filter({ hasText: /prefijo|letras|n.meros/i }).first()).toBeVisible({ timeout: 5000 });
