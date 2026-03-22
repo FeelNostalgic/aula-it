@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Trophy, Medal, Crown, Star, Target, Shield, Skull, Sword, User } from "lucide-react";
+import { Trophy, Medal, Crown, Award, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RankBadge } from "@/components/dashboard/rank-badge";
 
 interface LeaderboardEntry {
     student_id: string;
@@ -17,8 +18,66 @@ interface LeaderboardEntry {
     rank_letter: string;
 }
 
-export function ModuleLeaderboard({ moduleId, userRole }: { moduleId: string, userRole: "teacher" | "student" }) {
+function PodiumBlock({ entry, position, isMe }: { entry: LeaderboardEntry; position: 1 | 2 | 3; isMe: boolean }) {
+    const config = {
+        1: {
+            blockHeight: "h-20",
+            avatarSize: "size-16",
+            borderColor: "border-amber-400/50",
+            bgColor: "bg-amber-400/5",
+            textColor: "text-amber-400",
+            icon: <Crown className="size-5 text-amber-400" />,
+        },
+        2: {
+            blockHeight: "h-12",
+            avatarSize: "size-12",
+            borderColor: "border-slate-300/50",
+            bgColor: "bg-slate-300/5",
+            textColor: "text-slate-300",
+            icon: <Medal className="size-4 text-slate-300" />,
+        },
+        3: {
+            blockHeight: "h-8",
+            avatarSize: "size-12",
+            borderColor: "border-amber-700/50",
+            bgColor: "bg-amber-700/5",
+            textColor: "text-amber-700",
+            icon: <Medal className="size-4 text-amber-700" />,
+        },
+    }[position];
+
+    return (
+        <div className="flex flex-col items-center gap-2 flex-1">
+            {config.icon}
+            <Avatar className={cn(
+                "border-2",
+                config.avatarSize,
+                config.borderColor,
+                isMe && "ring-2 ring-primary ring-offset-2 ring-offset-background"
+            )}>
+                <AvatarImage src={entry.avatar_url || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${entry.display_name}`} />
+                <AvatarFallback><User className="size-4" /></AvatarFallback>
+            </Avatar>
+            <div className="text-center">
+                <p className={cn("text-xs font-bold truncate max-w-[90px]", isMe ? "text-primary" : "text-foreground")}>
+                    {entry.display_name}
+                </p>
+                <p className="text-[10px] text-text-muted font-mono">{entry.module_xp.toLocaleString()} XP</p>
+            </div>
+            <RankBadge rank={entry.rank_letter} />
+            <div className={cn(
+                "w-full rounded-t-xl border-t border-x flex items-center justify-center",
+                config.blockHeight, config.bgColor, config.borderColor
+            )}>
+                <span className={cn("text-2xl font-black", config.textColor)}>#{position}</span>
+            </div>
+        </div>
+    );
+}
+
+export function ModuleLeaderboard({ moduleId, userRole }: { moduleId: string; userRole: "teacher" | "student" }) {
     const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+    const [weeklyBadgeMap, setWeeklyBadgeMap] = useState<Map<string, number>>(new Map());
     const [isLoading, setIsLoading] = useState(true);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const supabase = createClient();
@@ -32,9 +91,37 @@ export function ModuleLeaderboard({ moduleId, userRole }: { moduleId: string, us
 
                 const { data, error } = await supabase
                     .rpc('get_module_leaderboard', { p_module_id: moduleId });
-                
+
                 if (error) throw error;
-                setEntries(data || []);
+                const leaderboardData: LeaderboardEntry[] = data || [];
+                setEntries(leaderboardData);
+
+                // Fetch weekly badge counts
+                if (leaderboardData.length > 0) {
+                    const studentIds = leaderboardData.map(e => e.student_id);
+                    const { data: units } = await supabase
+                        .from('units').select('id').eq('module_id', moduleId);
+                    const unitIds = (units || []).map((u: { id: string }) => u.id);
+
+                    if (unitIds.length > 0) {
+                        const weekStart = new Date();
+                        weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7)); // Monday
+                        weekStart.setHours(0, 0, 0, 0);
+
+                        const { data: weekBadges } = await supabase
+                            .from('student_badges')
+                            .select('student_id, class_badges!inner(unit_id)')
+                            .in('student_id', studentIds)
+                            .in('class_badges.unit_id', unitIds)
+                            .gte('earned_at', weekStart.toISOString());
+
+                        const map = new Map<string, number>();
+                        (weekBadges || []).forEach((b: { student_id: string }) => {
+                            map.set(b.student_id, (map.get(b.student_id) || 0) + 1);
+                        });
+                        setWeeklyBadgeMap(map);
+                    }
+                }
             } catch (err) {
                 console.error("Error fetching leaderboard:", err);
             } finally {
@@ -68,40 +155,28 @@ export function ModuleLeaderboard({ moduleId, userRole }: { moduleId: string, us
         );
     }
 
-    const rankColors: Record<string, string> = {
-        'S': 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
-        'A': 'text-purple-400 bg-purple-400/10 border-purple-400/30',
-        'B': 'text-blue-400 bg-blue-400/10 border-blue-400/30',
-        'C': 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30',
-        'D': 'text-zinc-400 bg-zinc-400/10 border-zinc-400/30',
-        'E': 'text-orange-400 bg-orange-400/10 border-orange-400/30',
-        'F': 'text-red-400 bg-red-400/10 border-red-400/30',
-    };
+    // Podium: top 3
+    const podiumEntries = entries.slice(0, 3);
+    const [first, second, third] = [podiumEntries[0], podiumEntries[1], podiumEntries[2]];
 
-    // Calculate what to show
-    let visibleEntries = entries;
-    
-    // For students, we show Top 3 + Neighborhood (me, me-1, me+1)
+    // List: from #4 onwards (or neighborhood for students)
+    let listEntries = entries.slice(3);
+
     if (userRole === 'student') {
         const myIndex = entries.findIndex(e => e.student_id === currentUserId);
-        
-        const top3 = entries.slice(0, 3);
-        let neighborhood: LeaderboardEntry[] = [];
-        
         if (myIndex !== -1 && myIndex >= 3) {
-            // Include me-1, me, me+1 (but don't go out of bounds)
             const start = Math.max(3, myIndex - 1);
             const end = Math.min(entries.length, myIndex + 2);
-            neighborhood = entries.slice(start, end);
+            const neighborhood = entries.slice(start, end);
+
+            listEntries = [];
+            if (neighborhood.length > 0 && neighborhood[0].rank_position > 4) {
+                listEntries.push({ student_id: 'spacer', display_name: '...', avatar_url: null, module_xp: 0, rank_position: 0, rank_letter: '' });
+            }
+            listEntries = [...listEntries, ...neighborhood];
+        } else {
+            listEntries = entries.slice(3, 6); // Show a few below podium
         }
-        
-        // Merge without duplicates (just in case) and add a spacer marker if needed
-        visibleEntries = [...top3];
-        if (neighborhood.length > 0 && neighborhood[0].rank_position > 4) {
-            // Add a spacer item
-            visibleEntries.push({ student_id: 'spacer', display_name: '...', avatar_url: null, module_xp: 0, rank_position: 0, rank_letter: '' });
-        }
-        visibleEntries = [...visibleEntries, ...neighborhood];
     }
 
     return (
@@ -116,78 +191,89 @@ export function ModuleLeaderboard({ moduleId, userRole }: { moduleId: string, us
                 </div>
             </div>
 
-            <Card className="bg-surface-dark/40 border-border/40 backdrop-blur-sm overflow-hidden">
-                <div className="p-1">
-                    {visibleEntries.map((entry, idx) => {
-                        if (entry.student_id === 'spacer') {
+            {/* Podium */}
+            {podiumEntries.length >= 2 && (
+                <div className="flex items-end gap-3 px-4 pt-6">
+                    {second && <PodiumBlock entry={second} position={2} isMe={second.student_id === currentUserId} />}
+                    {first && <PodiumBlock entry={first} position={1} isMe={first.student_id === currentUserId} />}
+                    {third && <PodiumBlock entry={third} position={3} isMe={third.student_id === currentUserId} />}
+                </div>
+            )}
+
+            {/* List from #4 */}
+            {listEntries.length > 0 && (
+                <Card className="bg-surface-dark/40 border-border/40 backdrop-blur-sm overflow-hidden">
+                    <div className="p-1">
+                        {listEntries.map((entry, idx) => {
+                            if (entry.student_id === 'spacer') {
+                                return (
+                                    <div key="spacer" className="flex items-center justify-center py-4 opacity-50">
+                                        <div className="flex gap-2">
+                                            <div className="size-1.5 rounded-full bg-border-strong" />
+                                            <div className="size-1.5 rounded-full bg-border-strong" />
+                                            <div className="size-1.5 rounded-full bg-border-strong" />
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            const isMe = entry.student_id === currentUserId;
+                            const weeklyCount = weeklyBadgeMap.get(entry.student_id) || 0;
+
                             return (
-                                <div key="spacer" className="flex items-center justify-center py-4 opacity-50">
-                                    <div className="flex gap-2">
-                                        <div className="size-1.5 rounded-full bg-border-strong" />
-                                        <div className="size-1.5 rounded-full bg-border-strong" />
-                                        <div className="size-1.5 rounded-full bg-border-strong" />
+                                <div
+                                    key={entry.student_id}
+                                    className={cn(
+                                        "flex items-center gap-4 p-4 rounded-xl mb-1 transition-all duration-300 border",
+                                        isMe
+                                            ? "bg-primary/5 border-primary/20 shadow-sm"
+                                            : idx % 2 === 0
+                                                ? "border-transparent hover:bg-blue-500/10"
+                                                : "bg-muted border-transparent hover:bg-blue-500/10"
+                                    )}
+                                >
+                                    <div className="w-8 text-center font-black text-sm tracking-tighter text-text-muted">
+                                        #{entry.rank_position}
+                                    </div>
+
+                                    <Avatar className={cn(
+                                        "size-10 border-2",
+                                        isMe ? "border-primary" : "border-background"
+                                    )}>
+                                        <AvatarImage src={entry.avatar_url || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${entry.display_name}`} />
+                                        <AvatarFallback><User className="size-4" /></AvatarFallback>
+                                    </Avatar>
+
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <p className={cn("font-bold truncate text-sm", isMe ? "text-primary" : "text-foreground")}>
+                                                {entry.display_name}
+                                            </p>
+                                            {isMe && <Badge className="h-4 px-1.5 text-[9px] bg-primary/20 text-primary border-none">TÚ</Badge>}
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <RankBadge rank={entry.rank_letter} />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 text-right">
+                                        {weeklyCount > 0 && (
+                                            <div className="flex items-center gap-1 text-amber-400">
+                                                <Award className="size-3.5" />
+                                                <span className="text-xs font-bold">{weeklyCount}</span>
+                                            </div>
+                                        )}
+                                        <div>
+                                            <p className="font-black text-base tracking-tighter">{entry.module_xp.toLocaleString()}</p>
+                                            <p className="text-[10px] font-mono text-text-muted uppercase tracking-widest">XP</p>
+                                        </div>
                                     </div>
                                 </div>
                             );
-                        }
-
-                        const isMe = entry.student_id === currentUserId;
-                        const isTop3 = entry.rank_position <= 3;
-                        
-                        return (
-                            <div 
-                                key={entry.student_id}
-                                className={cn(
-                                    "flex items-center gap-4 p-4 rounded-xl mb-1 transition-all duration-300",
-                                    isMe ? "bg-primary/5 border border-primary/20 shadow-sm" : "hover:bg-surface border border-transparent",
-                                    isTop3 && !isMe ? "bg-surface/50" : ""
-                                )}
-                            >
-                                <div className="w-8 text-center font-black text-xl tracking-tighter opacity-50">
-                                    {entry.rank_position === 1 ? <Crown className="size-6 text-yellow-400 mx-auto" /> : 
-                                     entry.rank_position === 2 ? <Medal className="size-6 text-slate-300 mx-auto" /> : 
-                                     entry.rank_position === 3 ? <Medal className="size-6 text-amber-600 mx-auto" /> : 
-                                     `#${entry.rank_position}`}
-                                </div>
-                                
-                                <Avatar className={cn(
-                                    "size-12 border-2",
-                                    isMe ? "border-primary" : "border-background",
-                                    entry.rank_position === 1 && "ring-2 ring-yellow-400 ring-offset-2 ring-offset-background"
-                                )}>
-                                    <AvatarImage src={entry.avatar_url || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${entry.display_name}`} />
-                                    <AvatarFallback><User className="size-4"/></AvatarFallback>
-                                </Avatar>
-
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <p className={cn(
-                                            "font-bold truncate",
-                                            isMe ? "text-primary" : "text-foreground"
-                                        )}>
-                                            {entry.display_name}
-                                        </p>
-                                        {isMe && <Badge className="h-4 px-1.5 text-[9px] bg-primary/20 text-primary border-none">TÚ</Badge>}
-                                    </div>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                        <Badge variant="outline" className={cn(
-                                            "h-5 px-2 text-[10px] font-black uppercase tracking-widest border",
-                                            rankColors[entry.rank_letter] || rankColors['F']
-                                        )}>
-                                            RANGO {entry.rank_letter}
-                                        </Badge>
-                                    </div>
-                                </div>
-
-                                <div className="text-right">
-                                    <p className="font-black text-lg tracking-tighter">{entry.module_xp.toLocaleString()}</p>
-                                    <p className="text-[10px] font-mono text-text-muted uppercase tracking-widest">XP</p>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </Card>
+                        })}
+                    </div>
+                </Card>
+            )}
         </div>
     );
 }
