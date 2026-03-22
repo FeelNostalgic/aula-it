@@ -722,7 +722,7 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
                                 <TableRow
                                     key={row.id}
                                     data-state={row.getIsSelected() ? "selected" : undefined}
-                                    className={cn("group", row.getIsSelected() ? "bg-accent-blue/4" : "")}
+                                    className={cn("group transition-colors odd:bg-muted/60 even:bg-transparent hover:bg-blue-500/10", row.getIsSelected() ? "bg-accent-blue/4" : "")}
                                 >
                                     {row.getVisibleCells().map(cell => (
                                         <TableCell key={cell.id}>
