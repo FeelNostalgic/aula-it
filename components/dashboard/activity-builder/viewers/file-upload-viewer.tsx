@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel,
     AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -121,7 +122,7 @@ function getMimeIcon(mimeType: string | null): LucideIcon {
 export function FileUploadViewer({ content, stepId, activityId, initialSubmission, dueDate, isPreview }: FileUploadViewerProps) {
     const [submission, setSubmission] = useState<ActivitySubmission | null>(initialSubmission ?? null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-    const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState<number | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -132,7 +133,7 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
     useEffect(() => {
         setSubmission(initialSubmission ?? null);
         setSelectedFiles([]);
-        setUploading(false);
+        setUploadProgress(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
     }, [stepId]);
 
@@ -205,33 +206,56 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
     async function handleUpload() {
         if (!selectedFiles.length) return;
 
-        setUploading(true);
+        setUploadProgress(0);
         try {
             const existingIds: string[] =
                 submission?.files?.map(f => f.driveFileId) ??
                 (submission?.drive_file_id ? [submission.drive_file_id] : []);
 
+            const totalBytes = selectedFiles.reduce((sum, f) => sum + f.size, 0);
+            const loadedPerFile = new Array(selectedFiles.length).fill(0);
+
+            const updateProgress = () => {
+                const loaded = loadedPerFile.reduce((a: number, b: number) => a + b, 0);
+                setUploadProgress(totalBytes > 0 ? Math.round((loaded / totalBytes) * 100) : 0);
+            };
+
             const uploadResults = await Promise.all(
-                selectedFiles.map(async (file, idx) => {
+                selectedFiles.map((file, idx) => new Promise<SubmissionFile>((resolve, reject) => {
                     const formData = new FormData();
                     formData.append("file", file);
                     formData.append("stepId", stepId);
                     if (idx === 0 && existingIds[0]) {
                         formData.append("existingDriveFileId", existingIds[0]);
                     }
-                    const res = await fetch("/api/drive/upload", {
-                        method: "POST",
-                        body: formData,
-                    });
-                    const json = await res.json();
-                    if (!res.ok || json.error) throw new Error(json.error ?? "Error al subir archivo");
-                    return {
-                        driveFileId: json.driveFileId,
-                        driveFileUrl: json.driveFileUrl,
-                        driveFileName: json.driveFileName,
-                        driveMimeType: json.driveMimeType,
-                    } satisfies SubmissionFile;
-                })
+                    const xhr = new XMLHttpRequest();
+                    xhr.upload.onprogress = (e) => {
+                        if (e.lengthComputable) {
+                            loadedPerFile[idx] = e.loaded;
+                            updateProgress();
+                        }
+                    };
+                    xhr.onload = () => {
+                        try {
+                            const json = JSON.parse(xhr.responseText);
+                            if (xhr.status !== 200 || json.error) {
+                                reject(new Error(json.error ?? "Error al subir archivo"));
+                            } else {
+                                resolve({
+                                    driveFileId: json.driveFileId,
+                                    driveFileUrl: json.driveFileUrl,
+                                    driveFileName: json.driveFileName,
+                                    driveMimeType: json.driveMimeType,
+                                });
+                            }
+                        } catch {
+                            reject(new Error("Error al procesar respuesta del servidor"));
+                        }
+                    };
+                    xhr.onerror = () => reject(new Error("Error de red al subir el archivo"));
+                    xhr.open("POST", "/api/drive/upload");
+                    xhr.send(formData);
+                }))
             );
 
             if (existingIds.length > 1) {
@@ -256,7 +280,7 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
         } catch (err: any) {
             toast.error(err.message ?? "Error al subir los archivos.");
         } finally {
-            setUploading(false);
+            setUploadProgress(null);
         }
     }
 
@@ -512,14 +536,20 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
 
                         <Button
                             onClick={handleUpload}
-                            disabled={!selectedFiles.length || uploading || isPending || isPreview}
+                            disabled={!selectedFiles.length || uploadProgress !== null || isPending || isPreview}
                             className="w-full gap-2 bg-amber-500 hover:bg-amber-600 text-white"
                         >
-                            {uploading || isPending
+                            {uploadProgress !== null || isPending
                                 ? <><RefreshCw className="size-4 animate-spin" /> Subiendo...</>
                                 : <><Upload className="size-4" /> {submission ? "Actualizar entrega" : "Subir entrega"}</>
                             }
                         </Button>
+                        {uploadProgress !== null && (
+                            <div className="space-y-1.5">
+                                <Progress value={uploadProgress} className="h-2" />
+                                <p className="text-xs text-text-muted text-center font-mono">{uploadProgress}%</p>
+                            </div>
+                        )}
                     </>
                 )}
 

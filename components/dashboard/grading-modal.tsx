@@ -47,12 +47,15 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
     const quizContent = submission?.quiz_content ?? null;
     const quizAttempt = submission?.quiz_attempt ?? null;
 
-    // Compute quiz score from auto + manual short_answer scores
+    // Strip previously saved manual pts to get pure auto-graded points
+    const savedManualPts = isQuiz && quizAttempt
+        ? Object.values(quizAttempt.short_answer_scores ?? {}).reduce((a: number, b: number) => a + b, 0)
+        : 0;
+    const autoPoints = isQuiz && quizAttempt ? quizAttempt.points_earned - savedManualPts : 0;
+
+    // Compute quiz score from auto + current manual short_answer scores
     const computedQuizScore = (() => {
         if (!isQuiz || !quizAttempt || !quizContent) return null;
-        // points_earned already includes previously saved manual pts — strip them out first
-        const savedManualPts = Object.values(quizAttempt.short_answer_scores).reduce((a, b) => a + b, 0);
-        const autoPoints = quizAttempt.points_earned - savedManualPts;
         const manualPts = Object.values(shortAnswerScores).reduce((a, b) => a + b, 0);
         const total = quizAttempt.points_total;
         if (total === 0) return null;
@@ -102,7 +105,7 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                         quizAttempt.id,
                         shortAnswerScores,
                         shortAnswerFeedback,
-                        quizAttempt.points_earned,
+                        autoPoints,
                     );
                     if (saveRes.error) {
                         toast.error(`Error al guardar notas de respuestas cortas: ${saveRes.error}`);
@@ -406,7 +409,8 @@ function QuizAttemptPanel({
     shortAnswerFeedback: Record<string, string>;
     onShortAnswerFeedback: (qId: string, text: string) => void;
 }) {
-    const autoPoints = attempt.points_earned;
+    const savedManual = Object.values(attempt.short_answer_scores ?? {}).reduce((a: number, b: number) => a + b, 0);
+    const autoPoints = attempt.points_earned - savedManual;
     const manualPoints = Object.values(shortAnswerScores).reduce((a, b) => a + b, 0);
     const totalPoints = attempt.points_total;
 
@@ -442,7 +446,11 @@ function QuizAttemptPanel({
                                     <p className="text-sm font-semibold text-foreground leading-snug">{q.text}</p>
                                 </div>
                                 <span className="text-xs font-mono text-text-muted shrink-0">
-                                    {qType !== 'short_answer' ? `${ptsEarned}/${q.points ?? 1}pts` : `?/${q.points ?? 1}pts`}
+                                    {qType !== 'short_answer'
+                                    ? `${ptsEarned}/${q.points ?? 1}pts`
+                                    : shortAnswerScores[q.id] != null
+                                        ? `${shortAnswerScores[q.id]}/${q.points ?? 1}pts`
+                                        : `?/${q.points ?? 1}pts`}
                                 </span>
                             </div>
 

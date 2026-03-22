@@ -34,17 +34,18 @@ interface StepViewerProps {
     submission?: ActivitySubmission;
     googleEmail?: string | null;
     userId?: string | null;
+    studentName?: string | null;
     isPreview?: boolean;
 }
 
-export function StepViewer({ step, activityId, submission, googleEmail, userId, isPreview }: StepViewerProps) {
+export function StepViewer({ step, activityId, submission, googleEmail, userId, studentName, isPreview }: StepViewerProps) {
     if (!step) return null;
 
     switch (step.type) {
         case 'theory':
             return <TheoryViewer content={step.content as TheoryContent} />;
         case 'quiz':
-            return <QuizViewer content={step.content as QuizContent} userId={userId} stepId={step.id} activityId={activityId} submission={submission} isPreview={isPreview} />;
+            return <QuizViewer content={step.content as QuizContent} userId={userId} studentName={studentName} stepId={step.id} activityId={activityId} submission={submission} isPreview={isPreview} />;
         case 'presentation':
             return <PresentationViewer content={step.content as PresentationContent} />;
         case 'resource':
@@ -223,6 +224,7 @@ function AnimationViewer({ content }: { content: AnimationContent }) {
 function QuizViewer({
     content,
     userId,
+    studentName,
     stepId,
     activityId,
     submission,
@@ -230,6 +232,7 @@ function QuizViewer({
 }: {
     content: QuizContent;
     userId?: string | null;
+    studentName?: string | null;
     stepId?: string;
     activityId?: string;
     submission?: ActivitySubmission;
@@ -238,7 +241,7 @@ function QuizViewer({
     const isGoogleFormMode = content?.quizMode === 'google_form' || (!content?.quizMode && !!content?.googleFormUrl);
 
     if (isGoogleFormMode && content?.googleFormUrl) {
-        const studentId = userId ? `${userId.slice(-8).toUpperCase()}` : null;
+        const studentId = studentName ?? (userId ? userId.slice(-8).toUpperCase() : null);
         return (
             <div className="w-full h-screen min-h-[600px] flex flex-col gap-4">
                 {studentId && (
@@ -305,7 +308,10 @@ function BuiltinQuizViewer({
         setLoadingAttempts(true);
         getQuizAttempts(stepId).then(data => {
             setAttempts(data);
-            if (data.length > 0) setPhase('list');
+            const isLimited = content?.maxAttempts != null;
+            // Limited: always show list (even with 0 attempts, so student sees remaining count)
+            // Unlimited: show list only if there are previous attempts; otherwise go straight to quiz
+            if (isLimited || data.length > 0) setPhase('list');
             setLoadingAttempts(false);
         });
     }, [stepId]);

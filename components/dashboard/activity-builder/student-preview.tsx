@@ -457,6 +457,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                         submission={submissionsMap?.[selectedStep.id]}
                                         googleEmail={googleEmail}
                                         userId={user?.id}
+                                        studentName={profile?.full_name}
                                     />
                                 </div>
                                 <div className="flex justify-between items-center px-6 py-3 border-t border-border/50 shrink-0 print:hidden">
@@ -520,6 +521,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                     submission={submissionsMap?.[selectedStep.id]}
                                     googleEmail={googleEmail}
                                     userId={user?.id}
+                                    studentName={profile?.full_name}
                                     isPreview={isPreview}
                                 />
 
