@@ -280,7 +280,7 @@ export async function deleteModule(moduleId: string) {
     return { success: true };
 }
 
-export async function getAvailableStudents(moduleId: string, query?: string) {
+export async function getAvailableStudents(moduleId: string, query?: string, prefix?: string) {
     const supabase = await createClient();
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -306,11 +306,15 @@ export async function getAvailableStudents(moduleId: string, query?: string) {
         studentQuery = studentQuery.not("id", "in", `(${enrolledIds.join(",")})`);
     }
 
+    if (prefix?.trim()) {
+        studentQuery = studentQuery.ilike("full_name", `${prefix.trim()}-%`);
+    }
+
     if (query?.trim()) {
         studentQuery = studentQuery.ilike("full_name", `%${query.trim()}%`);
     }
 
-    const { data, error } = await studentQuery.limit(20);
+    const { data, error } = await studentQuery.order("full_name", { ascending: true });
 
     if (error) {
         return { error: error.message };
@@ -345,4 +349,37 @@ export async function getAvailableStudents(moduleId: string, query?: string) {
         success: true,
         students: availableStudents
     };
+}
+
+export async function bulkEnrollStudents(moduleId: string, studentIds: string[]) {
+    const supabase = await createClient();
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+        return { error: "Not authenticated" };
+    }
+
+    // Verify teacher owns the module
+    const { data: module } = await supabase
+        .from("modules")
+        .select("id")
+        .eq("id", moduleId)
+        .eq("teacher_id", user.id)
+        .single();
+
+    if (!module) {
+        return { error: "No tienes permisos sobre este módulo" };
+    }
+
+    if (studentIds.length === 0) return { error: "No hay alumnos seleccionados" };
+
+    const rows = studentIds.map((sId) => ({ module_id: moduleId, student_id: sId }));
+    const { error, count } = await supabase
+        .from("module_enrollments")
+        .upsert(rows, { onConflict: "module_id,student_id", ignoreDuplicates: true, count: "exact" });
+
+    if (error) return { error: error.message };
+
+    revalidatePath(`/dashboard/modules/${moduleId}`);
+    return { success: true, enrolled: count ?? rows.length };
 }
