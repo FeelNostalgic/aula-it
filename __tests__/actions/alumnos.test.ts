@@ -94,10 +94,10 @@ describe("createBulkStudents", () => {
     mockAdminAuth();
     mockAdminOps(new SupabaseMockBuilder());
 
-    const formData = createFormData({ prefix: "ALU-TEST", count: "5", password: "password123" });
+    const formData = createFormData({ prefix: "ALU TEST", count: "5", password: "password123" });
     const result = await createBulkStudents(null, formData);
 
-    expect(result).toEqual({ error: "El prefijo solo puede contener letras y números (ej: ALU, 1DAW)" });
+    expect(result).toEqual({ error: "El prefijo solo puede contener letras, números, guiones y guiones bajos (ej: ALU, 1-DAW, 1_DAW)" });
   });
 
   it("returns error when count is 0", async () => {
@@ -144,8 +144,8 @@ describe("createBulkStudents", () => {
 
     expect(result).toHaveProperty("results");
     expect(result.results).toHaveLength(2);
-    expect(result.results![0].identifier).toBe("DAW-001");
-    expect(result.results![1].identifier).toBe("DAW-002");
+    expect(result.results![0].identifier).toBe("DAW-01");
+    expect(result.results![1].identifier).toBe("DAW-02");
   });
 
   it("continues numbering from existing students", async () => {
@@ -164,7 +164,7 @@ describe("createBulkStudents", () => {
     const formData = createFormData({ prefix: "DAW", count: "1", password: "password123" });
     const result = await createBulkStudents(null, formData);
 
-    expect(result.results![0].identifier).toBe("DAW-003");
+    expect(result.results![0].identifier).toBe("DAW-03");
   });
 
   it("records error for failed student creation", async () => {
