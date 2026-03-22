@@ -407,6 +407,94 @@ export async function updateStepXp(stepId: string, xp: number | null) {
     return { data };
 }
 
+export async function getStudentProfilesForImport(stepId: string): Promise<{
+    profiles: Array<{ id: string; full_name: string }>;
+    error?: string;
+}> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { profiles: [], error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { profiles: [], error: "No autorizado." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+        .from('profiles')
+        .select('id, full_name')
+        .eq('role', 'student')
+        .not('full_name', 'is', null);
+
+    if (error) return { profiles: [], error: error.message };
+    return { profiles: (data ?? []).filter(p => p.full_name) as Array<{ id: string; full_name: string }> };
+}
+
+export async function importGoogleFormResults(
+    stepId: string,
+    rows: Array<{ studentId: string; pointsEarned: number; pointsTotal: number }>,
+): Promise<{ imported: number; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { imported: 0, error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { imported: 0, error: "No autorizado." };
+
+    // Get activity_id from step
+    const admin = createAdminClient();
+    const { data: step } = await admin
+        .from('activity_steps')
+        .select('phase_id, activity_phases!inner(activity_id)')
+        .eq('id', stepId)
+        .single() as any;
+
+    const activityId = step?.activity_phases?.activity_id;
+    if (!activityId) return { imported: 0, error: "No se pudo obtener el activity_id del paso." };
+
+    let imported = 0;
+    for (const row of rows) {
+        // Get current attempt count for this student+step
+        const { count } = await admin
+            .from('quiz_attempts')
+            .select('*', { count: 'exact', head: true })
+            .eq('student_id', row.studentId)
+            .eq('step_id', stepId);
+
+        const attemptNumber = (count ?? 0) + 1;
+
+        const { error: insertError } = await admin
+            .from('quiz_attempts')
+            .insert({
+                student_id: row.studentId,
+                step_id: stepId,
+                attempt_number: attemptNumber,
+                answers: {},
+                short_answers: {},
+                short_answer_scores: {},
+                short_answer_feedback: {},
+                points_earned: row.pointsEarned,
+                points_total: row.pointsTotal,
+            });
+
+        if (insertError) continue;
+
+        // Upsert activity_submission with the normalized score (0–10)
+        const scoreOutOf10 = row.pointsTotal > 0
+            ? Math.round((row.pointsEarned / row.pointsTotal) * 1000) / 100
+            : 0;
+
+        await admin.from('activity_submissions').upsert({
+            student_id: row.studentId,
+            step_id: stepId,
+            activity_id: activityId,
+            status: 'graded',
+            score: scoreOutOf10,
+            submitted_at: new Date().toISOString(),
+        }, { onConflict: 'student_id,step_id' });
+
+        imported++;
+    }
+
+    revalidatePath(`/activities/${activityId}`);
+    return { imported };
+}
+
 export async function updateStepCompletionMode(stepId: string, mode: CompletionMode) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

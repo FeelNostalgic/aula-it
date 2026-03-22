@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { StepConfigSection, ConfigSection, ConfigToggle } from "./step-config-section";
 import { toast } from "sonner";
-import { Plus, Trash2, CheckCircle2, Circle, HardDrive, ExternalLink, BarChart2, AlignLeft, GripVertical, Layers } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Circle, HardDrive, ExternalLink, BarChart2, AlignLeft, GripVertical, Layers, FileUp } from "lucide-react";
+import { GoogleFormCsvImport } from "./google-form-csv-import";
 import { cn } from "@/lib/utils";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toFormEmbedUrl, GOOGLE_MIME } from "@/lib/google-drive-urls";
@@ -53,6 +54,7 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
     const defaultContent = (step.content as QuizContent) || { questions: [], passingScore: 80, showCorrectAnswers: true };
     const [content, setContent] = useState<QuizContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
+    const [showCsvImport, setShowCsvImport] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
@@ -256,6 +258,15 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                             <p className="text-xs text-text-muted italic">
                                 Asegúrate de que el enlace termine en /viewform o tenga embedded=true para que se vea correctamente en el visor del alumno.
                             </p>
+                            <div className="pt-2 border-t border-white/5">
+                                <Button variant="outline" size="sm" onClick={() => setShowCsvImport(true)}
+                                    className="gap-2 text-xs border-border/50 hover:bg-surface-dark">
+                                    <FileUp className="size-3.5" /> Importar resultados desde CSV
+                                </Button>
+                                <p className="text-xs text-text-muted/60 mt-1.5">
+                                    Importa puntuaciones del CSV exportado de Google Forms al libro de calificaciones.
+                                </p>
+                            </div>
                             {content.googleFormUrl?.includes("http") && (
                                 <div className="aspect-video w-full border border-border/50 rounded-lg overflow-hidden bg-background mt-4">
                                     <iframe src={content.googleFormUrl} className="size-full" />
@@ -479,6 +490,12 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                     )}
                 </div>
             </TabsContent>
+
+            <GoogleFormCsvImport
+                stepId={step.id}
+                open={showCsvImport}
+                onClose={() => setShowCsvImport(false)}
+            />
         </Tabs>
     );
 }
