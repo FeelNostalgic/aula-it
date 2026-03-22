@@ -12,7 +12,7 @@ export default async function GestionAlumnosPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-white">Gestión de Alumnos</h1>
         <p className="text-sm text-muted-foreground mt-1 font-mono">
-          Crea y gestiona cuentas anónimas para tu clase. Ningún dato real del alumno entra en el sistema.
+          Matricula y gestiona los alumnos de tus módulos.
         </p>
       </div>
 

@@ -21,120 +21,52 @@ async function requireTeacher() {
   return { supabase, user };
 }
 
-// ── Tipos públicos ────────────────────────────────────────────────────────────
+// ── Tipos (importados desde fuente compartida) ────────────────────────────────
 
-export type BulkCreateResult = {
-  identifier: string;
-  password: string;
-  userId?: string;
-  email?: string;
-  error?: string;
-};
+import type { ClassroomStudent, TeacherModule } from "@/components/students/types";
 
-export type ClassroomStudent = {
-  id: string;
-  identifier: string;
-  email: string;
-  is_banned: boolean;
-  enrolledModules: Array<{ id: string; name: string }>;
-};
-
-export type TeacherModule = {
-  id: string;
-  name: string;
-  status: string;
-};
-
-// ── Creación masiva ───────────────────────────────────────────────────────────
-
-export async function createBulkStudents(
-  prevState: any,
-  formData: FormData
-): Promise<{ results?: BulkCreateResult[]; error?: string }> {
-  try {
-    await requireTeacher();
-  } catch (e: any) {
-    return { error: e.message };
-  }
-
-  const prefix = (formData.get("prefix") as string)?.trim().toUpperCase();
-  const count = parseInt(formData.get("count") as string, 10);
-  const password = formData.get("password") as string;
-
-  if (!prefix || !/^[A-Z0-9]+$/.test(prefix)) {
-    return { error: "El prefijo solo puede contener letras y números (ej: ALU, 1DAW)" };
-  }
-  if (isNaN(count) || count < 1 || count > 60) {
-    return { error: "El número de alumnos debe estar entre 1 y 60" };
-  }
-  if (!password || password.length < 6) {
-    return { error: "La contraseña maestra debe tener al menos 6 caracteres" };
-  }
-
-  const adminClient = createAdminClient();
-  const results: BulkCreateResult[] = [];
-
-  // Determinar el siguiente número disponible para el prefijo dado
-  const { data: existingUsers } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
-  const prefixEmail = prefix.toLowerCase() + "-";
-  const existingNumbers = (existingUsers?.users ?? [])
-    .filter((u) => u.email?.startsWith(prefixEmail) && u.email?.endsWith("@aula.local"))
-    .map((u) => {
-      const match = u.email!.replace("@aula.local", "").slice(prefixEmail.length);
-      return parseInt(match, 10);
-    })
-    .filter((n) => !isNaN(n));
-  const startIndex = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
-
-  for (let i = startIndex; i < startIndex + count; i++) {
-    const num = String(i).padStart(3, "0");
-    const identifier = `${prefix}-${num}`;
-    const email = `${prefix.toLowerCase()}-${num}@aula.local`;
-
-    const { data, error } = await adminClient.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: identifier, role: "student" },
-    });
-
-    if (error) {
-      results.push({ identifier, password, error: error.message });
-      continue;
-    }
-
-    await adminClient
-      .from("profiles")
-      .update({ must_change_password: true })
-      .eq("id", data.user.id);
-
-    results.push({ identifier, password, userId: data.user.id, email });
-  }
-
-  return { results };
-}
-
-// ── Listar alumnos de clase (con matrículas) ──────────────────────────────────
+// ── Listar alumnos matriculados en módulos del profesor ───────────────────────
 
 export async function getClassroomStudents(): Promise<{
   students?: ClassroomStudent[];
   error?: string;
 }> {
   let supabase: any;
+  let teacherUser: any;
   try {
     const result = await requireTeacher();
     supabase = result.supabase;
+    teacherUser = result.user;
   } catch (e: any) {
     return { error: e.message };
   }
 
+  // 1. Obtener IDs de módulos del profesor
+  const { data: teacherModules } = await supabase
+    .from("modules")
+    .select("id")
+    .eq("teacher_id", teacherUser.id);
+
+  const moduleIds: string[] = (teacherModules ?? []).map((m: any) => m.id);
+  if (moduleIds.length === 0) return { students: [] };
+
+  // 2. Obtener student_ids de las matrículas de esos módulos
+  const { data: enrollments } = await supabase
+    .from("module_enrollments")
+    .select("student_id, modules(id, name)")
+    .in("module_id", moduleIds);
+
+  const enrolledStudentIds = [...new Set((enrollments ?? []).map((e: any) => e.student_id))] as string[];
+  if (enrolledStudentIds.length === 0) return { students: [] };
+
+  // 3. Obtener info de auth solo para esos alumnos
   const adminClient = createAdminClient();
-  const { data, error } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+  const { data: authData, error } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
   if (error) return { error: error.message };
 
   const now = new Date();
-  const students: ClassroomStudent[] = (data.users ?? [])
-    .filter((u) => u.email?.endsWith("@aula.local"))
+  const students: ClassroomStudent[] = (authData.users ?? [])
+    .filter((u) => u.email?.endsWith("@aula.local") && enrolledStudentIds.includes(u.id))
     .map((u) => {
       const bannedUntil = (u as any).banned_until as string | undefined;
       return {
@@ -146,23 +78,16 @@ export async function getClassroomStudents(): Promise<{
       };
     });
 
-  if (students.length > 0) {
-    const studentIds = students.map((s) => s.id);
-    const { data: enrollments } = await supabase
-      .from("module_enrollments")
-      .select("student_id, modules(id, name)")
-      .in("student_id", studentIds);
+  // 4. Construir mapa de matrículas (solo módulos del profesor)
+  const map = new Map<string, Array<{ id: string; name: string }>>();
+  (enrollments ?? []).forEach((e: any) => {
+    if (!map.has(e.student_id)) map.set(e.student_id, []);
+    if (e.modules) map.get(e.student_id)!.push(e.modules);
+  });
 
-    const map = new Map<string, Array<{ id: string; name: string }>>();
-    (enrollments ?? []).forEach((e: any) => {
-      if (!map.has(e.student_id)) map.set(e.student_id, []);
-      if (e.modules) map.get(e.student_id)!.push(e.modules);
-    });
-
-    students.forEach((s) => {
-      s.enrolledModules = map.get(s.id) ?? [];
-    });
-  }
+  students.forEach((s) => {
+    s.enrolledModules = map.get(s.id) ?? [];
+  });
 
   return { students: students.sort((a, b) => a.identifier.localeCompare(b.identifier)) };
 }
@@ -290,7 +215,7 @@ export async function bulkUnenrollByPrefix(
   return { unenrolled: count ?? 0 };
 }
 
-// ── Desmatriculación en bloque (por IDs de alumno — desde selección en tabla) ──
+// ── Desmatriculación en bloque (por IDs de alumno — desde tabla) ──────────────
 
 export async function bulkUnenrollByStudentIds(
   studentIds: string[],
@@ -330,6 +255,48 @@ export async function bulkUnenrollByStudentIds(
 
   ownedIds.forEach((mId) => revalidatePath(`/dashboard/modules/${mId}`));
   return { unenrolled: count ?? 0 };
+}
+
+// ── Matriculación en bloque (por IDs de alumno — desde tabla) ─────────────────
+
+export async function bulkEnrollByStudentIds(
+  studentIds: string[],
+  moduleIds: string[]
+): Promise<{ enrolled: number; skipped: number; error?: string }> {
+  let supabase: any;
+  let teacherUser: any;
+  try {
+    const r = await requireTeacher();
+    supabase = r.supabase;
+    teacherUser = r.user;
+  } catch (e: any) {
+    return { enrolled: 0, skipped: 0, error: e.message };
+  }
+
+  if (moduleIds.length === 0) return { enrolled: 0, skipped: 0, error: "Selecciona al menos un módulo" };
+  if (studentIds.length === 0) return { enrolled: 0, skipped: 0, error: "No hay alumnos seleccionados" };
+
+  const { data: ownedModules } = await supabase
+    .from("modules")
+    .select("id")
+    .eq("teacher_id", teacherUser.id)
+    .in("id", moduleIds);
+
+  const ownedIds: string[] = (ownedModules ?? []).map((m: any) => m.id);
+  if (ownedIds.length !== moduleIds.length) {
+    return { enrolled: 0, skipped: 0, error: "No tienes permisos sobre alguno de los módulos seleccionados" };
+  }
+
+  const rows = studentIds.flatMap((sId) => ownedIds.map((mId) => ({ module_id: mId, student_id: sId })));
+  const { error, count } = await supabase
+    .from("module_enrollments")
+    .upsert(rows, { onConflict: "module_id,student_id", ignoreDuplicates: true, count: "exact" });
+
+  if (error) return { enrolled: 0, skipped: 0, error: error.message };
+
+  ownedIds.forEach((mId) => revalidatePath(`/dashboard/modules/${mId}`));
+  const enrolled = count ?? rows.length;
+  return { enrolled, skipped: rows.length - enrolled };
 }
 
 // ── Desmatricular alumno de un módulo concreto ────────────────────────────────
@@ -411,32 +378,6 @@ export async function bulkToggleStatus(
   return { updated: results.filter(Boolean).length };
 }
 
-// ── Eliminación en bloque ─────────────────────────────────────────────────────
-
-export async function bulkDeleteStudents(
-  studentIds: string[]
-): Promise<{ deleted: number; error?: string }> {
-  try {
-    await requireTeacher();
-  } catch (e: any) {
-    return { deleted: 0, error: e.message };
-  }
-
-  if (studentIds.length === 0) return { deleted: 0, error: "No hay alumnos seleccionados" };
-
-  const adminClient = createAdminClient();
-  let deleted = 0;
-
-  for (const id of studentIds) {
-    const { data } = await adminClient.auth.admin.getUserById(id);
-    if (!data.user?.email?.endsWith("@aula.local")) continue;
-    const { error } = await adminClient.auth.admin.deleteUser(id);
-    if (!error) deleted++;
-  }
-
-  return { deleted };
-}
-
 // ── Reset de contraseña ───────────────────────────────────────────────────────
 
 export async function resetStudentPassword(
@@ -476,26 +417,6 @@ export async function toggleStudentStatus(
     ban_duration: ban ? "876600h" : "none",
   });
 
-  if (error) return { error: error.message };
-  return {};
-}
-
-// ── Eliminar cuenta ───────────────────────────────────────────────────────────
-
-export async function deleteStudent(userId: string): Promise<{ error?: string }> {
-  try {
-    await requireTeacher();
-  } catch (e: any) {
-    return { error: e.message };
-  }
-
-  const adminClient = createAdminClient();
-  const { data: targetUserData } = await adminClient.auth.admin.getUserById(userId);
-  if (!targetUserData.user?.email?.endsWith("@aula.local")) {
-    return { error: "Solo se pueden eliminar cuentas de clase (@aula.local)" };
-  }
-
-  const { error } = await adminClient.auth.admin.deleteUser(userId);
   if (error) return { error: error.message };
   return {};
 }
