@@ -9,7 +9,7 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
-import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, XCircle, Circle, PencilRuler, Zap, Copy, AlignLeft, RefreshCw, Trophy, AlertCircle, ChevronRight, ChevronLeft, Clock, ArrowLeft, Plus, MessageSquare, Printer, ClipboardList } from "lucide-react";
+import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, XCircle, Circle, PencilRuler, Zap, Copy, AlignLeft, RefreshCw, Trophy, AlertCircle, ChevronRight, ChevronLeft, Clock, ArrowLeft, Plus, MessageSquare, Printer, ClipboardList, Shield } from "lucide-react";
 import { useState, useEffect, useTransition, useMemo } from "react";
 import { getQuizAttempts, submitQuizAttempt } from "@/app/activities/[id]/actions";
 import { getBankQuestionsForStep } from "@/app/activities/[id]/edit/actions";
@@ -47,7 +47,7 @@ export function StepViewer({ step, activityId, submission, googleEmail, userId, 
         case 'theory':
             return <TheoryViewer content={step.content as TheoryContent} />;
         case 'quiz':
-            return <QuizViewer content={step.content as QuizContent} userId={userId} studentName={studentName} stepId={step.id} activityId={activityId} submission={submission} isPreview={isPreview} isClosed={step.is_activity_closed ?? false} />;
+            return <QuizViewer content={step.content as QuizContent} userId={userId} studentName={studentName} stepId={step.id} activityId={activityId} submission={submission} isPreview={isPreview} isClosed={step.is_activity_closed ?? false} isLockdown={step.is_lockdown} />;
         case 'presentation':
             return <PresentationViewer content={step.content as PresentationContent} />;
         case 'resource':
@@ -140,7 +140,7 @@ function TheoryViewer({ content }: { content: TheoryContent }) {
                     remarkPlugins={[remarkGfm, remarkMath]}
                     rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
                 >
-                    {content?.markdown || "_Este paso no tiene contenido aún._"}
+                    {content?.markdown || "_Esta actividad no tiene contenido aún._"}
                 </ReactMarkdown>
             </div>
         </div>
@@ -234,6 +234,7 @@ function QuizViewer({
     submission,
     isPreview,
     isClosed,
+    isLockdown,
 }: {
     content: QuizContent;
     userId?: string | null;
@@ -243,6 +244,7 @@ function QuizViewer({
     submission?: ActivitySubmission;
     isPreview?: boolean;
     isClosed?: boolean;
+    isLockdown?: boolean;
 }) {
     const isGoogleFormMode = content?.quizMode === 'google_form' || (!content?.quizMode && !!content?.googleFormUrl);
 
@@ -277,7 +279,7 @@ function QuizViewer({
         );
     }
 
-    return <BuiltinQuizViewer content={content} userId={userId} stepId={stepId} activityId={activityId} submission={submission} isPreview={isPreview} isClosed={isClosed} />;
+    return <BuiltinQuizViewer content={content} userId={userId} stepId={stepId} activityId={activityId} submission={submission} isPreview={isPreview} isClosed={isClosed} isLockdown={isLockdown} />;
 }
 
 function BuiltinQuizViewer({
@@ -288,6 +290,7 @@ function BuiltinQuizViewer({
     submission,
     isPreview,
     isClosed,
+    isLockdown,
 }: {
     content: QuizContent;
     userId?: string | null;
@@ -296,6 +299,7 @@ function BuiltinQuizViewer({
     submission?: ActivitySubmission;
     isPreview?: boolean;
     isClosed?: boolean;
+    isLockdown?: boolean;
 }) {
     const [phase, setPhase] = useState<'answering' | 'result' | 'list'>('answering');
     const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string[]>>({});
@@ -307,6 +311,7 @@ function BuiltinQuizViewer({
     const [loadingAttempts, setLoadingAttempts] = useState(true);
     const [currentPage, setCurrentPage] = useState(0);
     const [bankQuestions, setBankQuestions] = useState<Record<string, any[]>>({});
+    const [isExamActive, setIsExamActive] = useState(false);
 
     useEffect(() => {
         if (!stepId) { setLoadingAttempts(false); return; }
@@ -326,15 +331,61 @@ function BuiltinQuizViewer({
             setAttempts(data);
             setBankQuestions(bq);
             const isLimited = content?.maxAttempts != null;
-            // Limited: always show list (even with 0 attempts, so student sees remaining count)
-            // Unlimited: show list only if there are previous attempts; otherwise go straight to quiz
-            if (isLimited || data.length > 0) setPhase('list');
+
+            // Lockdown: check if exam was active before F5/refresh
+            if (isLockdown && localStorage.getItem(`exam-session:${stepId}`)) {
+                try {
+                    const raw = localStorage.getItem(`exam-draft:${stepId}`);
+                    if (raw) {
+                        const { selectedAnswers: sa, shortAnswers: sha } = JSON.parse(raw);
+                        setSelectedAnswers(sa || {});
+                        setShortAnswers(sha || {});
+                    }
+                } catch { /* corrupt draft, start fresh */ }
+                setIsExamActive(true);
+                setPhase('answering');
+            } else if (isLimited || data.length > 0 || isLockdown) {
+                setPhase('list');
+            }
             setLoadingAttempts(false);
         });
     }, [stepId]);
 
+    // Block browser navigation while exam is active
+    useEffect(() => {
+        if (!isExamActive) return;
+        const prevent = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+        const preventBack = () => { window.history.pushState(null, '', window.location.href); };
+        window.history.pushState(null, '', window.location.href);
+        window.addEventListener('beforeunload', prevent);
+        window.addEventListener('popstate', preventBack);
+        return () => {
+            window.removeEventListener('beforeunload', prevent);
+            window.removeEventListener('popstate', preventBack);
+        };
+    }, [isExamActive]);
+
+    // Publish global exam flag so other tabs can detect an active exam
+    useEffect(() => {
+        if (isExamActive && stepId && activityId) {
+            localStorage.setItem('aula-exam-active', JSON.stringify({
+                stepId,
+                activityId,
+                url: window.location.href,
+            }));
+        } else {
+            localStorage.removeItem('aula-exam-active');
+        }
+    }, [isExamActive, stepId, activityId]);
+
+    // Auto-save answers to localStorage while exam is active
+    useEffect(() => {
+        if (!isExamActive || !stepId) return;
+        localStorage.setItem(`exam-draft:${stepId}`, JSON.stringify({ selectedAnswers, shortAnswers }));
+    }, [selectedAnswers, shortAnswers, isExamActive, stepId]);
+
     const displayQuestions = useMemo(() => {
-        if (!content?.questions) return [];
+        if (!content?.questions && !content?.bankSelections?.length) return [];
         // Apply bank selection when bankSelections are defined
         const selected = (content.bankSelections?.length && userId && stepId)
             ? selectQuestionsForAttempt(content, bankQuestions, userId, stepId, (attempts.length ?? 0) + 1)
@@ -365,7 +416,7 @@ function BuiltinQuizViewer({
         return [...attempts].sort((a, b) => b.points_earned - a.points_earned)[0].id;
     }, [attempts]);
 
-    const totalPoints = (content?.questions ?? []).reduce((s, q) => s + (q.points ?? 1), 0);
+    const totalPoints = displayQuestions.reduce((s, q) => s + (q.points ?? 1), 0);
 
     const qpp = content?.questionsPerPage;
     const totalPages = qpp ? Math.ceil(displayQuestions.length / qpp) : 1;
@@ -382,6 +433,31 @@ function BuiltinQuizViewer({
         });
     }
 
+    function startExam() {
+        if (stepId) {
+            try {
+                const raw = localStorage.getItem(`exam-draft:${stepId}`);
+                if (raw) {
+                    const { selectedAnswers: sa, shortAnswers: sha } = JSON.parse(raw);
+                    setSelectedAnswers(sa || {});
+                    setShortAnswers(sha || {});
+                } else {
+                    setSelectedAnswers({});
+                    setShortAnswers({});
+                }
+            } catch {
+                setSelectedAnswers({});
+                setShortAnswers({});
+            }
+            // Persist session so F5 restores the exam
+            localStorage.setItem(`exam-session:${stepId}`, '1');
+        }
+        setLastAttempt(null);
+        setCurrentPage(0);
+        setIsExamActive(true);
+        setPhase('answering');
+    }
+
     function handleSubmit() {
         if (!stepId || !activityId) return;
         startTransition(async () => {
@@ -390,6 +466,12 @@ function BuiltinQuizViewer({
                 toast.error(result.error);
                 return;
             }
+            if (stepId) {
+                localStorage.removeItem(`exam-draft:${stepId}`);
+                localStorage.removeItem(`exam-session:${stepId}`);
+            }
+            localStorage.removeItem('aula-exam-active');
+            setIsExamActive(false);
             const newAttempt = result.data!.attempt;
             setAttempts(prev => [...prev, newAttempt]);
             setLastAttempt(newAttempt);
@@ -401,10 +483,11 @@ function BuiltinQuizViewer({
         setSelectedAnswers({});
         setShortAnswers({});
         setLastAttempt(null);
+        setCurrentPage(0);
         setPhase('answering');
     }
 
-    if (!content?.questions || content.questions.length === 0) {
+    if ((!content?.questions || content.questions.length === 0) && !content?.bankSelections?.length) {
         return <p className="text-text-muted italic text-center">Este cuestionario no tiene preguntas aún.</p>;
     }
 
@@ -429,10 +512,17 @@ function BuiltinQuizViewer({
                         </p>
                     </div>
                     {!attemptsExhausted && !isClosed && (
-                        <Button onClick={handleRetry} size="sm" className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white">
-                            <Plus className="size-3.5" />
-                            Nuevo intento
-                        </Button>
+                        isLockdown ? (
+                            <Button onClick={startExam} size="sm" className="gap-2 bg-destructive hover:bg-destructive/90 text-white">
+                                <Shield className="size-3.5" />
+                                Iniciar Examen
+                            </Button>
+                        ) : (
+                            <Button onClick={handleRetry} size="sm" className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white">
+                                <Plus className="size-3.5" />
+                                Nuevo intento
+                            </Button>
+                        )
                     )}
                     {isClosed && (
                         <span className="text-xs text-red-400 font-medium flex items-center gap-1.5">
@@ -440,6 +530,13 @@ function BuiltinQuizViewer({
                         </span>
                     )}
                 </div>
+
+                {isLockdown && !attemptsExhausted && !isClosed && (
+                    <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-destructive/8 border border-destructive/20 text-destructive text-xs">
+                        <Shield className="size-3.5 shrink-0 mt-0.5" />
+                        <span>Al iniciar el examen, la pantalla se bloqueará. No podrás salir hasta entregar. Tus respuestas se guardan automáticamente si hay algún problema de conexión.</span>
+                    </div>
+                )}
 
                 <div className="space-y-2">
                     {attemptsByDate.map((attempt, idx) => {
@@ -675,9 +772,12 @@ function BuiltinQuizViewer({
                         Volver a la lista
                     </Button>
                     {newAttemptsLeft === null || newAttemptsLeft > 0 ? (
-                        <Button onClick={handleRetry} variant="outline" className="gap-2">
+                        <Button onClick={isLockdown ? () => setPhase('list') : handleRetry} variant="outline" className="gap-2">
                             <RefreshCw className="size-4" />
-                            {newAttemptsLeft !== null ? `Reintentar (${newAttemptsLeft} restantes)` : "Reintentar"}
+                            {isLockdown
+                                ? (newAttemptsLeft !== null ? `Nuevo intento (${newAttemptsLeft} restantes)` : "Nuevo intento")
+                                : (newAttemptsLeft !== null ? `Reintentar (${newAttemptsLeft} restantes)` : "Reintentar")
+                            }
                         </Button>
                     ) : (
                         <p className="text-sm text-text-muted">Máximo de intentos alcanzado ({maxAttempts}).</p>
@@ -687,11 +787,11 @@ function BuiltinQuizViewer({
         );
     }
 
-    // Answering phase
-    return (
-        <>
-            <div className="max-w-2xl mx-auto space-y-8 py-4">
-                {/* Attempt counter */}
+    // Answering phase — shared content
+    const answeringContent = (
+        <div className="space-y-8">
+            {/* Attempt counter — hidden in lockdown fullscreen (shown in header instead) */}
+            {!isExamActive && (
                 <div className="flex items-center justify-between">
                     {attempts.length > 0 && (
                         <Button onClick={() => setPhase('list')} variant="ghost" size="sm" className="gap-2 text-text-muted -ml-2">
@@ -703,6 +803,7 @@ function BuiltinQuizViewer({
                         Intento {attemptsDone + 1}{maxAttempts !== undefined ? ` de ${maxAttempts}` : ""} · {totalPoints} pts
                     </p>
                 </div>
+            )}
 
                 {isClosed && (
                     <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-500/8 border border-red-500/20 text-red-400 text-sm font-medium">
@@ -813,35 +914,71 @@ function BuiltinQuizViewer({
                             disabled={isPending || !stepId || !activityId || isPreview || isClosed}
                             className="bg-emerald-500 hover:bg-emerald-600 text-white px-10 h-12 text-base font-bold rounded-full shadow-lg shadow-emerald-500/20"
                         >
-                            {isPending ? "Enviando..." : "Enviar Cuestionario"}
+                            {isPending ? "Enviando..." : isExamActive ? "Entregar Examen" : "Enviar Cuestionario"}
                         </Button>
                         {isPreview && (
                             <p className="text-xs text-amber-400/80 text-center mt-2">No disponible en vista previa</p>
                         )}
                     </div>
                 )}
-            </div>
+        </div>
+    );
 
-            <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>¿Enviar cuestionario?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Una vez enviado, no podrás modificar tus respuestas.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={handleSubmit}
-                            disabled={isPending}
-                            className="bg-emerald-500 hover:bg-emerald-600 text-white"
-                        >
-                            Enviar
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+    const confirmDialog = (
+        <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{isExamActive ? "¿Entregar examen?" : "¿Enviar cuestionario?"}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Una vez entregado, no podrás modificar tus respuestas.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={handleSubmit}
+                        disabled={isPending}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                    >
+                        {isPending ? "Enviando..." : "Entregar"}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+
+    // Lockdown fullscreen wrapper
+    if (isExamActive) {
+        return (
+            <div className="fixed inset-0 z-50 bg-background flex flex-col overflow-hidden">
+                <div className="shrink-0 flex items-center justify-between px-8 py-4 border-b border-border/50 bg-surface-dark">
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-destructive/10 border border-destructive/20">
+                            <Shield className="size-3.5 text-destructive" />
+                            <span className="text-xs font-black text-destructive uppercase tracking-widest">Modo Examen</span>
+                        </div>
+                        <span className="text-sm text-text-muted font-mono">
+                            Intento {attemptsDone + 1}{maxAttempts !== undefined ? ` de ${maxAttempts}` : ''} · {totalPoints} pts
+                        </span>
+                    </div>
+                    <p className="text-[11px] text-text-muted/60 italic">No puedes salir hasta entregar el examen</p>
+                </div>
+                <div className="flex-1 overflow-y-auto px-8 py-6">
+                    <div className="max-w-2xl mx-auto">
+                        {answeringContent}
+                    </div>
+                </div>
+                {confirmDialog}
+            </div>
+        );
+    }
+
+    return (
+        <>
+            <div className="max-w-2xl mx-auto py-4">
+                {answeringContent}
+            </div>
+            {confirmDialog}
         </>
     );
 }

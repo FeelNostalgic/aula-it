@@ -329,6 +329,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                             ) : selectedStepId === 'badges' ? (
                                 <ActivityBadgesPanel
                                     activity={activityData}
+                                    phases={phases}
                                     onUpdate={setActivityData}
                                 />
                             ) : selectedStep ? (

@@ -5,7 +5,7 @@ import { ActivityStepWithClientState, QuizContent, QuizMode, QuestionBank, QuizQ
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { updateStepContent, getQuestionBanks } from "@/app/activities/[id]/edit/actions";
+import { updateStepContent, getQuestionBanks, updateStepLockdown } from "@/app/activities/[id]/edit/actions";
 import { QuestionBankManagerDialog } from "./question-bank-manager";
 import { StepConfigSection, ConfigSection, ConfigToggle } from "./step-config-section";
 import { toast } from "sonner";
@@ -445,6 +445,23 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                                 ? "El cuestionario se construye con el editor de preguntas integrado."
                                 : "Se incrusta un formulario de Google Forms. Las respuestas se gestionan en Google."}
                         </p>
+                    </ConfigSection>
+
+                    {/* Exam mode (lockdown) */}
+                    <ConfigSection title="Modo Examen">
+                        <ConfigToggle
+                            checked={!!step.is_lockdown}
+                            onChange={async (v) => {
+                                const res = await updateStepLockdown(step.id, v);
+                                if (res.error) {
+                                    toast.error("Error al actualizar el modo examen");
+                                } else {
+                                    onUpdate({ ...step, is_lockdown: v });
+                                }
+                            }}
+                            label="Activar Modo Examen"
+                            description="El cuestionario ocupa toda la pantalla. El alumno no puede navegar a otras actividades mientras lo realiza."
+                        />
                     </ConfigSection>
 
                     {/* Built-in only settings */}

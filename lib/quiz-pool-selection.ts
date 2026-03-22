@@ -56,5 +56,5 @@ export function selectQuestionsForAttempt(
     }
 
     // Fixed quiz questions + randomly selected bank questions
-    return [...content.questions, ...selectedFromBanks];
+    return [...(content.questions ?? []), ...selectedFromBanks];
 }
