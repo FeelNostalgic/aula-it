@@ -66,6 +66,23 @@ export default async function ActivityPage({
 
     const submissionsMap = await getStudentSubmissionsForActivity(id);
 
+    // Fetch class badges for this activity and which ones the student has earned
+    const { data: classBadges } = await supabase
+        .from('class_badges')
+        .select('*')
+        .eq('activity_id', id);
+
+    const classBadgeIds = classBadges?.map((b: any) => b.id) || [];
+    let earnedBadgeIds: string[] = [];
+    if (classBadgeIds.length > 0) {
+        const { data: studentBadges } = await supabase
+            .from('student_badges')
+            .select('badge_id')
+            .eq('student_id', user.id)
+            .in('badge_id', classBadgeIds);
+        earnedBadgeIds = studentBadges?.map((b: any) => b.badge_id) || [];
+    }
+
     // Fetch viewed steps for this student
     const allStepIds = initialPhases.flatMap((phase: any) =>
         (phase.steps || []).map((s: any) => s.id)
@@ -117,6 +134,8 @@ export default async function ActivityPage({
             profile={profile}
             submissionsMap={submissionsMap}
             viewsMap={viewsMap}
+            classBadges={classBadges || []}
+            earnedBadgeIds={earnedBadgeIds}
         />
     );
 }

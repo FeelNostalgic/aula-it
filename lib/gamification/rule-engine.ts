@@ -157,7 +157,7 @@ export async function evaluateStudentBadges(studentId: string, unitId: string, s
 
         const ctx = await loadContext();
         
-        const evaluateCondition = (cond: any): boolean => {
+        const evaluateCondition = async (cond: any): Promise<boolean> => {
             let actualValue: any = null;
             
             // Map the property names (support fact: "submission.score" or field: "score")
@@ -211,10 +211,140 @@ export async function evaluateStudentBadges(studentId: string, unitId: string, s
                 case 'streak_days':
                     actualValue = ctx.streak_days;
                     break;
-                case 'specific_activity_completed':
-                     const completed = ctx.submissions.some((s: any) => s.step?.phase?.activity_id === cond.value);
-                     actualValue = completed ? cond.value : null;
-                     break;
+                case 'specific_activity_completed': {
+                    const completed = ctx.submissions.some((s: any) => s.step?.phase?.activity_id === cond.value);
+                    actualValue = completed ? cond.value : null;
+                    break;
+                }
+                case 'all_activities_completed':
+                    actualValue = ctx.completed_activities_count >= ctx.total_activities_count && ctx.total_activities_count > 0;
+                    break;
+                case 'perfect_score': {
+                    const targetId = badge.step_id || badge.activity_id;
+                    if (badge.step_id) {
+                        const stepSubs = ctx.submissions.filter((s: any) => s.step_id === badge.step_id);
+                        actualValue = stepSubs.some((s: any) => s.score === 100);
+                    } else if (badge.activity_id) {
+                        const actSubs = ctx.submissions.filter((s: any) => s.step?.phase?.activity_id === badge.activity_id);
+                        actualValue = actSubs.some((s: any) => s.score === 100);
+                    } else {
+                        actualValue = ctx.submissions.some((s: any) => s.score === 100);
+                    }
+                    break;
+                }
+                case 'no_retries': {
+                    // Passed on first attempt: first submission for a step has a passing score (≥50)
+                    if (badge.step_id) {
+                        const firstSub = ctx.first_attempts.find((s: any) => s.step_id === badge.step_id);
+                        actualValue = firstSub ? firstSub.score >= 50 : false;
+                    } else if (badge.activity_id) {
+                        const firstSubs = ctx.first_attempts.filter((s: any) => s.step?.phase?.activity_id === badge.activity_id);
+                        actualValue = firstSubs.length > 0 && firstSubs.every((s: any) => s.score >= 50);
+                    } else {
+                        actualValue = ctx.first_attempts.length > 0 && ctx.first_attempts.every((s: any) => s.score >= 50);
+                    }
+                    break;
+                }
+                case 'improvement': {
+                    // Latest score > previous score AND latest score >= cond.value
+                    let targetSubs: any[] = [];
+                    if (badge.step_id) {
+                        targetSubs = ctx.submissions.filter((s: any) => s.step_id === badge.step_id);
+                    } else if (badge.activity_id) {
+                        targetSubs = ctx.submissions.filter((s: any) => s.step?.phase?.activity_id === badge.activity_id);
+                    } else {
+                        targetSubs = ctx.submissions;
+                    }
+                    if (targetSubs.length >= 2) {
+                        const sorted = [...targetSubs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                        const latest = sorted[sorted.length - 1];
+                        const previous = sorted[sorted.length - 2];
+                        actualValue = latest.score > previous.score && latest.score >= cond.value ? true : false;
+                    } else {
+                        actualValue = false;
+                    }
+                    break;
+                }
+                case 'first_to_submit': {
+                    // Must query all students' submissions for this step/activity to check if this student was first
+                    // We do this lazily via a separate DB query
+                    try {
+                        let query = supabase.from('activity_submissions')
+                            .select('student_id, created_at')
+                            .eq('status', 'graded')
+                            .order('created_at', { ascending: true })
+                            .limit(1);
+                        if (badge.step_id) {
+                            query = query.eq('step_id', badge.step_id);
+                        } else if (badge.activity_id) {
+                            query = query.in('step_id',
+                                ctx.submissions
+                                    .filter((s: any) => s.step?.phase?.activity_id === badge.activity_id)
+                                    .map((s: any) => s.step_id)
+                                    .filter(Boolean)
+                            );
+                        }
+                        const { data: firstSubmissions } = await query;
+                        actualValue = firstSubmissions?.[0]?.student_id === studentId;
+                    } catch { actualValue = false; }
+                    break;
+                }
+                case 'fastest_completion': {
+                    // Top N fastest: cond.value = N (max position)
+                    const topN = cond.value || 3;
+                    try {
+                        let stepFilter: string[] = [];
+                        if (badge.step_id) {
+                            stepFilter = [badge.step_id];
+                        } else if (badge.activity_id) {
+                            stepFilter = ctx.submissions
+                                .filter((s: any) => s.step?.phase?.activity_id === badge.activity_id)
+                                .map((s: any) => s.step_id)
+                                .filter(Boolean);
+                        }
+                        if (stepFilter.length > 0) {
+                            const { data: allSubs } = await supabase
+                                .from('activity_submissions')
+                                .select('student_id, created_at')
+                                .in('step_id', stepFilter)
+                                .eq('status', 'graded')
+                                .order('created_at', { ascending: true });
+                            // Get unique students by first submission
+                            const seen = new Set<string>();
+                            const ranked: string[] = [];
+                            (allSubs || []).forEach(s => {
+                                if (!seen.has(s.student_id)) { seen.add(s.student_id); ranked.push(s.student_id); }
+                            });
+                            const pos = ranked.indexOf(studentId) + 1;
+                            actualValue = pos > 0 && pos <= topN;
+                        } else { actualValue = false; }
+                    } catch { actualValue = false; }
+                    break;
+                }
+                case 'top_rank': {
+                    // Rank letter value comparison: S > A > B > C > D > E > F
+                    const rankOrder = ['S', 'A', 'B', 'C', 'D', 'E', 'F'];
+                    const studentRankIndex = rankOrder.indexOf(ctx.rank_letter || 'F');
+                    const requiredRankIndex = rankOrder.indexOf(cond.value || 'A');
+                    actualValue = studentRankIndex <= requiredRankIndex && studentRankIndex !== -1;
+                    break;
+                }
+                case 'consecutive_perfect': {
+                    // N consecutive scores of 100 in the unit's activities
+                    const activityScores = Array.from(
+                        new Map<string, number>(
+                            ctx.submissions
+                                .filter((s: any) => s.score !== null)
+                                .map((s: any) => [s.step?.phase?.activity_id, s.score])
+                        ).values()
+                    );
+                    let maxConsec = 0; let consec = 0;
+                    for (const sc of activityScores) {
+                        if (sc === 100) { consec++; maxConsec = Math.max(maxConsec, consec); } else { consec = 0; }
+                    }
+                    actualValue = maxConsec;
+                    break;
+                }
             }
 
             if (actualValue === null || actualValue === undefined) return false;
@@ -236,12 +366,8 @@ export async function evaluateStudentBadges(studentId: string, unitId: string, s
             }
         };
 
-        let isMatch = false;
-        if (isOr) {
-            isMatch = conditions.some(evaluateCondition);
-        } else {
-            isMatch = conditions.every(evaluateCondition);
-        }
+        const results = await Promise.all(conditions.map(evaluateCondition));
+        const isMatch = isOr ? results.some(Boolean) : results.every(Boolean);
 
         if (isMatch) {
             badgesToAward.push(badge.id);

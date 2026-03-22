@@ -3,9 +3,10 @@
 import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType, ActivitySubmission } from "@/types/activity";
 import { getStepIcon, getTabStepIcon } from "@/lib/constants/step-icons";
 import {
-    ArrowLeft, FileText, Lock,
+    ArrowLeft, FileText, Lock, Award,
     ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen, X, Zap, Eye, CheckCircle2, AlertTriangle, GripVertical
 } from "lucide-react";
+import { BadgeDisplay } from "@/components/dashboard/badge-display";
 import { Button } from "@/components/ui/button";
 import { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,8 @@ interface StudentPreviewProps {
     viewsMap?: Record<string, boolean>;
     googleEmail?: string | null;
     isPreview?: boolean;
+    classBadges?: any[];
+    earnedBadgeIds?: string[];
 }
 
 function StepXpBadge({ xp }: { xp: number }) {
@@ -146,7 +149,7 @@ function SortableTab({
     );
 }
 
-export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, viewsMap, googleEmail, isPreview = false }: StudentPreviewProps) {
+export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, viewsMap, googleEmail, isPreview = false, classBadges, earnedBadgeIds }: StudentPreviewProps) {
     const allSteps = useMemo(() => {
         return phases.flatMap(p => p.steps.filter(s => s.is_visible !== false));
     }, [phases]);
@@ -290,6 +293,23 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                 </div>
             )}
 
+            {/* Global activity badges banner — shown to students, hidden in teacher preview */}
+            {!isPreview && classBadges && classBadges.filter(b => !b.step_id).length > 0 && (
+                <div className="shrink-0 flex items-center gap-2 px-6 py-2 border-b border-border/50 bg-surface-dark/30 print:hidden overflow-x-auto no-scrollbar">
+                    <span className="text-[10px] uppercase tracking-widest font-bold text-text-muted shrink-0">Insignias</span>
+                    <div className="flex items-center gap-2">
+                        {classBadges.filter(b => !b.step_id).map(badge => (
+                            <BadgeDisplay
+                                key={badge.id}
+                                badge={badge}
+                                isEarned={earnedBadgeIds?.includes(badge.id) ?? false}
+                                variant="compact"
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
             <ResizablePanelGroup id="student-preview-panel-group" direction="horizontal" className="flex-1 overflow-hidden">
                 {/* === SIDEBAR (identical to teacher: mission-builder-sidebar.tsx line 604-753) === */}
                 <ResizablePanel id="sidebar-panel" defaultSize={12} minSize={10} maxSize={40} className="bg-background h-full flex flex-col print:hidden">
@@ -327,7 +347,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                     {isExpanded && (
                                         <div className="mt-1 flex flex-col">
                                             {visibleSteps.length === 0 ? (
-                                                <div className="text-xs text-text-muted italic pl-8 py-2 border-l-2 border-transparent">Sin pasos visibles.</div>
+                                                <div className="text-xs text-text-muted italic pl-8 py-2 border-l-2 border-transparent">Sin actividades visibles.</div>
                                             ) : (
                                                 visibleSteps.map(step => {
                                                     const isActive = selectedStepId === step.id;
@@ -359,6 +379,9 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                                     completionMode={step.completion_mode}
                                                                 />
                                                                 <StepXpBadge xp={step.xp || 0} />
+                                                                {classBadges?.some(b => b.step_id === step.id && earnedBadgeIds?.includes(b.id)) && (
+                                                                    <Award className="size-3 text-amber-500 shrink-0" />
+                                                                )}
                                                             </div>
                                                         </div>
                                                     );
@@ -441,7 +464,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                         </DndContext>
                     ) : (
                         <div className="h-10 shrink-0 bg-surface-dark border-b border-border/50 flex items-center px-4 text-xs text-text-muted print:hidden">
-                            Ningún paso abierto
+                            Ninguna actividad abierta
                         </div>
                     )}
 
@@ -568,7 +591,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center text-text-muted">
                             <FileText className="size-12 mb-4 opacity-20" />
-                            <p>Selecciona o abre un paso en la estructura de misión.</p>
+                            <p>Selecciona o abre una actividad en la estructura de misión.</p>
                         </div>
                     )}
                 </ResizablePanel>

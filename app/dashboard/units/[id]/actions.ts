@@ -990,6 +990,7 @@ export async function createClassBadge(
         is_hidden: boolean;
         condition_payload: any;
         activity_id?: string | null;
+        step_id?: string | null;
         xp_reward?: number;
     }
 ) {
@@ -1006,6 +1007,7 @@ export async function createClassBadge(
         .insert({
             unit_id: unitId,
             activity_id: data.activity_id ?? null,
+            step_id: data.step_id ?? null,
             title: data.title,
             description: data.description ?? null,
             icon_url: data.icon_url ?? null,
@@ -1030,6 +1032,7 @@ export async function updateClassBadge(
         is_hidden: boolean;
         condition_payload: any;
         activity_id: string | null;
+        step_id: string | null;
         xp_reward: number;
     }>
 ) {

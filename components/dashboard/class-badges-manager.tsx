@@ -40,30 +40,46 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 
+// Triggers that have no operator/value (boolean conditions)
+const BOOLEAN_TRIGGERS = new Set([
+    'specific_activity_completed',
+    'first_to_submit',
+    'perfect_score',
+    'no_retries',
+    'all_activities_completed',
+]);
+
+// Triggers that need only a value (no operator select)
+const VALUE_ONLY_TRIGGERS = new Set(['improvement', 'fastest_completion']);
+
+interface StepRef { id: string; title: string; type: string }
+
 interface ClassBadgesManagerProps {
     badges: ClassBadge[];
     unitId: string;
     activityId?: string;
+    steps?: StepRef[];
 }
 
-export default function ClassBadgesManager({ badges, unitId, activityId }: ClassBadgesManagerProps) {
+export default function ClassBadgesManager({ badges, unitId, activityId, steps = [] }: ClassBadgesManagerProps) {
     const [isEditing, setIsEditing] = useState<string | null>(null);
     const [isCreating, setIsCreating] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [badgeToDelete, setBadgeToDelete] = useState<string | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
-    
+
     // Form state
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [iconUrl, setIconUrl] = useState("");
     const [isHidden, setIsHidden] = useState(true);
     const [conditionField, setConditionField] = useState(activityId ? "score" : "unit_completion");
-    const [conditionOperator, setConditionOperator] = useState("eq");
+    const [conditionOperator, setConditionOperator] = useState("gte");
     const [conditionValue, setConditionValue] = useState("100");
     const [xpReward, setXpReward] = useState("0");
     const [activeTab, setActiveTab] = useState("general");
+    const [stepId, setStepId] = useState<string | null>(null);
 
     const filteredBadges = useMemo(() => {
         if (activityId) {
@@ -72,15 +88,26 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
         return badges.filter(b => b.activity_id === null);
     }, [badges, activityId]);
 
+    const buildPayload = () => {
+        if (BOOLEAN_TRIGGERS.has(conditionField)) {
+            return { allOf: [{ field: conditionField, operator: 'eq', value: true }] };
+        }
+        if (VALUE_ONLY_TRIGGERS.has(conditionField)) {
+            return { allOf: [{ field: conditionField, operator: 'gte', value: parseInt(conditionValue, 10) || 50 }] };
+        }
+        return { allOf: [{ field: conditionField, operator: conditionOperator, value: parseInt(conditionValue, 10) || 100 }] };
+    };
+
     const resetForm = () => {
         setTitle("");
         setDescription("");
         setIconUrl("");
         setIsHidden(true);
         setConditionField(activityId ? "score" : "unit_completion");
-        setConditionOperator("eq");
+        setConditionOperator("gte");
         setConditionValue("100");
         setXpReward("0");
+        setStepId(null);
         setIsCreating(false);
         setIsEditing(null);
         setActiveTab("general");
@@ -89,24 +116,15 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
     const handleCreate = async () => {
         if (!title) return toast.error("El título es obligatorio");
         setIsLoading(true);
-        
-        const payload = {
-            allOf: [
-                {
-                    field: conditionField,
-                    operator: conditionOperator,
-                    value: conditionField === 'specific_activity_completed' ? activityId : (parseInt(conditionValue, 10) || 100)
-                }
-            ]
-        };
 
         const { error } = await createClassBadge(unitId, {
             title,
             description,
             icon_url: iconUrl || null,
             is_hidden: isHidden,
-            condition_payload: payload,
+            condition_payload: buildPayload(),
             activity_id: activityId || null,
+            step_id: stepId || null,
             xp_reward: parseInt(xpReward, 10) || 0
         });
 
@@ -120,26 +138,17 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
     };
 
     const handleUpdate = async (id: string) => {
-         if (!title) return toast.error("El título es obligatorio");
+        if (!title) return toast.error("El título es obligatorio");
         setIsLoading(true);
-        
-        const payload = {
-            allOf: [
-                {
-                    field: conditionField,
-                    operator: conditionOperator,
-                    value: conditionField === 'specific_activity_completed' ? activityId : (parseInt(conditionValue, 10) || 100)
-                }
-            ]
-        };
 
         const { error } = await updateClassBadge(id, unitId, {
             title,
             description,
             icon_url: iconUrl || null,
             is_hidden: isHidden,
-            condition_payload: payload,
+            condition_payload: buildPayload(),
             activity_id: activityId || null,
+            step_id: stepId || null,
             xp_reward: parseInt(xpReward, 10) || 0
         });
 
@@ -179,13 +188,14 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
         setIconUrl(badge.icon_url || "");
         setIsHidden(badge.is_hidden);
         setXpReward(badge.xp_reward?.toString() || "0");
-        
+        setStepId(badge.step_id ?? null);
+
         try {
             const payload: any = badge.condition_payload;
             const condition = payload?.allOf?.[0] || payload?.all?.[0] || payload?.[0];
             if (condition) {
                 setConditionField(condition.field || condition.fact?.replace('submission.', '') || "score");
-                setConditionOperator(condition.operator || "eq");
+                setConditionOperator(condition.operator || "gte");
                 setConditionValue(condition.value?.toString() || "100");
             }
         } catch (e) {
@@ -203,19 +213,28 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
             const op = condition.operator;
             const val = condition.value;
             
-            let fieldLabel = "";
-            if (field === 'score') fieldLabel = "Nota";
-            else if (field === 'average_score') fieldLabel = "Media";
-            else if (field === 'unit_completion') fieldLabel = "Progreso";
-            else if (field === 'specific_activity_completed') fieldLabel = "Completar actividad";
-            else if (field === 'first_attempt_score') fieldLabel = "Nota 1er Intento";
-            else if (field === 'steps_completed') fieldLabel = "Pasos";
-            else if (field === 'activities_completed') fieldLabel = "Actividades";
-            else if (field === 'total_xp') fieldLabel = "XP";
-            else if (field === 'streak_days') fieldLabel = "Racha";
-            else fieldLabel = field;
-            
-            if (field === 'specific_activity_completed') return fieldLabel;
+            const fieldLabels: Record<string, string> = {
+                score: "Nota",
+                average_score: "Media",
+                unit_completion: "Progreso",
+                specific_activity_completed: "Completar actividad",
+                first_attempt_score: "Nota 1er Intento",
+                steps_completed: "Actividades completadas",
+                activities_completed: "Actividades",
+                total_xp: "XP",
+                streak_days: "Racha",
+                first_to_submit: "Primero en entregar",
+                perfect_score: "Nota perfecta",
+                no_retries: "Sin reintentos",
+                improvement: "Mejora con aprobado",
+                fastest_completion: "Completado más rápido",
+                all_activities_completed: "Todos los retos completados",
+                top_rank: "Rango alcanzado",
+                consecutive_perfect: "Perfectos consecutivos",
+            };
+            const fieldLabel = fieldLabels[field] || field;
+
+            if (BOOLEAN_TRIGGERS.has(field)) return fieldLabel;
             
             let opLabel = "";
             if (op === 'eq') opLabel = "=";
@@ -396,8 +415,13 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
                                                             <>
                                                                 <SelectItem value="score">Nota de este Reto (0-100)</SelectItem>
                                                                 <SelectItem value="first_attempt_score">Nota Primer Intento (0-100)</SelectItem>
-                                                                <SelectItem value="steps_completed">Pasos Completados</SelectItem>
+                                                                <SelectItem value="steps_completed">Actividades Completadas</SelectItem>
                                                                 <SelectItem value="specific_activity_completed">Completar este Reto</SelectItem>
+                                                                <SelectItem value="first_to_submit">Primero en Entregar</SelectItem>
+                                                                <SelectItem value="perfect_score">Nota Perfecta (100%)</SelectItem>
+                                                                <SelectItem value="no_retries">Aprobado sin Reintentos</SelectItem>
+                                                                <SelectItem value="improvement">Mejora con Aprobado (nota mínima)</SelectItem>
+                                                                <SelectItem value="fastest_completion">Completado más Rápido (top N)</SelectItem>
                                                             </>
                                                         ) : (
                                                             <>
@@ -406,18 +430,57 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
                                                                 <SelectItem value="activities_completed">Actividades completadas</SelectItem>
                                                                 <SelectItem value="total_xp">XP Total Acumulado</SelectItem>
                                                                 <SelectItem value="streak_days">Racha de Días</SelectItem>
+                                                                <SelectItem value="all_activities_completed">Todos los Retos Completados</SelectItem>
+                                                                <SelectItem value="top_rank">Alcanzar Rango X</SelectItem>
+                                                                <SelectItem value="consecutive_perfect">Perfectos Consecutivos</SelectItem>
                                                             </>
                                                         )}
                                                     </SelectContent>
                                                 </Select>
                                             </div>
 
-                                            {conditionField !== 'specific_activity_completed' && (
+                                            {/* Boolean triggers: show info box only */}
+                                            {BOOLEAN_TRIGGERS.has(conditionField) && (
+                                                <div className="p-4 bg-accent-blue/5 border border-accent-blue/20 rounded-lg">
+                                                    <p className="text-xs text-accent-blue font-medium leading-relaxed">
+                                                        {conditionField === 'specific_activity_completed' && "La insignia se otorgará automáticamente al completar satisfactoriamente este reto."}
+                                                        {conditionField === 'first_to_submit' && "La insignia se otorgará al primer alumno en entregar este reto o actividad."}
+                                                        {conditionField === 'perfect_score' && "La insignia se otorgará al alumno que obtenga 100% en este reto."}
+                                                        {conditionField === 'no_retries' && "La insignia se otorgará al alumno que apruebe al primer intento."}
+                                                        {conditionField === 'all_activities_completed' && "La insignia se otorgará cuando el alumno complete todos los retos de la unidad."}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* Value-only triggers (improvement, fastest_completion) */}
+                                            {VALUE_ONLY_TRIGGERS.has(conditionField) && (
+                                                <div className="space-y-4 pt-4 border-t border-border/30">
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs text-text-muted">
+                                                            {conditionField === 'improvement' ? "Nota mínima tras la mejora (%)" : "Posición máxima (top N)"}
+                                                        </Label>
+                                                        <div className="relative">
+                                                            <Input type="number" min="1" max={conditionField === 'improvement' ? 100 : undefined} value={conditionValue} onChange={e => setConditionValue(e.target.value)} className="bg-surface border-border/50 pr-8 h-10" />
+                                                            {conditionField === 'improvement' && (
+                                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-xs">%</span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-xs text-text-muted/70">
+                                                            {conditionField === 'improvement'
+                                                                ? "El alumno debe mejorar su nota Y la nueva nota debe ser ≥ este valor. Evita premiar mejoras sin superar el mínimo."
+                                                                : "El alumno debe ser uno de los N primeros en completar."}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Numeric triggers with operator */}
+                                            {!BOOLEAN_TRIGGERS.has(conditionField) && !VALUE_ONLY_TRIGGERS.has(conditionField) && (
                                                 <div className="space-y-4 pt-4 border-t border-border/30">
                                                     <div className="space-y-2">
                                                         <Label className="text-xs text-text-muted">Operador</Label>
-                                                        <Select 
-                                                            value={conditionOperator} 
+                                                        <Select
+                                                            value={conditionOperator}
                                                             onValueChange={setConditionOperator}
                                                         >
                                                             <SelectTrigger className="w-full bg-surface border-border/50 h-10">
@@ -444,11 +507,24 @@ export default function ClassBadgesManager({ badges, unitId, activityId }: Class
                                                 </div>
                                             )}
 
-                                            {conditionField === 'specific_activity_completed' && (
-                                                <div className="p-4 bg-accent-blue/5 border border-accent-blue/20 rounded-lg">
-                                                    <p className="text-xs text-accent-blue font-medium leading-relaxed">
-                                                        La insignia se otorgará automáticamente al completar satisfactoriamente este reto.
-                                                    </p>
+                                            {/* Step selector (only when activityId present and steps available) */}
+                                            {activityId && steps.length > 0 && !BOOLEAN_TRIGGERS.has(conditionField) && conditionField !== 'specific_activity_completed' && (
+                                                <div className="space-y-2 pt-4 border-t border-border/30">
+                                                    <Label className="text-xs text-text-muted">Asignar a</Label>
+                                                    <Select value={stepId ?? "__reto__"} onValueChange={v => setStepId(v === "__reto__" ? null : v)}>
+                                                        <SelectTrigger className="w-full bg-surface border-border/50 h-10">
+                                                            <SelectValue placeholder="Reto completo" />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="bg-surface border-border-strong">
+                                                            <SelectItem value="__reto__">Reto completo</SelectItem>
+                                                            {steps.map(s => (
+                                                                <SelectItem key={s.id} value={s.id}>
+                                                                    {s.title} <span className="text-text-muted ml-1">({s.type})</span>
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <p className="text-xs text-text-muted/70">Evaluará el trigger en la actividad seleccionada, no en el reto completo.</p>
                                                 </div>
                                             )}
                                         </div>

@@ -323,6 +323,9 @@ export async function submitQuizAttempt(
     // Upsert activity_submissions — only update if this score >= current best
     const scoreOutOf10 = pointsTotal > 0 ? Math.round((pointsEarned / pointsTotal) * 1000) / 100 : 0;
 
+    // Needs review if: has short-answer questions OR teacher explicitly hides grades from students
+    const needsReview = hasShortAnswer || content.showCorrectAnswers === false;
+
     const { data: existing } = await supabase
         .from("activity_submissions")
         .select("id, score")
@@ -339,9 +342,9 @@ export async function submitQuizAttempt(
                 {
                     student_id: user.id,
                     step_id: stepId,
-                    status: hasShortAnswer ? "submitted" : "graded",
+                    status: needsReview ? "submitted" : "graded",
                     submitted_at: new Date().toISOString(),
-                    ...(hasShortAnswer ? {} : {
+                    ...(needsReview ? {} : {
                         score: scoreOutOf10,
                         grading_mode: "score",
                         graded_at: new Date().toISOString(),
@@ -355,7 +358,7 @@ export async function submitQuizAttempt(
             .insert({
                 student_id: user.id,
                 step_id: stepId,
-                status: hasShortAnswer ? "submitted" : "graded",
+                status: needsReview ? "submitted" : "graded",
                 submitted_at: new Date().toISOString(),
             });
     }

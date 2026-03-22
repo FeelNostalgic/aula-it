@@ -13,6 +13,8 @@ interface StudentActivityClientProps {
     profile?: any;
     submissionsMap?: Record<string, ActivitySubmission>;
     viewsMap?: Record<string, boolean>;
+    classBadges?: any[];
+    earnedBadgeIds?: string[];
 }
 
 function BreadcrumbSetter({ activity }: { activity: any }) {
@@ -43,7 +45,7 @@ function BreadcrumbSetter({ activity }: { activity: any }) {
     return null;
 }
 
-export function StudentActivityClient({ activity, phases, user, profile, submissionsMap, viewsMap }: StudentActivityClientProps) {
+export function StudentActivityClient({ activity, phases, user, profile, submissionsMap, viewsMap, classBadges, earnedBadgeIds }: StudentActivityClientProps) {
     const router = useRouter();
 
     const handleExit = () => {
@@ -67,6 +69,8 @@ export function StudentActivityClient({ activity, phases, user, profile, submiss
                     submissionsMap={submissionsMap}
                     viewsMap={viewsMap}
                     googleEmail={profile?.google_email ?? null}
+                    classBadges={classBadges}
+                    earnedBadgeIds={earnedBadgeIds}
                 />
             </main>
         </BreadcrumbProvider>

@@ -35,6 +35,7 @@ export interface ClassBadge {
     id: string;
     unit_id: string;
     activity_id: string | null;
+    step_id: string | null;
     title: string;
     description: string | null;
     icon_url: string | null;

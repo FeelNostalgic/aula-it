@@ -2,13 +2,17 @@
 
 import { Award } from "lucide-react";
 import ClassBadgesManager from "@/components/dashboard/class-badges-manager";
+import { ActivityPhaseWithSteps } from "@/types/activity";
 
 interface ActivityBadgesPanelProps {
     activity: any;
+    phases?: ActivityPhaseWithSteps[];
     onUpdate: (updatedActivity: any) => void;
 }
 
-export function ActivityBadgesPanel({ activity, onUpdate }: ActivityBadgesPanelProps) {
+export function ActivityBadgesPanel({ activity, phases, onUpdate }: ActivityBadgesPanelProps) {
+    const steps = phases?.flatMap(p => p.steps) ?? [];
+
     return (
         <div className="flex flex-col h-full w-full p-8 overflow-y-auto max-w-4xl mx-auto space-y-8">
             <div className="flex items-center justify-between">
@@ -24,10 +28,11 @@ export function ActivityBadgesPanel({ activity, onUpdate }: ActivityBadgesPanelP
             </div>
 
             <div className="pt-6 border-t border-border/50">
-                <ClassBadgesManager 
+                <ClassBadgesManager
                     badges={activity.class_badges || []}
-                    unitId={activity.unit_id || activity.unit?.id} 
-                    activityId={activity.id} 
+                    unitId={activity.unit_id || activity.unit?.id}
+                    activityId={activity.id}
+                    steps={steps}
                 />
             </div>
         </div>
