@@ -222,8 +222,8 @@ test.describe("Module Detail", () => {
 
             // Now find the actions button related to this student
             // We use the grid row container that contains this text
-            const studentRow = page.locator('tr').filter({ hasText: "Test Student Detail" }).first();
-            const actionsButton = studentRow.getByTestId("student-actions-button");
+            const tableRow = page.locator('tr').filter({ hasText: "Test Student Detail" }).first();
+            const actionsButton = tableRow.getByTestId("student-actions-button");
 
             await expect(actionsButton).toBeVisible({ timeout: 5000 });
             await actionsButton.click();
