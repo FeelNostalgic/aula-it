@@ -277,6 +277,7 @@ function QuizViewer({
 
 function BuiltinQuizViewer({
     content,
+    userId,
     stepId,
     activityId,
     submission,
