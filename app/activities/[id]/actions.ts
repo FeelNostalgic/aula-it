@@ -241,7 +241,7 @@ export async function submitQuizAttempt(
     // Check if activity is closed
     const { data: step } = await supabase
         .from("activity_steps")
-        .select("is_activity_closed")
+        .select("is_activity_closed, is_lockdown")
         .eq("id", stepId)
         .single();
     if (step?.is_activity_closed) return { error: "Las entregas de esta actividad están cerradas." };
@@ -324,7 +324,7 @@ export async function submitQuizAttempt(
     const scoreOutOf10 = pointsTotal > 0 ? Math.round((pointsEarned / pointsTotal) * 1000) / 100 : 0;
 
     // Needs review if: has short-answer questions OR teacher explicitly hides grades from students
-    const needsReview = hasShortAnswer || content.showCorrectAnswers === false;
+    const needsReview = hasShortAnswer || content.showCorrectAnswers === false || step?.is_lockdown === true;
 
     const { data: existing } = await supabase
         .from("activity_submissions")

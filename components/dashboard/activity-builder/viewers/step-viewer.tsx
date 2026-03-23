@@ -475,7 +475,7 @@ function BuiltinQuizViewer({
             const newAttempt = result.data!.attempt;
             setAttempts(prev => [...prev, newAttempt]);
             setLastAttempt(newAttempt);
-            setPhase('result');
+            setPhase(isLockdown || content.showCorrectAnswers === false ? 'list' : 'result');
         });
     }
 
