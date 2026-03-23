@@ -1,7 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { Flame } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { APP_VERSION, APP_STATUS } from "@/lib/version";
 import { UserNav } from "@/components/dashboard/user-nav";
 
@@ -9,7 +7,6 @@ import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { BreadcrumbProvider } from "@/components/dashboard/breadcrumb-context";
 import { SessionTimeoutGuard } from "@/components/auth/session-timeout-guard";
-import { LevelBadge } from "@/components/dashboard/level-badge";
 import { QueryParamHandler } from "@/components/dashboard/query-param-handler";
 import { PresenceProvider } from "@/components/dashboard/presence-context";
 import { Suspense } from "react";
@@ -61,8 +58,6 @@ export default async function DashboardLayout({
               <DashboardBreadcrumb />
 
               <div className="flex items-center gap-6">
-                {!isTeacher && <LevelBadge />}
-
                 {/* User Navigation */}
                 <UserNav
                   userEmail={user.email || ""}

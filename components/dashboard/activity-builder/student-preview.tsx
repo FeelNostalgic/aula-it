@@ -82,7 +82,8 @@ function StepStatusBadge({ status, type, isViewed, completionMode }: { status?: 
     const config = {
         pending: { label: "Pendiente", class: "text-text-muted bg-surface border-border/50" },
         submitted: { label: "Enviado", class: "text-accent-blue bg-accent-blue/10 border-accent-blue/20" },
-        graded: { label: "Calificado", class: "text-accent-green bg-accent-green/10 border-accent-green/20" },
+        graded: { label: "Enviado", class: "text-accent-blue bg-accent-blue/10 border-accent-blue/20" },
+        published: { label: "Calificado", class: "text-accent-green bg-accent-green/10 border-accent-green/20" },
         completed: { label: "Hecho", class: "text-accent-green bg-accent-green/10 border-accent-green/20" },
     }[status] || { label: status, class: "text-text-muted bg-surface border-border/50" };
 

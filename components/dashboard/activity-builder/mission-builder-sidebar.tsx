@@ -40,6 +40,16 @@ import {
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -67,7 +77,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 // Mock imports for server actions
-import { createPhase, createStep, deletePhase, deleteStep, reorderSteps, reorderPhases, updatePhaseTitle, updateStepVisibility, updateStepLock, updateStepActivityClosed } from "@/app/activities/[id]/edit/actions";
+import { createPhase, createStep, deletePhase, deleteStep, reorderSteps, reorderPhases, updatePhaseTitle, updateStepVisibility, updateStepLock, updateStepActivityClosed, updatePhaseStepsVisibility, updatePhaseStepsActivityClosed, updatePhaseStepsLock } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 
 interface MissionBuilderSidebarProps {
@@ -216,7 +226,10 @@ function SortablePhaseHeader({
     handleDeletePhase,
     setActivePhaseForStep,
     setActiveStepType,
-    setIsAddingStep
+    setIsAddingStep,
+    onTogglePhaseVisibility,
+    onTogglePhaseActivityClosed,
+    onTogglePhaseLock,
 }: any) {
     const {
         attributes,
@@ -281,6 +294,35 @@ function SortablePhaseHeader({
             </div>
 
             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                {phase.steps.length > 0 && (<>
+                    <Button
+                        variant="ghost" size="icon"
+                        className="size-7 text-text-muted hover:text-foreground shrink-0"
+                        title={phase.steps.every((s: any) => !s.is_visible) ? "Mostrar todos los pasos" : "Ocultar todos los pasos"}
+                        onClick={(e) => { e.stopPropagation(); onTogglePhaseVisibility(phase.id); }}
+                    >
+                        {phase.steps.every((s: any) => !s.is_visible)
+                            ? <EyeOff className="size-4 text-amber-500" />
+                            : <Eye className="size-4" />
+                        }
+                    </Button>
+                    <Button
+                        variant="ghost" size="icon"
+                        className="size-7 text-text-muted hover:text-foreground shrink-0"
+                        title={phase.steps.every((s: any) => s.is_activity_closed) ? "Abrir entregas de todos los pasos" : "Cerrar entregas de todos los pasos"}
+                        onClick={(e) => { e.stopPropagation(); onTogglePhaseActivityClosed(phase.id); }}
+                    >
+                        <Ban className={cn("size-4", phase.steps.every((s: any) => s.is_activity_closed) && "text-red-400")} />
+                    </Button>
+                    <Button
+                        variant="ghost" size="icon"
+                        className="size-7 text-text-muted hover:text-foreground shrink-0"
+                        title={phase.steps.every((s: any) => s.is_locked) ? "Desbloquear todos los pasos" : "Bloquear todos los pasos"}
+                        onClick={(e) => { e.stopPropagation(); onTogglePhaseLock(phase.id); }}
+                    >
+                        <Lock className={cn("size-4", phase.steps.every((s: any) => s.is_locked) && "text-accent-orange")} />
+                    </Button>
+                </>)}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" aria-label="Añadir Actividad" className="size-7 text-text-muted hover:text-foreground shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -342,8 +384,13 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
     const [renamingPhaseId, setRenamingPhaseId] = useState<string | null>(null);
     const [renamedTitle, setRenamedTitle] = useState("");
 
+    const [isCreatingPhase, setIsCreatingPhase] = useState(false);
+    const [phaseToDelete, setPhaseToDelete] = useState<string | null>(null);
+    const [stepToDelete, setStepToDelete] = useState<{ phaseId: string; stepId: string } | null>(null);
+
     // Step dialog state
     const [isAddingStep, setIsAddingStep] = useState(false);
+    const [isCreatingStep, setIsCreatingStep] = useState(false);
     const [activePhaseForStep, setActivePhaseForStep] = useState<string | null>(null);
     const [activeStepType, setActiveStepType] = useState<ActivityStepType | null>(null);
     const [newStepTitle, setNewStepTitle] = useState("");
@@ -362,19 +409,24 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
             return;
         }
 
-        const newOrderIndex = phases.length;
-        const result = await createPhase(activityId, newPhaseTitle.trim(), newOrderIndex);
+        setIsCreatingPhase(true);
+        try {
+            const newOrderIndex = phases.length;
+            const result = await createPhase(activityId, newPhaseTitle.trim(), newOrderIndex);
 
-        if (result.error) {
-            toast.error("Error al crear la fase");
-            return;
-        }
+            if (result.error) {
+                toast.error("Error al crear la fase");
+                return;
+            }
 
-        if (result.data) {
-            setPhases([...phases, { ...result.data, steps: [], isExpanded: true }]);
-            setNewPhaseTitle("");
-            setIsAddingPhase(false);
-            toast.success("Fase creada");
+            if (result.data) {
+                setPhases([...phases, { ...result.data, steps: [], isExpanded: true }]);
+                setNewPhaseTitle("");
+                setIsAddingPhase(false);
+                toast.success("Fase creada");
+            }
+        } finally {
+            setIsCreatingPhase(false);
         }
     };
 
@@ -403,55 +455,70 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
         const phaseIndex = phases.findIndex(p => p.id === activePhaseForStep);
         if (phaseIndex === -1) return;
 
-        const phase = phases[phaseIndex];
-        const newOrderIndex = phase.steps.length;
+        setIsCreatingStep(true);
+        try {
+            const phase = phases[phaseIndex];
+            const newOrderIndex = phase.steps.length;
 
-        const result = await createStep(activePhaseForStep, newStepTitle.trim(), activeStepType, newOrderIndex);
+            const result = await createStep(activePhaseForStep, newStepTitle.trim(), activeStepType, newOrderIndex);
 
-        if (result.error) {
-            toast.error("Error al crear la actividad");
-            return;
-        }
+            if (result.error) {
+                toast.error("Error al crear la actividad");
+                return;
+            }
 
-        if (result.data) {
-            const newPhases = [...phases];
-            newPhases[phaseIndex].steps.push(result.data as any);
-            newPhases[phaseIndex].isExpanded = true;
-            setPhases(newPhases);
-            setSelectedStepId(result.data.id);
-            setIsAddingStep(false);
-            setNewStepTitle("");
-            toast.success("Actividad añadida");
+            if (result.data) {
+                const newPhases = [...phases];
+                newPhases[phaseIndex].steps.push(result.data as any);
+                newPhases[phaseIndex].isExpanded = true;
+                setPhases(newPhases);
+                setSelectedStepId(result.data.id);
+                setIsAddingStep(false);
+                setNewStepTitle("");
+                toast.success("Actividad añadida");
+            }
+        } finally {
+            setIsCreatingStep(false);
         }
     };
 
-    const handleDeletePhase = async (phaseId: string) => {
-        if (!confirm("¿Seguro que quieres eliminar esta fase y todas sus actividades?")) return;
+    const handleDeletePhase = (phaseId: string) => {
+        setPhaseToDelete(phaseId);
+    };
 
-        const result = await deletePhase(phaseId, activityId);
+    const confirmDeletePhase = async () => {
+        if (!phaseToDelete) return;
+        const result = await deletePhase(phaseToDelete, activityId);
         if (result.error) {
             toast.error("Error al eliminar la fase");
         } else {
-            setPhases(phases.filter(p => p.id !== phaseId));
-            if (selectedStepId && phases.find(p => p.id === phaseId)?.steps.some(s => s.id === selectedStepId)) {
+            setPhases(phases.filter(p => p.id !== phaseToDelete));
+            if (selectedStepId && phases.find(p => p.id === phaseToDelete)?.steps.some(s => s.id === selectedStepId)) {
                 setSelectedStepId(null);
             }
             toast.success("Fase eliminada");
         }
+        setPhaseToDelete(null);
     };
 
-    const handleDeleteStep = async (phaseId: string, stepId: string) => {
-        const result = await deleteStep(stepId);
+    const handleDeleteStep = (phaseId: string, stepId: string) => {
+        setStepToDelete({ phaseId, stepId });
+    };
+
+    const confirmDeleteStep = async () => {
+        if (!stepToDelete) return;
+        const result = await deleteStep(stepToDelete.stepId);
         if (result.error) {
             toast.error("Error al eliminar la actividad");
         } else {
             const newPhases = [...phases];
-            const phaseIndex = newPhases.findIndex(p => p.id === phaseId);
-            newPhases[phaseIndex].steps = newPhases[phaseIndex].steps.filter(s => s.id !== stepId);
+            const phaseIndex = newPhases.findIndex(p => p.id === stepToDelete.phaseId);
+            newPhases[phaseIndex].steps = newPhases[phaseIndex].steps.filter(s => s.id !== stepToDelete.stepId);
             setPhases(newPhases);
-            if (selectedStepId === stepId) setSelectedStepId(null);
+            if (selectedStepId === stepToDelete.stepId) setSelectedStepId(null);
             toast.success("Actividad eliminada");
         }
+        setStepToDelete(null);
     };
 
     const togglePhase = (phaseId: string) => {
@@ -485,6 +552,45 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
             toast.error("Error al actualizar cierre de entregas");
         } else {
             setPhases(phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => s.id === stepId ? { ...s, is_activity_closed: !currentClosed } : s) } : p));
+        }
+    };
+
+    const handleTogglePhaseVisibility = async (phaseId: string) => {
+        const phase = phases.find(p => p.id === phaseId);
+        if (!phase) return;
+        const allHidden = phase.steps.every(s => !s.is_visible);
+        const nextVisible = allHidden; // if all hidden → show all; else → hide all
+        const result = await updatePhaseStepsVisibility(phaseId, nextVisible);
+        if (result.error) {
+            toast.error("Error al actualizar visibilidad de la fase");
+        } else {
+            setPhases(phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => ({ ...s, is_visible: nextVisible })) } : p));
+        }
+    };
+
+    const handleTogglePhaseLock = async (phaseId: string) => {
+        const phase = phases.find(p => p.id === phaseId);
+        if (!phase) return;
+        const allLocked = phase.steps.every(s => s.is_locked);
+        const nextLocked = !allLocked;
+        const result = await updatePhaseStepsLock(phaseId, nextLocked);
+        if (result.error) {
+            toast.error("Error al actualizar bloqueo de la fase");
+        } else {
+            setPhases(phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => ({ ...s, is_locked: nextLocked })) } : p));
+        }
+    };
+
+    const handleTogglePhaseActivityClosed = async (phaseId: string) => {
+        const phase = phases.find(p => p.id === phaseId);
+        if (!phase) return;
+        const allClosed = phase.steps.every(s => s.is_activity_closed);
+        const nextClosed = !allClosed; // if all closed → open all; else → close all
+        const result = await updatePhaseStepsActivityClosed(phaseId, nextClosed);
+        if (result.error) {
+            toast.error("Error al actualizar cierre de la fase");
+        } else {
+            setPhases(phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => ({ ...s, is_activity_closed: nextClosed })) } : p));
         }
     };
 
@@ -640,8 +746,11 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="ghost" onClick={() => setIsAddingPhase(false)}>Cancelar</Button>
-                        <Button onClick={handleAddPhase}>Crear Fase</Button>
+                        <Button variant="ghost" onClick={() => setIsAddingPhase(false)} disabled={isCreatingPhase}>Cancelar</Button>
+                        <Button onClick={handleAddPhase} disabled={isCreatingPhase}>
+                            {isCreatingPhase && <span className="mr-2 size-3.5 rounded-full border-2 border-current border-t-transparent animate-spin inline-block" />}
+                            Crear Fase
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -667,8 +776,11 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="ghost" onClick={() => setIsAddingStep(false)}>Cancelar</Button>
-                        <Button onClick={handleAddStep}>Crear Actividad</Button>
+                        <Button variant="ghost" onClick={() => setIsAddingStep(false)} disabled={isCreatingStep}>Cancelar</Button>
+                        <Button onClick={handleAddStep} disabled={isCreatingStep}>
+                            {isCreatingStep && <span className="mr-2 size-3.5 rounded-full border-2 border-current border-t-transparent animate-spin inline-block" />}
+                            Crear Actividad
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -701,6 +813,9 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                         setActivePhaseForStep={setActivePhaseForStep}
                                         setActiveStepType={setActiveStepType}
                                         setIsAddingStep={setIsAddingStep}
+                                        onTogglePhaseVisibility={handleTogglePhaseVisibility}
+                                        onTogglePhaseActivityClosed={handleTogglePhaseActivityClosed}
+                                        onTogglePhaseLock={handleTogglePhaseLock}
                                     />
 
                                     {/* Phase Steps List */}
@@ -761,6 +876,40 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                     </div>
                 )}
             </div>
+
+            <AlertDialog open={!!phaseToDelete} onOpenChange={(open) => !open && setPhaseToDelete(null)}>
+                <AlertDialogContent className="bg-surface-dark border-border/50">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar fase?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción eliminará la fase y todas sus actividades. No se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDeletePhase} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Eliminar Fase
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={!!stepToDelete} onOpenChange={(open) => !open && setStepToDelete(null)}>
+                <AlertDialogContent className="bg-surface-dark border-border/50">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar actividad?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción eliminará la actividad permanentemente. No se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDeleteStep} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Eliminar Actividad
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

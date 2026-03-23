@@ -389,7 +389,7 @@ export async function getUnitStepSubmissions(
     // Step 2: get deliverable, file_upload, and quiz steps in those phases
     const { data: steps, error: stepsError } = await supabase
         .from("activity_steps")
-        .select("id, type, title, phase_id, content, is_locked, order_index")
+        .select("id, type, title, phase_id, content, is_locked, is_activity_closed, order_index")
         .in("type", ["deliverable", "file_upload", "quiz"])
         .in("phase_id", phaseIds)
         .order("order_index", { ascending: true });
@@ -408,7 +408,7 @@ export async function getUnitStepSubmissions(
             deliveryMode: (s.content as any)?.deliveryMode,
             rubric: (s.content as any)?.rubric ?? [],
             quizContent: stepType === 'quiz' ? ((s.content as any) as import('@/types/activity').QuizContent) : null,
-            isLocked: (s as any).is_locked ?? false,
+            isLocked: (s as any).is_activity_closed ?? false,
             orderIndex: (s as any).order_index ?? 0,
         };
     }

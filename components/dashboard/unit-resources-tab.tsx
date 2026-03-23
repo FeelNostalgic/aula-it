@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { updateUnitResources } from "@/app/dashboard/units/[id]/actions";
 import { toast } from "sonner";
-import { Plus, Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical, Search, Loader2, FolderPlus, ChevronRight, ArrowLeft, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Plus, Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical, Search, Loader2, FolderPlus, ChevronRight, ArrowLeft, AlertCircle, Eye, EyeOff, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { ResourceIcon } from "./resource-icon";
@@ -53,6 +53,7 @@ interface UnitResourcesTabProps {
 export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabProps) {
     const [resources, setResources] = useState<ResourceItem[]>(initialResources || []);
     const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+    const [expandedId, setExpandedId] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isPending, startTransition] = useTransition();
     const [itemToDelete, setItemToDelete] = useState<ResourceItem | null>(null);
@@ -277,7 +278,7 @@ export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabP
                     items={filteredResources.map(r => r.id)}
                     strategy={verticalListSortingStrategy}
                 >
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 gap-1">
                         {filteredResources.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-20 bg-surface/30 border border-dashed border-border-subtle rounded-3xl text-center">
                                 <Search className="size-10 text-text-muted/20 mb-4" />
@@ -294,6 +295,8 @@ export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabP
                                     onEnterFolder={() => setCurrentFolderId(item.id)}
                                     availableFolders={resources.filter(r => r.type === 'folder' && r.id !== item.id)}
                                     allResources={resources}
+                                    isExpanded={expandedId === item.id}
+                                    onToggleExpand={() => setExpandedId(expandedId === item.id ? null : item.id)}
                                 />
                             ))
                         )}
@@ -331,6 +334,12 @@ export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabP
     );
 }
 
+const TYPE_LABEL: Record<string, string> = {
+    file: 'Archivo',
+    link: 'Enlace',
+    folder: 'Carpeta',
+};
+
 interface SortableResourceItemProps {
     item: ResourceItem;
     updateItem: (id: string, updates: Partial<ResourceItem>) => void;
@@ -338,9 +347,11 @@ interface SortableResourceItemProps {
     onEnterFolder?: () => void;
     availableFolders: ResourceItem[];
     allResources: ResourceItem[];
+    isExpanded: boolean;
+    onToggleExpand: () => void;
 }
 
-function SortableResourceItem({ item, updateItem, removeItem, onEnterFolder, availableFolders, allResources }: SortableResourceItemProps) {
+function SortableResourceItem({ item, updateItem, removeItem, onEnterFolder, availableFolders, allResources, isExpanded, onToggleExpand }: SortableResourceItemProps) {
     const getFolderPath = (folderId: string): string => {
         const folder = allResources.find(r => r.id === folderId);
         if (!folder) return "";
@@ -369,129 +380,140 @@ function SortableResourceItem({ item, updateItem, removeItem, onEnterFolder, ava
             ref={setNodeRef}
             style={style}
             className={cn(
-                "group p-5 bg-surface border border-border/50 rounded-2xl flex gap-5 items-start transition-all hover:border-accent-blue/30 hover:shadow-md",
-                isDragging && "shadow-2xl border-accent-blue scale-[1.01] opacity-90 rotate-1",
-                item.isVisible === false && "opacity-50"
+                "group bg-surface border border-border/50 rounded-xl transition-all",
+                isDragging && "shadow-2xl border-accent-blue opacity-90",
+                isExpanded && "border-accent-blue/30",
+                item.isVisible === false && "opacity-60"
             )}
         >
-            <div
-                {...attributes}
-                {...listeners}
-                className="mt-2 text-text-muted/20 cursor-grab active:cursor-grabbing hover:text-text-muted transition-colors p-1"
-            >
-                <GripVertical className="size-4" />
-            </div>
+            {/* Compact row */}
+            <div className="flex items-center gap-2 h-11 px-3 cursor-pointer" onClick={onToggleExpand}>
+                <div
+                    {...attributes}
+                    {...listeners}
+                    className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-text-muted/40 hover:text-text-muted transition-all shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <GripVertical className="size-4" />
+                </div>
 
-            <div className="shrink-0 mt-1">
-                <div className="size-10">
+                <div className="size-5 shrink-0">
                     <ResourceIcon type={item.type} mimeType={item.mimeType} />
                 </div>
-            </div>
 
-            <div className="flex-1 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted ml-1">Título</label>
-                        <Input
-                            value={item.title}
-                            onChange={(e) => updateItem(item.id, { title: e.target.value })}
-                            placeholder={item.type === 'folder' ? "Nombre de la carpeta..." : "Nombre del recurso..."}
-                            className="bg-background border-border-subtle h-10 px-4 rounded-xl focus:ring-accent-blue/20"
-                        />
-                    </div>
-                    {item.type !== 'folder' && (
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted ml-1">
-                                {item.type === 'file' ? "Endpoint/URL Archivo" : "URL Destino"}
-                            </label>
-                            <Input
-                                value={item.url || ""}
-                                onChange={(e) => updateItem(item.id, { url: e.target.value })}
-                                placeholder="https://..."
-                                className="bg-background border-border-subtle h-10 px-4 rounded-xl focus:ring-accent-blue/20"
-                            />
-                        </div>
-                    )}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted ml-1">Ubicación (Mover a...)</label>
-                        <Select
-                            value={item.parentId || "root"}
-                            onValueChange={(val) => updateItem(item.id, { parentId: val === "root" ? null : val })}
-                        >
-                            <SelectTrigger className="bg-background border-border-subtle h-9 px-4 rounded-xl text-xs text-text-muted focus:ring-accent-blue/20">
-                                <SelectValue placeholder="Raíz" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="root">Raíz</SelectItem>
-                                {availableFolders.map(folder => (
-                                    <SelectItem key={folder.id} value={folder.id}>
-                                        {getFolderPath(folder.id)}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted ml-1">Descripción Breve</label>
-                        <Input
-                            value={item.description || ""}
-                            onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                            placeholder="Explica qué contiene este recurso..."
-                            className="bg-background border-border-subtle h-9 px-4 rounded-xl text-xs text-text-muted focus:ring-accent-blue/20"
-                        />
-                    </div>
-                </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-9 rounded-xl transition-colors"
-                    onClick={() => updateItem(item.id, { isVisible: item.isVisible === false ? true : false })}
-                    title={item.isVisible === false ? "Mostrar a alumnos" : "Ocultar a alumnos"}
-                >
-                    {item.isVisible === false
-                        ? <EyeOff className="size-4 text-text-muted" />
-                        : <Eye className="size-4 text-text-muted/20 hover:text-text-muted" />
-                    }
-                </Button>
-                <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                {item.type === 'folder' && (
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-9 rounded-xl hover:bg-blue-600/10 hover:text-blue-600 transition-colors"
-                        onClick={onEnterFolder}
+                {item.type === 'folder' ? (
+                    <button
+                        className="flex-1 text-sm font-medium text-left truncate hover:text-accent-blue transition-colors"
+                        onClick={(e) => { e.stopPropagation(); onEnterFolder?.(); }}
                         title="Entrar en carpeta"
                     >
-                        <ArrowLeft className="size-4 rotate-180" />
-                    </Button>
+                        {item.title || <span className="text-text-muted/50 italic">Sin título</span>}
+                    </button>
+                ) : (
+                    <span className="flex-1 text-sm font-medium truncate">
+                        {item.title || <span className="text-text-muted/50 italic">Sin título</span>}
+                    </span>
                 )}
-                {item.url && (
+
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted/50 shrink-0 hidden sm:block">
+                    {TYPE_LABEL[item.type] ?? item.type}
+                </span>
+
+                <div className="flex items-center gap-1 shrink-0">
                     <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-9 rounded-xl hover:bg-accent-blue/10 hover:text-accent-blue transition-colors"
-                        onClick={() => window.open(item.url, '_blank')}
-                        title="Abrir enlace"
+                        variant="ghost" size="icon"
+                        className="size-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => { e.stopPropagation(); updateItem(item.id, { isVisible: item.isVisible === false ? true : false }); }}
+                        title={item.isVisible === false ? "Mostrar a alumnos" : "Ocultar a alumnos"}
                     >
-                        <ExternalLink className="size-4" />
+                        {item.isVisible === false
+                            ? <EyeOff className="size-3.5 text-amber-500" />
+                            : <Eye className="size-3.5 text-text-muted" />
+                        }
                     </Button>
-                )}
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-9 rounded-xl text-accent-red/50 hover:text-accent-red hover:bg-accent-red/10 transition-colors"
-                    onClick={() => removeItem(item.id)}
-                    title="Eliminar recurso"
-                >
-                    <Trash2 className="size-4" />
-                </Button>
+                    <Button
+                        variant="ghost" size="icon"
+                        className={cn("size-7 transition-colors", isExpanded ? "bg-accent-blue/10 text-accent-blue" : "opacity-0 group-hover:opacity-100")}
+                        onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
+                        title="Editar"
+                    >
+                        <Pencil className="size-3.5" />
+                    </Button>
+                    <Button
+                        variant="ghost" size="icon"
+                        className="size-7 opacity-0 group-hover:opacity-100 text-text-muted/50 hover:text-accent-red hover:bg-accent-red/10 transition-all"
+                        onClick={(e) => { e.stopPropagation(); removeItem(item.id); }}
+                        title="Eliminar"
+                    >
+                        <Trash2 className="size-3.5" />
+                    </Button>
                 </div>
             </div>
+
+            {/* Expanded form */}
+            {isExpanded && (
+                <div className="px-4 pb-4 pt-1 border-t border-border/30 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted ml-1">Título</label>
+                            <Input
+                                value={item.title}
+                                onChange={(e) => updateItem(item.id, { title: e.target.value })}
+                                placeholder={item.type === 'folder' ? "Nombre de la carpeta..." : "Nombre del recurso..."}
+                                className="bg-background border-border-subtle h-9 px-3 rounded-lg text-sm"
+                            />
+                        </div>
+                        {item.type !== 'folder' && (
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted ml-1">
+                                    {item.type === 'file' ? "URL Archivo" : "URL Destino"}
+                                </label>
+                                <Input
+                                    value={item.url || ""}
+                                    onChange={(e) => updateItem(item.id, { url: e.target.value })}
+                                    placeholder="https://..."
+                                    className="bg-background border-border-subtle h-9 px-3 rounded-lg text-sm"
+                                />
+                            </div>
+                        )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted ml-1">Ubicación</label>
+                            <Select
+                                value={item.parentId || "root"}
+                                onValueChange={(val) => updateItem(item.id, { parentId: val === "root" ? null : val })}
+                            >
+                                <SelectTrigger className="bg-background border-border-subtle h-9 px-3 rounded-lg text-xs text-text-muted">
+                                    <SelectValue placeholder="Raíz" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="root">Raíz</SelectItem>
+                                    {availableFolders.map(folder => (
+                                        <SelectItem key={folder.id} value={folder.id}>
+                                            {getFolderPath(folder.id)}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted ml-1">Descripción</label>
+                            <Input
+                                value={item.description || ""}
+                                onChange={(e) => updateItem(item.id, { description: e.target.value })}
+                                placeholder="Descripción breve..."
+                                className="bg-background border-border-subtle h-9 px-3 rounded-lg text-xs text-text-muted"
+                            />
+                        </div>
+                    </div>
+                    {item.url && (
+                        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 text-accent-blue hover:bg-accent-blue/10 px-2" onClick={() => window.open(item.url, '_blank')}>
+                            <ExternalLink className="size-3" /> Abrir enlace
+                        </Button>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

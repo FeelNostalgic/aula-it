@@ -387,6 +387,51 @@ export async function updateStepLockdown(stepId: string, isLockdown: boolean) {
     return { data };
 }
 
+export async function updatePhaseStepsVisibility(phaseId: string, isVisible: boolean) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "No autorizado." };
+
+    const admin = createAdminClient();
+    const { error } = await admin
+        .from('activity_steps')
+        .update({ is_visible: isVisible })
+        .eq('phase_id', phaseId);
+    if (error) return { error: error.message };
+    return { data: true };
+}
+
+export async function updatePhaseStepsActivityClosed(phaseId: string, isClosed: boolean) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "No autorizado." };
+
+    const admin = createAdminClient();
+    const { error } = await admin
+        .from('activity_steps')
+        .update({ is_activity_closed: isClosed })
+        .eq('phase_id', phaseId);
+    if (error) return { error: error.message };
+    return { data: true };
+}
+
+export async function updatePhaseStepsLock(phaseId: string, isLocked: boolean) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "No autorizado." };
+
+    const admin = createAdminClient();
+    const { error } = await admin
+        .from('activity_steps')
+        .update({ is_locked: isLocked })
+        .eq('phase_id', phaseId);
+    if (error) return { error: error.message };
+    return { data: true };
+}
+
 export async function updateStepActivityClosed(stepId: string, isClosed: boolean) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

@@ -474,8 +474,13 @@ function BuiltinQuizViewer({
             setIsExamActive(false);
             const newAttempt = result.data!.attempt;
             setAttempts(prev => [...prev, newAttempt]);
-            setLastAttempt(newAttempt);
-            setPhase(isLockdown || content.showCorrectAnswers === false ? 'list' : 'result');
+            if (isLockdown || !gradesVisible) {
+                setLastAttempt(null);
+                setPhase('list');
+            } else {
+                setLastAttempt(newAttempt);
+                setPhase('result');
+            }
         });
     }
 
@@ -606,7 +611,8 @@ function BuiltinQuizViewer({
             ? Math.round((lastAttempt.points_earned / lastAttempt.points_total) * 100)
             : 0;
         const passed = content.passingScore !== undefined ? pct >= content.passingScore : null;
-        const hasShortAnswerQs = content.questions.some(q => (q.type ?? 'multiple_choice') === 'short_answer');
+        const effectiveQuestions = (lastAttempt as any).resolved_questions ?? content.questions;
+        const hasShortAnswerQs = effectiveQuestions.some((q: any) => (q.type ?? 'multiple_choice') === 'short_answer');
         const isPublished = submission?.status === 'published';
         // Score visible only when: grades are visible AND (no short answers OR already published)
         const scoreVisible = gradesVisible && (!hasShortAnswerQs || isPublished);
@@ -655,13 +661,13 @@ function BuiltinQuizViewer({
                     </div>
                 )}
 
-                {/* Per-question review */}
-                {content.showCorrectAnswers && (
+                {/* Per-question review — only when teacher explicitly enabled showCorrectAnswers */}
+                {content.showCorrectAnswers !== false && (
                     <div className="space-y-4">
-                        {content.questions.map((q, idx) => {
+                        {((lastAttempt as any).resolved_questions ?? content.questions).map((q: any, idx: number) => {
                             const qType = q.type ?? 'multiple_choice';
                             const studentOpts = lastAttempt.answers[q.id] ?? [];
-                            const correctOpts = q.options.filter(o => o.isCorrect).map(o => o.id);
+                            const correctOpts = q.options.filter((o: any) => o.isCorrect).map((o: any) => o.id);
                             const isAutoGraded = qType !== 'short_answer';
                             const qPoints = q.points ?? 1;
                             const penalize = !!content.penalizeWrongAnswers;
@@ -734,7 +740,7 @@ function BuiltinQuizViewer({
                                         </div>
                                     ) : (
                                         <div className="pl-9 space-y-1.5">
-                                            {q.options.map(opt => {
+                                            {q.options.map((opt: any) => {
                                                 const studentSelected = studentOpts.includes(opt.id);
                                                 const isCorrectOpt = opt.isCorrect;
                                                 return (

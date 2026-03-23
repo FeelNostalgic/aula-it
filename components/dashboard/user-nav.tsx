@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useTheme } from "next-themes";
 import {
     Bell,
@@ -12,6 +13,8 @@ import {
     ChevronRight,
     Users,
 } from "lucide-react";
+import { pingActiveDay } from "@/app/dashboard/actions";
+import { LevelBadge } from "@/components/dashboard/level-badge";
 import NextLink from "next/link";
 import {
     DropdownMenu,
@@ -41,6 +44,13 @@ interface UserNavProps {
 
 export function UserNav({ userEmail, userName, isTeacher, isAdmin, userId, userAvatar }: UserNavProps) {
     const { setTheme, theme } = useTheme();
+    const isStudent = !isTeacher && !isAdmin;
+
+    useEffect(() => {
+        if (isStudent) {
+            pingActiveDay();
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <div className="flex items-center gap-4">
@@ -52,6 +62,9 @@ export function UserNav({ userEmail, userName, isTeacher, isAdmin, userId, userA
 
             {/* Vertical Separator */}
             <Separator orientation="vertical" className="h-6 bg-border/50" />
+
+            {/* Student gamification badges */}
+            {isStudent && <LevelBadge />}
 
             {/* Profile Section with Dropdown */}
             <DropdownMenu>

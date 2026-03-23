@@ -1,8 +1,10 @@
 "use server";
 
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { ActivitySubmission, SubmissionFile, QuizContent, QuizAttempt } from "@/types/activity";
+import { selectQuestionsForAttempt } from "@/lib/quiz-pool-selection";
 
 const DRIVE_URL_REGEX = /^https:\/\/(docs|drive|sheets|slides|forms)\.google\.com\//;
 
@@ -258,13 +260,27 @@ export async function submitQuizAttempt(
         return { error: `Máximo de intentos alcanzado (${content.maxAttempts}).` };
     }
 
+    // Resolve bank questions server-side for scoring and storage
+    let resolvedQuestions = content.questions ?? [];
+    if (content.bankSelections?.length) {
+        const admin = createAdminClient();
+        const bankIds = content.bankSelections.map((s: any) => s.bankId);
+        const { data: banks } = await admin
+            .from('question_banks')
+            .select('id, questions')
+            .in('id', bankIds);
+        const bankMap: Record<string, any[]> = {};
+        for (const bank of banks ?? []) bankMap[bank.id] = bank.questions ?? [];
+        resolvedQuestions = selectQuestionsForAttempt(content, bankMap, user.id, stepId, attemptCount + 1);
+    }
+
     // Auto-score
     let rawScore = 0;
     let pointsTotal = 0;
     let hasShortAnswer = false;
     const penalize = !!content.penalizeWrongAnswers;
 
-    for (const q of content.questions) {
+    for (const q of resolvedQuestions) {
         const qType = q.type ?? 'multiple_choice';
         const qPoints = q.points ?? 1;
         pointsTotal += qPoints;
@@ -314,6 +330,7 @@ export async function submitQuizAttempt(
             short_answers: shortAnswers,
             points_earned: pointsEarned,
             points_total: pointsTotal,
+            ...(content.bankSelections?.length ? { resolved_questions: resolvedQuestions } : {}),
         })
         .select()
         .single();

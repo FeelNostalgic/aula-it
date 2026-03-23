@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export function LevelBadge() {
-    const { globalLevel, loading } = useGamification();
+    const { globalLevel, streakDays, loading } = useGamification();
 
     if (loading) {
         return (
@@ -19,11 +19,12 @@ export function LevelBadge() {
 
     return (
         <div className="flex items-center gap-4 uppercase font-mono tracking-widest text-[10px]">
-            {/* Stays static for now as per mockup */}
-            <Badge variant="outline" className="bg-orange-500/10 border-orange-500/20 text-orange-500 px-4 py-1.5 rounded-lg flex items-center gap-2 hover:bg-orange-500/20 transition-colors cursor-default">
-                <Flame className="size-3 fill-orange-500" />
-                <span className="font-bold">14 DÍAS ACTIVO</span>
-            </Badge>
+            {streakDays > 0 && (
+                <Badge variant="outline" className="bg-orange-500/10 border-orange-500/20 text-orange-500 px-4 py-1.5 rounded-lg flex items-center gap-2 hover:bg-orange-500/20 transition-colors cursor-default">
+                    <Flame className="size-3 fill-orange-500" />
+                    <span className="font-bold">{streakDays} {streakDays === 1 ? "DÍA ACTIVO" : "DÍAS ACTIVO"}</span>
+                </Badge>
+            )}
 
             <div
                 className="flex items-center gap-1 bg-card border border-border/50 rounded-lg p-1 pr-3 hover:border-primary/50 transition-all cursor-default group"

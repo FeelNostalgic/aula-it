@@ -31,7 +31,7 @@ import {
 } from "@/app/dashboard/units/[id]/actions";
 import { criteriaMaxPoints } from "@/types/activity";
 import { cn } from "@/lib/utils";
-import { updateStepLock } from "@/app/activities/[id]/edit/actions";
+import { updateStepActivityClosed } from "@/app/activities/[id]/edit/actions";
 import { exportGradesAsCSV } from "@/lib/export-grades";
 import { toast } from "sonner";
 import { GradingModal } from "@/components/dashboard/grading-modal";
@@ -1477,7 +1477,7 @@ function LockButton({ stepId, deliveryMode, initialLocked }: { stepId: string; d
         startTransition(async () => {
             const nextLocked = !isLocked;
             // Update DB lock flag
-            const res = await updateStepLock(stepId, nextLocked);
+            const res = await updateStepActivityClosed(stepId, nextLocked);
             if (res.error) { toast.error(res.error); return; }
 
             // For teacher_copy, also revoke/restore Drive permissions

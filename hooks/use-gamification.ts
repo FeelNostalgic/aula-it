@@ -6,6 +6,7 @@ import { getGlobalLevelInfo, getModuleRankInfo } from "@/lib/gamification";
 
 export function useGamification() {
     const [globalXp, setGlobalXp] = useState<number>(0);
+    const [streakDays, setStreakDays] = useState<number>(0);
     const [loading, setLoading] = useState(true);
     const supabase = createClient();
 
@@ -16,12 +17,13 @@ export function useGamification() {
 
             const { data: profile } = await supabase
                 .from("profiles")
-                .select("global_xp")
+                .select("global_xp, streak_days")
                 .eq("id", user.id)
                 .single();
 
             if (profile) {
                 setGlobalXp(profile.global_xp || 0);
+                setStreakDays(profile.streak_days || 0);
             }
             setLoading(false);
         }
@@ -39,8 +41,9 @@ export function useGamification() {
                     table: "profiles",
                 },
                 (payload) => {
-                    if (payload.new && "global_xp" in payload.new) {
-                        setGlobalXp(payload.new.global_xp);
+                    if (payload.new) {
+                        if ("global_xp" in payload.new) setGlobalXp(payload.new.global_xp);
+                        if ("streak_days" in payload.new) setStreakDays(payload.new.streak_days);
                     }
                 }
             )
@@ -56,6 +59,7 @@ export function useGamification() {
     return {
         globalXp,
         globalLevel,
+        streakDays,
         loading,
     };
 }

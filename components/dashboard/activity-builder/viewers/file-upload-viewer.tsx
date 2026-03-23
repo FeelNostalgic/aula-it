@@ -51,7 +51,7 @@ const FILE_TYPE_LABELS: Record<AllowedFileType, string> = {
     any: "Cualquier formato",
 };
 
-function RubricDisplay({ rubric }: { rubric: RubricCriteria[] }) {
+function RubricDisplay({ rubric, selectedScores, isPublished }: { rubric: RubricCriteria[]; selectedScores?: Record<string, number> | null; isPublished?: boolean }) {
     if (!rubric?.length) return null;
     return (
         <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-4">
@@ -64,13 +64,24 @@ function RubricDisplay({ rubric }: { rubric: RubricCriteria[] }) {
                         <p className="text-sm font-semibold text-foreground">{criteria.name}</p>
                         {criteria.description && <p className="text-xs text-text-muted">{criteria.description}</p>}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            {criteria.levels.map(level => (
-                                <div key={level.id} className="p-2.5 bg-surface border border-border/50 rounded-xl">
-                                    <p className="text-xs font-bold text-foreground">{level.label}</p>
-                                    <p className="text-[10px] font-mono text-accent-blue">{level.points} pts</p>
-                                    {level.description && <p className="text-[10px] text-text-muted mt-1 leading-snug">{level.description}</p>}
-                                </div>
-                            ))}
+                            {criteria.levels.map(level => {
+                                const isSelected = isPublished && selectedScores && selectedScores[criteria.id] === level.points;
+                                return (
+                                    <div key={level.id} className={cn(
+                                        "p-2.5 border rounded-xl",
+                                        isSelected
+                                            ? "bg-emerald-500/15 border-emerald-500/40"
+                                            : "bg-surface border-border/50"
+                                    )}>
+                                        <div className="flex items-center justify-between gap-1">
+                                            <p className={cn("text-xs font-bold", isSelected ? "text-emerald-400" : "text-foreground")}>{level.label}</p>
+                                            {isSelected && <CheckCircle2 className="size-3 text-emerald-400 shrink-0" />}
+                                        </div>
+                                        <p className={cn("text-[10px] font-mono", isSelected ? "text-emerald-400" : "text-accent-blue")}>{level.points} pts</p>
+                                        {level.description && <p className="text-[10px] text-text-muted mt-1 leading-snug">{level.description}</p>}
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 ))}
@@ -337,7 +348,7 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
 
             {/* Rubric */}
             {content?.rubric && content.rubric.length > 0 && (
-                <RubricDisplay rubric={content.rubric} />
+                <RubricDisplay rubric={content.rubric} selectedScores={submission?.rubric_scores} isPublished={submission?.status === 'published'} />
             )}
 
             {/* Upload zone */}

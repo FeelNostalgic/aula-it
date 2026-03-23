@@ -301,3 +301,37 @@ export async function duplicateModule(moduleId: string) {
     revalidatePath("/dashboard");
     return { success: true };
 }
+
+export async function pingActiveDay(): Promise<void> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const admin = createAdminClient();
+    const { data: profile } = await admin
+        .from("profiles")
+        .select("streak_days, last_active_at")
+        .eq("id", user.id)
+        .single();
+
+    if (!profile) return;
+
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const lastActive = profile.last_active_at ? new Date(profile.last_active_at).toISOString().slice(0, 10) : null;
+
+    if (lastActive === today) return;
+
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().slice(0, 10);
+
+    const newStreak = lastActive === yesterdayStr
+        ? (profile.streak_days || 0) + 1
+        : 1;
+
+    await admin
+        .from("profiles")
+        .update({ streak_days: newStreak, last_active_at: now.toISOString() })
+        .eq("id", user.id);
+}
