@@ -90,7 +90,7 @@ export async function evaluateStudentBadges(studentId: string, unitId: string, s
                 )
             `)
             .eq('student_id', studentId)
-            .eq('status', 'graded')
+            .in('status', ['graded', 'published'])
             .order('created_at', { ascending: true }); // Important for first_attempt
             
         // Filter submissions that belong to this unit (via activity_id)
@@ -180,10 +180,12 @@ export async function evaluateStudentBadges(studentId: string, unitId: string, s
                     }
                     break;
                 case 'first_attempt_score':
-                    if (badge.activity_id) {
+                    if (badge.step_id) {
+                        const firstSub = ctx.first_attempts.find((s: any) => s.step_id === badge.step_id);
+                        actualValue = firstSub?.score ?? 0;
+                    } else if (badge.activity_id) {
                         const firstSubs = ctx.first_attempts.filter((s: any) => s.step?.phase?.activity_id === badge.activity_id);
-                        actualValue = firstSubs.length > 0 ? firstSubs[0].score : 0; // Use the first step's first attempt? Or average?
-                        // Let's assume average of first attempts of all steps in the activity
+                        // Average of first attempts across all steps in the activity
                         actualValue = firstSubs.length > 0 ? firstSubs.reduce((a: any, b: any) => a + b.score, 0) / firstSubs.length : 0;
                     } else {
                         actualValue = ctx.first_attempts.length > 0 ? ctx.first_attempts[0].score : 0;
@@ -271,7 +273,7 @@ export async function evaluateStudentBadges(studentId: string, unitId: string, s
                     try {
                         let query = supabase.from('activity_submissions')
                             .select('student_id, created_at')
-                            .eq('status', 'graded')
+                            .in('status', ['graded', 'published'])
                             .order('created_at', { ascending: true })
                             .limit(1);
                         if (badge.step_id) {
@@ -307,7 +309,7 @@ export async function evaluateStudentBadges(studentId: string, unitId: string, s
                                 .from('activity_submissions')
                                 .select('student_id, created_at')
                                 .in('step_id', stepFilter)
-                                .eq('status', 'graded')
+                                .in('status', ['graded', 'published'])
                                 .order('created_at', { ascending: true });
                             // Get unique students by first submission
                             const seen = new Set<string>();

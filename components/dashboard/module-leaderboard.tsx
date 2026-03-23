@@ -5,9 +5,11 @@ import { createClient } from "@/utils/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Trophy, Medal, Crown, Award, User } from "lucide-react";
+import { Trophy, Medal, Crown, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RankBadge } from "@/components/dashboard/rank-badge";
+import { BadgeDisplay } from "@/components/dashboard/badge-display";
+import type { ClassBadge } from "@/types/database";
 
 interface LeaderboardEntry {
     student_id: string;
@@ -18,7 +20,7 @@ interface LeaderboardEntry {
     rank_letter: string;
 }
 
-function PodiumBlock({ entry, position, isMe }: { entry: LeaderboardEntry; position: 1 | 2 | 3; isMe: boolean }) {
+function PodiumBlock({ entry, position, isMe, badges }: { entry: LeaderboardEntry; position: 1 | 2 | 3; isMe: boolean; badges: ClassBadge[] }) {
     const config = {
         1: {
             blockHeight: "h-20",
@@ -65,6 +67,13 @@ function PodiumBlock({ entry, position, isMe }: { entry: LeaderboardEntry; posit
                 <p className="text-[10px] text-text-muted font-mono">{entry.module_xp.toLocaleString()} XP</p>
             </div>
             <RankBadge rank={entry.rank_letter} />
+            {badges.length > 0 && (
+                <div className="flex items-center justify-center flex-wrap gap-1 max-w-[100px]">
+                    {badges.slice(0, 5).map(b => (
+                        <BadgeDisplay key={b.id} badge={b} isEarned variant="compact" />
+                    ))}
+                </div>
+            )}
             <div className={cn(
                 "w-full rounded-t-xl border-t border-x flex items-center justify-center",
                 config.blockHeight, config.bgColor, config.borderColor
@@ -77,7 +86,7 @@ function PodiumBlock({ entry, position, isMe }: { entry: LeaderboardEntry; posit
 
 export function ModuleLeaderboard({ moduleId, userRole }: { moduleId: string; userRole: "teacher" | "student" }) {
     const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-    const [weeklyBadgeMap, setWeeklyBadgeMap] = useState<Map<string, number>>(new Map());
+    const [badgeMap, setBadgeMap] = useState<Map<string, ClassBadge[]>>(new Map());
     const [isLoading, setIsLoading] = useState(true);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const supabase = createClient();
@@ -96,7 +105,7 @@ export function ModuleLeaderboard({ moduleId, userRole }: { moduleId: string; us
                 const leaderboardData: LeaderboardEntry[] = data || [];
                 setEntries(leaderboardData);
 
-                // Fetch weekly badge counts
+                // Fetch earned badges with full details
                 if (leaderboardData.length > 0) {
                     const studentIds = leaderboardData.map(e => e.student_id);
                     const { data: units } = await supabase
@@ -104,22 +113,22 @@ export function ModuleLeaderboard({ moduleId, userRole }: { moduleId: string; us
                     const unitIds = (units || []).map((u: { id: string }) => u.id);
 
                     if (unitIds.length > 0) {
-                        const weekStart = new Date();
-                        weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7)); // Monday
-                        weekStart.setHours(0, 0, 0, 0);
-
-                        const { data: weekBadges } = await supabase
+                        const { data: earnedBadges } = await supabase
                             .from('student_badges')
-                            .select('student_id, class_badges!inner(unit_id)')
+                            .select('student_id, earned_at, class_badges!inner(id, title, description, icon_url, xp_reward, is_hidden, unit_id, activity_id, step_id, condition_payload, created_at, updated_at)')
                             .in('student_id', studentIds)
                             .in('class_badges.unit_id', unitIds)
-                            .gte('earned_at', weekStart.toISOString());
+                            .order('earned_at', { ascending: false });
 
-                        const map = new Map<string, number>();
-                        (weekBadges || []).forEach((b: { student_id: string }) => {
-                            map.set(b.student_id, (map.get(b.student_id) || 0) + 1);
+                        const map = new Map<string, ClassBadge[]>();
+                        (earnedBadges || []).forEach((row: any) => {
+                            const badge = row.class_badges as ClassBadge;
+                            if (!badge) return;
+                            const list = map.get(row.student_id) || [];
+                            list.push(badge);
+                            map.set(row.student_id, list);
                         });
-                        setWeeklyBadgeMap(map);
+                        setBadgeMap(map);
                     }
                 }
             } catch (err) {
@@ -165,8 +174,8 @@ export function ModuleLeaderboard({ moduleId, userRole }: { moduleId: string; us
     if (userRole === 'student') {
         const myIndex = entries.findIndex(e => e.student_id === currentUserId);
         if (myIndex !== -1 && myIndex >= 3) {
-            const start = Math.max(3, myIndex - 1);
-            const end = Math.min(entries.length, myIndex + 2);
+            const start = Math.max(3, myIndex - 2);
+            const end = Math.min(entries.length, myIndex + 3);
             const neighborhood = entries.slice(start, end);
 
             listEntries = [];
@@ -194,9 +203,9 @@ export function ModuleLeaderboard({ moduleId, userRole }: { moduleId: string; us
             {/* Podium */}
             {podiumEntries.length >= 2 && (
                 <div className="flex items-end gap-3 px-4 pt-6">
-                    {second && <PodiumBlock entry={second} position={2} isMe={second.student_id === currentUserId} />}
-                    {first && <PodiumBlock entry={first} position={1} isMe={first.student_id === currentUserId} />}
-                    {third && <PodiumBlock entry={third} position={3} isMe={third.student_id === currentUserId} />}
+                    {second && <PodiumBlock entry={second} position={2} isMe={second.student_id === currentUserId} badges={badgeMap.get(second.student_id) || []} />}
+                    {first && <PodiumBlock entry={first} position={1} isMe={first.student_id === currentUserId} badges={badgeMap.get(first.student_id) || []} />}
+                    {third && <PodiumBlock entry={third} position={3} isMe={third.student_id === currentUserId} badges={badgeMap.get(third.student_id) || []} />}
                 </div>
             )}
 
@@ -218,7 +227,7 @@ export function ModuleLeaderboard({ moduleId, userRole }: { moduleId: string; us
                             }
 
                             const isMe = entry.student_id === currentUserId;
-                            const weeklyCount = weeklyBadgeMap.get(entry.student_id) || 0;
+                            const studentBadges = badgeMap.get(entry.student_id) || [];
 
                             return (
                                 <div
@@ -257,10 +266,11 @@ export function ModuleLeaderboard({ moduleId, userRole }: { moduleId: string; us
                                     </div>
 
                                     <div className="flex items-center gap-3 text-right">
-                                        {weeklyCount > 0 && (
-                                            <div className="flex items-center gap-1 text-amber-400">
-                                                <Award className="size-3.5" />
-                                                <span className="text-xs font-bold">{weeklyCount}</span>
+                                        {studentBadges.length > 0 && (
+                                            <div className="flex items-center gap-0.5 flex-wrap justify-end max-w-[80px]">
+                                                {studentBadges.slice(0, 4).map(b => (
+                                                    <BadgeDisplay key={b.id} badge={b} isEarned variant="compact" />
+                                                ))}
                                             </div>
                                         )}
                                         <div>

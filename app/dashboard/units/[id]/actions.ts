@@ -1075,6 +1075,82 @@ export async function deleteClassBadge(badgeId: string, unitId: string) {
     return { success: true };
 }
 
+export async function getUnitStudentsWithBadges(unitId: string): Promise<{
+    students: { id: string; full_name: string | null; avatar_url: string | null }[];
+    studentBadges: { badge_id: string; student_id: string; earned_at: string }[];
+    error?: string;
+}> {
+    const supabase = await createClient();
+    const admin = createAdminClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { students: [], studentBadges: [], error: "No autenticado." };
+
+    // Get module_id from unit
+    const { data: unit } = await supabase.from("units").select("module_id").eq("id", unitId).single();
+    if (!unit?.module_id) return { students: [], studentBadges: [] };
+
+    // Get enrolled student IDs
+    const { data: enrollments } = await supabase
+        .from("module_enrollments")
+        .select("student_id")
+        .eq("module_id", unit.module_id);
+
+    const studentIds = enrollments?.map((e: any) => e.student_id) || [];
+    if (studentIds.length === 0) return { students: [], studentBadges: [] };
+
+    // Fetch profiles
+    const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", studentIds)
+        .order("full_name", { ascending: true });
+
+    // Fetch all badge IDs for this unit
+    const { data: unitBadges } = await supabase
+        .from("class_badges")
+        .select("id")
+        .eq("unit_id", unitId);
+
+    const badgeIds = unitBadges?.map((b: any) => b.id) || [];
+    let studentBadges: { badge_id: string; student_id: string; earned_at: string }[] = [];
+
+    if (badgeIds.length > 0) {
+        const { data: sb } = await admin
+            .from("student_badges")
+            .select("badge_id, student_id, earned_at")
+            .in("badge_id", badgeIds);
+        studentBadges = (sb as any[]) || [];
+    }
+
+    return { students: (profiles as any[]) || [], studentBadges };
+}
+
+export async function awardBadgesManually(badgeId: string, studentIds: string[]): Promise<{ success?: boolean; awarded?: number; error?: string }> {
+    const supabase = await createClient();
+    const admin = createAdminClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if ((profile as any)?.role !== "teacher") return { error: "Sin permisos." };
+
+    if (!badgeId || studentIds.length === 0) return { error: "Selecciona una insignia y al menos un alumno." };
+
+    // Insert ignoring duplicates (UNIQUE constraint on student_id + badge_id)
+    const rows = studentIds.map(sid => ({ badge_id: badgeId, student_id: sid }));
+    const { data, error } = await admin
+        .from("student_badges")
+        .upsert(rows, { onConflict: "student_id,badge_id", ignoreDuplicates: true })
+        .select("id");
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { success: true, awarded: (data as any[])?.length ?? studentIds.length };
+}
+
 export async function deleteUnit(unitId: string) {
     const supabase = await createClient();
 

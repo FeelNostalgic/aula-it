@@ -8,7 +8,7 @@ interface BadgeDisplayProps {
   isEarned: boolean;
   earnedAt?: string;
   className?: string;
-  variant?: 'default' | 'compact';
+  variant?: 'default' | 'compact' | 'icon';
 }
 
 export function BadgeDisplay({ 
@@ -23,17 +23,34 @@ export function BadgeDisplay({
     : null;
 
   const isCompact = variant === 'compact';
+  const isIcon = variant === 'icon';
 
   return (
     <TooltipProvider delayDuration={200}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div 
+          {isIcon ? (
+            <div className={cn("relative inline-flex items-center justify-center cursor-help shrink-0", className)}>
+              {badge.icon_url ? (
+                <img
+                  src={badge.icon_url}
+                  alt={badge.title}
+                  className={cn("h-4 w-4 object-contain", !isEarned && "opacity-40 grayscale")}
+                />
+              ) : (
+                <Award className={cn("h-4 w-4", isEarned ? "text-amber-500" : "text-text-muted/40")} />
+              )}
+              {!isEarned && (
+                <Lock className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 text-text-muted/60" />
+              )}
+            </div>
+          ) : (
+          <div
             className={cn(
               "relative flex flex-col items-center justify-center transition-all duration-300",
               !isCompact && "p-3 rounded-xl border",
-              !isCompact && (isEarned 
-                ? "bg-amber-500/10 border-amber-500/30 shadow-sm hover:shadow-md hover:border-amber-500/50" 
+              !isCompact && (isEarned
+                ? "bg-amber-500/10 border-amber-500/30 shadow-sm hover:shadow-md hover:border-amber-500/50"
                 : "bg-surface border-dashed border-border-subtle opacity-70 grayscale"),
               isCompact && "cursor-help",
               className
@@ -41,22 +58,22 @@ export function BadgeDisplay({
           >
             <div className={cn(
                   "relative flex items-center justify-center rounded-full transition-all",
-                  isCompact ? "h-10 w-10 bg-surface/80 border border-border-subtle" : "h-14 w-14 bg-background shadow-inner mb-2",
+                  isCompact && badge.icon_url ? "" : isCompact ? "h-10 w-10 bg-surface/80 border border-border-subtle" : "h-14 w-14 bg-background shadow-inner mb-2",
                   !isEarned && isCompact && "opacity-40 grayscale"
             )}>
               {badge.icon_url ? (
-                <img 
-                  src={badge.icon_url} 
+                <img
+                  src={badge.icon_url}
                   alt={badge.title}
                   className={cn(
                     "object-contain drop-shadow-sm",
-                    isCompact ? "h-6 w-6" : "h-10 w-10"
+                    isCompact ? "h-8 w-8" : "h-10 w-10"
                   )}
                 />
               ) : (
                 <Award className={cn(isCompact ? "h-5 w-5" : "h-8 w-8", isEarned ? "text-amber-500" : "text-text-muted")} />
               )}
-              
+
               {!isEarned && (
                 <div className={cn(
                   "absolute inset-0 flex items-center justify-center bg-background/60 rounded-full backdrop-blur-[1px]",
@@ -66,7 +83,7 @@ export function BadgeDisplay({
                 </div>
               )}
             </div>
-            
+
             {!isCompact && (
               <p className={cn(
                   "text-xs font-bold text-center leading-tight line-clamp-2 uppercase tracking-tighter",
@@ -76,6 +93,7 @@ export function BadgeDisplay({
               </p>
             )}
           </div>
+          )}
         </TooltipTrigger>
         <TooltipContent side="bottom" className="w-64 p-3 gap-2 flex flex-col bg-surface-dark border-border-strong text-foreground shadow-2xl z-100">
           <div className="flex items-start justify-between gap-4">

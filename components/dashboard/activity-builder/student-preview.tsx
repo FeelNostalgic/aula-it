@@ -3,7 +3,7 @@
 import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType, ActivitySubmission } from "@/types/activity";
 import { getStepIcon, getTabStepIcon } from "@/lib/constants/step-icons";
 import {
-    ArrowLeft, FileText, Lock, Award,
+    ArrowLeft, FileText, Lock,
     ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen, X, Zap, Eye, CheckCircle2, AlertTriangle, GripVertical
 } from "lucide-react";
 import { BadgeDisplay } from "@/components/dashboard/badge-display";
@@ -372,6 +372,17 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                             )}
                                                             <span className="flex-1 truncate font-medium">{step.title}</span>
                                                             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                                                                {classBadges
+                                                                    ?.filter(b => b.step_id === step.id && (!b.is_hidden || earnedBadgeIds?.includes(b.id)))
+                                                                    .map(b => (
+                                                                        <BadgeDisplay
+                                                                            key={b.id}
+                                                                            badge={b}
+                                                                            isEarned={earnedBadgeIds?.includes(b.id) ?? false}
+                                                                            variant="icon"
+                                                                        />
+                                                                    ))
+                                                                }
                                                                 <StepStatusBadge
                                                                     status={submissionsMap?.[step.id]?.status}
                                                                     type={step.type}
@@ -379,9 +390,6 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                                     completionMode={step.completion_mode}
                                                                 />
                                                                 <StepXpBadge xp={step.xp || 0} />
-                                                                {classBadges?.some(b => b.step_id === step.id && earnedBadgeIds?.includes(b.id)) && (
-                                                                    <Award className="size-3 text-amber-500 shrink-0" />
-                                                                )}
                                                             </div>
                                                         </div>
                                                     );

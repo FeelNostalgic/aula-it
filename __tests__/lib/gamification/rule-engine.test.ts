@@ -19,6 +19,7 @@ describe("Gamification Rule Engine - evaluateStudentBadges", () => {
       chain.from = vi.fn().mockImplementation(() => chain);
       chain.select = vi.fn().mockImplementation(() => chain);
       chain.eq = vi.fn().mockImplementation(() => chain);
+      chain.in = vi.fn().mockImplementation(() => chain);
       chain.order = vi.fn().mockImplementation(() => chain);
       chain.single = vi.fn().mockImplementation(() => chain);
       chain.insert = vi.fn().mockImplementation(() => Promise.resolve({ error: null }));
@@ -50,6 +51,7 @@ describe("Gamification Rule Engine - evaluateStudentBadges", () => {
       const chain: any = Promise.resolve({ data, error: null });
       chain.select = vi.fn().mockImplementation(() => chain);
       chain.eq = vi.fn().mockImplementation(() => chain);
+      chain.in = vi.fn().mockImplementation(() => chain);
       chain.order = vi.fn().mockImplementation(() => chain);
       chain.single = vi.fn().mockImplementation(() => chain);
       chain.insert = mockSupabase.insert; // Share the same insert mock to track calls

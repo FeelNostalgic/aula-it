@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Award, Plus, Trash2, Edit2, CheckCircle, XCircle, HardDrive, List, LayoutGrid, AlertCircle } from "lucide-react";
+import { Award, Plus, Trash2, Edit2, CheckCircle, XCircle, HardDrive, List, LayoutGrid, AlertCircle, UserCheck, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,7 +33,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { createClassBadge, updateClassBadge, deleteClassBadge } from "@/app/dashboard/units/[id]/actions";
+import { createClassBadge, updateClassBadge, deleteClassBadge, getUnitStudentsWithBadges, awardBadgesManually } from "@/app/dashboard/units/[id]/actions";
 import { ClassBadge } from "@/types/database";
 import { BadgeDisplay } from "./badge-display";
 import { toast } from "sonner";
@@ -80,6 +80,14 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
     const [xpReward, setXpReward] = useState("0");
     const [activeTab, setActiveTab] = useState("general");
     const [stepId, setStepId] = useState<string | null>(null);
+    const [assignTo, setAssignTo] = useState<'reto' | 'actividad'>('reto');
+    // Manager-level tabs (CRUD vs manual award)
+    const [managerTab, setManagerTab] = useState<'badges' | 'award'>('badges');
+    const [studentsData, setStudentsData] = useState<{ students: any[]; studentBadges: any[] } | null>(null);
+    const [selectedBadgeForAward, setSelectedBadgeForAward] = useState<string>('');
+    const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+    const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+    const [isAwarding, setIsAwarding] = useState(false);
 
     const filteredBadges = useMemo(() => {
         if (activityId) {
@@ -108,6 +116,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
         setConditionValue("100");
         setXpReward("0");
         setStepId(null);
+        setAssignTo('reto');
         setIsCreating(false);
         setIsEditing(null);
         setActiveTab("general");
@@ -189,6 +198,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
         setIsHidden(badge.is_hidden);
         setXpReward(badge.xp_reward?.toString() || "0");
         setStepId(badge.step_id ?? null);
+        setAssignTo(badge.step_id ? 'actividad' : 'reto');
 
         try {
             const payload: any = badge.condition_payload;
@@ -250,16 +260,212 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
         }
     };
 
+    const loadStudents = async () => {
+        if (studentsData || isLoadingStudents) return;
+        setIsLoadingStudents(true);
+        const result = await getUnitStudentsWithBadges(unitId);
+        setStudentsData(result.error ? { students: [], studentBadges: [] } : result);
+        if (!selectedBadgeForAward && filteredBadges.length > 0) {
+            setSelectedBadgeForAward(filteredBadges[0].id);
+        }
+        setIsLoadingStudents(false);
+    };
+
+    const handleManagerTabChange = (tab: string) => {
+        setManagerTab(tab as 'badges' | 'award');
+        if (tab === 'award') loadStudents();
+    };
+
+    const handleAward = async () => {
+        if (!selectedBadgeForAward || selectedStudentIds.size === 0) return;
+        setIsAwarding(true);
+        const result = await awardBadgesManually(selectedBadgeForAward, Array.from(selectedStudentIds));
+        setIsAwarding(false);
+        if (result.error) {
+            toast.error(result.error);
+        } else {
+            toast.success(`Insignia otorgada a ${result.awarded ?? selectedStudentIds.size} alumno(s)`);
+            setSelectedStudentIds(new Set());
+            // Refresh student badge data
+            const refreshed = await getUnitStudentsWithBadges(unitId);
+            setStudentsData(refreshed.error ? studentsData : refreshed);
+        }
+    };
+
+    const awardBadge = filteredBadges.find(b => b.id === selectedBadgeForAward);
+    const earnedStudentIds = new Set(
+        studentsData?.studentBadges.filter(sb => sb.badge_id === selectedBadgeForAward).map(sb => sb.student_id) ?? []
+    );
+
     return (
         <div className="space-y-6">
+            {/* Manager-level tabs: Insignias | Entrega Manual */}
+            <div className="flex items-center gap-1 bg-surface border border-border/50 rounded-lg p-1 w-fit">
+                <button
+                    onClick={() => handleManagerTabChange('badges')}
+                    className={cn(
+                        "px-4 py-1.5 rounded-md text-xs font-bold transition-all",
+                        managerTab === 'badges' ? "bg-background shadow-sm text-foreground" : "text-text-muted hover:text-foreground"
+                    )}
+                >
+                    Insignias
+                </button>
+                <button
+                    onClick={() => handleManagerTabChange('award')}
+                    className={cn(
+                        "px-4 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5",
+                        managerTab === 'award' ? "bg-background shadow-sm text-foreground" : "text-text-muted hover:text-foreground"
+                    )}
+                >
+                    <UserCheck className="size-3" />
+                    Entrega Manual
+                </button>
+            </div>
+
+            {/* ENTREGA MANUAL tab */}
+            {managerTab === 'award' && (
+                <div className="space-y-5">
+                    {filteredBadges.length === 0 ? (
+                        <div className="py-16 text-center text-text-muted text-sm">No hay insignias creadas todavía.</div>
+                    ) : (
+                        <>
+                            {/* Badge selector */}
+                            <div className="space-y-2">
+                                <Label className="text-xs text-text-muted uppercase tracking-widest font-bold">Insignia a otorgar</Label>
+                                <div className="flex flex-wrap gap-2">
+                                    {filteredBadges.map(b => (
+                                        <button
+                                            key={b.id}
+                                            type="button"
+                                            onClick={() => { setSelectedBadgeForAward(b.id); setSelectedStudentIds(new Set()); }}
+                                            className={cn(
+                                                "flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all",
+                                                selectedBadgeForAward === b.id
+                                                    ? "bg-accent-blue/10 border-accent-blue/50 text-accent-blue"
+                                                    : "bg-surface border-border/50 text-text-muted hover:border-border hover:text-foreground"
+                                            )}
+                                        >
+                                            {b.icon_url
+                                                ? <img src={b.icon_url} alt="" className="size-4 object-contain shrink-0" />
+                                                : <Award className="size-4 text-amber-500 shrink-0" />
+                                            }
+                                            {b.title}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Student list */}
+                            {isLoadingStudents ? (
+                                <div className="py-10 text-center text-text-muted text-sm">Cargando alumnos...</div>
+                            ) : studentsData && studentsData.students.length === 0 ? (
+                                <div className="py-10 text-center text-text-muted text-sm">No hay alumnos matriculados.</div>
+                            ) : studentsData && selectedBadgeForAward ? (
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-xs text-text-muted uppercase tracking-widest font-bold">Alumnos</Label>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const notEarned = studentsData.students.filter(s => !earnedStudentIds.has(s.id)).map(s => s.id);
+                                                    setSelectedStudentIds(new Set(notEarned));
+                                                }}
+                                                className="text-[10px] text-accent-blue hover:underline font-bold"
+                                            >
+                                                Seleccionar todos
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedStudentIds(new Set())}
+                                                className="text-[10px] text-text-muted hover:underline"
+                                            >
+                                                Deseleccionar
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    const refreshed = await getUnitStudentsWithBadges(unitId);
+                                                    setStudentsData(refreshed.error ? studentsData : refreshed);
+                                                }}
+                                                className="text-[10px] text-text-muted hover:text-foreground"
+                                            >
+                                                <RefreshCw className="size-3" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1 max-h-80 overflow-y-auto pr-1">
+                                        {studentsData.students.map(student => {
+                                            const alreadyEarned = earnedStudentIds.has(student.id);
+                                            const isSelected = selectedStudentIds.has(student.id);
+                                            return (
+                                                <button
+                                                    key={student.id}
+                                                    type="button"
+                                                    disabled={alreadyEarned}
+                                                    onClick={() => {
+                                                        if (alreadyEarned) return;
+                                                        setSelectedStudentIds(prev => {
+                                                            const next = new Set(prev);
+                                                            next.has(student.id) ? next.delete(student.id) : next.add(student.id);
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    className={cn(
+                                                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-sm transition-all text-left",
+                                                        alreadyEarned
+                                                            ? "bg-accent-green/5 border-accent-green/20 cursor-default"
+                                                            : isSelected
+                                                                ? "bg-accent-blue/10 border-accent-blue/30"
+                                                                : "bg-surface border-border/30 hover:border-border/60"
+                                                    )}
+                                                >
+                                                    <div className={cn(
+                                                        "size-4 rounded border-2 shrink-0 flex items-center justify-center",
+                                                        alreadyEarned ? "border-accent-green bg-accent-green/10" : isSelected ? "border-accent-blue bg-accent-blue" : "border-border/50"
+                                                    )}>
+                                                        {(alreadyEarned || isSelected) && <CheckCircle className="size-3 text-white" />}
+                                                    </div>
+                                                    {student.avatar_url && (
+                                                        <img src={student.avatar_url} alt="" className="size-6 rounded-full shrink-0" />
+                                                    )}
+                                                    <span className={cn("flex-1 font-medium", alreadyEarned ? "text-text-muted" : "text-foreground")}>
+                                                        {student.full_name || "Sin nombre"}
+                                                    </span>
+                                                    {alreadyEarned && (
+                                                        <span className="text-[10px] text-accent-green font-bold uppercase tracking-widest shrink-0">✓ Ganada</span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="pt-3">
+                                        <Button
+                                            onClick={handleAward}
+                                            disabled={isAwarding || selectedStudentIds.size === 0}
+                                            className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-10 px-6 uppercase gap-2"
+                                        >
+                                            <UserCheck className="size-4" />
+                                            {isAwarding ? "OTORGANDO..." : `OTORGAR A ${selectedStudentIds.size} ALUMNO${selectedStudentIds.size !== 1 ? 'S' : ''}`}
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : null}
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* INSIGNIAS tab */}
+            {managerTab === 'badges' && (<>
             <div className="flex items-center justify-between">
                 <div>
                     <h3 className="text-xl font-bold tracking-tight">
                         {activityId ? 'Insignias del Reto' : 'Gestión de Insignias Globales'}
                     </h3>
                     <p className="text-sm text-text-muted">
-                        {activityId 
-                            ? 'Crea insignias específicas para este reto.' 
+                        {activityId
+                            ? 'Crea insignias específicas para este reto.'
                             : 'Crea insignias globales para toda la unidad.'}
                     </p>
                 </div>
@@ -288,16 +494,20 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                     >
                         <Plus className="mr-2 size-4" />
                         NUEVA INSIGNIA
-                    </Button>                </div>
+                    </Button>
+                </div>
             </div>
 
-            <Dialog 
-                open={isCreating || !!isEditing} 
+            {(isCreating || !!isEditing) && (
+                <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" aria-hidden="true" />
+            )}
+            <Dialog
+                open={isCreating || !!isEditing}
                 onOpenChange={(open) => !open && resetForm()}
                 modal={false}
             >
-                <DialogContent 
-                    className="max-w-3xl bg-surface border-border-strong p-0 overflow-hidden"
+                <DialogContent
+                    className="max-w-3xl bg-surface border-border-strong p-0 overflow-hidden z-50"
                     onPointerDownOutside={(e) => e.preventDefault()}
                     onEscapeKeyDown={(e) => e.preventDefault()}
                 >
@@ -306,7 +516,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                         <DialogDescription>Configura los detalles y las reglas de obtención.</DialogDescription>
                     </DialogHeader>
 
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col h-[480px]">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col h-[620px]">
                         <div className="px-6 border-b border-border/50 shrink-0">
                             <TabsList className="bg-transparent gap-6 p-0 h-12">
                                 <TabsTrigger value="general" className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:bg-transparent px-2 h-full">General</TabsTrigger>
@@ -397,126 +607,46 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                             </TabsContent>
 
                             <TabsContent value="obtention" className="mt-0 space-y-6">
-                                <div className="space-y-6">
-                                    <div className="space-y-4">
-                                        <Label className="text-base font-bold">Regla de Desbloqueo</Label>
-                                        <div className="space-y-4 p-4 border border-border/50 rounded-xl bg-surface-dark/50">
-                                            <div className="space-y-2">
-                                                <Label className="text-xs text-text-muted">Propiedad a evaluar</Label>
-                                                <Select 
-                                                    value={conditionField} 
-                                                    onValueChange={setConditionField}
-                                                >
-                                                    <SelectTrigger className="w-full bg-surface border-border/50 h-10">
-                                                        <SelectValue placeholder="Selecciona propiedad" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-surface border-border-strong">
-                                                        {activityId ? (
-                                                            <>
-                                                                <SelectItem value="score">Nota de este Reto (0-100)</SelectItem>
-                                                                <SelectItem value="first_attempt_score">Nota Primer Intento (0-100)</SelectItem>
-                                                                <SelectItem value="steps_completed">Actividades Completadas</SelectItem>
-                                                                <SelectItem value="specific_activity_completed">Completar este Reto</SelectItem>
-                                                                <SelectItem value="first_to_submit">Primero en Entregar</SelectItem>
-                                                                <SelectItem value="perfect_score">Nota Perfecta (100%)</SelectItem>
-                                                                <SelectItem value="no_retries">Aprobado sin Reintentos</SelectItem>
-                                                                <SelectItem value="improvement">Mejora con Aprobado (nota mínima)</SelectItem>
-                                                                <SelectItem value="fastest_completion">Completado más Rápido (top N)</SelectItem>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <SelectItem value="average_score">Nota Media Unidad (0-100)</SelectItem>
-                                                                <SelectItem value="unit_completion">% Completado Unidad (0-100)</SelectItem>
-                                                                <SelectItem value="activities_completed">Actividades completadas</SelectItem>
-                                                                <SelectItem value="total_xp">XP Total Acumulado</SelectItem>
-                                                                <SelectItem value="streak_days">Racha de Días</SelectItem>
-                                                                <SelectItem value="all_activities_completed">Todos los Retos Completados</SelectItem>
-                                                                <SelectItem value="top_rank">Alcanzar Rango X</SelectItem>
-                                                                <SelectItem value="consecutive_perfect">Perfectos Consecutivos</SelectItem>
-                                                            </>
+                                <div className="space-y-4">
+                                    <Label className="text-base font-bold">Regla de Desbloqueo</Label>
+                                    <div className="space-y-4 p-4 border border-border/50 rounded-xl bg-surface-dark/50">
+
+                                        {/* ASIGNAR A — solo cuando es badge de reto con steps disponibles */}
+                                        {activityId && steps.length > 0 && (
+                                            <div className="space-y-2 pb-4 border-b border-border/30">
+                                                <Label className="text-xs text-text-muted">Asignar a</Label>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setAssignTo('reto'); setStepId(null); setConditionField('score'); }}
+                                                        className={cn(
+                                                            "px-3 py-2 rounded-lg border text-xs font-bold transition-all text-left",
+                                                            assignTo === 'reto'
+                                                                ? "bg-accent-blue/10 border-accent-blue/50 text-accent-blue"
+                                                                : "bg-surface border-border/50 text-text-muted hover:border-border"
                                                         )}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            {/* Boolean triggers: show info box only */}
-                                            {BOOLEAN_TRIGGERS.has(conditionField) && (
-                                                <div className="p-4 bg-accent-blue/5 border border-accent-blue/20 rounded-lg">
-                                                    <p className="text-xs text-accent-blue font-medium leading-relaxed">
-                                                        {conditionField === 'specific_activity_completed' && "La insignia se otorgará automáticamente al completar satisfactoriamente este reto."}
-                                                        {conditionField === 'first_to_submit' && "La insignia se otorgará al primer alumno en entregar este reto o actividad."}
-                                                        {conditionField === 'perfect_score' && "La insignia se otorgará al alumno que obtenga 100% en este reto."}
-                                                        {conditionField === 'no_retries' && "La insignia se otorgará al alumno que apruebe al primer intento."}
-                                                        {conditionField === 'all_activities_completed' && "La insignia se otorgará cuando el alumno complete todos los retos de la unidad."}
-                                                    </p>
+                                                    >
+                                                        Reto completo
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setAssignTo('actividad'); setConditionField('no_retries'); }}
+                                                        className={cn(
+                                                            "px-3 py-2 rounded-lg border text-xs font-bold transition-all text-left",
+                                                            assignTo === 'actividad'
+                                                                ? "bg-accent-blue/10 border-accent-blue/50 text-accent-blue"
+                                                                : "bg-surface border-border/50 text-text-muted hover:border-border"
+                                                        )}
+                                                    >
+                                                        Actividad específica
+                                                    </button>
                                                 </div>
-                                            )}
-
-                                            {/* Value-only triggers (improvement, fastest_completion) */}
-                                            {VALUE_ONLY_TRIGGERS.has(conditionField) && (
-                                                <div className="space-y-4 pt-4 border-t border-border/30">
-                                                    <div className="space-y-2">
-                                                        <Label className="text-xs text-text-muted">
-                                                            {conditionField === 'improvement' ? "Nota mínima tras la mejora (%)" : "Posición máxima (top N)"}
-                                                        </Label>
-                                                        <div className="relative">
-                                                            <Input type="number" min="1" max={conditionField === 'improvement' ? 100 : undefined} value={conditionValue} onChange={e => setConditionValue(e.target.value)} className="bg-surface border-border/50 pr-8 h-10" />
-                                                            {conditionField === 'improvement' && (
-                                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-xs">%</span>
-                                                            )}
-                                                        </div>
-                                                        <p className="text-xs text-text-muted/70">
-                                                            {conditionField === 'improvement'
-                                                                ? "El alumno debe mejorar su nota Y la nueva nota debe ser ≥ este valor. Evita premiar mejoras sin superar el mínimo."
-                                                                : "El alumno debe ser uno de los N primeros en completar."}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Numeric triggers with operator */}
-                                            {!BOOLEAN_TRIGGERS.has(conditionField) && !VALUE_ONLY_TRIGGERS.has(conditionField) && (
-                                                <div className="space-y-4 pt-4 border-t border-border/30">
-                                                    <div className="space-y-2">
-                                                        <Label className="text-xs text-text-muted">Operador</Label>
-                                                        <Select
-                                                            value={conditionOperator}
-                                                            onValueChange={setConditionOperator}
-                                                        >
-                                                            <SelectTrigger className="w-full bg-surface border-border/50 h-10">
-                                                                <SelectValue placeholder="Selecciona operador" />
-                                                            </SelectTrigger>
-                                                            <SelectContent className="bg-surface border-border-strong">
-                                                                <SelectItem value="eq">Es igual a (=)</SelectItem>
-                                                                <SelectItem value="gt">Es mayor que (&gt;)</SelectItem>
-                                                                <SelectItem value="gte">Es mayor o igual que (≥)</SelectItem>
-                                                                <SelectItem value="lt">Es menor que (&lt;)</SelectItem>
-                                                                <SelectItem value="lte">Es menor o igual que (≤)</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <Label className="text-xs text-text-muted">Valor Requerido</Label>
-                                                        <div className="relative">
-                                                            <Input type="number" min="0" value={conditionValue} onChange={e => setConditionValue(e.target.value)} className="bg-surface border-border/50 pr-8 h-10" />
-                                                            {(['score', 'unit_completion', 'average_score', 'first_attempt_score'].includes(conditionField)) && (
-                                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-xs">%</span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Step selector (only when activityId present and steps available) */}
-                                            {activityId && steps.length > 0 && !BOOLEAN_TRIGGERS.has(conditionField) && conditionField !== 'specific_activity_completed' && (
-                                                <div className="space-y-2 pt-4 border-t border-border/30">
-                                                    <Label className="text-xs text-text-muted">Asignar a</Label>
-                                                    <Select value={stepId ?? "__reto__"} onValueChange={v => setStepId(v === "__reto__" ? null : v)}>
-                                                        <SelectTrigger className="w-full bg-surface border-border/50 h-10">
-                                                            <SelectValue placeholder="Reto completo" />
+                                                {assignTo === 'actividad' && (
+                                                    <Select value={stepId ?? ''} onValueChange={v => setStepId(v || null)}>
+                                                        <SelectTrigger className="w-full bg-surface border-border/50 h-10 mt-1">
+                                                            <SelectValue placeholder="Selecciona una actividad" />
                                                         </SelectTrigger>
                                                         <SelectContent className="bg-surface border-border-strong">
-                                                            <SelectItem value="__reto__">Reto completo</SelectItem>
                                                             {steps.map(s => (
                                                                 <SelectItem key={s.id} value={s.id}>
                                                                     {s.title} <span className="text-text-muted ml-1">({s.type})</span>
@@ -524,20 +654,128 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                                                             ))}
                                                         </SelectContent>
                                                     </Select>
-                                                    <p className="text-xs text-text-muted/70">Evaluará el trigger en la actividad seleccionada, no en el reto completo.</p>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* PROPIEDAD A EVALUAR */}
+                                        <div className="space-y-2">
+                                            <Label className="text-xs text-text-muted">Propiedad a evaluar</Label>
+                                            <Select value={conditionField} onValueChange={setConditionField}>
+                                                <SelectTrigger className="w-full bg-surface border-border/50 h-10">
+                                                    <SelectValue placeholder="Selecciona propiedad" />
+                                                </SelectTrigger>
+                                                <SelectContent className="bg-surface border-border-strong">
+                                                    {activityId ? (
+                                                        (steps.length === 0 || assignTo === 'actividad') ? (
+                                                            <>
+                                                                <SelectItem value="no_retries">Aprobado sin Reintentos</SelectItem>
+                                                                <SelectItem value="perfect_score">Nota Perfecta (100%)</SelectItem>
+                                                                <SelectItem value="first_to_submit">Primero en Entregar</SelectItem>
+                                                                <SelectItem value="first_attempt_score">Nota Primer Intento (0-100)</SelectItem>
+                                                                <SelectItem value="score">Nota de esta Actividad (0-100)</SelectItem>
+                                                                <SelectItem value="improvement">Mejora con Aprobado (nota mínima)</SelectItem>
+                                                                <SelectItem value="fastest_completion">Completado más Rápido (top N)</SelectItem>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <SelectItem value="score">Nota del Reto (0-100)</SelectItem>
+                                                                <SelectItem value="steps_completed">Actividades Completadas</SelectItem>
+                                                                <SelectItem value="specific_activity_completed">Completar este Reto</SelectItem>
+                                                                <SelectItem value="improvement">Mejora con Aprobado (nota mínima)</SelectItem>
+                                                                <SelectItem value="fastest_completion">Completado más Rápido (top N)</SelectItem>
+                                                            </>
+                                                        )
+                                                    ) : (
+                                                        <>
+                                                            <SelectItem value="average_score">Nota Media Unidad (0-100)</SelectItem>
+                                                            <SelectItem value="unit_completion">% Completado Unidad (0-100)</SelectItem>
+                                                            <SelectItem value="activities_completed">Actividades completadas</SelectItem>
+                                                            <SelectItem value="total_xp">XP Total Acumulado</SelectItem>
+                                                            <SelectItem value="streak_days">Racha de Días</SelectItem>
+                                                            <SelectItem value="all_activities_completed">Todos los Retos Completados</SelectItem>
+                                                            <SelectItem value="top_rank">Alcanzar Rango X</SelectItem>
+                                                            <SelectItem value="consecutive_perfect">Perfectos Consecutivos</SelectItem>
+                                                        </>
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        {/* Boolean triggers: info box */}
+                                        {BOOLEAN_TRIGGERS.has(conditionField) && (
+                                            <div className="p-4 bg-accent-blue/5 border border-accent-blue/20 rounded-lg">
+                                                <p className="text-xs text-accent-blue font-medium leading-relaxed">
+                                                    {conditionField === 'specific_activity_completed' && "La insignia se otorgará automáticamente al completar satisfactoriamente este reto."}
+                                                    {conditionField === 'first_to_submit' && "La insignia se otorgará al primer alumno en entregar esta actividad."}
+                                                    {conditionField === 'perfect_score' && "La insignia se otorgará al alumno que obtenga 100% en esta actividad."}
+                                                    {conditionField === 'no_retries' && "La insignia se otorgará al alumno que apruebe al primer intento."}
+                                                    {conditionField === 'all_activities_completed' && "La insignia se otorgará cuando el alumno complete todos los retos de la unidad."}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {/* Value-only triggers */}
+                                        {VALUE_ONLY_TRIGGERS.has(conditionField) && (
+                                            <div className="space-y-4 pt-4 border-t border-border/30">
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs text-text-muted">
+                                                        {conditionField === 'improvement' ? "Nota mínima tras la mejora (%)" : "Posición máxima (top N)"}
+                                                    </Label>
+                                                    <div className="relative">
+                                                        <Input type="number" min="1" max={conditionField === 'improvement' ? 100 : undefined} value={conditionValue} onChange={e => setConditionValue(e.target.value)} className="bg-surface border-border/50 pr-8 h-10" />
+                                                        {conditionField === 'improvement' && (
+                                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-xs">%</span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs text-text-muted/70">
+                                                        {conditionField === 'improvement'
+                                                            ? "El alumno debe mejorar su nota Y la nueva nota debe ser ≥ este valor."
+                                                            : "El alumno debe ser uno de los N primeros en completar."}
+                                                    </p>
                                                 </div>
-                                            )}
-                                        </div>
-                                        <div className="flex justify-end pt-2">
-                                            <Button 
-                                                variant="ghost" 
-                                                size="sm" 
-                                                className="text-accent-blue hover:text-accent-blue/80 gap-2 font-bold p-0"
-                                                onClick={() => setActiveTab("preview")}
-                                            >
-                                                Ver Vista Previa →
-                                            </Button>
-                                        </div>
+                                            </div>
+                                        )}
+
+                                        {/* Numeric triggers with operator */}
+                                        {!BOOLEAN_TRIGGERS.has(conditionField) && !VALUE_ONLY_TRIGGERS.has(conditionField) && (
+                                            <div className="space-y-4 pt-4 border-t border-border/30">
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs text-text-muted">Operador</Label>
+                                                    <Select value={conditionOperator} onValueChange={setConditionOperator}>
+                                                        <SelectTrigger className="w-full bg-surface border-border/50 h-10">
+                                                            <SelectValue placeholder="Selecciona operador" />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="bg-surface border-border-strong">
+                                                            <SelectItem value="eq">Es igual a (=)</SelectItem>
+                                                            <SelectItem value="gt">Es mayor que (&gt;)</SelectItem>
+                                                            <SelectItem value="gte">Es mayor o igual que (≥)</SelectItem>
+                                                            <SelectItem value="lt">Es menor que (&lt;)</SelectItem>
+                                                            <SelectItem value="lte">Es menor o igual que (≤)</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs text-text-muted">Valor Requerido</Label>
+                                                    <div className="relative">
+                                                        <Input type="number" min="0" value={conditionValue} onChange={e => setConditionValue(e.target.value)} className="bg-surface border-border/50 pr-8 h-10" />
+                                                        {(['score', 'unit_completion', 'average_score', 'first_attempt_score'].includes(conditionField)) && (
+                                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-xs">%</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex justify-end pt-2">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-accent-blue hover:text-accent-blue/80 gap-2 font-bold p-0"
+                                            onClick={() => setActiveTab("preview")}
+                                        >
+                                            Ver Vista Previa →
+                                        </Button>
                                     </div>
                                 </div>
                             </TabsContent>
@@ -692,6 +930,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                     </div>
                 )}
             </div>
+            </>)} {/* end managerTab === 'badges' */}
 
             <AlertDialog open={!!badgeToDelete} onOpenChange={(open) => !open && setBadgeToDelete(null)}>
                 <AlertDialogContent className="bg-[#111111] border-border-strong rounded-[32px] p-8 max-w-[500px]">
