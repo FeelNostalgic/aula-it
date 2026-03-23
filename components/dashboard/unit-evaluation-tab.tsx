@@ -331,7 +331,7 @@ export function UnitEvaluationTab({ unitId, students, activities, submissions, a
                                 transition={{ duration: 0.2 }}
                                 className="h-full p-6"
                             >
-                                {selectedStepId && selectedActivityId && grouped[selectedActivityId] ? (
+                                {selectedStepId && selectedActivityId && grouped[selectedActivityId]?.byStep[selectedStepId] ? (
                                     <CorrectionDetail 
                                         stepId={selectedStepId}
                                         activityId={selectedActivityId}
@@ -508,6 +508,7 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
     const [extensionDialog, setExtensionDialog] = useState<{ open: boolean; studentIds: string[]; studentNames: string[] }>({ open: false, studentIds: [], studentNames: [] });
 
     const stats = useMemo(() => {
+        if (!stepData?.rows) return { total: 0, pending: 0, graded: 0, published: 0 };
         const rows = stepData.rows;
         const total = rows.length;
         const pending = rows.filter((r: any) => r.status === 'submitted' && !r.synthetic).length;
@@ -615,7 +616,7 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
     ], [allSubmissions, onSubmissionsChange]);
 
     const table = useReactTable({
-        data: stepData.rows as StepSubmissionRow[],
+        data: (stepData?.rows ?? []) as StepSubmissionRow[],
         columns,
         state: { sorting, rowSelection },
         onSortingChange: setSorting,
@@ -625,6 +626,8 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
         enableRowSelection: (row) => !row.original.synthetic,
         getRowId: (row) => row.id,
     });
+
+    if (!stepData) return null;
 
     const selectedRows = table.getSelectedRowModel().rows.map(r => r.original);
     const selectedIdSet = new Set(selectedRows.map(r => r.id));
