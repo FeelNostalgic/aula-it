@@ -549,7 +549,7 @@ function BuiltinQuizViewer({
                             ? Math.round((attempt.points_earned / attempt.points_total) * 100)
                             : 0;
                         const passed = content.passingScore !== undefined ? pct >= content.passingScore : null;
-                        const isBest = attempt.id === bestAttemptId && attempts.length > 1;
+                        const isBest = attempt.id === bestAttemptId && attempts.length > 1 && gradesVisible;
                         const date = new Date(attempt.completed_at);
 
                         return (
@@ -579,12 +579,12 @@ function BuiltinQuizViewer({
                                     {gradesVisible ? (
                                         <>
                                             <p className={cn(
-                                                "text-sm font-black font-mono",
+                                                "text-base font-black font-mono",
                                                 passed === true ? "text-emerald-400" : passed === false ? "text-red-400" : "text-foreground"
                                             )}>
-                                                {attempt.points_earned}/{attempt.points_total} pts
+                                                {attempt.points_total > 0 ? Number(((attempt.points_earned / attempt.points_total) * 10).toFixed(2)) : 0}/10
                                             </p>
-                                            <p className="text-xs text-text-muted">{pct}%</p>
+                                            <p className="text-xs text-text-muted">{attempt.points_earned}/{attempt.points_total} pts</p>
                                         </>
                                     ) : (
                                         <p className="text-xs text-text-muted italic">Pendiente de revisión</p>
@@ -632,9 +632,9 @@ function BuiltinQuizViewer({
                     )}>
                         <Trophy className={cn("size-10 mx-auto", passed === true ? "text-emerald-400" : passed === false ? "text-red-400" : "text-accent-blue")} />
                         <p className="text-4xl font-black font-mono text-foreground">
-                            {lastAttempt.points_earned} <span className="text-text-muted text-2xl">/ {lastAttempt.points_total} pts</span>
+                            {lastAttempt.points_total > 0 ? Number(((lastAttempt.points_earned / lastAttempt.points_total) * 10).toFixed(2)) : 0} <span className="text-text-muted text-2xl">/ 10</span>
                         </p>
-                        <p className="text-lg font-bold text-text-muted">{pct}%</p>
+                        <p className="text-lg font-bold text-text-muted">{lastAttempt.points_earned} / {lastAttempt.points_total} pts</p>
                         {passed !== null && (
                             <p className={cn("text-sm font-bold uppercase tracking-widest", passed ? "text-emerald-400" : "text-red-400")}>
                                 {passed ? "✓ Superado" : "✗ No superado"} — mínimo {content.passingScore}%
@@ -661,8 +661,8 @@ function BuiltinQuizViewer({
                     </div>
                 )}
 
-                {/* Per-question review — only when teacher explicitly enabled showCorrectAnswers */}
-                {content.showCorrectAnswers !== false && (
+                {/* Per-question review — visible if teacher enabled showCorrectAnswers OR if published */}
+                {(content.showCorrectAnswers !== false || gradesVisible) && (
                     <div className="space-y-4">
                         {((lastAttempt as any).resolved_questions ?? content.questions).map((q: any, idx: number) => {
                             const qType = q.type ?? 'multiple_choice';

@@ -12,6 +12,7 @@ import { urlToPreviewUrl } from "@/lib/google-drive-urls";
 import { RubricCriteria, criteriaMaxPoints, QuizContent } from "@/types/activity";
 import { toast } from "sonner";
 import { ExternalLink, FileText, File, Image, Video, User, Calendar, CheckCircle2, XCircle, Circle, AlertTriangle, ChevronLeft, ChevronRight, AlignLeft } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 type GradingMode = 'score' | 'rubric' | 'complete';
@@ -42,10 +43,17 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
     const [shortAnswerScores, setShortAnswerScores] = useState<Record<string, number>>({});
     const [shortAnswerFeedback, setShortAnswerFeedback] = useState<Record<string, string>>({});
     const [isPending, startTransition] = useTransition();
+    const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
 
-    const isQuiz = submission?.step_type === 'quiz';
+    const isQuiz = submission?.step_type === "quiz";
     const quizContent = submission?.quiz_content ?? null;
-    const quizAttempt = submission?.quiz_attempt ?? null;
+    
+    // We try to get the attempt for evaluation.
+    // If a specific one is selected via UI, we use that.
+    // Otherwise we default to the submission's quiz_attempt (legacy) or the first in quiz_attempts.
+    const quizAttempt = (submission?.quiz_attempts ?? []).find(a => a.id === selectedAttemptId) 
+        || submission?.quiz_attempt 
+        || (submission?.quiz_attempts && submission.quiz_attempts.length > 0 ? submission.quiz_attempts[0] : null);
 
     // Strip previously saved manual pts to get pure auto-graded points
     const savedManualPts = isQuiz && quizAttempt
@@ -76,8 +84,18 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
             } else {
                 setGradingMode(rubric?.length ? 'rubric' : 'score');
             }
+            // Initialize selected attempt
+            setSelectedAttemptId(submission.quiz_attempt?.id ?? (submission.quiz_attempts?.[0]?.id ?? null));
         }
     }, [submission, rubric]);
+
+    // Update short-answer state when selected attempt changes
+    useEffect(() => {
+        if (quizAttempt) {
+            setShortAnswerScores(quizAttempt.short_answer_scores ?? {});
+            setShortAnswerFeedback(quizAttempt.short_answer_feedback ?? {});
+        }
+    }, [quizAttempt?.id]);
 
     // Keep score field in sync with computed quiz score when short_answer scores change
     useEffect(() => {
@@ -223,15 +241,29 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                     {/* Left: Quiz attempt, Drive iframe, or file list */}
                     <ResizablePanel defaultSize={62} minSize={30}>
                         <div className="h-full flex flex-col bg-surface-dark">
-                            {isQuiz && quizAttempt && quizContent ? (
-                                <QuizAttemptPanel
-                                    attempt={quizAttempt}
-                                    content={quizContent}
-                                    shortAnswerScores={shortAnswerScores}
-                                    onShortAnswerScore={(qId, pts) => setShortAnswerScores(prev => ({ ...prev, [qId]: pts }))}
-                                    shortAnswerFeedback={shortAnswerFeedback}
-                                    onShortAnswerFeedback={(qId, text) => setShortAnswerFeedback(prev => ({ ...prev, [qId]: text }))}
-                                />
+                            {isQuiz ? (
+                                quizAttempt ? (
+                                    <QuizAttemptPanel
+                                        submission={submission!}
+                                        attempt={quizAttempt}
+                                        content={quizContent!}
+                                        shortAnswerScores={shortAnswerScores}
+                                        onShortAnswerScore={(qId, pts) => setShortAnswerScores(prev => ({ ...prev, [qId]: pts }))}
+                                        shortAnswerFeedback={shortAnswerFeedback}
+                                        onShortAnswerFeedback={(qId, text) => setShortAnswerFeedback(prev => ({ ...prev, [qId]: text }))}
+                                        onSelectedAttemptIdChange={setSelectedAttemptId}
+                                    />
+                                ) : (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8 space-y-4">
+                                        <div className="size-16 rounded-full bg-surface-dark flex items-center justify-center border border-border-strong">
+                                            <FileText className="size-8 text-text-muted" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <h3 className="text-lg font-semibold text-foreground">Sin intentos</h3>
+                                            <p className="text-sm text-text-muted max-w-[200px]">Este alumno aún no ha realizado ningún intento del cuestionario.</p>
+                                        </div>
+                                    </div>
+                                )
                             ) : (
                                 <SubmissionFilePanel submission={submission} />
                             )}
@@ -395,20 +427,26 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
 // ---------------------------------------------------------------------------
 
 function QuizAttemptPanel({
+    submission,
     attempt,
     content,
     shortAnswerScores,
     onShortAnswerScore,
     shortAnswerFeedback,
     onShortAnswerFeedback,
+    onSelectedAttemptIdChange,
 }: {
+    submission: NonNullable<StepSubmissionRow>;
     attempt: NonNullable<StepSubmissionRow['quiz_attempt']>;
-    content: QuizContent;
+    content: QuizContent | null;
     shortAnswerScores: Record<string, number>;
     onShortAnswerScore: (qId: string, pts: number) => void;
     shortAnswerFeedback: Record<string, string>;
     onShortAnswerFeedback: (qId: string, text: string) => void;
+    onSelectedAttemptIdChange: (id: string) => void;
 }) {
+    const attempts = submission.quiz_attempts ?? [attempt];
+
     const savedManual = Object.values(attempt.short_answer_scores ?? {}).reduce((a: number, b: number) => a + b, 0);
     const autoPoints = attempt.points_earned - savedManual;
     const manualPoints = Object.values(shortAnswerScores).reduce((a, b) => a + b, 0);
@@ -416,16 +454,42 @@ function QuizAttemptPanel({
 
     return (
         <>
-            <div className="shrink-0 h-9 flex items-center justify-between px-4 border-b border-border-strong bg-surface">
-                <span className="text-xs text-text-muted font-mono uppercase tracking-widest">
-                    Respuestas del alumno — intento {attempt.attempt_number}
-                </span>
-                <span className="text-xs font-mono text-accent-blue">
+            <div className="shrink-0 h-10 flex items-center justify-between px-4 border-b border-border-strong bg-surface">
+                {attempts.length > 1 ? (
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-text-muted font-mono uppercase tracking-widest">
+                            Intento:
+                        </span>
+                        <Select 
+                            value={attempt.id} 
+                            onValueChange={onSelectedAttemptIdChange}
+                        >
+                            <SelectTrigger className="h-7 text-xs border-border-strong w-[220px] bg-surface-dark">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {attempts.map(a => (
+                                    <SelectItem key={a.id} value={a.id} className="text-xs">
+                                        Intento {a.attempt_number} — {a.points_earned}/{a.points_total} pts
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                ) : (
+                    <span className="text-xs text-text-muted font-mono uppercase tracking-widest">
+                        Respuestas del alumno — intento {attempt.attempt_number}
+                    </span>
+                )}
+                <span className="text-xs font-mono text-accent-blue font-bold">
                     {autoPoints + manualPoints} / {totalPoints} pts
                 </span>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {(attempt.resolved_questions && attempt.resolved_questions.length > 0 ? attempt.resolved_questions : content.questions).map((q: any, idx: number) => {
+                {(attempt.resolved_questions && attempt.resolved_questions.length > 0 
+                    ? attempt.resolved_questions 
+                    : (content?.questions ?? [])
+                ).map((q: any, idx: number) => {
                     const qType = q.type ?? 'multiple_choice';
                     const studentOpts = attempt.answers[q.id] ?? [];
                     const correctOpts = q.options.filter((o: any) => o.isCorrect).map((o: any) => o.id);

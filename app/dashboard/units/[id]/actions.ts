@@ -357,6 +357,18 @@ export type StepSubmissionRow = {
         points_total: number;
         resolved_questions: import('@/types/activity').QuizQuestion[];
     } | null;
+    quiz_attempts?: {
+        id: string;
+        attempt_number: number;
+        answers: Record<string, string[]>;
+        short_answers: Record<string, string>;
+        short_answer_scores: Record<string, number>;
+        short_answer_feedback: Record<string, string>;
+        points_earned: number;
+        points_total: number;
+        resolved_questions: import('@/types/activity').QuizQuestion[];
+        completed_at: string;
+    }[];
     synthetic?: boolean; // true = no real submission, injected for display
     step_is_locked?: boolean;
 };
@@ -441,20 +453,27 @@ export async function getUnitStepSubmissions(
             .from("quiz_attempts")
             .select("*")
             .in("step_id", quizStepIds)
-            .order("points_earned", { ascending: false });
+            .order("completed_at", { ascending: false });
 
         for (const att of attempts ?? []) {
             if (!quizAttemptMap[att.step_id]) quizAttemptMap[att.step_id] = {};
-            // Keep only best attempt per student (already ordered by points_earned DESC)
             if (!quizAttemptMap[att.step_id][att.student_id]) {
-                quizAttemptMap[att.step_id][att.student_id] = att;
+                quizAttemptMap[att.step_id][att.student_id] = { all: [], best: null };
+            }
+            const record = quizAttemptMap[att.step_id][att.student_id];
+            record.all.push(att);
+            if (!record.best || att.points_earned > record.best.points_earned) {
+                record.best = att;
             }
         }
     }
 
     const rows: StepSubmissionRow[] = (subs || []).map((row: any) => {
         const meta = stepMeta[row.step_id];
-        const bestAttempt = quizAttemptMap[row.step_id]?.[row.student_id] ?? null;
+        const attemptData = quizAttemptMap[row.step_id]?.[row.student_id];
+        const bestAttempt = attemptData?.best ?? null;
+        const allAttempts = attemptData?.all ?? [];
+
         return {
             id: row.id,
             step_id: row.step_id,
@@ -491,6 +510,18 @@ export async function getUnitStepSubmissions(
                 points_total: bestAttempt.points_total,
                 resolved_questions: bestAttempt.resolved_questions ?? [],
             } : null,
+            quiz_attempts: allAttempts.map((att: any) => ({
+                id: att.id,
+                attempt_number: att.attempt_number,
+                answers: att.answers,
+                short_answers: att.short_answers ?? {},
+                short_answer_scores: att.short_answer_scores ?? {},
+                short_answer_feedback: att.short_answer_feedback ?? {},
+                points_earned: att.points_earned,
+                points_total: att.points_total,
+                resolved_questions: att.resolved_questions ?? [],
+                completed_at: att.completed_at,
+            }))
         };
     });
 
@@ -501,6 +532,10 @@ export async function getUnitStepSubmissions(
             for (const student of students) {
                 const hasRow = rows.some(r => r.step_id === step.id && r.student_id === student.student_id);
                 if (!hasRow) {
+                    const attemptData = quizAttemptMap[step.id]?.[student.student_id];
+                    const bestAttempt = attemptData?.best ?? null;
+                    const allAttempts = attemptData?.all ?? [];
+                    
                     rows.push({
                         id: `synthetic-${step.id}-${student.student_id}`,
                         step_id: step.id,
@@ -526,7 +561,29 @@ export async function getUnitStepSubmissions(
                         step_rubric: meta?.rubric ?? [],
                         quiz_content: meta?.quizContent ?? null,
                         step_is_locked: meta?.isLocked ?? false,
-                        quiz_attempt: null,
+                        quiz_attempt: bestAttempt ? {
+                            id: bestAttempt.id,
+                            attempt_number: bestAttempt.attempt_number,
+                            answers: bestAttempt.answers,
+                            short_answers: bestAttempt.short_answers,
+                            short_answer_scores: bestAttempt.short_answer_scores ?? {},
+                            short_answer_feedback: bestAttempt.short_answer_feedback ?? {},
+                            points_earned: bestAttempt.points_earned,
+                            points_total: bestAttempt.points_total,
+                            resolved_questions: bestAttempt.resolved_questions ?? [],
+                        } : null,
+                        quiz_attempts: allAttempts.map((att: any) => ({
+                            id: att.id,
+                            attempt_number: att.attempt_number,
+                            answers: att.answers,
+                            short_answers: att.short_answers ?? {},
+                            short_answer_scores: att.short_answer_scores ?? {},
+                            short_answer_feedback: att.short_answer_feedback ?? {},
+                            points_earned: att.points_earned,
+                            points_total: att.points_total,
+                            resolved_questions: att.resolved_questions ?? [],
+                            completed_at: att.completed_at,
+                        })),
                         synthetic: true,
                     });
                 }
@@ -1148,7 +1205,6 @@ export async function awardBadgesManually(badgeId: string, studentIds: string[])
         .select("id");
 
     if (error) return { error: error.message };
-
     revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true, awarded: (data as any[])?.length ?? studentIds.length };
 }
