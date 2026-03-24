@@ -162,14 +162,17 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                     </div>
 
                     <div className="flex items-center gap-6">
+                        {/*
                         {isPreviewMode && (
                             <div className="flex items-center gap-2 px-3 py-1 bg-accent-blue/5 border border-accent-blue/20 rounded-full">
+                                
                                 <div className="size-1.5 rounded-full bg-accent-blue animate-pulse" />
                                 <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-accent-blue">
                                     Modo Misión
-                                </span>
+                                </span>                             
                             </div>
                         )}
+                        */}
                         {isTeacher && (
                             <div className="flex items-center gap-2 mr-4">
                                 <DropdownMenu>
