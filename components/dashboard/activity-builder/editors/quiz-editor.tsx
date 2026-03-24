@@ -52,8 +52,18 @@ const QUESTION_TYPES: { value: QuizQuestionType; label: string }[] = [
 ];
 
 export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
-    const defaultContent = (step.content as QuizContent) || { questions: [], passingScore: 80, showCorrectAnswers: true };
-    const [content, setContent] = useState<QuizContent>(defaultContent);
+    const getInitialContent = (content: any): QuizContent => {
+        if (!content) return { questions: [], passingScore: 80, showCorrectAnswers: true };
+        return {
+            ...content,
+            showCorrectAnswers: content.showCorrectAnswers ?? true,
+            penalizeWrongAnswers: content.penalizeWrongAnswers ?? false,
+            randomizeQuestions: content.randomizeQuestions ?? false,
+            randomizeOptions: content.randomizeOptions ?? false
+        };
+    };
+
+    const [content, setContent] = useState<QuizContent>(getInitialContent(step.content));
     const [isSaving, setIsSaving] = useState(false);
     const [showCsvImport, setShowCsvImport] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -65,8 +75,7 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
     );
 
     useEffect(() => {
-        const newContent = (step.content as QuizContent) || { questions: [], passingScore: 80, showCorrectAnswers: true };
-        setContent(newContent);
+        setContent(getInitialContent(step.content));
     }, [step.id, step.content]);
 
     const saveToServer = (newContent: QuizContent) => {
@@ -487,7 +496,7 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                                     </div>
                                 </div>
                                 <ConfigToggle
-                                    checked={!!(content as any).penalizeWrongAnswers}
+                                    checked={!!content.penalizeWrongAnswers}
                                     onChange={(v) => handleUpdate({ ...content, penalizeWrongAnswers: v })}
                                     label="Penalizar respuestas incorrectas"
                                     description="Una respuesta incorrecta resta 1/3 del valor de la pregunta. Para opción múltiple, cada opción incorrecta cancela una correcta. El total nunca baja de 0."
@@ -496,7 +505,7 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
 
                             <ConfigSection title="Resultados">
                                 <ConfigToggle
-                                    checked={!!(content as any).showCorrectAnswers}
+                                    checked={!!content.showCorrectAnswers}
                                     onChange={(v) => handleUpdate({ ...content, showCorrectAnswers: v })}
                                     label="Mostrar respuestas correctas al alumno"
                                     description="Al terminar el cuestionario, el alumno ve qué respuestas eran correctas y su nota. Si está desactivado, solo se muestra la nota cuando el profesor publique las calificaciones."
@@ -505,13 +514,13 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
 
                             <ConfigSection title="Aleatoriedad">
                                 <ConfigToggle
-                                    checked={!!(content as any).randomizeQuestions}
+                                    checked={!!content.randomizeQuestions}
                                     onChange={(v) => handleUpdate({ ...content, randomizeQuestions: v })}
                                     label="Aleatorizar orden de preguntas"
                                     description="Cada alumno verá las preguntas en un orden diferente, reduciendo la posibilidad de copiar."
                                 />
                                 <ConfigToggle
-                                    checked={!!(content as any).randomizeOptions}
+                                    checked={!!content.randomizeOptions}
                                     onChange={(v) => handleUpdate({ ...content, randomizeOptions: v })}
                                     label="Aleatorizar opciones de respuesta"
                                     description="Las opciones de cada pregunta se muestran en orden aleatorio. No aplica a preguntas de Verdadero/Falso."

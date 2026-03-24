@@ -425,7 +425,7 @@ function QuizAttemptPanel({
                 </span>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {((attempt as any).resolved_questions ?? content.questions).map((q: any, idx: number) => {
+                {(attempt.resolved_questions && attempt.resolved_questions.length > 0 ? attempt.resolved_questions : content.questions).map((q: any, idx: number) => {
                     const qType = q.type ?? 'multiple_choice';
                     const studentOpts = attempt.answers[q.id] ?? [];
                     const correctOpts = q.options.filter((o: any) => o.isCorrect).map((o: any) => o.id);

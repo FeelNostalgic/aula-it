@@ -355,6 +355,7 @@ export type StepSubmissionRow = {
         short_answer_feedback: Record<string, string>;
         points_earned: number;
         points_total: number;
+        resolved_questions: import('@/types/activity').QuizQuestion[];
     } | null;
     synthetic?: boolean; // true = no real submission, injected for display
     step_is_locked?: boolean;
@@ -488,6 +489,7 @@ export async function getUnitStepSubmissions(
                 short_answer_feedback: bestAttempt.short_answer_feedback ?? {},
                 points_earned: bestAttempt.points_earned,
                 points_total: bestAttempt.points_total,
+                resolved_questions: bestAttempt.resolved_questions ?? [],
             } : null,
         };
     });

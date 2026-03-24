@@ -616,8 +616,8 @@ function BuiltinQuizViewer({
         const isPublished = submission?.status === 'published';
         // Score visible only when: grades are visible AND (no short answers OR already published)
         const scoreVisible = gradesVisible && (!hasShortAnswerQs || isPublished);
-        // "Pending" message: quiz has short answers and hasn't been published yet
-        const showPendingMsg = hasShortAnswerQs && !isPublished;
+        // "Pending" message: quiz has short answers, hasn't been published yet, and grades are meant to be visible
+        const showPendingMsg = hasShortAnswerQs && !isPublished && content.showCorrectAnswers !== false;
         const newAttemptsLeft = maxAttempts !== undefined ? maxAttempts - attempts.length : null;
 
         return (
@@ -761,7 +761,7 @@ function BuiltinQuizViewer({
                                     )}
 
                                     {q.explanation && (
-                                        <div className="mt-3 pl-9 text-xs text-text-muted italic border-l-2 border-accent-blue/30 pl-3 ml-9">
+                                        <div className="mt-3 text-xs text-text-muted italic border-l-2 border-accent-blue/30 pl-3 ml-9">
                                             {q.explanation}
                                         </div>
                                     )}
