@@ -11,7 +11,7 @@ interface ResourceIconProps {
 export function ResourceIcon({ type, mimeType, url, className }: ResourceIconProps) {
     if (type === 'folder') {
         return (
-            <div className={cn("size-full rounded-xl flex items-center justify-center bg-blue-600/10 text-blue-600", className)}>
+            <div className={cn("size-full rounded-xl flex items-center justify-center bg-cyan-500/10 text-cyan-500", className)}>
                 <Folder className="size-1/2 fill-current" />
             </div>
         );

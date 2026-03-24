@@ -42,6 +42,17 @@ interface StepViewerProps {
 
 export function StepViewer({ step, activityId, submission, googleEmail, userId, studentName, isPreview }: StepViewerProps) {
     if (!step) return null;
+    if (step.is_locked) {
+        return (
+            <div className="flex flex-col items-center justify-center p-12 bg-surface-dark/20 rounded-2xl border border-white/5 text-center">
+                <Shield className="size-12 text-amber-400/70 mb-4" />
+                <p className="text-lg font-semibold text-foreground">Actividad bloqueada</p>
+                <p className="text-sm text-text-muted mt-2">
+                    Este paso aparece en la misión, pero todavía no está disponible para abrirlo.
+                </p>
+            </div>
+        );
+    }
 
     switch (step.type) {
         case 'theory':

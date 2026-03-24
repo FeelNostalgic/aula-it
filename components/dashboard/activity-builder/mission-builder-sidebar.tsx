@@ -17,15 +17,16 @@ import {
     ChevronDown,
     ChevronRight,
     Trash2,
+    Copy,
     Eye,
     EyeOff,
     Lock,
     Unlock,
-    Ban,
+    CalendarClock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType } from "@/types/activity";
-import { getStepIcon, STEP_TYPE_LABELS } from "@/lib/constants/step-icons";
+import { getStepIcon, getTabStepIcon, STEP_TYPE_LABELS } from "@/lib/constants/step-icons";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -77,7 +78,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 // Mock imports for server actions
-import { createPhase, createStep, deletePhase, deleteStep, reorderSteps, reorderPhases, updatePhaseTitle, updateStepVisibility, updateStepLock, updateStepActivityClosed, updatePhaseStepsVisibility, updatePhaseStepsActivityClosed, updatePhaseStepsLock } from "@/app/activities/[id]/edit/actions";
+import { createPhase, createStep, deletePhase, deleteStep, duplicateStep, reorderSteps, reorderPhases, updatePhaseTitle, updateStepVisibility, updateStepLock, updateStepActivityClosed, updatePhaseStepsVisibility, updatePhaseStepsActivityClosed, updatePhaseStepsLock } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 
 interface MissionBuilderSidebarProps {
@@ -95,6 +96,7 @@ function SortableStepItem({
     isSelected,
     onSelect,
     onDelete,
+    onDuplicate,
     onToggleVisibility,
     onToggleLock,
     onToggleActivityClosed,
@@ -103,6 +105,7 @@ function SortableStepItem({
     isSelected: boolean,
     onSelect: () => void,
     onDelete: () => void,
+    onDuplicate: () => void,
     onToggleVisibility: () => void,
     onToggleLock: () => void,
     onToggleActivityClosed: () => void,
@@ -155,6 +158,7 @@ function SortableStepItem({
                     variant="ghost"
                     size="icon"
                     aria-label={step.is_visible !== false ? "Ocultar actividad" : "Mostrar actividad"}
+                    title={step.is_visible !== false ? "Ocultar actividad" : "Mostrar actividad"}
                     className={cn(
                         "size-6 transition-all",
                         step.is_visible !== false ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-accent-blue"
@@ -163,17 +167,19 @@ function SortableStepItem({
                 >
                     {step.is_visible !== false ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
                 </Button>
+
                 <Button
                     variant="ghost"
                     size="icon"
                     aria-label={!step.is_locked ? "Bloquear actividad" : "Desbloquear actividad"}
+                    title={!step.is_locked ? "Bloquear actividad" : "Desbloquear actividad"}
                     className={cn(
                         "size-6 transition-all",
-                        !step.is_locked ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-accent-orange"
+                        !step.is_locked ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-muted-foreground"
                     )}
                     onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
                 >
-                    {!step.is_locked ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
+                    <CalendarClock className="size-3.5" />
                 </Button>
                 <Button
                     variant="ghost"
@@ -182,11 +188,11 @@ function SortableStepItem({
                     title={!step.is_activity_closed ? "Cerrar entregas" : "Abrir entregas"}
                     className={cn(
                         "size-6 transition-all",
-                        !step.is_activity_closed ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-red-400"
+                        !step.is_activity_closed ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-amber-500"
                     )}
                     onClick={(e) => { e.stopPropagation(); onToggleActivityClosed(); }}
                 >
-                    <Ban className="size-3.5" />
+                    {!step.is_activity_closed ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
                 </Button>
             </div>
 
@@ -197,6 +203,16 @@ function SortableStepItem({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-surface-dark border-border-strong w-32 z-50">
+                    <DropdownMenuItem
+                        className="cursor-pointer text-xs"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDuplicate();
+                        }}
+                    >
+                        <Copy className="size-3.5 mr-2" /> Duplicar
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="bg-border-subtle" />
                     <DropdownMenuItem
                         className="text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer text-xs"
                         onClick={(e) => {
@@ -302,17 +318,9 @@ function SortablePhaseHeader({
                         onClick={(e) => { e.stopPropagation(); onTogglePhaseVisibility(phase.id); }}
                     >
                         {phase.steps.every((s: any) => !s.is_visible)
-                            ? <EyeOff className="size-4 text-amber-500" />
+                            ? <EyeOff className="size-4 text-slate-400" />
                             : <Eye className="size-4" />
                         }
-                    </Button>
-                    <Button
-                        variant="ghost" size="icon"
-                        className="size-7 text-text-muted hover:text-foreground shrink-0"
-                        title={phase.steps.every((s: any) => s.is_activity_closed) ? "Abrir entregas de todos los pasos" : "Cerrar entregas de todos los pasos"}
-                        onClick={(e) => { e.stopPropagation(); onTogglePhaseActivityClosed(phase.id); }}
-                    >
-                        <Ban className={cn("size-4", phase.steps.every((s: any) => s.is_activity_closed) && "text-red-400")} />
                     </Button>
                     <Button
                         variant="ghost" size="icon"
@@ -320,7 +328,15 @@ function SortablePhaseHeader({
                         title={phase.steps.every((s: any) => s.is_locked) ? "Desbloquear todos los pasos" : "Bloquear todos los pasos"}
                         onClick={(e) => { e.stopPropagation(); onTogglePhaseLock(phase.id); }}
                     >
-                        <Lock className={cn("size-4", phase.steps.every((s: any) => s.is_locked) && "text-accent-orange")} />
+                        <CalendarClock className={cn("size-4", phase.steps.every((s: any) => s.is_locked) && "text-muted-foreground")} />
+                    </Button>
+                    <Button
+                        variant="ghost" size="icon"
+                        className="size-7 text-text-muted hover:text-foreground shrink-0"
+                        title={phase.steps.every((s: any) => s.is_activity_closed) ? "Abrir entregas de todos los pasos" : "Cerrar entregas de todos los pasos"}
+                        onClick={(e) => { e.stopPropagation(); onTogglePhaseActivityClosed(phase.id); }}
+                    >
+                        <Lock className={cn("size-4", phase.steps.every((s: any) => s.is_activity_closed) && "text-amber-500")} />
                     </Button>
                 </>)}
                 <DropdownMenu>
@@ -331,25 +347,25 @@ function SortablePhaseHeader({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="bg-surface-dark border-border-strong w-48 z-50">
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('theory'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
-                            <FileText className="size-3.5 mr-2 text-accent-blue" /> Añadir Teoría
+                            {getTabStepIcon('theory')} Añadir Teoría
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('animation'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
-                            <PlaySquare className="size-3.5 mr-2 text-pink-400" /> Añadir Animación
+                            {getTabStepIcon('animation')} Añadir Animación
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('deliverable'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
-                            <PenTool className="size-3.5 mr-2 text-purple-400" /> Añadir Memo
+                            {getTabStepIcon('deliverable')} Añadir Memo
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('file_upload'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
-                            <Paperclip className="size-3.5 mr-2 text-amber-400" /> Añadir Entregable
+                            {getTabStepIcon('file_upload')} Añadir Entregable
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('quiz'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
-                            <CheckSquare className="size-3.5 mr-2 text-accent-orange" /> Añadir Cuestionario
+                            {getTabStepIcon('quiz')} Añadir Cuestionario
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('presentation'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
-                            <MonitorPlay className="size-3.5 mr-2 text-emerald-400" /> Añadir Presentación
+                            {getTabStepIcon('presentation')} Añadir Presentación
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('resource'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
-                            <FolderDown className="size-3.5 mr-2 text-accent-blue" /> Añadir Recursos
+                            {getTabStepIcon('resource')} Añadir Recursos
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
@@ -507,18 +523,60 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
 
     const confirmDeleteStep = async () => {
         if (!stepToDelete) return;
-        const result = await deleteStep(stepToDelete.stepId);
-        if (result.error) {
-            toast.error("Error al eliminar la actividad");
-        } else {
-            const newPhases = [...phases];
-            const phaseIndex = newPhases.findIndex(p => p.id === stepToDelete.phaseId);
-            newPhases[phaseIndex].steps = newPhases[phaseIndex].steps.filter(s => s.id !== stepToDelete.stepId);
-            setPhases(newPhases);
-            if (selectedStepId === stepToDelete.stepId) setSelectedStepId(null);
-            toast.success("Actividad eliminada");
+        try {
+            await toast.promise(
+                (async () => {
+                    const result = await deleteStep(stepToDelete.stepId);
+                    if (result.error) throw new Error(result.error);
+
+                    const newPhases = [...phases];
+                    const phaseIndex = newPhases.findIndex((phase) => phase.id === stepToDelete.phaseId);
+                    newPhases[phaseIndex].steps = newPhases[phaseIndex].steps.filter((step) => step.id !== stepToDelete.stepId);
+                    setPhases(newPhases);
+                    if (selectedStepId === stepToDelete.stepId) setSelectedStepId(null);
+                })(),
+                {
+                    loading: "Eliminando actividad...",
+                    success: "Actividad eliminada",
+                    error: (error) => error.message,
+                }
+            );
+        } finally {
+            setStepToDelete(null);
         }
-        setStepToDelete(null);
+    };
+
+    const handleDuplicateStep = async (phaseId: string, stepId: string) => {
+        await toast.promise(
+            (async () => {
+                const result = await duplicateStep(stepId);
+                if (result.error || !result.data) throw new Error(result.error ?? "No se pudo duplicar la actividad.");
+
+                setPhases((currentPhases) => currentPhases.map((phase) => {
+                    if (phase.id !== phaseId) return phase;
+
+                    const sourceIndex = phase.steps.findIndex((step) => step.id === stepId);
+                    if (sourceIndex === -1) return phase;
+
+                    const duplicate = {
+                        ...result.data,
+                        content: (result.data.content ?? {}) as any,
+                    };
+
+                    const nextSteps = [...phase.steps];
+                    nextSteps.splice(sourceIndex + 1, 0, duplicate as any);
+                    return {
+                        ...phase,
+                        steps: nextSteps.map((step, index) => ({ ...step, order_index: index })),
+                    };
+                }));
+            })(),
+            {
+                loading: "Duplicando actividad...",
+                success: "Actividad duplicada",
+                error: (error) => error.message,
+            }
+        );
     };
 
     const togglePhase = (phaseId: string) => {
@@ -828,13 +886,14 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                                     {phase.steps.map(step => (
                                                         <SortableStepItem
                                                             key={step.id}
-                                                            step={step}
-                                                            isSelected={selectedStepId === step.id}
-                                                            onSelect={() => setSelectedStepId(step.id)}
-                                                            onDelete={() => handleDeleteStep(phase.id, step.id)}
-                                                            onToggleVisibility={() => handleToggleVisibility(phase.id, step.id, step.is_visible !== false)}
-                                                            onToggleLock={() => handleToggleLock(phase.id, step.id, !!step.is_locked)}
-                                                            onToggleActivityClosed={() => handleToggleActivityClosed(phase.id, step.id, !!step.is_activity_closed)}
+                                                             step={step}
+                                                             isSelected={selectedStepId === step.id}
+                                                             onSelect={() => setSelectedStepId(step.id)}
+                                                             onDelete={() => handleDeleteStep(phase.id, step.id)}
+                                                             onDuplicate={() => handleDuplicateStep(phase.id, step.id)}
+                                                             onToggleVisibility={() => handleToggleVisibility(phase.id, step.id, step.is_visible !== false)}
+                                                             onToggleLock={() => handleToggleLock(phase.id, step.id, !!step.is_locked)}
+                                                             onToggleActivityClosed={() => handleToggleActivityClosed(phase.id, step.id, !!step.is_activity_closed)}
                                                         />
                                                     ))}
                                                 </SortableContext>
@@ -857,13 +916,14 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                         ) : null}
                         {activeId && activeType === "Step" ? (
                             <SortableStepItem
-                                step={phases.flatMap(p => p.steps).find(s => `step-${s.id}` === activeId) as any}
-                                isSelected={selectedStepId === (phases.flatMap(p => p.steps).find(s => `step-${s.id}` === activeId)?.id)}
-                                onSelect={() => { }}
-                                onDelete={() => { }}
-                                onToggleVisibility={() => { }}
-                                onToggleLock={() => { }}
-                                onToggleActivityClosed={() => { }}
+                                 step={phases.flatMap(p => p.steps).find(s => `step-${s.id}` === activeId) as any}
+                                 isSelected={selectedStepId === (phases.flatMap(p => p.steps).find(s => `step-${s.id}` === activeId)?.id)}
+                                 onSelect={() => { }}
+                                 onDelete={() => { }}
+                                 onDuplicate={() => { }}
+                                 onToggleVisibility={() => { }}
+                                 onToggleLock={() => { }}
+                                 onToggleActivityClosed={() => { }}
                             />
                         ) : null}
                     </DragOverlay>

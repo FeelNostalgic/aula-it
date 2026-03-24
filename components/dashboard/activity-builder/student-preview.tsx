@@ -3,7 +3,7 @@
 import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType, ActivitySubmission } from "@/types/activity";
 import { getStepIcon, getTabStepIcon } from "@/lib/constants/step-icons";
 import {
-    ArrowLeft, FileText, Lock,
+    ArrowLeft, FileText, Lock, CalendarClock,
     ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen, X, Zap, Eye, CheckCircle2, AlertTriangle, GripVertical
 } from "lucide-react";
 import { BadgeDisplay } from "@/components/dashboard/badge-display";
@@ -122,6 +122,13 @@ function SortableTab({
             style={style}
             onClick={onSelect}
             onAuxClick={onAuxClick}
+            onMouseDown={(e) => {
+                if (e.button === 1) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onAuxClick(e);
+                }
+            }}
             className={cn(
                 "group flex items-center h-full min-w-32 max-w-64 px-3 border-r border-border/50 text-xs cursor-pointer select-none transition-colors",
                 isActive
@@ -142,6 +149,13 @@ function SortableTab({
             <span className="truncate flex-1 font-medium">{step.title}</span>
             <button
                 onClick={onClose}
+                onMouseDown={(e) => {
+                    if (e.button === 1) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onClose(e);
+                    }
+                }}
                 className="ml-2 size-5 flex items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-border/50 text-text-muted hover:text-foreground transition-all shrink-0"
             >
                 <X className="size-3" />
@@ -154,17 +168,20 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
     const allSteps = useMemo(() => {
         return phases.flatMap(p => p.steps.filter(s => s.is_visible !== false));
     }, [phases]);
+    const accessibleSteps = useMemo(() => {
+        return allSteps.filter((step) => !step.is_locked);
+    }, [allSteps]);
 
     const [selectedStepId, setSelectedStepId] = useState<string | null>(() => {
         try {
             const saved = localStorage.getItem(`aula-it:activity-view:${activity.id}:selected-tab`);
-            return saved && phases.flatMap(p => p.steps.filter(s => s.is_visible !== false)).some(s => s.id === saved) ? saved : null;
+            return saved && phases.flatMap((phase) => phase.steps.filter((step) => step.is_visible !== false && !step.is_locked)).some((step) => step.id === saved) ? saved : null;
         } catch { return null; }
     });
     const [openStepIds, setOpenStepIds] = useState<string[]>(() => {
         try {
             const saved = JSON.parse(localStorage.getItem(`aula-it:activity-view:${activity.id}:open-tabs`) ?? '[]');
-            return (saved as string[]).filter(id => phases.flatMap(p => p.steps.filter(s => s.is_visible !== false)).some(s => s.id === id));
+            return (saved as string[]).filter((id) => phases.flatMap((phase) => phase.steps.filter((step) => step.is_visible !== false && !step.is_locked)).some((step) => step.id === id));
         } catch { return []; }
     });
     const [collapsedPhases, setCollapsedPhases] = useState<string[]>([]);
@@ -179,15 +196,25 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
         if (selectedStepId) localStorage.setItem(`aula-it:activity-view:${activity.id}:selected-tab`, selectedStepId);
     }, [selectedStepId, activity.id]);
 
+    useEffect(() => {
+        setOpenStepIds((current) => current.filter((id) => accessibleSteps.some((step) => step.id === id)));
+        setSelectedStepId((current) => {
+            if (current && accessibleSteps.some((step) => step.id === current)) return current;
+            return accessibleSteps[0]?.id ?? null;
+        });
+    }, [accessibleSteps]);
+
     const selectedStep = useMemo(() => {
-        return allSteps.find(s => s.id === selectedStepId);
-    }, [allSteps, selectedStepId]);
+        return accessibleSteps.find((step) => step.id === selectedStepId) ?? null;
+    }, [accessibleSteps, selectedStepId]);
 
     const selectedStepIndex = useMemo(() => {
-        return allSteps.findIndex(s => s.id === selectedStepId);
-    }, [allSteps, selectedStepId]);
+        return accessibleSteps.findIndex((step) => step.id === selectedStepId);
+    }, [accessibleSteps, selectedStepId]);
 
     const handleStepSelect = (stepId: string) => {
+        const targetStep = accessibleSteps.find((step) => step.id === stepId);
+        if (!targetStep) return;
         setSelectedStepId(stepId);
         if (!openStepIds.includes(stepId)) {
             setOpenStepIds(prev => [...prev, stepId]);
@@ -225,13 +252,13 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
 
     const handlePrev = () => {
         if (selectedStepIndex > 0) {
-            handleStepSelect(allSteps[selectedStepIndex - 1].id);
+            handleStepSelect(accessibleSteps[selectedStepIndex - 1].id);
         }
     };
 
     const handleNext = () => {
-        if (selectedStepIndex < allSteps.length - 1) {
-            handleStepSelect(allSteps[selectedStepIndex + 1].id);
+        if (selectedStepIndex < accessibleSteps.length - 1) {
+            handleStepSelect(accessibleSteps[selectedStepIndex + 1].id);
         }
     };
 
@@ -264,12 +291,16 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                         </div>
 
                         <div className="flex items-center gap-6">
+                            {/*
                             <div className="flex items-center gap-2 px-3 py-1 bg-accent-blue/5 border border-accent-blue/20 rounded-full">
-                                <div className="size-1.5 rounded-full bg-accent-blue animate-pulse" />
+                                
+                                <div className="size-1.5 rounded-full bg-accent-blue animate-pulse" />                         
                                 <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-accent-blue">
                                     Modo Misión
                                 </span>
+                                
                             </div>
+                            */}
                             {user && profile && (
                                 <UserNav
                                     userEmail={user.email || ""}
@@ -352,20 +383,25 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                             ) : (
                                                 visibleSteps.map(step => {
                                                     const isActive = selectedStepId === step.id;
+                                                    const isLocked = step.is_locked;
                                                     return (
                                                         <div
                                                             key={step.id}
                                                             data-step-title={step.title}
-                                                            onClick={() => handleStepSelect(step.id)}
+                                                            onClick={() => !isLocked && handleStepSelect(step.id)}
                                                             className={cn(
                                                                 "group flex items-center gap-2.5 py-2.5 px-3 pl-8 text-[13px] cursor-pointer transition-all border-l-2",
                                                                 isActive
                                                                     ? "bg-surface/50 border-accent-blue text-foreground shadow-sm"
-                                                                    : "border-transparent hover:bg-surface-dark/50 text-text-muted hover:text-foreground",
+                                                                    : isLocked
+                                                                        ? "border-transparent text-text-muted/60 opacity-80 cursor-not-allowed"
+                                                                        : "border-transparent hover:bg-surface-dark/50 text-text-muted hover:text-foreground",
                                                             )}
                                                         >
-                                                            {step.is_activity_closed ? (
-                                                                <Lock className="size-3.5 text-accent-orange shrink-0" />
+                                                            {isLocked ? (
+                                                                <CalendarClock className="size-3.5 text-muted-foreground shrink-0" />
+                                                            ) : step.is_activity_closed ? (
+                                                                <Lock className="size-3.5 text-amber-500 shrink-0" />
                                                             ) : (
                                                                 <div className={cn("shrink-0", isActive ? "text-accent-blue" : "text-text-muted group-hover:text-foreground")}>
                                                                     {getStepIcon(step.type)}
@@ -421,7 +457,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                             <div className="flex items-center h-full flex-1 overflow-x-auto no-scrollbar">
                                     <SortableContext items={openStepIds} strategy={horizontalListSortingStrategy}>
                                         {openStepIds.map(stepId => {
-                                            const step = allSteps.find(s => s.id === stepId);
+                                            const step = accessibleSteps.find((item) => item.id === stepId);
                                             if (!step) return null;
                                             const isActive = selectedStepId === stepId;
                                             return (
@@ -448,7 +484,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                             {/* Step Counter + Navigation */}
                             <div className="flex items-center gap-1 px-4 border-l border-border/50 h-full shrink-0 print:hidden">
                                 <span className="text-[10px] font-mono text-text-muted mr-2">
-                                    {selectedStepIndex + 1} / {allSteps.length}
+                                    {selectedStepIndex >= 0 ? selectedStepIndex + 1 : 0} / {accessibleSteps.length}
                                 </span>
                                 <Button
                                     variant="ghost"
@@ -522,9 +558,9 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                     <Button
                                         className="bg-accent-blue hover:bg-accent-blue/90 text-white px-8 h-10 text-sm font-medium"
                                         onClick={handleNext}
-                                        disabled={selectedStepIndex >= allSteps.length - 1}
+                                        disabled={selectedStepIndex >= accessibleSteps.length - 1}
                                     >
-                                        {selectedStepIndex >= allSteps.length - 1 ? "Completar Misión" : "Siguiente Paso"}
+                                        {selectedStepIndex >= accessibleSteps.length - 1 ? "Completar Misión" : "Siguiente Paso"}
                                         <ChevronRight className="size-4 ml-2" />
                                     </Button>
                                 </div>
@@ -588,9 +624,9 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                     <Button
                                         className="bg-accent-blue hover:bg-accent-blue/90 text-white px-8 h-10 text-sm font-medium"
                                         onClick={handleNext}
-                                        disabled={selectedStepIndex >= allSteps.length - 1}
+                                        disabled={selectedStepIndex >= accessibleSteps.length - 1}
                                     >
-                                        {selectedStepIndex >= allSteps.length - 1 ? "Completar Misión" : "Siguiente Paso"}
+                                        {selectedStepIndex >= accessibleSteps.length - 1 ? "Completar Misión" : "Siguiente Paso"}
                                         <ChevronRight className="size-4 ml-2" />
                                     </Button>
                                 </div>
@@ -600,7 +636,11 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center text-text-muted">
                             <FileText className="size-12 mb-4 opacity-20" />
-                            <p>Selecciona o abre una actividad en la estructura de misión.</p>
+                            <p>
+                                {allSteps.length > 0 && accessibleSteps.length === 0
+                                    ? "Todas las actividades visibles están bloqueadas."
+                                    : "Selecciona o abre una actividad en la estructura de misión."}
+                            </p>
                         </div>
                     )}
                 </ResizablePanel>

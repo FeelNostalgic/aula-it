@@ -10,7 +10,7 @@ import rehypeKatex from "rehype-katex";
 import { PencilRuler, ExternalLink, Send, CheckCircle2, Clock, Star, Link, Copy, CalendarClock, AlertTriangle, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DeliverableContent, ActivitySubmission, SubmissionStatus, RubricCriteria } from "@/types/activity";
+import { DeliverableContent, ActivitySubmission, SubmissionStatus, RubricCriteria, criteriaMaxPoints } from "@/types/activity";
 import { submitDeliverable } from "@/app/activities/[id]/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -52,11 +52,20 @@ const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.Eleme
 
 function RubricDisplay({ rubric, selectedScores, isPublished }: { rubric: RubricCriteria[]; selectedScores?: Record<string, number> | null; isPublished?: boolean }) {
     if (!rubric?.length) return null;
+    const rubricTotal = Object.values(selectedScores ?? {}).reduce((sum, points) => sum + points, 0);
+    const rubricMax = rubric.reduce((sum, criterion) => sum + criteriaMaxPoints(criterion), 0);
+    const normalized = rubricMax > 0 ? Math.round(((rubricTotal / rubricMax) * 10) * 100) / 100 : 0;
     return (
         <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-4">
             <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
                 <ClipboardList className="size-4" /> Criterios de evaluación
             </h3>
+            {isPublished && (
+                <div className="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
+                    <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">Nota total</span>
+                    <span className="text-lg font-black font-mono text-emerald-400">{normalized} / 10</span>
+                </div>
+            )}
             <div className="space-y-5">
                 {rubric.map(criteria => (
                     <div key={criteria.id} className="space-y-2">

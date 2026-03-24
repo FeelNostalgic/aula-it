@@ -421,7 +421,7 @@ export async function getUnitStepSubmissions(
             deliveryMode: (s.content as any)?.deliveryMode,
             rubric: (s.content as any)?.rubric ?? [],
             quizContent: stepType === 'quiz' ? ((s.content as any) as import('@/types/activity').QuizContent) : null,
-            isLocked: (s as any).is_activity_closed ?? false,
+            isLocked: (s as any).is_locked ?? false,
             orderIndex: (s as any).order_index ?? 0,
         };
     }
@@ -763,8 +763,30 @@ export async function gradeSubmission(
         updates.score = data.score ?? null;
         updates.rubric_scores = null;
     } else if (data.gradingMode === 'rubric') {
-        updates.score = null;
         updates.rubric_scores = data.rubricScores ?? null;
+        const { data: submissionMeta } = await admin
+            .from("activity_submissions")
+            .select("step_id")
+            .eq("id", submissionId)
+            .single();
+
+        const { data: stepMeta } = submissionMeta
+            ? await admin
+                .from("activity_steps")
+                .select("content")
+                .eq("id", submissionMeta.step_id)
+                .single()
+            : { data: null };
+
+        const rubric = ((stepMeta?.content as any)?.rubric ?? []) as Array<{ levels?: Array<{ points: number }> }>;
+        const rubricMax = rubric.reduce((sum, criterion) => {
+            const criterionMax = Math.max(0, ...(criterion.levels ?? []).map((level) => level.points ?? 0));
+            return sum + criterionMax;
+        }, 0);
+        const rubricTotal = Object.values(data.rubricScores ?? {}).reduce((sum, points) => sum + points, 0);
+        updates.score = rubricMax > 0
+            ? Math.round(((rubricTotal / rubricMax) * 10) * 100) / 100
+            : 0;
     } else {
         // complete
         updates.score = null;

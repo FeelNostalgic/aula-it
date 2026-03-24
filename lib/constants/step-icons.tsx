@@ -7,13 +7,13 @@ import { ActivityStepType } from "@/types/activity";
  */
 export function getStepIcon(type: ActivityStepType) {
     switch (type) {
-        case 'theory': return <FileText className="size-4 text-accent-blue" />;
-        case 'deliverable': return <PenTool className="size-4 text-purple-400" />;
-        case 'animation': return <PlaySquare className="size-4 text-pink-400" />;
-        case 'quiz': return <CheckSquare className="size-4 text-accent-orange" />;
-        case 'presentation': return <MonitorPlay className="size-4 text-emerald-400" />;
-        case 'resource': return <FolderDown className="size-4 text-accent-blue" />;
-        case 'file_upload': return <Paperclip className="size-4 text-amber-400" />;
+  case 'theory':       return <FileText    className="size-4 text-accent-blue" />; 
+  case 'deliverable':  return <PenTool     className="size-4 text-rose-500" />;
+  case 'animation':    return <PlaySquare  className="size-4 text-pink-500" />;
+  case 'quiz':         return <CheckSquare className="size-4 text-violet-500" />;
+  case 'presentation': return <MonitorPlay className="size-4 text-sky-500" />;
+  case 'resource':     return <FolderDown  className="size-4 text-accent-green" />;
+  case 'file_upload':  return <Paperclip   className="size-4 text-teal-500" />;
     }
 }
 
@@ -23,14 +23,14 @@ export function getStepIcon(type: ActivityStepType) {
  */
 export function getTabStepIcon(type?: ActivityStepType) {
     switch (type) {
-        case 'theory': return <FileText className="size-3.5 text-accent-blue" />;
-        case 'deliverable': return <PenTool className="size-3.5 text-purple-400" />;
-        case 'animation': return <PlaySquare className="size-3.5 text-pink-400" />;
-        case 'quiz': return <CheckSquare className="size-3.5 text-accent-orange" />;
-        case 'presentation': return <MonitorPlay className="size-3.5 text-emerald-400" />;
-        case 'resource': return <FolderDown className="size-3.5 text-accent-blue" />;
-        case 'file_upload': return <Paperclip className="size-3.5 text-amber-400" />;
-        default: return <FileText className="size-3.5 text-text-muted" />;
+        case 'theory': return <FileText className="size-3.5 mr-2 text-accent-blue" />;
+        case 'deliverable': return <PenTool className="size-3.5 mr-2 text-rose-500" />;
+        case 'animation': return <PlaySquare className="size-3.5 mr-2 text-pink-500" />;
+        case 'quiz': return <CheckSquare className="size-3.5 mr-2 text-violet-500" />;
+        case 'presentation': return <MonitorPlay className="size-3.5 mr-2 text-sky-500" />;
+        case 'resource': return <FolderDown className="size-3.5 mr-2 text-accent-green" />;
+        case 'file_upload': return <Paperclip className="size-3.5 mr-2 text-teal-500" />;
+        default: return <FileText className="size-3.5 mr-2 text-text-muted" />;
     }
 }
 

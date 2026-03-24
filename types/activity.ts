@@ -55,6 +55,9 @@ export type RubricCriteria = {
     name: string;
     description?: string;
     levels: RubricLevel[];
+    source_criterion_id?: string;
+    source_version?: number;
+    source_visibility?: "private" | "public";
 };
 
 export function criteriaMaxPoints(c: RubricCriteria): number {

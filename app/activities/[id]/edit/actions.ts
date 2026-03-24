@@ -4,7 +4,21 @@ import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { verifyTeacherOwnsActivity, verifyTeacherOwnsPhase, verifyTeacherOwnsStep } from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
-import { ActivityPhase, ActivityStep, ActivityStepType, CompletionMode } from "@/types/activity";
+import { ActivityPhase, ActivityStep, ActivityStepType, CompletionMode, RubricCriteria, RubricLevel } from "@/types/activity";
+
+type RubricCriterionLibraryVisibility = "private" | "public";
+
+type RubricCriterionLibraryRecord = {
+    id: string;
+    name: string;
+    description: string | null;
+    levels: RubricLevel[];
+    visibility: RubricCriterionLibraryVisibility;
+    version: number;
+    created_by: string;
+    created_at: string;
+    updated_at: string;
+};
 
 export async function getActivityPhases(activityId: string) {
     const supabase = await createClient();
@@ -207,6 +221,96 @@ export async function deleteStep(stepId: string) {
     }
 
     return { success: true };
+}
+
+export async function duplicateStep(stepId: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+
+    const admin = createAdminClient();
+    const { data: originalStep, error: stepError } = await admin
+        .from("activity_steps")
+        .select("*, activity_phases!inner(id, activity_id)")
+        .eq("id", stepId)
+        .single();
+
+    if (stepError || !originalStep) {
+        console.error("Error duplicating step: could not load source step", stepError);
+        return { error: stepError?.message ?? "No se pudo cargar la actividad original." };
+    }
+
+    const phaseId = (originalStep as any).phase_id as string;
+    const activityId = (originalStep as any).activity_phases?.activity_id as string | undefined;
+
+    const { data: phaseSteps, error: phaseStepsError } = await admin
+        .from("activity_steps")
+        .select("id, order_index")
+        .eq("phase_id", phaseId)
+        .order("order_index", { ascending: true });
+
+    if (phaseStepsError || !phaseSteps) {
+        console.error("Error duplicating step: could not load phase steps", phaseStepsError);
+        return { error: phaseStepsError?.message ?? "No se pudo reordenar la fase." };
+    }
+
+    const sourceIndex = phaseSteps.findIndex((step) => step.id === stepId);
+    if (sourceIndex === -1) return { error: "No se encontró la actividad original en su fase." };
+
+    const duplicateTitle = `${originalStep.title} - copia`;
+    const duplicatedPayload: Record<string, unknown> = {
+        phase_id: phaseId,
+        title: duplicateTitle,
+        type: originalStep.type,
+        content: originalStep.content,
+        order_index: phaseSteps[sourceIndex].order_index + 1,
+        is_visible: originalStep.is_visible,
+        is_locked: originalStep.is_locked,
+        is_activity_closed: (originalStep as any).is_activity_closed ?? false,
+        is_lockdown: (originalStep as any).is_lockdown ?? false,
+        due_date: (originalStep as any).due_date ?? null,
+        completion_mode: (originalStep as any).completion_mode ?? null,
+        xp: (originalStep as any).xp ?? null,
+    };
+
+    const { data: insertedStep, error: insertError } = await admin
+        .from("activity_steps")
+        .insert(duplicatedPayload)
+        .select()
+        .single();
+
+    if (insertError || !insertedStep) {
+        console.error("Error duplicating step: insert failed", insertError);
+        return { error: insertError?.message ?? "No se pudo duplicar la actividad." };
+    }
+
+    const reorderedSteps = [
+        ...phaseSteps.slice(0, sourceIndex + 1),
+        { id: insertedStep.id, order_index: 0 },
+        ...phaseSteps.slice(sourceIndex + 1),
+    ].map((step, index) => ({
+        id: step.id,
+        order_index: index,
+    }));
+
+    const reorderResults = await Promise.all(
+        reorderedSteps.map((step) =>
+            admin
+                .from("activity_steps")
+                .update({ order_index: step.order_index })
+                .eq("id", step.id)
+        )
+    );
+
+    const reorderError = reorderResults.find((result) => result.error);
+    if (reorderError?.error) {
+        console.error("Error duplicating step: reindex failed", reorderError.error);
+        return { error: "La actividad se duplicó pero no se pudo reordenar correctamente." };
+    }
+
+    if (activityId) revalidatePath(`/activities/${activityId}/edit`);
+    return { data: { ...insertedStep, order_index: sourceIndex + 1 } };
 }
 
 // Reorder functionality
@@ -597,6 +701,110 @@ export async function getQuestionBanks() {
 
     if (error) return { error: error.message, banks: [] };
     return { banks: data ?? [] };
+}
+
+function normalizeRubricLevels(levels: RubricLevel[]) {
+    return levels.map((level) => ({
+        id: level.id,
+        label: level.label,
+        points: level.points,
+        description: level.description ?? "",
+    }));
+}
+
+export async function getRubricCriteriaLibrary() {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado.", criteria: [] as Array<RubricCriterionLibraryRecord & { is_owner: boolean }> };
+
+    const { data, error } = await supabase
+        .from("rubric_criteria_library")
+        .select("*")
+        .or(`created_by.eq.${user.id},visibility.eq.public`)
+        .order("updated_at", { ascending: false });
+
+    if (error) return { error: error.message, criteria: [] as Array<RubricCriterionLibraryRecord & { is_owner: boolean }> };
+
+    const criteria = (data ?? []).map((criterion: any) => ({
+        ...criterion,
+        levels: normalizeRubricLevels((criterion.levels ?? []) as RubricLevel[]),
+        is_owner: criterion.created_by === user.id,
+    }));
+
+    return { criteria };
+}
+
+export async function createRubricCriterionLibraryEntry(
+    criterion: Pick<RubricCriteria, "name" | "description" | "levels">,
+    visibility: RubricCriterionLibraryVisibility
+) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+        .from("rubric_criteria_library")
+        .insert({
+            name: criterion.name.trim(),
+            description: criterion.description?.trim() || null,
+            levels: normalizeRubricLevels(criterion.levels ?? []),
+            visibility,
+            created_by: user.id,
+        })
+        .select("*")
+        .single();
+
+    if (error) return { error: error.message };
+    return {
+        criterion: {
+            ...data,
+            levels: normalizeRubricLevels((data.levels ?? []) as RubricLevel[]),
+            is_owner: true,
+        },
+    };
+}
+
+export async function updateRubricCriterionLibraryEntry(
+    criterionId: string,
+    criterion: Pick<RubricCriteria, "name" | "description" | "levels">,
+    visibility: RubricCriterionLibraryVisibility
+) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+
+    const { data: existing, error: existingError } = await supabase
+        .from("rubric_criteria_library")
+        .select("id, created_by, version")
+        .eq("id", criterionId)
+        .single();
+
+    if (existingError || !existing) return { error: existingError?.message ?? "No se encontró el criterio guardado." };
+    if (existing.created_by !== user.id) return { error: "No autorizado." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+        .from("rubric_criteria_library")
+        .update({
+            name: criterion.name.trim(),
+            description: criterion.description?.trim() || null,
+            levels: normalizeRubricLevels(criterion.levels ?? []),
+            visibility,
+            version: (existing.version ?? 1) + 1,
+        })
+        .eq("id", criterionId)
+        .select("*")
+        .single();
+
+    if (error) return { error: error.message };
+    return {
+        criterion: {
+            ...data,
+            levels: normalizeRubricLevels((data.levels ?? []) as RubricLevel[]),
+            is_owner: true,
+        },
+    };
 }
 
 export async function createQuestionBank(name: string, description?: string) {

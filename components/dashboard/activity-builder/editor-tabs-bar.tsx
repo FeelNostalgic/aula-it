@@ -102,6 +102,13 @@ function SortableTab({
                     onClose(e);
                 }
             }}
+            onMouseDown={(e) => {
+                if (e.button === 1) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onClose(e);
+                }
+            }}
             onDoubleClick={handleStartRename}
             className={cn(
                 "group flex items-center h-full min-w-32 max-w-64 px-3 border-r border-border/50 text-xs cursor-pointer select-none transition-colors",
@@ -144,6 +151,13 @@ function SortableTab({
 
             <button
                 onClick={onClose}
+                onMouseDown={(e) => {
+                    if (e.button === 1) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onClose(e);
+                    }
+                }}
                 className="ml-2 size-5 flex items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-border/50 text-text-muted hover:text-foreground transition-all shrink-0"
             >
                 <X className="size-3" />
