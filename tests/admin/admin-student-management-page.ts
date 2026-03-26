@@ -15,9 +15,9 @@ export class AdminStudentManagementPage extends BasePage {
     }
 
     async fillCreateForm(prefix: string, count: number, password: string) {
-        // Open prefix combobox (allowCreate mode — typing sets the value directly)
-        const combobox = this.page.locator('[role="combobox"]').first();
-        await combobox.click();
+        // Open prefix combobox (target the one inside the creation form only)
+        const combobox = this.page.locator('form [role="combobox"]').first();
+        await combobox.click({ force: true });
         const prefixInput = this.page.locator('input[placeholder="Buscar prefijo..."]');
         await prefixInput.fill(prefix);
         await prefixInput.press("Escape");
