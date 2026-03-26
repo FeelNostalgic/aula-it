@@ -66,7 +66,7 @@ async function resolveCollaboratorRole(moduleId: string, userId: string, client?
         .eq("teacher_id", userId)
         .maybeSingle();
 
-    if (error) return null;
+    if (error) return undefined;
     if (data === null) return undefined;
     if (!data?.role) return null;
 

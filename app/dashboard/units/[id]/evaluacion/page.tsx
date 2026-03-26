@@ -51,7 +51,7 @@ export default async function EvaluacionPage({
     let submissions: any[] = [];
     if (activityIds.length > 0) {
         const { data: subs } = await admin
-            .from("submissions")
+            .from("activity_submissions")
             .select("*")
             .in("activity_id", activityIds);
         submissions = subs || [];

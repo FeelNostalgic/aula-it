@@ -132,7 +132,6 @@ export async function createActivity(formData: FormData) {
     const title = formData.get("title") as string;
     const description = formData.get("description") as string;
     const type = formData.get("type") as string;
-    const xp = parseInt(formData.get("xp") as string) || 0;
     const difficulty = formData.get("difficulty") as string;
     const durationRaw = formData.get("duration") as string;
     const duration = parseInt(durationRaw) || 30;
@@ -160,7 +159,6 @@ export async function createActivity(formData: FormData) {
             description: description || null,
             type,
             difficulty: difficulty || 'Bajo',
-            xp,
             duration,
             order_index: nextOrder,
             position_x: null,
@@ -505,8 +503,7 @@ export async function getUnitStepSubmissions(
         .from("activity_submissions")
         .select(`
             *,
-            student:profiles!inner(full_name, email),
-            quiz_attempts(*)
+            student:profiles!inner(full_name)
         `)
         .in("step_id", stepIds);
 
@@ -517,9 +514,28 @@ export async function getUnitStepSubmissions(
     const { data: submissions, error: subError } = await query;
     if (subError) return { error: subError.message };
 
+    // Step 4: fetch quiz_attempts separately — no FK between activity_submissions and quiz_attempts,
+    // so PostgREST cannot embed them. Join on (student_id, step_id) instead.
+    const quizStepIds = steps.filter(s => s.type === 'quiz').map(s => s.id);
+    const attemptsMap: Record<string, any[]> = {};
+    if (quizStepIds.length > 0 && (submissions ?? []).length > 0) {
+        const quizStudentIds = [...new Set((submissions ?? []).map(s => s.student_id))];
+        const { data: quizAttempts } = await supabase
+            .from("quiz_attempts")
+            .select("*")
+            .in("step_id", quizStepIds)
+            .in("student_id", quizStudentIds);
+        for (const attempt of quizAttempts ?? []) {
+            const key = `${attempt.student_id}:${attempt.step_id}`;
+            if (!attemptsMap[key]) attemptsMap[key] = [];
+            attemptsMap[key].push(attempt);
+        }
+    }
+
     const results: StepSubmissionRow[] = (submissions ?? []).map(sub => {
         const meta = stepMeta[sub.step_id];
-        const attempts = (sub.quiz_attempts as any[])?.sort((a, b) => a.attempt_number - b.attempt_number) ?? [];
+        const attempts = (attemptsMap[`${sub.student_id}:${sub.step_id}`] ?? [])
+            .sort((a: any, b: any) => a.attempt_number - b.attempt_number);
         const lastAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
 
         return {

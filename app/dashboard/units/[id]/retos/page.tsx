@@ -46,7 +46,7 @@ export default async function RetosPage({
     let submissions: any[] = [];
     if (activityIds.length > 0) {
         const { data: subs } = await dataClient
-            .from("submissions")
+            .from("activity_submissions")
             .select("*")
             .in("activity_id", activityIds);
         submissions = subs || [];
