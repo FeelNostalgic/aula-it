@@ -57,6 +57,8 @@ type Unit = {
 interface SortableUnitItemProps {
     unit: Unit;
     userRole: "teacher" | "student";
+    moduleRole?: string | null;
+    canEditContent?: boolean;
 }
 
 const UNIT_STATUS_CONFIG = {
@@ -200,7 +202,7 @@ function UnitActions({ unit }: { unit: Unit }) {
     );
 }
 
-export function SortableUnitListItem({ unit, userRole }: SortableUnitItemProps) {
+export function SortableUnitListItem({ unit, userRole, moduleRole, canEditContent = true }: SortableUnitItemProps) {
     const router = useRouter();
     const isTeacher = userRole === "teacher";
     const normalizedStatus = getNormalizedStatus(unit.status);
@@ -226,7 +228,7 @@ export function SortableUnitListItem({ unit, userRole }: SortableUnitItemProps) 
 
     const content = (
         <>
-            {isTeacher && (
+            {isTeacher && canEditContent && (
                 <button
                     {...attributes}
                     {...listeners}
@@ -285,7 +287,14 @@ export function SortableUnitListItem({ unit, userRole }: SortableUnitItemProps) 
                         <span className={`size-1.5 rounded-full ${unitStatusConfig.dotBg}`} />
                         {unitStatusConfig.label}
                     </Badge>
-                    {isTeacher && <UnitActions unit={unit} />}
+                    {isTeacher && canEditContent && <UnitActions unit={unit} />}
+                    {isTeacher && !canEditContent && moduleRole && moduleRole !== "viewer" && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="size-8 text-text-muted" disabled>
+                                <MoreVertical className="size-4" />
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </div>
         </>
@@ -307,7 +316,7 @@ export function SortableUnitListItem({ unit, userRole }: SortableUnitItemProps) 
     );
 }
 
-export function SortableUnitGridItem({ unit, userRole }: SortableUnitItemProps) {
+export function SortableUnitGridItem({ unit, userRole, moduleRole, canEditContent = true }: SortableUnitItemProps) {
     const router = useRouter();
     const isTeacher = userRole === "teacher";
     const normalizedStatus = getNormalizedStatus(unit.status);
@@ -361,7 +370,7 @@ export function SortableUnitGridItem({ unit, userRole }: SortableUnitItemProps) 
                                     {unitStatusConfig.label}
                                 </Badge>
                             )}
-                            {isTeacher && (
+                            {isTeacher && canEditContent && (
                                 <>
                                     <UnitActions unit={unit} />
                                     <button
@@ -375,6 +384,13 @@ export function SortableUnitGridItem({ unit, userRole }: SortableUnitItemProps) 
                                         <GripVertical className="size-4" />
                                     </button>
                                 </>
+                            )}
+                            {isTeacher && !canEditContent && moduleRole && moduleRole !== "viewer" && (
+                                <div onClick={(e) => e.stopPropagation()}>
+                                    <Button variant="ghost" size="icon" className="size-8 text-text-muted" disabled>
+                                        <MoreVertical className="size-4" />
+                                    </Button>
+                                </div>
                             )}
                         </div>
                     </div>

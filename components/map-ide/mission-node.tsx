@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/context-menu";
 import { updateActivityTitlePosition } from './actions';
 import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
 
 export type MissionNodeData = {
     label: string;
@@ -26,6 +25,7 @@ export type MissionNodeData = {
     title_position?: 'down' | 'right' | 'up' | 'left';
     unitId: string;
     role?: 'student' | 'teacher';
+    canEditContent?: boolean;
     onTitlePositionChange?: (newPosition: 'down' | 'right' | 'up' | 'left') => void;
     onRemoveFromMap?: () => void;
     editingMode?: boolean;
@@ -36,15 +36,13 @@ export type MissionNodeData = {
 export type MissionNode = Node<MissionNodeData, 'mission'>;
 
 const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
-    const { status, label, logo_url, title_position = 'down', unitId, role, editingMode, onHandleClick } = data;
+    const { status, label, logo_url, title_position = 'down', unitId, role, editingMode, onHandleClick, canEditContent = true } = data;
 
     const handleClick = (handleId: string) => (e: React.MouseEvent) => {
         if (!editingMode) return;
         e.stopPropagation();
         onHandleClick?.(handleId);
     };
-    const router = useRouter();
-
     const getStatusStyles = () => {
         switch (status) {
             case 'published':
@@ -114,8 +112,9 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
         }
     }, [id, title_position, unitId, data]);
 
-    const openIDE = () => {
-        window.open(`/activities/${id}/edit`, '_blank');
+    const openActivity = () => {
+        const path = canEditContent ? `/activities/${id}/edit` : `/activities/${id}`;
+        window.open(path, '_blank');
     };
 
     const removeFromMap = useCallback(() => {
@@ -295,20 +294,24 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
                 {content}
             </ContextMenuTrigger>
             <ContextMenuContent className="w-56 bg-popover border-border text-popover-foreground backdrop-blur-xl">
-                <ContextMenuItem onClick={rotateTitle} className="flex gap-2 items-center hover:bg-accent/10 cursor-pointer">
-                    <RotateCw className="size-4 text-accent-blue" />
-                    <span>Rotar título</span>
-                </ContextMenuItem>
-                <ContextMenuSeparator className="bg-border" />
-                <ContextMenuItem onClick={openIDE} className="flex gap-2 items-center hover:bg-accent/10 cursor-pointer">
+                <ContextMenuItem onClick={openActivity} className="flex gap-2 items-center hover:bg-accent/10 cursor-pointer">
                     <ExternalLink className="size-4 text-accent-green" />
-                    <span>Abrir IDE del reto</span>
+                    <span>{canEditContent ? "Abrir IDE del reto" : "Abrir reto"}</span>
                 </ContextMenuItem>
-                <ContextMenuSeparator className="bg-border" />
-                <ContextMenuItem onClick={removeFromMap} className="flex gap-2 items-center hover:bg-accent-red/10 cursor-pointer text-accent-red focus:text-accent-red focus:bg-accent-red/10">
-                    <Trash2 className="size-4" />
-                    <span>Eliminar del mapa</span>
-                </ContextMenuItem>
+                {canEditContent && (
+                    <>
+                        <ContextMenuSeparator className="bg-border" />
+                        <ContextMenuItem onClick={rotateTitle} className="flex gap-2 items-center hover:bg-accent/10 cursor-pointer">
+                            <RotateCw className="size-4 text-accent-blue" />
+                            <span>Rotar título</span>
+                        </ContextMenuItem>
+                        <ContextMenuSeparator className="bg-border" />
+                        <ContextMenuItem onClick={removeFromMap} className="flex gap-2 items-center hover:bg-accent-red/10 cursor-pointer text-accent-red focus:text-accent-red focus:bg-accent-red/10">
+                            <Trash2 className="size-4" />
+                            <span>Eliminar del mapa</span>
+                        </ContextMenuItem>
+                    </>
+                )}
             </ContextMenuContent>
         </ContextMenu>
     );

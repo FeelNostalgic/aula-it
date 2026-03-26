@@ -1,19 +1,16 @@
 /**
  * T5.1 — Auth Guard Audit
  *
- * This file systematically documents which server actions have auth guards and
- * which ones rely exclusively on Supabase RLS for access control.
+ * This file verifies that all server actions have proper auth guards.
  *
  * Findings:
- *   UNGUARDED — app/dashboard/units/[id]/actions.ts:
- *     updateActivityStatus, updateActivityPosition, updateMultipleActivityPositions,
- *     addActivityConnection, removeActivityConnection
- *
- *   UNGUARDED — components/map-ide/actions.ts:
- *     updateActivityPosition, createActivityConnection, deleteActivityConnection,
- *     removeActivityFromMap, updateActivityTitlePosition
- *
  *   GUARDED — verified below:
+ *     updateActivityStatus, updateActivityPosition, updateMultipleActivityPositions,
+ *     addActivityConnection, removeActivityConnection (app/dashboard/units/[id]/actions.ts)
+ *
+ *     updateActivityPosition, createActivityConnection, deleteActivityConnection,
+ *     removeActivityFromMap, updateActivityTitlePosition (components/map-ide/actions.ts)
+ *
  *     createModule, createUnit, gradeSubmission, createPhase, submitDeliverable
  */
 
@@ -24,7 +21,7 @@ import { SupabaseMockBuilder } from "../helpers/supabase-mock";
 import { createFormData } from "../helpers/form-data";
 import { createMockUser, createMockProfile } from "../helpers/fixtures";
 
-// Units actions (unguarded subset)
+// Units actions
 import {
   updateActivityStatus,
   updateActivityPosition,
@@ -33,7 +30,7 @@ import {
   removeActivityConnection,
 } from "@/app/dashboard/units/[id]/actions";
 
-// Map IDE actions (all unguarded)
+// Map IDE actions
 import {
   updateActivityPosition as mapUpdateActivityPosition,
   createActivityConnection,
@@ -44,7 +41,7 @@ import {
 
 // Guarded actions
 import { createModule } from "@/app/dashboard/actions";
-import { createUnit, enrollStudent } from "@/app/dashboard/modules/[id]/actions";
+import { createUnit } from "@/app/dashboard/modules/[id]/actions";
 import { gradeSubmission } from "@/app/dashboard/units/[id]/actions";
 import { createPhase } from "@/app/activities/[id]/edit/actions";
 import { submitDeliverable } from "@/app/activities/[id]/actions";
@@ -52,51 +49,35 @@ import { submitDeliverable } from "@/app/activities/[id]/actions";
 const vi_createClient = vi.mocked(createClient);
 const vi_createAdminClient = vi.mocked(createAdminClient);
 
-// ─── UNGUARDED FUNCTIONS ───────────────────────────────────────────────────────
-//
-// These functions call createClient() and proceed directly to DB operations
-// without ever calling supabase.auth.getUser(). Protection relies 100% on RLS.
-//
-// The tests below use a client that has a broken auth state (mockAuthError) to
-// prove the function never consults auth — it still reaches the DB layer.
-
 describe("Auth Guard Audit", () => {
-  describe("Functions WITHOUT auth guards (RLS-only)", () => {
+  describe("Server Actions Security Verification", () => {
     // ─── units/[id]/actions.ts ────────────────────────────────────────────────
 
-    it("updateActivityStatus — no auth check, proceeds directly to DB update", async () => {
-      // SECURITY GAP: no getUser() call before the DB update.
-      // An unauthenticated request reaches the DB; RLS must reject it there.
+    it("updateActivityStatus — rejects unauthenticated request", async () => {
       const { client } = new SupabaseMockBuilder()
-        .mockAuthError("session expired") // auth is broken — function ignores this
-        .mockUpdate("activities", { data: null, error: null })
+        .mockAuthError("session expired")
         .build();
       vi_createClient.mockResolvedValue(client as any);
 
       const result = await updateActivityStatus("activity-1", "published");
 
-      // Succeeds because the function never checked auth — it went straight to DB.
-      expect(result).toEqual({ success: true });
+      expect(result).toEqual({ error: "No autenticado." });
     });
 
-    it("updateActivityPosition — no auth check, proceeds directly to DB update", async () => {
-      // SECURITY GAP: no getUser() call.
+    it("updateActivityPosition — rejects unauthenticated request", async () => {
       const { client } = new SupabaseMockBuilder()
         .mockAuthError("session expired")
-        .mockUpdate("activities", { data: null, error: null })
         .build();
       vi_createClient.mockResolvedValue(client as any);
 
       const result = await updateActivityPosition("activity-1", 100, 200);
 
-      expect(result).toEqual({ success: true });
+      expect(result).toEqual({ error: "No autenticado." });
     });
 
-    it("updateMultipleActivityPositions — no auth check, proceeds directly to DB update", async () => {
-      // SECURITY GAP: no getUser() call.
+    it("updateMultipleActivityPositions — rejects unauthenticated request", async () => {
       const { client } = new SupabaseMockBuilder()
         .mockAuthError("session expired")
-        .mockUpdate("activities", { data: null, error: null })
         .build();
       vi_createClient.mockResolvedValue(client as any);
 
@@ -104,110 +85,91 @@ describe("Auth Guard Audit", () => {
         { id: "activity-1", x: 10, y: 20 },
       ]);
 
-      expect(result).toEqual({ success: true });
+      expect(result).toEqual({ error: "No autenticado." });
     });
 
-    it("addActivityConnection — no auth check, proceeds directly to DB insert", async () => {
-      // SECURITY GAP: no getUser() call.
+    it("addActivityConnection — rejects unauthenticated request", async () => {
       const { client } = new SupabaseMockBuilder()
         .mockAuthError("session expired")
-        .mockInsert("activity_connections", { data: null, error: null })
         .build();
       vi_createClient.mockResolvedValue(client as any);
 
       const result = await addActivityConnection("unit-1", "src-1", "tgt-1");
 
-      expect(result).toEqual({ success: true });
+      expect(result).toEqual({ error: "No autenticado." });
     });
 
-    it("removeActivityConnection — no auth check, proceeds directly to DB delete", async () => {
-      // SECURITY GAP: no getUser() call.
+    it("removeActivityConnection — rejects unauthenticated request", async () => {
       const { client } = new SupabaseMockBuilder()
         .mockAuthError("session expired")
-        .mockDelete("activity_connections", { data: null, error: null })
         .build();
       vi_createClient.mockResolvedValue(client as any);
 
       const result = await removeActivityConnection("connection-1");
 
-      expect(result).toEqual({ success: true });
+      expect(result).toEqual({ error: "No autenticado." });
     });
 
     // ─── components/map-ide/actions.ts ───────────────────────────────────────
 
-    it("updateActivityPosition (map-ide) — no auth check, proceeds directly to DB update", async () => {
-      // SECURITY GAP: no getUser() call.
+    it("updateActivityPosition (map-ide) — rejects unauthenticated request", async () => {
       const { client } = new SupabaseMockBuilder()
         .mockAuthError("session expired")
-        .mockUpdate("activities", { data: null, error: null })
         .build();
       vi_createClient.mockResolvedValue(client as any);
 
       const result = await mapUpdateActivityPosition("activity-1", 50, 75, "unit-1");
 
-      expect(result).toEqual({ success: true });
+      expect(result).toEqual({ success: false, error: "No autenticado." });
     });
 
-    it("createActivityConnection — no auth check, proceeds directly to DB insert", async () => {
-      // SECURITY GAP: no getUser() call.
+    it("createActivityConnection — rejects unauthenticated request", async () => {
       const { client } = new SupabaseMockBuilder()
         .mockAuthError("session expired")
-        .mockInsert("activity_connections", { data: null, error: null })
         .build();
       vi_createClient.mockResolvedValue(client as any);
 
       const result = await createActivityConnection("unit-1", "src-1", "tgt-1");
 
-      expect(result).toEqual({ success: true });
+      expect(result).toEqual({ success: false, error: "No autenticado." });
     });
 
-    it("deleteActivityConnection — no auth check, proceeds directly to DB delete", async () => {
-      // SECURITY GAP: no getUser() call.
+    it("deleteActivityConnection — rejects unauthenticated request", async () => {
       const { client } = new SupabaseMockBuilder()
         .mockAuthError("session expired")
-        .mockDelete("activity_connections", { data: null, error: null })
         .build();
       vi_createClient.mockResolvedValue(client as any);
 
       const result = await deleteActivityConnection("connection-1", "unit-1");
 
-      expect(result).toEqual({ success: true });
+      expect(result).toEqual({ success: false, error: "No autenticado." });
     });
 
-    it("removeActivityFromMap — no auth check, proceeds directly to DB update (via updateActivityPosition)", async () => {
-      // SECURITY GAP: delegates to mapUpdateActivityPosition which also has no guard.
+    it("removeActivityFromMap — rejects unauthenticated request", async () => {
       const { client } = new SupabaseMockBuilder()
         .mockAuthError("session expired")
-        .mockUpdate("activities", { data: null, error: null })
         .build();
       vi_createClient.mockResolvedValue(client as any);
 
       const result = await removeActivityFromMap("activity-1", "unit-1");
 
-      expect(result).toEqual({ success: true });
+      expect(result).toEqual({ success: false, error: "No autenticado." });
     });
 
-    it("updateActivityTitlePosition — no auth check, proceeds directly to DB update", async () => {
-      // SECURITY GAP: no getUser() call.
+    it("updateActivityTitlePosition — rejects unauthenticated request", async () => {
       const { client } = new SupabaseMockBuilder()
         .mockAuthError("session expired")
-        .mockUpdate("activities", { data: null, error: null })
         .build();
       vi_createClient.mockResolvedValue(client as any);
 
       const result = await updateActivityTitlePosition("activity-1", "bottom", "unit-1");
 
-      expect(result).toEqual({ success: true });
+      expect(result).toEqual({ success: false, error: "No autenticado." });
     });
-  });
 
-  // ─── GUARDED FUNCTIONS ─────────────────────────────────────────────────────
-  //
-  // These functions call getUser() as the very first operation and return an
-  // explicit error object when the session is missing or invalid.
+    // ─── ADDITIONAL GUARDED FUNCTIONS ────────────────────────────────────────
 
-  describe("Functions WITH auth guards (verified)", () => {
-    it("createModule — rejects unauthenticated request before touching DB", async () => {
+    it("createModule — rejects unauthenticated request", async () => {
       const { client } = new SupabaseMockBuilder()
         .mockAuthError("jwt expired")
         .build();
@@ -215,10 +177,10 @@ describe("Auth Guard Audit", () => {
 
       const result = await createModule(null, createFormData({ name: "My Module" }));
 
-      expect(result).toEqual({ error: "Not authenticated" });
+      expect(result).toEqual({ error: "No autenticado." });
     });
 
-    it("createUnit — rejects unauthenticated request before touching DB", async () => {
+    it("createUnit — rejects unauthenticated request", async () => {
       const { client } = new SupabaseMockBuilder()
         .mockAuthError("jwt expired")
         .build();
@@ -227,10 +189,10 @@ describe("Auth Guard Audit", () => {
       const formData = createFormData({ module_id: "module-1", name: "Unit 1" });
       const result = await createUnit(null, formData);
 
-      expect(result).toEqual({ error: "Not authenticated" });
+      expect(result).toEqual({ error: "No autenticado." });
     });
 
-    it("gradeSubmission — rejects non-teacher role before writing to DB", async () => {
+    it("gradeSubmission — rejects non-teacher role", async () => {
       const userClient = new SupabaseMockBuilder()
         .mockAuth(createMockUser())
         .mockQuery("profiles", {
@@ -251,9 +213,9 @@ describe("Auth Guard Audit", () => {
       expect(result).toEqual({ error: "Solo profesores." });
     });
 
-    it("createPhase — rejects unauthenticated request before touching DB", async () => {
+    it("createPhase — rejects unauthenticated request", async () => {
       const { client } = new SupabaseMockBuilder()
-        .mockAuth(null) // null user — getUser returns { user: null }
+        .mockAuth(null) 
         .build();
       vi_createClient.mockResolvedValue(client as any);
 
@@ -265,10 +227,9 @@ describe("Auth Guard Audit", () => {
       expect(result).toEqual({ error: "No autenticado." });
     });
 
-    it("submitDeliverable — rejects unauthenticated request after URL validation", async () => {
+    it("submitDeliverable — rejects unauthenticated request", async () => {
       const { client } = new SupabaseMockBuilder()
         .mockAuthError("jwt expired")
-        // step query returns no due_date so deadline check is skipped
         .mockQuery("activity_steps", { data: { due_date: null }, error: null })
         .build();
       vi_createClient.mockResolvedValue(client as any);
@@ -283,3 +244,4 @@ describe("Auth Guard Audit", () => {
     });
   });
 });
+

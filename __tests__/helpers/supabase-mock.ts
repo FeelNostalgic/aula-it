@@ -1,4 +1,5 @@
 import { vi, type Mock } from "vitest";
+import { type ModuleCollaboratorRole } from "@/lib/module-collaborator-defs";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -134,6 +135,7 @@ export class SupabaseMockBuilder {
   } = {};
 
   private tableConfigs: Map<string, TableConfig> = new Map();
+  private rpcConfigs: Map<string, SupabaseResponse> = new Map();
 
   // ─── Auth configuration ──────────────────────────────────────────────────
 
@@ -200,6 +202,48 @@ export class SupabaseMockBuilder {
 
   mockAdminUpdateUserById(response: SupabaseResponse = DEFAULT_RESPONSE): this {
     this.authConfig.adminUpdateUserById = response;
+    return this;
+  }
+
+  /**
+   * Helper to mock a full teacher session with standard permissions.
+   * Mocks: auth.getUser, profiles (role: teacher), and module_collaborators (role: creator).
+   */
+  mockTeacherAccess(userId = "user-teacher-01"): this {
+    this.mockAuth({ id: userId, email: "teacher@example.com" });
+    this.mockQuery("profiles", { data: { id: userId, role: "teacher" }, error: null });
+    this.mockQuery("module_collaborators", { data: { module_id: "m1", teacher_id: userId, role: "creator" }, error: null });
+    return this;
+  }
+
+  mockUnitAccess(unitId: string, userId: string, role: ModuleCollaboratorRole = "creator", moduleId = "m1"): this {
+    const teacherId = role === "creator" ? userId : "other-teacher";
+    const data = {
+      id: unitId,
+      module: { id: moduleId, teacher_id: teacherId },
+      module_id: moduleId
+    };
+    this.mockQuery("units", { data, error: null });
+    this.mockQuery("module_collaborators", { data: { module_id: moduleId, teacher_id: userId, role }, error: null });
+    return this;
+  }
+
+  mockActivityAccess(activityId: string, unitId: string, userId: string, role: ModuleCollaboratorRole = "creator", moduleId = "m1"): this {
+    const teacherId = role === "creator" ? userId : "other-teacher";
+    const data = {
+      id: activityId,
+      unit: {
+        id: unitId,
+        module: { id: moduleId, teacher_id: teacherId }
+      }
+    };
+    this.mockQuery("activities", { data, error: null });
+    this.mockQuery("module_collaborators", { data: { module_id: moduleId, teacher_id: userId, role }, error: null });
+    return this;
+  }
+
+  mockRpc(rpcName: string, response: SupabaseResponse = DEFAULT_RESPONSE): this {
+    this.rpcConfigs.set(rpcName, response);
     return this;
   }
 
@@ -319,6 +363,10 @@ export class SupabaseMockBuilder {
     const client = {
       from: fromSpy,
       auth: authMock,
+      rpc: vi.fn((rpc: string, _params?: unknown) => {
+        const response = this.rpcConfigs.get(rpc) ?? DEFAULT_RESPONSE;
+        return makeChain(response);
+      }),
     };
 
     return {

@@ -29,7 +29,7 @@ describe("createModule", () => {
     const formData = createFormData({ name: "My Module" });
     const result = await createModule(null, formData);
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("returns error when user is not authenticated (null user)", async () => {
@@ -41,7 +41,7 @@ describe("createModule", () => {
     const formData = createFormData({ name: "My Module" });
     const result = await createModule(null, formData);
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("returns error when user role is not teacher", async () => {
@@ -57,7 +57,7 @@ describe("createModule", () => {
     const formData = createFormData({ name: "My Module" });
     const result = await createModule(null, formData);
 
-    expect(result).toEqual({ error: "Unauthorized: only teachers can create modules" });
+    expect(result).toEqual({ error: "Solo profesores." });
   });
 
   it("returns error when module name is empty", async () => {
@@ -73,7 +73,7 @@ describe("createModule", () => {
     const formData = createFormData({ name: "" });
     const result = await createModule(null, formData);
 
-    expect(result).toEqual({ error: "Module name is required" });
+    expect(result).toEqual({ error: "El nombre del módulo es obligatorio" });
   });
 
   it("returns error when supabase insert fails", async () => {
@@ -157,7 +157,7 @@ describe("updateDashboardSettings", () => {
 
     const result = await updateDashboardSettings(3);
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("upserts grid_columns and returns success", async () => {
@@ -195,7 +195,7 @@ describe("reorderModules", () => {
 
     const result = await reorderModules([{ id: "m1", order_index: 0 }]);
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("returns error when user is not a teacher", async () => {
@@ -207,7 +207,7 @@ describe("reorderModules", () => {
 
     const result = await reorderModules([{ id: "m1", order_index: 0 }]);
 
-    expect(result).toEqual({ error: "Unauthorized: only teachers can reorder modules" });
+    expect(result).toEqual({ error: "Solo profesores." });
   });
 
   it("updates all modules in parallel via admin client and returns success", async () => {
@@ -241,7 +241,7 @@ describe("reorderUnits", () => {
 
     const result = await reorderUnits("m1", [{ id: "u1", order_index: 0 }]);
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("returns error when user is not a teacher", async () => {
@@ -253,7 +253,7 @@ describe("reorderUnits", () => {
 
     const result = await reorderUnits("m1", [{ id: "u1", order_index: 0 }]);
 
-    expect(result).toEqual({ error: "Unauthorized: only teachers can reorder units" });
+    expect(result).toEqual({ error: "Solo profesores." });
   });
 
   it("updates all units and revalidates module path", async () => {
@@ -287,7 +287,7 @@ describe("duplicateModule", () => {
 
     const result = await duplicateModule("m1");
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("returns error when user is not a teacher", async () => {
@@ -299,7 +299,7 @@ describe("duplicateModule", () => {
 
     const result = await duplicateModule("m1");
 
-    expect(result).toEqual({ error: "Unauthorized" });
+    expect(result).toEqual({ error: "Solo profesores." });
   });
 
   it("returns error when module is not found", async () => {
@@ -316,7 +316,7 @@ describe("duplicateModule", () => {
 
     const result = await duplicateModule("m1");
 
-    expect(result).toEqual({ error: "Module not found" });
+    expect(result).toEqual({ error: "Módulo no encontrado" });
   });
 
   it("duplicates module with - copia suffix and returns success", async () => {

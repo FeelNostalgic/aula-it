@@ -39,7 +39,7 @@ async function requireTeacherUser() {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-        return { error: "Not authenticated" as const, supabase: null, user: null };
+        return { error: "No autenticado." as const, supabase: null, user: null };
     }
 
     const { data: profile } = await supabase
@@ -57,7 +57,7 @@ async function requireTeacherUser() {
 
 function getPermissionError(permission: keyof ModulePermissions, role: ModuleCollaboratorRole | null) {
     if (!role) {
-        return "Module not found or unauthorized";
+        return "No se ha encontrado el módulo o no tienes suficientes permisos.";
     }
 
     return getRestrictedActionMessage(permission, role);
@@ -78,7 +78,7 @@ async function requireModulePermission(
         };
     }
 
-    const access = await getModuleAccess(moduleId, auth.user.id, auth.supabase as any);
+    const access = await getModuleAccess(moduleId, auth.user.id);
     if (!access || !access.permissions[permission]) {
         return {
             error: getPermissionError(permission, access?.role ?? null),
@@ -140,10 +140,10 @@ export async function createUnit(prevState: unknown, formData: FormData) {
     const description = formData.get("description") as string;
 
     if (!moduleId || !name) {
-        return { error: "Module ID and unit name are required" };
+        return { error: "El ID del módulo y el nombre de la unidad son obligatorios." };
     }
 
-    const permission = await requireModulePermission(moduleId, "canEditModuleContent", "Unauthorized: only teachers can create units");
+    const permission = await requireModulePermission(moduleId, "canEditModuleContent", "Solo los profesores pueden crear unidades.");
     if (permission.error || !permission.supabase) {
         return { error: permission.error };
     }
@@ -175,7 +175,7 @@ export async function createUnit(prevState: unknown, formData: FormData) {
 }
 
 export async function enrollStudent(moduleId: string, studentId: string) {
-    const permission = await requireModulePermission(moduleId, "canManageStudents", "Unauthorized: only teachers can enroll students");
+    const permission = await requireModulePermission(moduleId, "canManageStudents", "Solo los profesores pueden matricular alumnos.");
     if (permission.error || !permission.supabase) {
         return { error: permission.error };
     }
@@ -200,7 +200,7 @@ export async function enrollStudent(moduleId: string, studentId: string) {
 }
 
 export async function unenrollStudent(moduleId: string, studentId: string) {
-    const permission = await requireModulePermission(moduleId, "canManageStudents", "Unauthorized: only teachers can unenroll students");
+    const permission = await requireModulePermission(moduleId, "canManageStudents", "Solo los profesores pueden desvincular alumnos.");
     if (permission.error || !permission.supabase) {
         return { error: permission.error };
     }
@@ -222,7 +222,7 @@ export async function unenrollStudent(moduleId: string, studentId: string) {
 }
 
 export async function updateModuleSettings(moduleId: string, formData: FormData) {
-    const permission = await requireModulePermission(moduleId, "canManageModuleSettings", "Unauthorized: only teachers can update modules");
+    const permission = await requireModulePermission(moduleId, "canManageModuleSettings", "Solo los profesores pueden actualizar módulos.");
     if (permission.error || !permission.supabase) {
         return { error: permission.error };
     }
@@ -235,7 +235,7 @@ export async function updateModuleSettings(moduleId: string, formData: FormData)
     const custom_icon_url = formData.get("custom_icon_url") as string;
 
     if (!name?.trim()) {
-        return { error: "Module name cannot be empty" };
+        return { error: "El nombre del módulo no puede estar vacío." };
     }
 
     const updates: Record<string, unknown> = {
@@ -265,7 +265,7 @@ export async function updateModuleSettings(moduleId: string, formData: FormData)
 }
 
 export async function archiveModule(moduleId: string) {
-    const permission = await requireModulePermission(moduleId, "canArchiveModule", "Unauthorized: only teachers can archive modules");
+    const permission = await requireModulePermission(moduleId, "canArchiveModule", "Solo los profesores pueden archivar módulos.");
     if (permission.error || !permission.supabase) {
         return { error: permission.error };
     }
@@ -285,7 +285,7 @@ export async function archiveModule(moduleId: string) {
 }
 
 export async function deleteModule(moduleId: string) {
-    const permission = await requireModulePermission(moduleId, "canDeleteModule", "Unauthorized: only teachers can delete modules");
+    const permission = await requireModulePermission(moduleId, "canDeleteModule", "Solo los profesores pueden eliminar módulos.");
     if (permission.error || !permission.supabase) {
         return { error: permission.error };
     }
@@ -311,7 +311,7 @@ export async function getAvailableStudents(moduleId: string, query?: string, pre
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-        return { error: "Not authenticated" };
+        return { error: "No autenticado." };
     }
 
     const access = await getModuleAccess(moduleId, user.id, supabase as any);

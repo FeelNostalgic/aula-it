@@ -26,13 +26,9 @@ const vi_createAdminClient = vi.mocked(createAdminClient);
 
 // ─── Helper: authenticated teacher client ─────────────────────────────────────
 
-function teacherClient(extra?: Parameters<SupabaseMockBuilder["mockQuery"]>[1]) {
+function teacherClient() {
   return new SupabaseMockBuilder()
-    .mockAuth(createMockUser())
-    .mockQuery("profiles", {
-      data: createMockProfile({ role: "teacher" }),
-      error: null,
-    });
+    .mockTeacherAccess();
 }
 
 // ─── 1. XSS in module name ───────────────────────────────────────────────────
@@ -82,10 +78,17 @@ describe("Edge case: negative order_index returned by last activity query", () =
     // If the DB somehow holds a negative order_index (e.g. -5), the action must
     // produce -5 + 1 = -4 without panicking. The insert decision is left to the DB.
     const { client } = teacherClient()
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    // getUnitAccess calls createAdminClient() internally
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockQuery("units", { data: { id: "unit-1", module: { id: "m1", teacher_id: "user-teacher-01" } }, error: null })
+      .mockQuery("module_collaborators", { data: { role: "creator" }, error: null })
       .mockQuery("activities", { data: { order_index: -5 }, error: null })
       .mockInsert("activities", { data: null, error: null })
       .build();
-    vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(adminClient as any);
 
     const formData = createFormData({
       unit_id: "unit-1",
@@ -104,10 +107,17 @@ describe("Edge case: negative order_index returned by last activity query", () =
 describe("Edge case: zero XP on createActivity", () => {
   it("accepts xp=0 as a valid value and inserts successfully", async () => {
     const { client } = teacherClient()
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    // getUnitAccess calls createAdminClient() internally
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockQuery("units", { data: { id: "unit-1", module: { id: "m1", teacher_id: "user-teacher-01" } }, error: null })
+      .mockQuery("module_collaborators", { data: { role: "creator" }, error: null })
       .mockQuery("activities", { data: null, error: null }) // no prior activity
       .mockInsert("activities", { data: null, error: null })
       .build();
-    vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(adminClient as any);
 
     const formData = createFormData({
       unit_id: "unit-1",
@@ -127,13 +137,19 @@ describe("Edge case: duplicate enrollment (23505 unique violation)", () => {
   it("returns the specific Spanish error message for double-enrollment", async () => {
     // Simulate two concurrent enroll calls where the second hits a PK conflict.
     const { client } = teacherClient()
-      .mockQuery("modules", { data: { id: "module-1" }, error: null })
       .mockInsert("module_enrollments", {
         data: null,
         error: { message: "duplicate key value violates unique constraint", code: "23505" },
       })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+
+    // getModuleAccess calls createAdminClient() internally
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockQuery("modules", { data: { id: "module-1", teacher_id: "user-teacher-01" }, error: null })
+      .mockQuery("module_collaborators", { data: { role: "creator" }, error: null })
+      .build();
+    vi_createAdminClient.mockReturnValue(adminClient as any);
 
     const result = await enrollStudent("module-1", "student-1");
 
@@ -147,19 +163,16 @@ describe("Edge case: gradeSubmission with unknown grading_mode", () => {
   it("falls through to the complete branch and clears both score and rubric_scores", async () => {
     // The action uses if/else-if/else — any value that is neither 'score' nor
     // 'rubric' lands in the 'else' (complete) branch. This should not throw.
-    const userClient = new SupabaseMockBuilder()
-      .mockAuth(createMockUser())
-      .mockQuery("profiles", {
-        data: createMockProfile({ role: "teacher" }),
-        error: null,
-      })
+    const { client: userClient } = new SupabaseMockBuilder()
+      .mockTeacherAccess()
       .build();
-    vi_createClient.mockResolvedValue(userClient.client as any);
+    vi_createClient.mockResolvedValue(userClient as any);
 
-    const adminClient = new SupabaseMockBuilder()
+    // gradeSubmission uses createAdminClient() for DB writes
+    const { client: adminClient } = new SupabaseMockBuilder()
       .mockUpdate("activity_submissions", { data: null, error: null })
       .build();
-    vi_createAdminClient.mockReturnValue(adminClient.client as any);
+    vi_createAdminClient.mockReturnValue(adminClient as any);
 
     // Force an unrecognised mode through the type system via cast.
     const result = await gradeSubmission("submission-1", {
@@ -175,7 +188,9 @@ describe("Edge case: gradeSubmission with unknown grading_mode", () => {
 describe("Edge case: SQL injection attempt in submitDeliverable URL", () => {
   it("rejects the URL before any DB call because the DRIVE_URL_REGEX does not match", async () => {
     const maliciousUrl = "'; DROP TABLE activity_submissions; --";
-    const { client } = new SupabaseMockBuilder().build();
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .build();
     vi_createClient.mockResolvedValue(client as any);
 
     const result = await submitDeliverable("step-1", maliciousUrl, "activity-1");
@@ -193,7 +208,9 @@ describe("Edge case: malicious subdomain spoofing a Google Drive URL", () => {
     // The regex is anchored to https://(docs|drive|sheets|slides|forms).google.com/
     // The spoofed URL inserts an extra subdomain after .com, so it must not match.
     const spoofedUrl = "https://docs.google.com.evil.com/document/d/abc123";
-    const { client } = new SupabaseMockBuilder().build();
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .build();
     vi_createClient.mockResolvedValue(client as any);
 
     const result = await submitDeliverable("step-1", spoofedUrl, "activity-1");
@@ -208,8 +225,16 @@ describe("Edge case: malicious subdomain spoofing a Google Drive URL", () => {
 
 describe("Edge case: empty updates array in reorderMultipleActivities", () => {
   it("performs no DB calls and returns success immediately", async () => {
-    const { client } = teacherClient().build();
+    const { client } = teacherClient()
+      .build();
     vi_createClient.mockResolvedValue(client as any);
+
+    // getUnitAccess calls createAdminClient() internally
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockQuery("units", { data: { id: "unit-1", module: { id: "m1", teacher_id: "user-teacher-01" } }, error: null })
+      .mockQuery("module_collaborators", { data: { role: "creator" }, error: null })
+      .build();
+    vi_createAdminClient.mockReturnValue(adminClient as any);
 
     const result = await reorderMultipleActivities("unit-1", []);
 
@@ -222,10 +247,14 @@ describe("Edge case: empty updates array in reorderMultipleActivities", () => {
 
 describe("Edge case: getAvailableStudents when no students are enrolled yet", () => {
   it("skips the .not() filter and queries all students when enrolledIds is empty", async () => {
-    // When enrolled is empty, enrolledIds = []. The branch `if (enrolledIds.length > 0)`
-    // is false, so .not() is never chained. The query must still run and return results.
+    // getAvailableStudents passes the user client to getModuleAccess, so
+    // modules + module_collaborators queries run on the user client.
     const { client } = new SupabaseMockBuilder()
-      .mockAuth(createMockUser())
+      .mockTeacherAccess()
+      // modules query for getModuleAccess
+      .mockQuery("modules", { data: { id: "module-1", teacher_id: "user-teacher-01" }, error: null })
+      // module_collaborators for resolveCollaboratorRole
+      .mockQuery("module_collaborators", { data: { role: "creator" }, error: null })
       // module_enrollments returns empty → enrolledIds = []
       .mockQuery("module_enrollments", { data: [], error: null })
       // profiles returns one student without hitting .not()
@@ -239,10 +268,10 @@ describe("Edge case: getAvailableStudents when no students are enrolled yet", ()
     vi_createClient.mockResolvedValue(client as any);
 
     // getAvailableStudents also calls the admin client for email resolution.
-    const adminClient = new SupabaseMockBuilder()
+    const { client: adminClient } = new SupabaseMockBuilder()
       .mockAdminListUsers({ data: { users: [] }, error: null })
       .build();
-    vi_createAdminClient.mockReturnValue(adminClient.client as any);
+    vi_createAdminClient.mockReturnValue(adminClient as any);
 
     const result = await getAvailableStudents("module-1");
 

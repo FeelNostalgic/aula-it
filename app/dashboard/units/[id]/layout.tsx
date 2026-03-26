@@ -58,7 +58,12 @@ export default async function UnitLayout({
         .single();
 
     return (
-        <UnitLayoutShell unit={unit} module={module}>
+        <UnitLayoutShell
+            unit={unit}
+            module={module}
+            moduleRole={unitAccess.role}
+            modulePermissions={unitAccess.permissions}
+        >
             {children}
         </UnitLayoutShell>
     );

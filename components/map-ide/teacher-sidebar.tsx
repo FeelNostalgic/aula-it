@@ -18,16 +18,26 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { CreateActivityDialog } from '@/components/dashboard/activities/create-activity-dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { getModuleRoleLabel, getModuleRoleTooltip, type ModuleCollaboratorRole, type ModulePermissions } from '@/lib/module-collaborator-defs';
 
 interface TeacherSidebarProps {
     unit: any;
     activities: any[];
     onAddActivity?: (activity: any) => void;
+    moduleRole: ModuleCollaboratorRole | null;
+    modulePermissions: ModulePermissions | null;
 }
 
-export function TeacherSidebar({ unit, activities, onAddActivity }: TeacherSidebarProps) {
+export function TeacherSidebar({ unit, activities, onAddActivity, moduleRole, modulePermissions }: TeacherSidebarProps) {
+    const canEditMap = modulePermissions?.canEditModuleContent ?? true;
+
     // Draggable item for React Flow (DND implementation)
     const onDragStart = (event: React.DragEvent, activity: any) => {
+        if (!canEditMap) {
+            event.preventDefault();
+            return;
+        }
         event.dataTransfer.setData('application/reactflow', JSON.stringify(activity));
         event.dataTransfer.effectAllowed = 'move';
     };
@@ -48,9 +58,25 @@ export function TeacherSidebar({ unit, activities, onAddActivity }: TeacherSideb
             {/* Header */}
             <div className="p-6 border-b border-border/50">
                 <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-sm font-black text-foreground uppercase tracking-widest">
-                        Panel de Diseño
-                    </h2>
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-sm font-black text-foreground uppercase tracking-widest">
+                            Panel de Diseño
+                        </h2>
+                        {moduleRole && moduleRole !== "creator" && (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300 gap-1.5 py-1 px-2 shadow-sm cursor-help">
+                                            {getModuleRoleLabel(moduleRole)}
+                                        </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-xs">
+                                        {getModuleRoleTooltip(moduleRole)}
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )}
+                    </div>
                 </div>
 
                 <div className="relative mb-4">
@@ -61,15 +87,21 @@ export function TeacherSidebar({ unit, activities, onAddActivity }: TeacherSideb
                     />
                 </div>
 
-                <CreateActivityDialog
-                    unitId={unit.id}
-                    trigger={
-                        <Button className="w-full bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-black uppercase tracking-wider text-[10px] h-10 gap-2 shadow-[0_0_20px_rgba(34,211,238,0.2)]">
-                            <Plus className="size-4" />
-                            Crear nuevo reto
-                        </Button>
-                    }
-                />
+                {canEditMap ? (
+                    <CreateActivityDialog
+                        unitId={unit.id}
+                        trigger={
+                            <Button className="w-full bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-black uppercase tracking-wider text-[10px] h-10 gap-2 shadow-[0_0_20px_rgba(34,211,238,0.2)]">
+                                <Plus className="size-4" />
+                                Crear nuevo reto
+                            </Button>
+                        }
+                    />
+                ) : (
+                    <div className="rounded-xl border border-border/50 bg-muted/30 px-3 py-3 text-[10px] text-muted-foreground">
+                        Este panel está en solo lectura para tu rol.
+                    </div>
+                )}
             </div>
 
             {/* List of Available Activities */}
@@ -88,9 +120,12 @@ export function TeacherSidebar({ unit, activities, onAddActivity }: TeacherSideb
                         activities.map((activity) => (
                             <div
                                 key={activity.id}
-                                draggable
+                                draggable={canEditMap}
                                 onDragStart={(e) => onDragStart(e, activity)}
-                                className="group bg-muted/40 border border-border/50 hover:border-accent-blue/40 rounded-xl p-3 flex items-center gap-3 cursor-grab active:cursor-grabbing transition-all hover:bg-muted/60"
+                                className={cn(
+                                    "group bg-muted/40 border border-border/50 hover:border-accent-blue/40 rounded-xl p-3 flex items-center gap-3 transition-all hover:bg-muted/60",
+                                    canEditMap ? "cursor-grab active:cursor-grabbing" : "cursor-default opacity-80"
+                                )}
                             >
                                 <div className="shrink-0 size-10 rounded-lg bg-background border border-border flex items-center justify-center transition-colors group-hover:border-accent-blue/20">
                                     {getActivityIcon(activity.type)}
@@ -106,7 +141,7 @@ export function TeacherSidebar({ unit, activities, onAddActivity }: TeacherSideb
                                         <span className="text-[9px] font-bold text-accent-amber">{activity.xp} XP</span>
                                     </div>
                                 </div>
-                                <GripVertical className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <GripVertical className={cn("size-4 text-muted-foreground transition-opacity", canEditMap ? "opacity-0 group-hover:opacity-100" : "opacity-30")} />
                             </div>
                         ))
                     ) : (
@@ -121,12 +156,14 @@ export function TeacherSidebar({ unit, activities, onAddActivity }: TeacherSideb
 
             {/* Hint / Help */}
             <div className="p-6 border-t border-border/50 bg-muted/20">
-                <div className="bg-accent-blue/5 border border-accent-blue/20 rounded-xl p-4 flex gap-3">
-                    <Info className="size-4 text-accent-blue shrink-0" />
-                    <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                        Puedes conectar nodos haciendo clic y arrastrando desde los puntos de conexión.
-                    </p>
-                </div>
+                        <div className="bg-accent-blue/5 border border-accent-blue/20 rounded-xl p-4 flex gap-3">
+                            <Info className="size-4 text-accent-blue shrink-0" />
+                            <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+                        {canEditMap
+                            ? "Puedes conectar nodos haciendo clic y arrastrando desde los puntos de conexión."
+                            : "Puedes revisar el mapa y el contenido, pero las acciones de diseño están bloqueadas para tu rol."}
+                            </p>
+                        </div>
             </div>
         </aside>
     );

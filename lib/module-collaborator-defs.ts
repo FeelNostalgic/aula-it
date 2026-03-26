@@ -34,6 +34,21 @@ export function getModuleRoleLabel(role: ModuleCollaboratorRole): string {
     }
 }
 
+export function getModuleRoleTooltip(role: ModuleCollaboratorRole): string {
+    switch (role) {
+        case MODULE_COLLABORATOR_ROLE.CREATOR:
+            return "Eres el creador del módulo. Tienes control total sobre contenido, alumnos, configuración y profesores.";
+        case MODULE_COLLABORATOR_ROLE.CO_OWNER:
+            return "Tienes acceso como codueño. Puedes editar contenido, gestionar alumnos y ajustar la configuración operativa del módulo.";
+        case MODULE_COLLABORATOR_ROLE.EDITOR:
+            return "Tienes acceso como editor. Puedes modificar contenido y gestionar alumnos, pero no la configuración sensible ni los profesores del módulo.";
+        case MODULE_COLLABORATOR_ROLE.VIEWER:
+            return "Tienes acceso como visitante. Puedes consultar el contenido, pero no modificarlo.";
+        default:
+            return "Rol de profesor del módulo.";
+    }
+}
+
 export function getRestrictedActionMessage(action: keyof ModulePermissions, role: ModuleCollaboratorRole): string {
     if (action === "canManageCollaborators") {
         return "Solo el creador puede gestionar profesores de este módulo.";

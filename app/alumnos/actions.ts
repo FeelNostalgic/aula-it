@@ -9,7 +9,7 @@ async function requireTeacher() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) throw new Error("No autenticado");
+  if (!user) throw new Error("No autenticado.");
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -17,7 +17,7 @@ async function requireTeacher() {
     .eq("id", user.id)
     .single();
 
-  if (profile?.role !== "teacher") throw new Error("Sin permisos");
+  if (profile?.role !== "teacher") throw new Error("Sin permisos.");
   return { supabase, user };
 }
 
@@ -100,7 +100,7 @@ export async function getTeacherModules(): Promise<{
 }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "No autenticado" };
+  if (!user) return { error: "No autenticado." };
 
   const { data, error } = await supabase
     .from("modules")

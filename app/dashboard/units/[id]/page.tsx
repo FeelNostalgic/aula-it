@@ -183,6 +183,8 @@ export default async function UnitPage({
             milestones={unitMilestones || []}
             classBadges={classBadges || []}
             studentBadges={studentBadges || []}
+            moduleRole={unitAccess?.role ?? null}
+            modulePermissions={unitAccess?.permissions ?? null}
         />
     );
 }

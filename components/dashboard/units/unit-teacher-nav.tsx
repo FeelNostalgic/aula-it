@@ -11,12 +11,14 @@ import {
     Award,
     Settings
 } from "lucide-react";
+import type { ModulePermissions } from "@/lib/module-collaborator-defs";
 
 interface UnitTeacherNavProps {
     unitId: string;
+    modulePermissions: ModulePermissions | null;
 }
 
-export function UnitTeacherNav({ unitId }: UnitTeacherNavProps) {
+export function UnitTeacherNav({ unitId, modulePermissions }: UnitTeacherNavProps) {
     const pathname = usePathname();
 
     const links = [
@@ -24,45 +26,52 @@ export function UnitTeacherNav({ unitId }: UnitTeacherNavProps) {
             href: `/dashboard/units/${unitId}/retos`,
             label: "RETOS",
             icon: BookOpen,
-            match: `/dashboard/units/${unitId}/retos`
+            match: `/dashboard/units/${unitId}/retos`,
+            visible: true,
         },
         {
             href: `/units/${unitId}/map`,
             label: "MAPA",
             icon: GraduationCap,
-            match: `/units/${unitId}/map`
+            match: `/units/${unitId}/map`,
+            visible: modulePermissions?.canViewModule ?? true,
         },
         {
             href: `/dashboard/units/${unitId}/recursos`,
             label: "RECURSOS",
             icon: FolderOpen,
-            match: `/dashboard/units/${unitId}/recursos`
+            match: `/dashboard/units/${unitId}/recursos`,
+            visible: modulePermissions?.canEditModuleContent ?? true,
         },
         {
             href: `/dashboard/units/${unitId}/evaluacion`,
             label: "EVALUACIÓN",
             icon: CheckCircle,
-            match: `/dashboard/units/${unitId}/evaluacion`
+            match: `/dashboard/units/${unitId}/evaluacion`,
+            visible: modulePermissions?.canManageStudents ?? true,
         },
         {
             href: `/dashboard/units/${unitId}/hitos`,
             label: "HITO",
             icon: CheckCircle, // Reusing icon based on current UI
-            match: `/dashboard/units/${unitId}/hitos`
+            match: `/dashboard/units/${unitId}/hitos`,
+            visible: modulePermissions?.canEditModuleContent ?? true,
         },
         {
             href: `/dashboard/units/${unitId}/insignias`,
             label: "INSIGNIAS",
             icon: Award,
-            match: `/dashboard/units/${unitId}/insignias`
+            match: `/dashboard/units/${unitId}/insignias`,
+            visible: modulePermissions?.canEditModuleContent ?? true,
         },
         {
             href: `/dashboard/units/${unitId}/configuracion`,
             label: "CONFIGURACIÓN",
             icon: Settings,
-            match: `/dashboard/units/${unitId}/configuracion`
+            match: `/dashboard/units/${unitId}/configuracion`,
+            visible: modulePermissions?.canManageModuleSettings ?? true,
         }
-    ];
+    ].filter((link) => link.visible);
 
     return (
         <div className="px-12 mb-6">

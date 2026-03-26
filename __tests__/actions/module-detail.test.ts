@@ -30,11 +30,12 @@ describe("createUnit", () => {
       .mockAuthError("session expired")
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const formData = createFormData({ module_id: MODULE_ID, name: "Unit 1" });
     const result = await createUnit(null, formData);
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("returns error when user is not authenticated (null user)", async () => {
@@ -42,11 +43,12 @@ describe("createUnit", () => {
       .mockAuth(null)
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const formData = createFormData({ module_id: MODULE_ID, name: "Unit 1" });
     const result = await createUnit(null, formData);
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("returns error when user role is not teacher", async () => {
@@ -58,31 +60,29 @@ describe("createUnit", () => {
       })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const formData = createFormData({ module_id: MODULE_ID, name: "Unit 1" });
     const result = await createUnit(null, formData);
 
-    expect(result).toEqual({ error: "Unauthorized: only teachers can create units" });
+    expect(result).toEqual({ error: "Solo los profesores pueden crear unidades." });
   });
 
   it("returns validation error when module_id or name is missing", async () => {
     const { client } = new SupabaseMockBuilder()
-      .mockAuth(createMockUser())
-      .mockQuery("profiles", {
-        data: createMockProfile({ role: "teacher" }),
-        error: null,
-      })
+      .mockTeacherAccess()
       .mockQuery("modules", {
         data: createMockModule({ id: MODULE_ID }),
         error: null,
       })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const formData = createFormData({ module_id: MODULE_ID });
     const result = await createUnit(null, formData);
 
-    expect(result).toEqual({ error: "Module ID and unit name are required" });
+    expect(result).toEqual({ error: "El ID del módulo y el nombre de la unidad son obligatorios." });
   });
 
   it("returns error when teacher does not own the module", async () => {
@@ -95,11 +95,12 @@ describe("createUnit", () => {
       .mockQuery("modules", { data: null, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const formData = createFormData({ module_id: MODULE_ID, name: "Unit 1" });
     const result = await createUnit(null, formData);
 
-    expect(result).toEqual({ error: "Module not found or unauthorized" });
+    expect(result).toEqual({ error: "No se ha encontrado el módulo o no tienes suficientes permisos." });
   });
 
   it("inserts unit with calculated order_index and returns success", async () => {
@@ -121,6 +122,7 @@ describe("createUnit", () => {
       .mockInsert("units", { data: null, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const formData = createFormData({
       module_id: MODULE_ID,
@@ -142,10 +144,11 @@ describe("enrollStudent", () => {
       .mockAuthError("session expired")
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await enrollStudent(MODULE_ID, STUDENT_ID);
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("returns error when user is not authenticated (null user)", async () => {
@@ -153,10 +156,11 @@ describe("enrollStudent", () => {
       .mockAuth(null)
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await enrollStudent(MODULE_ID, STUDENT_ID);
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("returns error when user role is not teacher", async () => {
@@ -168,10 +172,12 @@ describe("enrollStudent", () => {
       })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await enrollStudent(MODULE_ID, STUDENT_ID);
 
-    expect(result).toEqual({ error: "Unauthorized: only teachers can enroll students" });
+    expect(result).toEqual({ error: "Solo los profesores pueden matricular alumnos." });
   });
 
   it("returns error when teacher does not own the module", async () => {
@@ -184,10 +190,11 @@ describe("enrollStudent", () => {
       .mockQuery("modules", { data: null, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await enrollStudent(MODULE_ID, STUDENT_ID);
 
-    expect(result).toEqual({ error: "Module not found or unauthorized" });
+    expect(result).toEqual({ error: "No se ha encontrado el módulo o no tienes suficientes permisos." });
   });
 
   it("returns specific message on duplicate enrollment (code 23505)", async () => {
@@ -207,6 +214,7 @@ describe("enrollStudent", () => {
       })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await enrollStudent(MODULE_ID, STUDENT_ID);
 
@@ -227,6 +235,7 @@ describe("enrollStudent", () => {
       .mockInsert("module_enrollments", { data: null, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await enrollStudent(MODULE_ID, STUDENT_ID);
 
@@ -243,10 +252,11 @@ describe("unenrollStudent", () => {
       .mockAuthError("session expired")
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await unenrollStudent(MODULE_ID, STUDENT_ID);
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("returns error when user role is not teacher", async () => {
@@ -258,10 +268,11 @@ describe("unenrollStudent", () => {
       })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await unenrollStudent(MODULE_ID, STUDENT_ID);
 
-    expect(result).toEqual({ error: "Unauthorized: only teachers can unenroll students" });
+    expect(result).toEqual({ error: "Solo los profesores pueden desvincular alumnos." });
   });
 
   it("returns error when teacher does not own the module", async () => {
@@ -274,10 +285,11 @@ describe("unenrollStudent", () => {
       .mockQuery("modules", { data: null, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await unenrollStudent(MODULE_ID, STUDENT_ID);
 
-    expect(result).toEqual({ error: "Module not found or unauthorized" });
+    expect(result).toEqual({ error: "No se ha encontrado el módulo o no tienes suficientes permisos." });
   });
 
   it("deletes with match and returns success", async () => {
@@ -294,6 +306,7 @@ describe("unenrollStudent", () => {
       .mockDelete("module_enrollments", { data: null, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await unenrollStudent(MODULE_ID, STUDENT_ID);
 
@@ -310,11 +323,12 @@ describe("updateModuleSettings", () => {
       .mockAuthError("session expired")
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const formData = createFormData({ name: "Updated Module", status: "published" });
     const result = await updateModuleSettings(MODULE_ID, formData);
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("returns error when user role is not teacher", async () => {
@@ -326,40 +340,34 @@ describe("updateModuleSettings", () => {
       })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const formData = createFormData({ name: "Updated Module", status: "published" });
     const result = await updateModuleSettings(MODULE_ID, formData);
 
-    expect(result).toEqual({ error: "Unauthorized: only teachers can update modules" });
+    expect(result).toEqual({ error: "Solo los profesores pueden actualizar módulos." });
   });
 
   it("returns validation error when name is whitespace only", async () => {
     const { client } = new SupabaseMockBuilder()
-      .mockAuth(createMockUser())
-      .mockQuery("profiles", {
-        data: createMockProfile({ role: "teacher" }),
-        error: null,
-      })
+      .mockTeacherAccess()
       .mockQuery("modules", {
         data: createMockModule({ id: MODULE_ID }),
         error: null,
       })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const formData = createFormData({ name: "   ", status: "published" });
     const result = await updateModuleSettings(MODULE_ID, formData);
 
-    expect(result).toEqual({ error: "Module name cannot be empty" });
+    expect(result).toEqual({ error: "El nombre del módulo no puede estar vacío." });
   });
 
   it("updates name (trimmed), description, status and returns success", async () => {
     const { client } = new SupabaseMockBuilder()
-      .mockAuth(createMockUser())
-      .mockQuery("profiles", {
-        data: createMockProfile({ role: "teacher" }),
-        error: null,
-      })
+      .mockTeacherAccess()
       .mockQuery("modules", {
         data: createMockModule({ id: MODULE_ID }),
         error: null,
@@ -367,6 +375,7 @@ describe("updateModuleSettings", () => {
       .mockUpdate("modules", { data: null, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const formData = createFormData({
       name: "  Updated Module  ",
@@ -389,10 +398,11 @@ describe("archiveModule", () => {
       .mockAuthError("session expired")
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await archiveModule(MODULE_ID);
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("returns error when user role is not teacher", async () => {
@@ -404,19 +414,16 @@ describe("archiveModule", () => {
       })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await archiveModule(MODULE_ID);
 
-    expect(result).toEqual({ error: "Unauthorized: only teachers can archive modules" });
+    expect(result).toEqual({ error: "Solo los profesores pueden archivar módulos." });
   });
 
   it("updates status to archived and returns success", async () => {
     const { client } = new SupabaseMockBuilder()
-      .mockAuth(createMockUser())
-      .mockQuery("profiles", {
-        data: createMockProfile({ role: "teacher" }),
-        error: null,
-      })
+      .mockTeacherAccess()
       .mockQuery("modules", {
         data: createMockModule({ id: MODULE_ID }),
         error: null,
@@ -424,6 +431,7 @@ describe("archiveModule", () => {
       .mockUpdate("modules", { data: null, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await archiveModule(MODULE_ID);
 
@@ -441,10 +449,11 @@ describe("deleteModule", () => {
       .mockAuthError("session expired")
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await deleteModule(MODULE_ID);
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("returns error when user role is not teacher", async () => {
@@ -456,19 +465,16 @@ describe("deleteModule", () => {
       })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await deleteModule(MODULE_ID);
 
-    expect(result).toEqual({ error: "Unauthorized: only teachers can delete modules" });
+    expect(result).toEqual({ error: "Solo los profesores pueden eliminar módulos." });
   });
 
   it("deletes module and returns success", async () => {
     const { client } = new SupabaseMockBuilder()
-      .mockAuth(createMockUser())
-      .mockQuery("profiles", {
-        data: createMockProfile({ role: "teacher" }),
-        error: null,
-      })
+      .mockTeacherAccess()
       .mockQuery("modules", {
         data: createMockModule({ id: MODULE_ID }),
         error: null,
@@ -476,6 +482,7 @@ describe("deleteModule", () => {
       .mockDelete("modules", { data: null, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await deleteModule(MODULE_ID);
 
@@ -492,10 +499,11 @@ describe("getAvailableStudents", () => {
       .mockAuthError("session expired")
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await getAvailableStudents(MODULE_ID);
 
-    expect(result).toEqual({ error: "Not authenticated" });
+    expect(result).toEqual({ error: "No autenticado." });
   });
 
   it("returns students not in enrolled list when there are enrollments", async () => {
@@ -571,7 +579,7 @@ describe("getAvailableStudents", () => {
     const user = createMockUser();
 
     const { client } = new SupabaseMockBuilder()
-      .mockAuth(user)
+      .mockTeacherAccess()
       .mockQuery("modules", { data: createMockModule({ id: MODULE_ID }), error: null })
       .mockQuery("module_enrollments", { data: [], error: null })
       .mockQuery("profiles", { data: [], error: null })

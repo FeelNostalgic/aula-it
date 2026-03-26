@@ -21,7 +21,8 @@ import {
     Search,
     Award,
     Target,
-    Download
+    Download,
+    ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,13 @@ import { ClassMilestoneWidget } from "@/components/dashboard/shared/class-milest
 import { ClassBadgesWidget } from "@/components/dashboard/badges/class-badges-widget";
 import { ClassBadge, StudentBadge } from "@/types/database";
 import ClassBadgesManager from "@/components/dashboard/badges/class-badges-manager";
+import {
+    getModuleRoleLabel,
+    getModuleRoleTooltip,
+    type ModuleCollaboratorRole,
+    type ModulePermissions,
+} from "@/lib/module-collaborator-defs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { 
     Select, 
@@ -98,6 +106,8 @@ interface UnitDetailViewProps {
     milestones: ClassMilestone[];
     classBadges: ClassBadge[];
     studentBadges: StudentBadge[];
+    moduleRole?: ModuleCollaboratorRole | null;
+    modulePermissions?: ModulePermissions | null;
 }
 
 export function UnitDetailView({
@@ -110,9 +120,14 @@ export function UnitDetailView({
     userRole,
     milestones,
     classBadges,
-    studentBadges
+    studentBadges,
+    moduleRole = null,
+    modulePermissions = null,
 }: UnitDetailViewProps) {
     const isTeacher = userRole === "teacher";
+    const canEditModuleContent = modulePermissions?.canEditModuleContent ?? isTeacher;
+    const canManageStudents = modulePermissions?.canManageStudents ?? isTeacher;
+    const canManageModuleSettings = modulePermissions?.canManageModuleSettings ?? isTeacher;
     const [viewMode, setViewMode] = useState<'grid' | 'list' | null>(null);
     const [gridCols, setGridCols] = useState(3);
     const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -238,6 +253,21 @@ export function UnitDetailView({
                                     <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
                                     {statusConfig.label}
                                 </Badge>
+                            )}
+                            {isTeacher && moduleRole && moduleRole !== "creator" && (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300 gap-1.5 py-1 px-3 shadow-sm cursor-help">
+                                                <ShieldAlert className="size-3.5" />
+                                                {getModuleRoleLabel(moduleRole)}
+                                            </Badge>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-xs">
+                                            {getModuleRoleTooltip(moduleRole)}
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
                             )}
                         </div>
                         <p className="text-sm text-text-muted max-w-xl">
@@ -386,7 +416,7 @@ export function UnitDetailView({
                                 </TabsTrigger>
                             )}
 
-                            {isTeacher && (
+                            {isTeacher && canEditModuleContent && (
                                 <TabsTrigger
                                     value="recursos-edit"
                                     className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
@@ -406,7 +436,7 @@ export function UnitDetailView({
                                 </TabsTrigger>
                             )}
 
-                            {isTeacher && (
+                            {isTeacher && canEditModuleContent && (
                                 <TabsTrigger
                                     value="hito"
                                     className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
@@ -416,7 +446,7 @@ export function UnitDetailView({
                                 </TabsTrigger>
                             )}
 
-                            {isTeacher && (
+                            {isTeacher && canEditModuleContent && (
                                 <TabsTrigger
                                     value="insignias"
                                     className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
@@ -428,20 +458,24 @@ export function UnitDetailView({
 
                             {isTeacher && (
                                 <>
-                                    <TabsTrigger
-                                        value="evaluacion"
-                                        className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
-                                    >
-                                        <CheckCircle className="mr-2 size-3.5" />
-                                        EVALUACIÓN
-                                    </TabsTrigger>
-                                    <TabsTrigger
-                                        value="configuracion"
-                                        className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
-                                    >
-                                        <Settings className="mr-2 size-3.5" />
-                                        CONFIGURACIÓN
-                                    </TabsTrigger>
+                                    {canManageStudents && (
+                                        <TabsTrigger
+                                            value="evaluacion"
+                                            className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
+                                        >
+                                            <CheckCircle className="mr-2 size-3.5" />
+                                            EVALUACIÓN
+                                        </TabsTrigger>
+                                    )}
+                                    {canManageModuleSettings && (
+                                        <TabsTrigger
+                                            value="configuracion"
+                                            className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md shrink-0"
+                                        >
+                                            <Settings className="mr-2 size-3.5" />
+                                            CONFIGURACIÓN
+                                        </TabsTrigger>
+                                    )}
                                 </>
                             )}
                         </TabsList>
@@ -453,6 +487,8 @@ export function UnitDetailView({
                             unitId={unit.id}
                             initialActivities={activities}
                             isTeacher={isTeacher}
+                            canEditActivities={canEditModuleContent}
+                            moduleRole={moduleRole}
                             submissions={submissions}
                             studentBadges={studentBadges}
                             gridCols={gridCols}
@@ -712,14 +748,14 @@ export function UnitDetailView({
                     </TabsContent>
 
                     {/* Hito Tab (Teacher Only) */}
-                    {isTeacher && (
+                    {isTeacher && canEditModuleContent && (
                         <TabsContent value="hito" className="mt-6 px-12 pb-12">
                             <UnitMilestoneTab unitId={unit.id} initialMilestones={milestones} isTeacher={isTeacher} />
                         </TabsContent>
                     )}
 
                     {/* Insignias Tab (Teacher Only) */}
-                    {isTeacher && (
+                    {isTeacher && canEditModuleContent && (
                         <TabsContent value="insignias" className="mt-6 px-12 pb-12">
                             <ClassBadgesManager 
                                 unitId={unit.id} 
@@ -729,7 +765,7 @@ export function UnitDetailView({
                     )}
 
                     {/* Evaluación Tab */}
-                    {isTeacher && (
+                    {isTeacher && canManageStudents && (
                         <TabsContent value="evaluacion" className="mt-6 px-12 pb-12">
                             <UnitEvaluationTab
                                 unitId={unit.id}
@@ -741,14 +777,14 @@ export function UnitDetailView({
                     )}
 
                     {/* Configuración Tab */}
-                    {isTeacher && (
+                    {isTeacher && canManageModuleSettings && (
                         <TabsContent value="configuracion" className="mt-6 px-12 pb-12">
                             <UnitSettingsTab unit={unit} />
                         </TabsContent>
                     )}
 
                     {/* Edición de Recursos (Teacher) */}
-                    {isTeacher && (
+                    {isTeacher && canEditModuleContent && (
                         <TabsContent value="recursos-edit" className="mt-6 px-12 pb-12">
                             <UnitResourcesTab
                                 unitId={unit.id}

@@ -50,7 +50,7 @@ export async function createPhase(activityId: string, title: string, orderIndex:
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -76,7 +76,7 @@ export async function createStep(phaseId: string, title: string, type: ActivityS
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "Sin permisos." };
 
     // Default content based on type
     let defaultContent = {};
@@ -121,7 +121,7 @@ export async function updateStepContent(stepId: string, content: any) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -143,7 +143,7 @@ export async function updateStepTitle(stepId: string, title: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -165,7 +165,7 @@ export async function updatePhaseTitle(phaseId: string, activityId: string, titl
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -187,7 +187,7 @@ export async function deletePhase(phaseId: string, activityId: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { error } = await admin
@@ -207,7 +207,7 @@ export async function deleteStep(stepId: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { error } = await admin
@@ -227,7 +227,7 @@ export async function duplicateStep(stepId: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data: originalStep, error: stepError } = await admin
@@ -318,7 +318,7 @@ export async function reorderPhases(activityId: string, updates: { id: string, o
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     // Supabase JS doesn't have bulk update out of the box nicely, so we map updates
@@ -344,7 +344,7 @@ export async function reorderSteps(activityId: string, updates: { id: string, ph
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const promises = updates.map(update =>
@@ -369,7 +369,7 @@ export async function updateActivitySettings(activityId: string, updates: any) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -392,7 +392,7 @@ export async function updateActivityStatus(activityId: string, status: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsActivity(activityId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -415,7 +415,7 @@ export async function updateStepVisibility(stepId: string, isVisible: boolean) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -435,7 +435,7 @@ export async function updateStepDueDate(stepId: string, dueDate: string | null) 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -455,7 +455,7 @@ export async function updateStepLock(stepId: string, isLocked: boolean) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -475,7 +475,7 @@ export async function updateStepLockdown(stepId: string, isLockdown: boolean) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -495,7 +495,7 @@ export async function updatePhaseStepsVisibility(phaseId: string, isVisible: boo
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { error } = await admin
@@ -510,7 +510,7 @@ export async function updatePhaseStepsActivityClosed(phaseId: string, isClosed: 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { error } = await admin
@@ -525,7 +525,7 @@ export async function updatePhaseStepsLock(phaseId: string, isLocked: boolean) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsPhase(phaseId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { error } = await admin
@@ -540,7 +540,7 @@ export async function updateStepActivityClosed(stepId: string, isClosed: boolean
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -560,7 +560,7 @@ export async function updateStepXp(stepId: string, xp: number | null) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -583,7 +583,7 @@ export async function getStudentProfilesForImport(stepId: string): Promise<{
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { profiles: [], error: "No autenticado." };
-    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { profiles: [], error: "No autorizado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { profiles: [], error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -603,7 +603,7 @@ export async function importGoogleFormResults(
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { imported: 0, error: "No autenticado." };
-    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { imported: 0, error: "No autorizado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { imported: 0, error: "Sin permisos." };
 
     // Get activity_id from step
     const admin = createAdminClient();
@@ -668,7 +668,7 @@ export async function updateStepCompletionMode(stepId: string, mode: CompletionM
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
-    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "No autorizado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -781,7 +781,7 @@ export async function updateRubricCriterionLibraryEntry(
         .single();
 
     if (existingError || !existing) return { error: existingError?.message ?? "No se encontró el criterio guardado." };
-    if (existing.created_by !== user.id) return { error: "No autorizado." };
+    if (existing.created_by !== user.id) return { error: "Sin permisos." };
 
     const admin = createAdminClient();
     const { data, error } = await admin

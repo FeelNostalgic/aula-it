@@ -136,7 +136,7 @@ describe("createPhase", () => {
 
     const result = await createPhase("activity-1", "Intro", 0);
 
-    expect(result).toEqual({ error: "No autorizado." });
+    expect(result).toEqual({ error: "Sin permisos." });
   });
 
   it("inserts phase via admin client and returns data on success", async () => {
@@ -169,7 +169,7 @@ describe("createStep", () => {
 
     const result = await createStep("phase-1", "Step Title", "theory", 0);
 
-    expect(result).toEqual({ error: "No autorizado." });
+    expect(result).toEqual({ error: "Sin permisos." });
   });
 
   it("inserts with default content { markdown: '' } for theory type", async () => {
@@ -479,7 +479,7 @@ describe("updateActivitySettings", () => {
 
     const result = await updateActivitySettings("activity-1", { title: "New" });
 
-    expect(result).toEqual({ error: "No autorizado." });
+    expect(result).toEqual({ error: "Sin permisos." });
   });
 
   it("updates activity settings via admin client and returns data on success", async () => {
@@ -645,7 +645,7 @@ describe("updateStepXp", () => {
 
     const result = await updateStepXp("step-1", 50);
 
-    expect(result).toEqual({ error: "No autorizado." });
+    expect(result).toEqual({ error: "Sin permisos." });
   });
 
   it("updates xp via admin client and returns data on success", async () => {
@@ -684,7 +684,7 @@ describe("updateStepCompletionMode", () => {
 
     const result = await updateStepCompletionMode("step-1", "viewable");
 
-    expect(result).toEqual({ error: "No autorizado." });
+    expect(result).toEqual({ error: "Sin permisos." });
   });
 
   it("updates completion_mode via admin client and returns data on success", async () => {

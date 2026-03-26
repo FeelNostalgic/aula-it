@@ -4,6 +4,7 @@ import { MapWorkspace } from "@/components/map-ide/map-workspace";
 import { ReactFlowProvider } from "@xyflow/react";
 import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/layout/breadcrumb-context";
 import { useEffect } from "react";
+import type { ModuleCollaboratorRole, ModulePermissions } from "@/lib/module-collaborator-defs";
 
 interface MapClientProps {
     unit: any;
@@ -14,6 +15,8 @@ interface MapClientProps {
     milestones: any[];
     classBadges: any[];
     studentBadges: any[];
+    moduleRole: ModuleCollaboratorRole | null;
+    modulePermissions: ModulePermissions | null;
 }
 
 function BreadcrumbSetter({ unit }: { unit: any }) {
@@ -42,7 +45,7 @@ function BreadcrumbSetter({ unit }: { unit: any }) {
     return null;
 }
 
-export default function MapClient({ unit, activities, role, user, profile, milestones, classBadges, studentBadges }: MapClientProps) {
+export default function MapClient({ unit, activities, role, user, profile, milestones, classBadges, studentBadges, moduleRole, modulePermissions }: MapClientProps) {
     return (
         <BreadcrumbProvider>
             <BreadcrumbSetter unit={unit} />
@@ -56,6 +59,8 @@ export default function MapClient({ unit, activities, role, user, profile, miles
                     milestones={milestones}
                     classBadges={classBadges}
                     studentBadges={studentBadges}
+                    moduleRole={moduleRole}
+                    modulePermissions={modulePermissions}
                 />
             </ReactFlowProvider>
         </BreadcrumbProvider>

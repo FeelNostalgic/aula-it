@@ -84,6 +84,8 @@ export default async function ActivityEditPage({
             initialPhases={initialPhases as any}
             profile={profile}
             user={user}
+            moduleRole={activityAccess.role}
+            modulePermissions={activityAccess.permissions}
         />
     );
 }

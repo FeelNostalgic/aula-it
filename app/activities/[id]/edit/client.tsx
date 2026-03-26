@@ -23,12 +23,22 @@ import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/layout
 import { EditorTabsBar } from "@/components/dashboard/activities/activity-builder/editor-tabs-bar";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { updateActivityStatus, updateStepTitle, updateActivitySettings } from "./actions";
+import {
+    getModuleRoleLabel,
+    getModuleRoleTooltip,
+    type ModuleCollaboratorRole,
+    type ModulePermissions,
+} from "@/lib/module-collaborator-defs";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ActivityBuilderClientProps {
     activity: any;
     initialPhases: ActivityPhaseWithSteps[];
     profile: any;
     user: any;
+    moduleRole: ModuleCollaboratorRole;
+    modulePermissions: ModulePermissions;
 }
 
 function BreadcrumbSetter({ activity }: { activity: any }) {
@@ -59,7 +69,7 @@ function BreadcrumbSetter({ activity }: { activity: any }) {
     return null;
 }
 
-export function ActivityBuilderClient({ activity, initialPhases, profile, user }: ActivityBuilderClientProps) {
+export function ActivityBuilderClient({ activity, initialPhases, profile, user, moduleRole, modulePermissions }: ActivityBuilderClientProps) {
     const router = useRouter();
     const [phases, setPhases] = useState<ActivityPhaseWithSteps[]>(initialPhases);
     const [selectedStepId, setSelectedStepId] = useState<string | null>(() => {
@@ -94,6 +104,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
     }, [selectedStepId, activity.id]);
 
     const isTeacher = profile?.role === "teacher";
+    const canEditActivity = modulePermissions?.canEditModuleContent ?? isTeacher;
 
     const handleBackToMap = () => {
         if (activity.unit?.id) {
@@ -173,8 +184,22 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                             </div>
                         )}
                         */}
-                        {isTeacher && (
+                        {isTeacher && canEditActivity && (
                             <div className="flex items-center gap-2 mr-4">
+                                {moduleRole !== "creator" && (
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300 gap-1.5 py-1 px-3 shadow-sm cursor-help">
+                                                    {getModuleRoleLabel(moduleRole)}
+                                                </Badge>
+                                            </TooltipTrigger>
+                                            <TooltipContent className="max-w-xs">
+                                                {getModuleRoleTooltip(moduleRole)}
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                )}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button
@@ -302,6 +327,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user }
                                 setPhases={setPhases}
                                 selectedStepId={selectedStepId}
                                 setSelectedStepId={handleSelectStep}
+                                moduleRole={moduleRole}
                             />
                         </ResizablePanel>
 

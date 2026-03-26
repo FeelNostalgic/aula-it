@@ -57,6 +57,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { getRestrictedActionMessage, type ModuleCollaboratorRole } from "@/lib/module-collaborator-defs";
 
 // DnD Kit Imports
 import {
@@ -101,6 +103,8 @@ interface UnitActivitiesTabProps {
     unitId: string;
     initialActivities: Activity[];
     isTeacher?: boolean;
+    canEditActivities?: boolean;
+    moduleRole?: ModuleCollaboratorRole | null;
     submissions: any[];
     studentBadges?: any[];
     gridCols?: number;
@@ -156,6 +160,8 @@ function SortableActivityItem({
     unitId,
     onDelete,
     isTeacher,
+    canEditActivities = true,
+    moduleRole = null,
     studentBadges = [],
     submission
 }: {
@@ -164,6 +170,8 @@ function SortableActivityItem({
     unitId: string,
     onDelete: (id: string) => void,
     isTeacher?: boolean,
+    canEditActivities?: boolean,
+    moduleRole?: ModuleCollaboratorRole | null,
     studentBadges?: any[],
     submission?: any
 }) {
@@ -324,7 +332,7 @@ function SortableActivityItem({
                 <div
                     ref={setNodeRef}
                     style={style}
-                    onClick={() => router.push(isTeacher ? `/activities/${activity.id}/edit` : `/activities/${activity.id}`)}
+                    onClick={() => router.push(isTeacher && canEditActivities ? `/activities/${activity.id}/edit` : `/activities/${activity.id}`)}
                     className={cn(
                         "group relative bg-surface-dark border border-border-strong rounded-2xl p-5 hover:border-accent-blue/40 hover:bg-surface/50 transition-all duration-300 cursor-pointer flex flex-col h-full",
                         isDragging && "opacity-50 ring-2 ring-accent-blue/20 cursor-grabbing shadow-2xl scale-105"
@@ -347,7 +355,7 @@ function SortableActivityItem({
                                 </Badge>
                             )}
                         </div>
-                        {isTeacher && (
+                        {isTeacher && canEditActivities && (
                             <div className="flex items-center gap-1">
                                 <ActionsMenu />
                                 <div
@@ -359,6 +367,20 @@ function SortableActivityItem({
                                     <GripVertical className="size-4" />
                                 </div>
                             </div>
+                        )}
+                        {isTeacher && !canEditActivities && moduleRole && moduleRole !== "viewer" && (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span>
+                                            <Button variant="ghost" size="icon" className="size-8 text-text-muted" disabled>
+                                                <MoreVertical className="size-4" />
+                                            </Button>
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{getRestrictedActionMessage("canEditModuleContent", moduleRole)}</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         )}
                     </div>
 
@@ -459,14 +481,14 @@ function SortableActivityItem({
             <div
                 ref={setNodeRef}
                 style={style}
-                onClick={() => router.push(isTeacher ? `/activities/${activity.id}/edit` : `/activities/${activity.id}`)}
+                onClick={() => router.push(isTeacher && canEditActivities ? `/activities/${activity.id}/edit` : `/activities/${activity.id}`)}
                 className={cn(
                     "group flex items-center gap-4 bg-surface-dark border border-border-strong rounded-xl p-4 hover:border-accent-blue/30 hover:bg-surface/50 transition-all cursor-pointer",
                     isDragging && "opacity-50 ring-2 ring-accent-blue/20 cursor-grabbing shadow-lg"
                 )}
             >
                 {/* Drag handle */}
-                {isTeacher && (
+                {isTeacher && canEditActivities && (
                     <div
                         {...attributes}
                         {...listeners}
@@ -575,7 +597,21 @@ function SortableActivityItem({
                     )}
                 </div>
 
-                {isTeacher && <ActionsMenu />}
+                {isTeacher && canEditActivities && <ActionsMenu />}
+                {isTeacher && !canEditActivities && moduleRole && moduleRole !== "viewer" && (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span>
+                                    <Button variant="ghost" size="icon" className="size-8 text-text-muted" disabled>
+                                        <MoreVertical className="size-4" />
+                                    </Button>
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent>{getRestrictedActionMessage("canEditModuleContent", moduleRole)}</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )}
             </div>
             <DeleteConfirmation />
         </>
@@ -586,6 +622,8 @@ export function UnitActivitiesTab({
     unitId,
     initialActivities,
     isTeacher = false,
+    canEditActivities = true,
+    moduleRole = null,
     submissions,
     studentBadges = [],
     gridCols = 3,
@@ -625,7 +663,7 @@ export function UnitActivitiesTab({
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
-        if (!over || active.id === over.id) return;
+        if (!canEditActivities || !over || active.id === over.id) return;
 
         const oldIndex = activities.findIndex((item) => item.id === active.id);
         const newIndex = activities.findIndex((item) => item.id === over.id);
@@ -714,13 +752,28 @@ export function UnitActivitiesTab({
                         </Button>
                     </div>
 
-                    {isTeacher && (
+                    {isTeacher && canEditActivities && (
                         <CreateActivityDialog unitId={unitId}>
                             <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
                                 <Plus className="mr-2 size-4" />
                                 AÑADIR RETO
                             </Button>
                         </CreateActivityDialog>
+                    )}
+                    {isTeacher && !canEditActivities && moduleRole && moduleRole !== "viewer" && (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span>
+                                        <Button disabled className="font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
+                                            <Lock className="mr-2 size-4" />
+                                            AÑADIR RETO
+                                        </Button>
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent>{getRestrictedActionMessage("canEditModuleContent", moduleRole)}</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     )}
                 </div>
             </div>
@@ -736,7 +789,7 @@ export function UnitActivitiesTab({
                             ? "Comienza a construir el recorrido de aprendizaje añadiendo el primer reto para esta unidad."
                             : "Vuelve más tarde para descubrir los retos de esta unidad."}
                     </p>
-                    {isTeacher && (
+                    {isTeacher && canEditActivities && (
                         <CreateActivityDialog unitId={unitId}>
                             <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8 uppercase">
                                 <Plus className="mr-2 size-4" />
@@ -767,6 +820,8 @@ export function UnitActivitiesTab({
                                     viewMode={viewMode}
                                     unitId={unitId}
                                     isTeacher={isTeacher}
+                                    canEditActivities={canEditActivities}
+                                    moduleRole={moduleRole}
                                     studentBadges={studentBadges}
                                     onDelete={(id) => setActivities(prev => prev.filter(a => a.id !== id))}
                                     submission={
@@ -777,8 +832,8 @@ export function UnitActivitiesTab({
                                 />
                             ))}
 
-                            {isTeacher && (
-                                <CreateActivityDialog
+                    {isTeacher && canEditActivities && (
+                        <CreateActivityDialog
                                     unitId={unitId}
                                     trigger={
                                         <button className={cn(

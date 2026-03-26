@@ -43,6 +43,7 @@ import {
 } from '@/components/map-ide/actions';
 import { ClassMilestoneWidget } from '@/components/dashboard/shared/class-milestone-widget';
 import { ClassBadgesWidget } from '@/components/dashboard/badges/class-badges-widget';
+import type { ModuleCollaboratorRole, ModulePermissions } from '@/lib/module-collaborator-defs';
 
 const nodeTypes: NodeTypes = {
     mission: MissionNodeComponent,
@@ -57,9 +58,11 @@ interface MapWorkspaceProps {
     milestones?: any[];
     classBadges?: any[];
     studentBadges?: any[];
+    moduleRole?: ModuleCollaboratorRole | null;
+    modulePermissions?: ModulePermissions | null;
 }
 
-export function MapWorkspace({ unit, activities, role, user, profile, milestones = [], classBadges = [], studentBadges = [] }: MapWorkspaceProps) {
+export function MapWorkspace({ unit, activities, role, user, profile, milestones = [], classBadges = [], studentBadges = [], moduleRole = null, modulePermissions = null }: MapWorkspaceProps) {
     const router = useRouter();
     const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
     const [selectedActivity, setSelectedActivity] = useState<any | null>(null);
@@ -122,6 +125,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
     };
 
     const isTeacher = role === 'teacher';
+    const canEditMap = isTeacher && (modulePermissions?.canEditModuleContent ?? true);
 
     // Initial Nodes: Only show those with a position (filter drafts for students)
     const initialNodes: Node[] = useMemo(() => {
@@ -139,10 +143,11 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                     logo_url: activity.logo_url,
                     title_position: activity.title_position || 'down',
                     unitId: unit.id,
-                    role: role // Pass role here
+                    role: role,
+                    canEditContent: canEditMap,
                 },
             }));
-    }, [activities]);
+    }, [activities, canEditMap, isTeacher, role, unit.id]);
 
     const initialEdges: Edge[] = useMemo(() => {
         const connections = unit.map_connections || [];
@@ -251,7 +256,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
 
     const onConnect: OnConnect = useCallback(
         async (params) => {
-            if (!isTeacher || isEraserMode) return;
+            if (!canEditMap || isEraserMode) return;
 
             // Guard: prevent duplicate connections
             if (edges.some(e => e.source === params.source && e.target === params.target)) {
@@ -282,11 +287,11 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                 }
             }
         },
-        [edges, setEdges, isTeacher, isEraserMode, unit.id]
+        [canEditMap, edges, isEraserMode, setEdges, unit.id]
     );
 
     const onEdgesDelete = useCallback(async (deletedEdges: Edge[]) => {
-        if (!isTeacher) return;
+        if (!canEditMap) return;
 
         for (const edge of deletedEdges) {
             // Edge ID is the database ID in our case
@@ -295,10 +300,10 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                 toast.error(`Error al eliminar la conexión`);
             }
         }
-    }, [isTeacher, unit.id]);
+    }, [canEditMap, unit.id]);
 
     const onNodesDelete = useCallback(async (deletedNodes: Node[]) => {
-        if (!isTeacher) return;
+        if (!canEditMap) return;
 
         for (const node of deletedNodes) {
             const result = await removeActivityFromMap(node.id, unit.id);
@@ -308,13 +313,13 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                 toast.success("Reto movido al panel de diseño");
             }
         }
-    }, [isTeacher, unit.id]);
+    }, [canEditMap, unit.id]);
 
     const onNodeClick = useCallback(async (event: React.MouseEvent, node: Node) => {
         // In editing mode node body clicks are ignored — only handle clicks reconnect
         if (editingEdge) return;
 
-        if (isEraserMode && isTeacher) {
+        if (isEraserMode && canEditMap) {
             // 1. Find and delete connected edges first
             const connectedEdges = edges.filter(
                 (edge) => edge.source === node.id || edge.target === node.id
@@ -337,10 +342,10 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
         }
         const activity = activities.find(a => a.id === node.id);
         setSelectedActivity(activity || null);
-    }, [activities, isEraserMode, isTeacher, unit.id, setNodes, editingEdge]);
+    }, [activities, canEditMap, edges, editingEdge, isEraserMode, setEdges, setNodes, unit.id]);
 
     const onEdgeClick = useCallback(async (event: React.MouseEvent, edge: Edge) => {
-        if (isEraserMode && isTeacher) {
+        if (isEraserMode && canEditMap) {
             // Delete edge logic
             setEdges((eds) => eds.filter((e) => e.id !== edge.id));
             const result = await deleteActivityConnection(edge.id, unit.id);
@@ -350,13 +355,13 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                 toast.success("Conexión eliminada");
             }
         }
-    }, [isEraserMode, isTeacher, unit.id, setEdges]);
+    }, [canEditMap, isEraserMode, setEdges, unit.id]);
 
     const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
-        if (!isTeacher) return;
+        if (!canEditMap) return;
         event.preventDefault();
         setEdgeContextMenu({ edge, x: event.clientX, y: event.clientY });
-    }, [isTeacher]);
+    }, [canEditMap]);
 
     const onReconnect = useCallback(async (oldEdge: Edge, newConnection: Connection) => {
         await deleteActivityConnection(oldEdge.id, unit.id);
@@ -384,7 +389,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
     }, [unit.id, setEdges]);
 
     const onNodeDragStop = useCallback(async (event: React.MouseEvent, node: Node) => {
-        if (!isTeacher) return;
+        if (!canEditMap) return;
 
         triggerSaveIndicator();
         const { id, position } = node;
@@ -393,17 +398,17 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
         if (!result.success) {
             toast.error("Error al guardar la posición del nodo");
         }
-    }, [isTeacher, unit.id, triggerSaveIndicator]);
+    }, [canEditMap, triggerSaveIndicator, unit.id]);
 
     const onDragOver = useCallback((event: React.DragEvent) => {
-        if (!isTeacher) return;
+        if (!canEditMap) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';
-    }, [isTeacher]);
+    }, [canEditMap]);
 
     const onDrop = useCallback(
         async (event: React.DragEvent) => {
-            if (!isTeacher) return;
+            if (!canEditMap) return;
             event.preventDefault();
 
             const dataStr = event.dataTransfer.getData('application/reactflow');
@@ -442,7 +447,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                 }
             }
         },
-        [rfInstance, setNodes, isTeacher, unit.id, triggerSaveIndicator]
+        [canEditMap, rfInstance, setNodes, triggerSaveIndicator, unit.id]
     );
 
     const handleStartMission = useCallback((missionId: string) => {
@@ -476,7 +481,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                     </div>
 
                     <div className="flex items-center gap-6">
-                        {isTeacher && (
+                        {canEditMap && (
                             <div className="flex items-center gap-1.5 h-8 px-2">
                                 <AnimatePresence mode="wait" initial={false}>
                                     {isSaving ? (
@@ -594,6 +599,8 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                                             onAddActivity={(a) => {
                                                 // Manual add logic could go here if needed
                                             }}
+                                            moduleRole={moduleRole}
+                                            modulePermissions={modulePermissions}
                                         />
                                     </div>
                                 )}
@@ -616,7 +623,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                    {isTeacher && (
+                                    {canEditMap && (
                                         <Button
                                             variant="outline"
                                             size="sm"
@@ -893,12 +900,12 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                                 onReconnect={onReconnect}
                                 nodeTypes={nodeTypes}
                                 connectionMode={ConnectionMode.Loose}
-                                edgesReconnectable={isTeacher && !isEraserMode}
+                                edgesReconnectable={canEditMap && !isEraserMode}
                                 fitView
-                                nodesDraggable={isTeacher && !isEraserMode}
-                                nodesConnectable={isTeacher && !isEraserMode && !editingEdge}
+                                nodesDraggable={canEditMap && !isEraserMode}
+                                nodesConnectable={canEditMap && !isEraserMode && !editingEdge}
                                 elementsSelectable={isTeacher}
-                                deleteKeyCode={isTeacher ? ["Backspace", "Delete"] : null}
+                                deleteKeyCode={canEditMap ? ["Backspace", "Delete"] : null}
                                 className={cn("bg-transparent", isEraserMode && "cursor-eraser")}
                             >
                                 <MapBackground />
@@ -925,7 +932,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                                 {/* Refined Navigation Status - Bottom Left */}
                                 <Panel position="bottom-left" className="m-6">
                                     <button
-                                        onClick={() => isTeacher && setIsEraserMode(!isEraserMode)}
+                                        onClick={() => canEditMap && setIsEraserMode(!isEraserMode)}
                                         className={cn(
                                             "backdrop-blur-xl border rounded-2xl p-4 flex items-center gap-3 shadow-2xl transition-all active:scale-95 group",
                                             isEraserMode
@@ -947,7 +954,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                                                 "text-[10px] font-black uppercase mt-0.5 tracking-tight transition-colors",
                                                 isEraserMode ? "text-accent-red" : "text-foreground"
                                             )}>
-                                                {isTeacher ? (isEraserMode ? 'Borrador' : 'Edición') : 'Navegación'}
+                                                {canEditMap ? (isEraserMode ? 'Borrador' : 'Edición') : isTeacher ? 'Lectura' : 'Navegación'}
                                             </div>
                                         </div>
                                     </button>

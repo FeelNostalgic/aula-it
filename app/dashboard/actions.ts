@@ -10,7 +10,7 @@ export async function createModule(prevState: any, formData: FormData) {
     // Get current user and verify role
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
-        return { error: "Not authenticated" };
+        return { error: "No autenticado." };
     }
 
     // Verify role from profiles table
@@ -21,7 +21,7 @@ export async function createModule(prevState: any, formData: FormData) {
         .single();
 
     if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can create modules" };
+        return { error: "Solo profesores." };
     }
 
     const name = formData.get("name") as string;
@@ -31,7 +31,7 @@ export async function createModule(prevState: any, formData: FormData) {
     const custom_icon_url = formData.get("custom_icon_url") as string || null;
 
     if (!name) {
-        return { error: "Module name is required" };
+        return { error: "El nombre del módulo es obligatorio" };
     }
 
     const { error } = await supabase
@@ -58,7 +58,7 @@ export async function updateDashboardSettings(gridColumns: number) {
     const supabase = await createClient();
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return { error: "Not authenticated" };
+    if (userError || !user) return { error: "No autenticado." };
 
     const { error } = await supabase
         .from("app_settings")
@@ -80,7 +80,7 @@ export async function reorderModules(items: { id: string; order_index: number }[
     const supabase = await createClient();
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return { error: "Not authenticated" };
+    if (userError || !user) return { error: "No autenticado." };
 
     const { data: profile } = await supabase
         .from("profiles")
@@ -89,7 +89,7 @@ export async function reorderModules(items: { id: string; order_index: number }[
         .single();
 
     if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can reorder modules" };
+        return { error: "Solo profesores." };
     }
 
     const admin = createAdminClient();
@@ -111,7 +111,7 @@ export async function reorderUnits(moduleId: string, items: { id: string; order_
     const supabase = await createClient();
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return { error: "Not authenticated" };
+    if (userError || !user) return { error: "No autenticado." };
 
     const { data: profile } = await supabase
         .from("profiles")
@@ -120,7 +120,7 @@ export async function reorderUnits(moduleId: string, items: { id: string; order_
         .single();
 
     if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can reorder units" };
+        return { error: "Solo profesores." };
     }
 
     const admin = createAdminClient();
@@ -137,7 +137,7 @@ export async function reorderUnits(moduleId: string, items: { id: string; order_
 
     if (errors.length > 0) {
         console.error("Errors reordering units:", errors);
-        return { error: "Failed to reorder units" };
+        return { error: "Error al reordenar unidades" };
     }
 
     revalidatePath(`/dashboard/modules/${moduleId}`);
@@ -147,10 +147,10 @@ export async function reorderUnits(moduleId: string, items: { id: string; order_
 export async function duplicateModule(moduleId: string) {
     const userClient = await createClient();
     const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) return { error: "Not authenticated" };
+    if (authError || !user) return { error: "No autenticado." };
 
     const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Unauthorized" };
+    if (profile?.role !== "teacher") return { error: "Solo profesores." };
 
     const supabase = createAdminClient();
 
@@ -175,7 +175,7 @@ export async function duplicateModule(moduleId: string) {
         .eq("id", moduleId)
         .single();
 
-    if (moduleError || !module) return { error: "Module not found" };
+    if (moduleError || !module) return { error: "Módulo no encontrado" };
 
     // 2. Insert new module
     const { data: newModule, error: newModuleError } = await supabase

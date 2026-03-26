@@ -54,6 +54,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { getModuleRoleLabel, getModuleRoleTooltip, type ModuleCollaboratorRole } from "@/lib/module-collaborator-defs";
 
 import {
     DndContext,
@@ -87,6 +90,7 @@ interface MissionBuilderSidebarProps {
     setPhases: React.Dispatch<React.SetStateAction<ActivityPhaseWithSteps[]>>;
     selectedStepId: string | null;
     setSelectedStepId: (id: string | null) => void;
+    moduleRole: ModuleCollaboratorRole;
 }
 
 
@@ -394,7 +398,7 @@ function SortablePhaseHeader({
     );
 }
 
-export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedStepId, setSelectedStepId }: MissionBuilderSidebarProps) {
+export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedStepId, setSelectedStepId, moduleRole }: MissionBuilderSidebarProps) {
     const [isAddingPhase, setIsAddingPhase] = useState(false);
     const [newPhaseTitle, setNewPhaseTitle] = useState("");
     const [renamingPhaseId, setRenamingPhaseId] = useState<string | null>(null);
@@ -777,7 +781,23 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
     return (
         <div className="w-full h-full bg-background flex flex-col">
             <div className="p-4 border-b border-border/50 flex items-center justify-between shrink-0">
-                <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">El Mapa (Fases)</h2>
+                <div className="flex items-center gap-2 min-w-0">
+                    <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">El Mapa (Fases)</h2>
+                    {moduleRole !== "creator" && (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300 text-[10px] uppercase tracking-wider cursor-help">
+                                        {getModuleRoleLabel(moduleRole)}
+                                    </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                    {getModuleRoleTooltip(moduleRole)}
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    )}
+                </div>
                 <Button variant="ghost" size="icon" aria-label="Añadir Fase" className="size-8 text-text-muted hover:text-foreground" onClick={() => setIsAddingPhase(true)}>
                     <Plus className="size-4" />
                 </Button>

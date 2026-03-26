@@ -2,14 +2,23 @@
 
 import { useState, useEffect } from "react";
 import { UnitActivitiesTab } from "@/components/dashboard/activities/unit-activities-tab";
+import { type ModuleCollaboratorRole } from "@/lib/module-collaborator-defs";
 
 interface UnitActivitiesWrapperProps {
     unitId: string;
     activities: any[];
     submissions: any[];
+    canEditActivities?: boolean;
+    moduleRole?: ModuleCollaboratorRole | null;
 }
 
-export function UnitActivitiesWrapper({ unitId, activities, submissions }: UnitActivitiesWrapperProps) {
+export function UnitActivitiesWrapper({ 
+    unitId, 
+    activities, 
+    submissions,
+    canEditActivities = true,
+    moduleRole = null
+}: UnitActivitiesWrapperProps) {
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [gridCols, setGridCols] = useState(3);
     const [isReady, setIsReady] = useState(false);
@@ -41,6 +50,8 @@ export function UnitActivitiesWrapper({ unitId, activities, submissions }: UnitA
             unitId={unitId}
             initialActivities={activities}
             isTeacher={true}
+            canEditActivities={canEditActivities}
+            moduleRole={moduleRole}
             submissions={submissions}
             studentBadges={[]} // Only relevant for student view
             gridCols={gridCols}

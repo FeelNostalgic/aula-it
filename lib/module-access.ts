@@ -53,7 +53,11 @@ function getModulePermissions(role: ModuleCollaboratorRole): ModulePermissions {
     };
 }
 
-async function resolveCollaboratorRole(moduleId: string, userId: string, client?: SupabaseLikeClient): Promise<ModuleCollaboratorRole | null> {
+// Returns:
+//   undefined  — no row found (maybeSingle returned null) → caller may apply owner fallback
+//   null       — row found but role is missing/invalid, or query error → no access
+//   role       — valid collaborator role
+async function resolveCollaboratorRole(moduleId: string, userId: string, client?: SupabaseLikeClient): Promise<ModuleCollaboratorRole | null | undefined> {
     const db = client ?? createAdminClient();
     const { data, error } = await db
         .from("module_collaborators")
@@ -62,15 +66,16 @@ async function resolveCollaboratorRole(moduleId: string, userId: string, client?
         .eq("teacher_id", userId)
         .maybeSingle();
 
-    if (error || !data?.role) {
-        return null;
-    }
+    if (error) return null;
+    if (data === null) return undefined;
+    if (!data?.role) return null;
 
     return data.role as ModuleCollaboratorRole;
 }
 
-function buildModuleAccess(moduleRecord: ResourceModuleRecord, userId: string, collaboratorRole: ModuleCollaboratorRole | null): ModuleAccessInfo | null {
-    if (moduleRecord.teacher_id === userId) {
+function buildModuleAccess(moduleRecord: ResourceModuleRecord, userId: string, collaboratorRole: ModuleCollaboratorRole | null | undefined): ModuleAccessInfo | null {
+    // Owner with no collaborator record: grant full creator access
+    if (collaboratorRole === undefined && moduleRecord.teacher_id === userId) {
         return {
             moduleId: moduleRecord.id,
             creatorId: moduleRecord.teacher_id,
@@ -78,8 +83,7 @@ function buildModuleAccess(moduleRecord: ResourceModuleRecord, userId: string, c
             permissions: getModulePermissions(MODULE_COLLABORATOR_ROLE.CREATOR),
         };
     }
-
-    if (!collaboratorRole) {
+    if (collaboratorRole === undefined || !collaboratorRole) {
         return null;
     }
 
@@ -121,9 +125,10 @@ async function getAccessFromNestedResource(
     selectClause: string,
     getModuleRecord: (data: any) => ResourceModuleRecord | null,
     userId: string,
+    clientOverride?: SupabaseLikeClient,
 ): Promise<ModuleAccessInfo | null> {
     try {
-        const admin = createAdminClient();
+        const admin = clientOverride ?? createAdminClient();
         const { data, error } = await admin
             .from(table)
             .select(selectClause)
@@ -139,7 +144,7 @@ async function getAccessFromNestedResource(
             return null;
         }
 
-        const collaboratorRole = await resolveCollaboratorRole(moduleRecord.id, userId);
+        const collaboratorRole = await resolveCollaboratorRole(moduleRecord.id, userId, clientOverride);
         return buildModuleAccess(moduleRecord, userId, collaboratorRole);
     } catch {
         return null;
@@ -166,7 +171,7 @@ export async function getActivityAccess(activityId: string, userId: string): Pro
     );
 }
 
-export async function getUnitAccess(unitId: string, userId: string): Promise<ModuleAccessInfo | null> {
+export async function getUnitAccess(unitId: string, userId: string, client?: SupabaseLikeClient): Promise<ModuleAccessInfo | null> {
     return getAccessFromNestedResource(
         "units",
         unitId,
@@ -183,6 +188,7 @@ export async function getUnitAccess(unitId: string, userId: string): Promise<Mod
             };
         },
         userId,
+        client,
     );
 }
 

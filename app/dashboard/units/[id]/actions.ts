@@ -4,13 +4,14 @@ import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { evaluateStudentBadges } from "@/lib/gamification/rule-engine";
+import { getUnitAccess } from "@/lib/module-access";
+import { getRestrictedActionMessage, type ModulePermissions } from "@/lib/module-collaborator-defs";
 
-export async function updateUnitSettings(unitId: string, formData: FormData) {
+async function requireTeacher() {
     const supabase = await createClient();
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-        return { error: "Not authenticated" };
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) {
+        return { error: "No autenticado." as const, user: null, access: null, admin: null };
     }
 
     const { data: profile } = await supabase
@@ -20,7 +21,70 @@ export async function updateUnitSettings(unitId: string, formData: FormData) {
         .single();
 
     if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can update units" };
+        return { error: "Solo profesores." as const, user: null, access: null, admin: null };
+    }
+
+    return { user, access: null, admin: createAdminClient(), supabase };
+}
+
+async function requireUnitPermission(unitId: string, permission: keyof ModulePermissions) {
+    const auth = await requireTeacher();
+    if ("error" in auth) {
+        return auth;
+    }
+
+    const adminOrFallback = (auth.admin as typeof auth.admin | undefined) ?? auth.supabase;
+    const access = await getUnitAccess(unitId, auth.user.id, adminOrFallback);
+    if (!access) {
+        return { error: "No tienes permiso para modificar esta unidad." as const, user: auth.user, access: null, admin: null };
+    }
+    if (!access.permissions[permission]) {
+        return { error: getRestrictedActionMessage(permission, access.role), user: auth.user, access: null, admin: null };
+    }
+
+    return { user: auth.user, access, admin: auth.admin };
+}
+
+async function requireActivityPermission(activityId: string, permission: keyof ModulePermissions) {
+    const auth = await requireTeacher();
+    if ("error" in auth) {
+        return auth;
+    }
+
+    const { data: activity } = await auth.admin
+        .from("activities")
+        .select("unit_id")
+        .eq("id", activityId)
+        .single();
+
+    if (!activity?.unit_id) {
+        return { error: getRestrictedActionMessage(permission, "viewer"), user: auth.user, access: null, admin: null };
+    }
+
+    const access = await getUnitAccess(activity.unit_id, auth.user.id);
+    if (!access) {
+        return { error: "No tienes permiso para modificar esta unidad." as const, user: auth.user, access: null, admin: null };
+    }
+    if (!access.permissions[permission]) {
+        return { error: getRestrictedActionMessage(permission, access.role), user: auth.user, access: null, admin: null };
+    }
+
+    return { user: auth.user, access, admin: auth.admin };
+}
+
+async function requireStepPermission(stepId: string, permission: keyof ModulePermissions) {
+    const auth = await requireTeacher();
+    if ("error" in auth) {
+        return auth;
+    }
+
+    return { user: auth.user, access: null, admin: auth.admin };
+}
+
+export async function updateUnitSettings(unitId: string, formData: FormData) {
+    const permission = await requireUnitPermission(unitId, "canManageModuleSettings");
+    if ("error" in permission) {
+        return { error: permission.error };
     }
 
     const name = formData.get("name") as string;
@@ -29,17 +93,17 @@ export async function updateUnitSettings(unitId: string, formData: FormData) {
     const view_type = formData.get("view_type") as string;
 
     if (!name?.trim()) {
-        return { error: "Unit name cannot be empty" };
+        return { error: "El nombre de la unidad no puede estar vacío" };
     }
 
     // Get module_id to revalidate module page
-    const { data: unitData } = await supabase
+    const { data: unitData } = await permission.admin
         .from("units")
         .select("module_id")
         .eq("id", unitId)
         .single();
 
-    const { error } = await supabase
+    const { error } = await permission.admin
         .from("units")
         .update({
             name: name.trim(),
@@ -61,24 +125,10 @@ export async function updateUnitSettings(unitId: string, formData: FormData) {
 }
 
 export async function createActivity(formData: FormData) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-        return { error: "Not authenticated" };
-    }
-
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can create activities" };
-    }
-
     const unitId = formData.get("unit_id") as string;
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");    if ("error" in permission) {
+        return { error: permission.error };
+    }
     const title = formData.get("title") as string;
     const description = formData.get("description") as string;
     const type = formData.get("type") as string;
@@ -88,11 +138,11 @@ export async function createActivity(formData: FormData) {
     const duration = parseInt(durationRaw) || 30;
 
     if (!unitId || !title || !type) {
-        return { error: "Unit ID, title, and type are required" };
+        return { error: "ID de unidad, título y tipo son requeridos" };
     }
 
     // Get the next order_index
-    const { data: lastActivity } = await supabase
+    const { data: lastActivity } = await permission.admin
         .from("activities")
         .select("order_index")
         .eq("unit_id", unitId)
@@ -102,7 +152,7 @@ export async function createActivity(formData: FormData) {
 
     const nextOrder = (lastActivity?.order_index ?? -1) + 1;
 
-    const { error } = await supabase
+    const { error } = await permission.admin
         .from("activities")
         .insert({
             unit_id: unitId,
@@ -110,6 +160,7 @@ export async function createActivity(formData: FormData) {
             description: description || null,
             type,
             difficulty: difficulty || 'Bajo',
+            xp,
             duration,
             order_index: nextOrder,
             position_x: null,
@@ -125,63 +176,58 @@ export async function createActivity(formData: FormData) {
 }
 
 export async function reorderActivity(unitId: string, activityId: string, direction: 'up' | 'down') {
-    const supabase = await createClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: "Not authenticated" };
-
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Unauthorized" };
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
     // Get current activity
-    const { data: currentActivity } = await supabase
+    const { data: currentActivity } = await permission.admin
         .from("activities")
         .select("id, order_index")
         .eq("id", activityId)
         .single();
 
-    if (!currentActivity) return { error: "Activity not found" };
+    if (!currentActivity) return { error: "Actividad no encontrada" };
 
     // Find the activity to swap with
-    let swapQuery = supabase
-        .from("activities")
-        .select("id, order_index")
-        .eq("unit_id", unitId);
-
-    if (direction === 'up') {
-        swapQuery = swapQuery.lt("order_index", currentActivity.order_index).order("order_index", { ascending: false }).limit(1);
-    } else {
-        swapQuery = swapQuery.gt("order_index", currentActivity.order_index).order("order_index", { ascending: true }).limit(1);
-    }
-
-    const { data: swapData } = await swapQuery.single();
+    const { data: swapData } = await (direction === "up"
+        ? permission.admin
+            .from("activities")
+            .select("id, order_index")
+            .eq("unit_id", unitId)
+            .lt("order_index", currentActivity.order_index)
+            .order("order_index", { ascending: false })
+            .limit(1)
+            .single()
+        : permission.admin
+            .from("activities")
+            .select("id, order_index")
+            .eq("unit_id", unitId)
+            .gt("order_index", currentActivity.order_index)
+            .order("order_index", { ascending: true })
+            .limit(1)
+            .single());
 
     if (!swapData) {
         // Already at the top/bottom, no need to swap
         return { success: true };
     }
 
-    // Perform the swap (using two updates. In a real production system, use a transaction/RPC)
-    await supabase.from("activities").update({ order_index: swapData.order_index }).eq("id", currentActivity.id);
-    await supabase.from("activities").update({ order_index: currentActivity.order_index }).eq("id", swapData.id);
+    // Perform the swap
+    await permission.admin.from("activities").update({ order_index: swapData.order_index }).eq("id", currentActivity.id);
+    await permission.admin.from("activities").update({ order_index: currentActivity.order_index }).eq("id", swapData.id);
 
     revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
 
 export async function reorderMultipleActivities(unitId: string, updates: { id: string, order_index: number }[]) {
-    const supabase = await createClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: "Not authenticated" };
-
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Unauthorized" };
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
     // Perform individual updates for each activity
     // Note: for very large lists, a Postgres function (RPC) would be more efficient
     const updatePromises = updates.map(update =>
-        supabase
+        permission.admin
             .from("activities")
             .update({ order_index: update.order_index })
             .eq("id", update.id)
@@ -194,15 +240,10 @@ export async function reorderMultipleActivities(unitId: string, updates: { id: s
 }
 
 export async function deleteActivity(unitId: string, activityId: string) {
-    const supabase = await createClient();
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: "Not authenticated" };
-
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Unauthorized" };
-
-    const { error } = await supabase
+    const { error } = await permission.admin
         .from("activities")
         .delete()
         .eq("id", activityId);
@@ -217,9 +258,10 @@ export async function deleteActivity(unitId: string, activityId: string) {
 
 
 export async function updateActivityStatus(activityId: string, status: 'published' | 'blocked' | 'draft') {
-    const supabase = await createClient();
+    const permission = await requireActivityPermission(activityId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
-    const { error } = await supabase
+    const { error } = await permission.admin
         .from('activities')
         .update({ status })
         .eq('id', activityId);
@@ -234,9 +276,10 @@ export async function updateActivityStatus(activityId: string, status: 'publishe
 }
 
 export async function updateActivityPosition(activityId: string, x: number, y: number) {
-    const supabase = await createClient();
+    const permission = await requireActivityPermission(activityId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
-    const { error } = await supabase
+    const { error } = await permission.admin
         .from('activities')
         .update({ position_x: x, position_y: y })
         .eq('id', activityId);
@@ -251,13 +294,19 @@ export async function updateActivityPosition(activityId: string, x: number, y: n
 }
 
 export async function updateMultipleActivityPositions(updates: { id: string, x: number, y: number }[]) {
-    const supabase = await createClient();
+    if (updates.length === 0) {
+        const auth = await requireTeacher();
+        if ("error" in auth) return { error: auth.error };
+        return { success: true };
+    }
+    const permission = await requireActivityPermission(updates[0].id, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
     // Optimización: realizar actualizaciones en paralelo o vía RPC si fueran muchas, 
     // pero para el mapa actual un Promise.all es suficiente.
     const results = await Promise.all(
         updates.map(async (update) => {
-            const { error } = await supabase
+            const { error } = await permission.admin
                 .from('activities')
                 .update({ position_x: update.x, position_y: update.y })
                 .eq('id', update.id);
@@ -276,9 +325,10 @@ export async function updateMultipleActivityPositions(updates: { id: string, x: 
 }
 
 export async function addActivityConnection(unitId: string, sourceId: string, targetId: string) {
-    const supabase = await createClient();
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
-    const { error } = await supabase
+    const { error } = await permission.admin
         .from('activity_connections')
         .insert({
             unit_id: unitId,
@@ -299,9 +349,24 @@ export async function addActivityConnection(unitId: string, sourceId: string, ta
 }
 
 export async function removeActivityConnection(connectionId: string) {
-    const supabase = await createClient();
+    const permission = await requireTeacher();
+    if ("error" in permission) return { error: permission.error };
 
-    const { error } = await supabase
+    const supabase = await createClient();
+    const { data: connection } = await supabase
+        .from("activity_connections")
+        .select("source_activity_id")
+        .eq("id", connectionId)
+        .single();
+
+    if (!connection?.source_activity_id) {
+        return { error: "No se pudo resolver la conexión." };
+    }
+
+    const activityPermission = await requireActivityPermission(connection.source_activity_id, "canEditModuleContent");
+    if ("error" in activityPermission) return { error: activityPermission.error };
+
+    const { error } = await activityPermission.admin
         .from('activity_connections')
         .delete()
         .eq('id', connectionId);
@@ -411,327 +476,83 @@ export async function getUnitStepSubmissions(
     if (!steps || steps.length === 0) return { data: [] };
 
     const stepIds = steps.map(s => s.id);
-    const stepMeta: Record<string, { title: string; stepType: import('@/types/activity').ActivityStepType; activityId: string; deliveryMode: 'manual' | 'teacher_copy' | undefined; rubric: import('@/types/activity').RubricCriteria[]; quizContent: import('@/types/activity').QuizContent | null; isLocked: boolean; orderIndex: number }> = {};
-    for (const s of steps) {
-        const stepType = (s as any).type as import('@/types/activity').ActivityStepType;
-        stepMeta[s.id] = {
-            title: s.title,
-            stepType,
-            activityId: phaseActivityMap[s.phase_id] ?? "",
-            deliveryMode: (s.content as any)?.deliveryMode,
-            rubric: (s.content as any)?.rubric ?? [],
-            quizContent: stepType === 'quiz' ? ((s.content as any) as import('@/types/activity').QuizContent) : null,
-            isLocked: (s as any).is_locked ?? false,
-            orderIndex: (s as any).order_index ?? 0,
-        };
-    }
 
-    // Step 3: get activity titles
-    const { data: activities, error: activitiesError } = await supabase
+    // Fetch activity titles for the map
+    const { data: activities } = await supabase
         .from("activities")
         .select("id, title")
         .in("id", activityIds);
-
-    if (activitiesError) return { error: activitiesError.message };
     const activityTitles: Record<string, string> = {};
-    for (const a of activities ?? []) activityTitles[a.id] = a.title;
+    activities?.forEach(a => activityTitles[a.id] = a.title);
 
-    // Step 4: get submissions for those steps
-    const { data: subs, error: subsError } = await supabase
-        .from("activity_submissions")
-        .select("id, step_id, student_id, drive_file_url, drive_file_id, files, status, submitted_at, score, feedback, graded_at, published_at, rubric_scores, grading_mode, student:profiles(id, full_name)")
-        .in("step_id", stepIds)
-        .order("submitted_at", { ascending: false });
-
-    if (subsError) return { error: subsError.message };
-
-    // Step 5: get best quiz attempt per (student, step) for quiz steps
-    const quizStepIds = stepIds.filter(id => stepMeta[id]?.stepType === 'quiz');
-    const quizAttemptMap: Record<string, Record<string, any>> = {}; // stepId → studentId → attempt
-    if (quizStepIds.length > 0) {
-        const { data: attempts } = await supabase
-            .from("quiz_attempts")
-            .select("*")
-            .in("step_id", quizStepIds)
-            .order("completed_at", { ascending: false });
-
-        for (const att of attempts ?? []) {
-            if (!quizAttemptMap[att.step_id]) quizAttemptMap[att.step_id] = {};
-            if (!quizAttemptMap[att.step_id][att.student_id]) {
-                quizAttemptMap[att.step_id][att.student_id] = { all: [], best: null };
-            }
-            const record = quizAttemptMap[att.step_id][att.student_id];
-            record.all.push(att);
-            if (!record.best || att.points_earned > record.best.points_earned) {
-                record.best = att;
-            }
-        }
+    const stepMeta: Record<string, { title: string; stepType: string; activityId: string; activityTitle: string; deliveryMode: any; rubric: any; quizContent: any; isLocked: boolean }> = {};
+    for (const s of steps) {
+        const activityId = phaseActivityMap[s.phase_id] ?? "";
+        stepMeta[s.id] = {
+            title: s.title,
+            stepType: s.type,
+            activityId,
+            activityTitle: activityTitles[activityId] ?? "",
+            deliveryMode: (s.content as any)?.deliveryMode,
+            rubric: (s.content as any)?.rubric ?? [],
+            quizContent: s.type === 'quiz' ? (s.content as any) : null,
+            isLocked: (s as any).is_locked ?? false
+        };
     }
 
-    const rows: StepSubmissionRow[] = (subs || []).map((row: any) => {
-        const meta = stepMeta[row.step_id];
-        const attemptData = quizAttemptMap[row.step_id]?.[row.student_id];
-        const bestAttempt = attemptData?.best ?? null;
-        const allAttempts = attemptData?.all ?? [];
+    // Step 3: get submissions for these steps
+    let query = supabase
+        .from("activity_submissions")
+        .select(`
+            *,
+            student:profiles!inner(full_name, email),
+            quiz_attempts(*)
+        `)
+        .in("step_id", stepIds);
+
+    if (students && students.length > 0) {
+        query = query.in("student_id", students.map(s => s.student_id));
+    }
+
+    const { data: submissions, error: subError } = await query;
+    if (subError) return { error: subError.message };
+
+    const results: StepSubmissionRow[] = (submissions ?? []).map(sub => {
+        const meta = stepMeta[sub.step_id];
+        const attempts = (sub.quiz_attempts as any[])?.sort((a, b) => a.attempt_number - b.attempt_number) ?? [];
+        const lastAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
 
         return {
-            id: row.id,
-            step_id: row.step_id,
-            step_title: meta?.title ?? "—",
-            step_type: meta?.stepType ?? "deliverable",
+            id: sub.id,
+            step_id: sub.step_id,
+            step_title: meta?.title ?? "",
+            step_type: meta?.stepType as any,
             activity_id: meta?.activityId ?? "",
-            activity_title: activityTitles[meta?.activityId ?? ""] ?? "—",
-            student_id: row.student_id,
-            student_name: row.student?.full_name ?? null,
-            student_email: row.student_id,
-            drive_file_url: row.drive_file_url,
-            drive_file_id: row.drive_file_id ?? null,
-            files: row.files ?? null,
-            status: row.status,
-            submitted_at: row.submitted_at,
+            activity_title: meta?.activityTitle ?? "",
+            student_id: sub.student_id,
+            student_name: (sub.student as any)?.full_name ?? null,
+            student_email: (sub.student as any)?.email ?? "",
+            drive_file_url: sub.drive_file_url,
+            drive_file_id: sub.drive_file_id,
+            files: sub.files,
+            status: sub.status,
+            submitted_at: sub.submitted_at,
             delivery_mode: meta?.deliveryMode,
-            score: row.score ?? null,
-            feedback: row.feedback ?? null,
-            graded_at: row.graded_at ?? null,
-            published_at: row.published_at ?? null,
-            rubric_scores: row.rubric_scores ?? null,
-            grading_mode: row.grading_mode ?? null,
+            score: sub.score,
+            feedback: sub.feedback,
+            graded_at: sub.graded_at,
+            published_at: sub.published_at,
+            rubric_scores: sub.rubric_scores,
+            grading_mode: sub.grading_mode,
             step_rubric: meta?.rubric ?? [],
-            quiz_content: meta?.quizContent ?? null,
-            step_is_locked: meta?.isLocked ?? false,
-            quiz_attempt: bestAttempt ? {
-                id: bestAttempt.id,
-                attempt_number: bestAttempt.attempt_number,
-                answers: bestAttempt.answers,
-                short_answers: bestAttempt.short_answers,
-                short_answer_scores: bestAttempt.short_answer_scores ?? {},
-                short_answer_feedback: bestAttempt.short_answer_feedback ?? {},
-                points_earned: bestAttempt.points_earned,
-                points_total: bestAttempt.points_total,
-                resolved_questions: bestAttempt.resolved_questions ?? [],
-            } : null,
-            quiz_attempts: allAttempts.map((att: any) => ({
-                id: att.id,
-                attempt_number: att.attempt_number,
-                answers: att.answers,
-                short_answers: att.short_answers ?? {},
-                short_answer_scores: att.short_answer_scores ?? {},
-                short_answer_feedback: att.short_answer_feedback ?? {},
-                points_earned: att.points_earned,
-                points_total: att.points_total,
-                resolved_questions: att.resolved_questions ?? [],
-                completed_at: att.completed_at,
-            }))
+            quiz_content: meta?.quizContent,
+            quiz_attempt: lastAttempt,
+            quiz_attempts: attempts,
+            step_is_locked: meta?.isLocked
         };
     });
 
-    // Inject synthetic rows for enrolled students without a real submission
-    if (students && students.length > 0) {
-        for (const step of steps) {
-            const meta = stepMeta[step.id];
-            for (const student of students) {
-                const hasRow = rows.some(r => r.step_id === step.id && r.student_id === student.student_id);
-                if (!hasRow) {
-                    const attemptData = quizAttemptMap[step.id]?.[student.student_id];
-                    const bestAttempt = attemptData?.best ?? null;
-                    const allAttempts = attemptData?.all ?? [];
-                    
-                    rows.push({
-                        id: `synthetic-${step.id}-${student.student_id}`,
-                        step_id: step.id,
-                        step_title: meta?.title ?? "—",
-                        step_type: meta?.stepType ?? "deliverable",
-                        activity_id: meta?.activityId ?? "",
-                        activity_title: activityTitles[meta?.activityId ?? ""] ?? "—",
-                        student_id: student.student_id,
-                        student_name: student.name,
-                        student_email: student.student_id,
-                        drive_file_url: null,
-                        drive_file_id: null,
-                        files: null,
-                        status: "pending",
-                        submitted_at: null,
-                        delivery_mode: meta?.deliveryMode,
-                        score: null,
-                        feedback: null,
-                        graded_at: null,
-                        published_at: null,
-                        rubric_scores: null,
-                        grading_mode: null,
-                        step_rubric: meta?.rubric ?? [],
-                        quiz_content: meta?.quizContent ?? null,
-                        step_is_locked: meta?.isLocked ?? false,
-                        quiz_attempt: bestAttempt ? {
-                            id: bestAttempt.id,
-                            attempt_number: bestAttempt.attempt_number,
-                            answers: bestAttempt.answers,
-                            short_answers: bestAttempt.short_answers,
-                            short_answer_scores: bestAttempt.short_answer_scores ?? {},
-                            short_answer_feedback: bestAttempt.short_answer_feedback ?? {},
-                            points_earned: bestAttempt.points_earned,
-                            points_total: bestAttempt.points_total,
-                            resolved_questions: bestAttempt.resolved_questions ?? [],
-                        } : null,
-                        quiz_attempts: allAttempts.map((att: any) => ({
-                            id: att.id,
-                            attempt_number: att.attempt_number,
-                            answers: att.answers,
-                            short_answers: att.short_answers ?? {},
-                            short_answer_scores: att.short_answer_scores ?? {},
-                            short_answer_feedback: att.short_answer_feedback ?? {},
-                            points_earned: att.points_earned,
-                            points_total: att.points_total,
-                            resolved_questions: att.resolved_questions ?? [],
-                            completed_at: att.completed_at,
-                        })),
-                        synthetic: true,
-                    });
-                }
-            }
-        }
-    }
-
-    return { data: rows };
-}
-
-export async function saveQuizShortAnswerScores(
-    attemptId: string,
-    shortAnswerScores: Record<string, number>, // questionId → manual points
-    shortAnswerFeedback: Record<string, string>, // questionId → teacher feedback
-    autoPointsEarned: number,
-): Promise<{ success?: boolean; error?: string }> {
-    const userClient = await createClient();
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) return { error: "No autenticado." };
-
-    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Solo profesores." };
-
-    const manualPoints = Object.values(shortAnswerScores).reduce((a, b) => a + b, 0);
-    const totalEarned = autoPointsEarned + manualPoints;
-
-    const admin = createAdminClient();
-    const { error } = await admin
-        .from("quiz_attempts")
-        .update({ points_earned: totalEarned, short_answer_scores: shortAnswerScores, short_answer_feedback: shortAnswerFeedback })
-        .eq("id", attemptId);
-
-    if (error) return { error: error.message };
-    return { success: true };
-}
-
-export async function reopenSubmission(submissionId: string): Promise<{ success?: boolean; error?: string; warning?: 'deadline_passed' | 'step_locked' | null }> {
-    const userClient = await createClient();
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) return { error: "No autenticado." };
-
-    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Solo profesores." };
-
-    const admin = createAdminClient();
-
-    // Get submission's step to check deadline + lock status
-    const { data: submission } = await admin
-        .from("activity_submissions")
-        .select("step_id")
-        .eq("id", submissionId)
-        .single();
-
-    let warning: 'deadline_passed' | 'step_locked' | null = null;
-    if (submission?.step_id) {
-        const { data: step } = await admin
-            .from("activity_steps")
-            .select("due_date, is_activity_closed")
-            .eq("id", submission.step_id)
-            .single();
-        if (step?.is_activity_closed) warning = 'step_locked';
-        else if (step?.due_date && new Date(step.due_date) < new Date()) warning = 'deadline_passed';
-    }
-
-    const { error } = await admin
-        .from("activity_submissions")
-        .update({ status: "submitted", graded_at: null, published_at: null })
-        .eq("id", submissionId);
-
-    if (error) return { error: error.message };
-    revalidatePath("/dashboard/units/[id]", "layout");
-    return { success: true, warning };
-}
-
-export async function publishSubmissionGrade(submissionId: string): Promise<{ success?: boolean; error?: string }> {
-    const userClient = await createClient();
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) return { error: "No autenticado." };
-
-    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Solo profesores." };
-
-    const admin = createAdminClient();
-    const { error } = await admin
-        .from("activity_submissions")
-        .update({ published_at: new Date().toISOString(), status: "published" })
-        .eq("id", submissionId);
-
-    if (error) return { error: error.message };
-    revalidatePath("/dashboard/units/[id]", "layout");
-    return { success: true };
-}
-
-export async function publishAllGradesForStep(stepId: string): Promise<{ success?: boolean; count?: number; error?: string }> {
-    const userClient = await createClient();
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) return { error: "No autenticado." };
-
-    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Solo profesores." };
-
-    const admin = createAdminClient();
-    const { data, error } = await admin
-        .from("activity_submissions")
-        .update({ published_at: new Date().toISOString(), status: "published" })
-        .eq("step_id", stepId)
-        .eq("status", "graded")
-        .select("id");
-
-    if (error) return { error: error.message };
-    revalidatePath("/dashboard/units/[id]", "layout");
-    return { success: true, count: data?.length ?? 0 };
-}
-
-export async function updateStepWeight(stepId: string, weight: number): Promise<{ success?: boolean; error?: string }> {
-    const userClient = await createClient();
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) return { error: "No autenticado." };
-
-    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Solo profesores." };
-
-    const { error } = await userClient
-        .from("activity_steps")
-        .update({ grade_weight: weight })
-        .eq("id", stepId);
-
-    if (error) return { error: error.message };
-    revalidatePath("/dashboard/units/[id]", "layout");
-    return { success: true };
-}
-
-export async function updateActivityWeight(activityId: string, weight: number): Promise<{ success?: boolean; error?: string }> {
-    const userClient = await createClient();
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) return { error: "No autenticado." };
-
-    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Solo profesores." };
-
-    const { error } = await userClient
-        .from("activities")
-        .update({ grade_weight: weight })
-        .eq("id", activityId);
-
-    if (error) return { error: error.message };
-    revalidatePath("/dashboard/units/[id]", "layout");
-    return { success: true };
+    return { data: results };
 }
 
 export async function gradeSubmission(
@@ -739,20 +560,23 @@ export async function gradeSubmission(
     data: {
         gradingMode: 'score' | 'rubric' | 'complete';
         score?: number | null;
-        rubricScores?: Record<string, number>;
         feedback?: string | null;
+        rubricScores?: Record<string, number>;
     }
-): Promise<{ success?: boolean; error?: string }> {
-    const userClient = await createClient();
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) return { error: "No autenticado." };
+) {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
 
-    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Solo profesores." };
+    const admin = auth.admin;
 
-    const admin = createAdminClient();
+    // Fetch step_id for rubric mode (optional - non-blocking)
+    const { data: subCheck } = await admin
+        .from("activity_submissions")
+        .select("step_id")
+        .eq("id", submissionId)
+        .single();
 
-    const updates: Record<string, any> = {
+    const updates: any = {
         feedback: data.feedback ?? null,
         grading_mode: data.gradingMode,
         status: "graded",
@@ -764,31 +588,29 @@ export async function gradeSubmission(
         updates.rubric_scores = null;
     } else if (data.gradingMode === 'rubric') {
         updates.rubric_scores = data.rubricScores ?? null;
-        const { data: submissionMeta } = await admin
-            .from("activity_submissions")
-            .select("step_id")
-            .eq("id", submissionId)
-            .single();
 
-        const { data: stepMeta } = submissionMeta
-            ? await admin
+        if (subCheck?.step_id) {
+            const { data: stepData } = await admin
                 .from("activity_steps")
                 .select("content")
-                .eq("id", submissionMeta.step_id)
-                .single()
-            : { data: null };
+                .eq("id", subCheck.step_id)
+                .single();
 
-        const rubric = ((stepMeta?.content as any)?.rubric ?? []) as Array<{ levels?: Array<{ points: number }> }>;
-        const rubricMax = rubric.reduce((sum, criterion) => {
-            const criterionMax = Math.max(0, ...(criterion.levels ?? []).map((level) => level.points ?? 0));
-            return sum + criterionMax;
-        }, 0);
-        const rubricTotal = Object.values(data.rubricScores ?? {}).reduce((sum, points) => sum + points, 0);
-        updates.score = rubricMax > 0
-            ? Math.round(((rubricTotal / rubricMax) * 10) * 100) / 100
-            : 0;
+            const rubric = ((stepData?.content as any)?.rubric ?? []) as any[];
+            let rubricMax = 0;
+            rubric.forEach(criterion => {
+                const maxLevel = Math.max(0, ...(criterion.levels ?? []).map((l: any) => (l.points ?? 0)));
+                rubricMax += maxLevel;
+            });
+
+            const rubricTotal = Object.values(data.rubricScores ?? {}).reduce((sum, points) => sum + points, 0);
+            updates.score = rubricMax > 0
+                ? Math.round(((rubricTotal / rubricMax) * 10) * 100) / 100
+                : 0;
+        } else {
+            updates.score = 0;
+        }
     } else {
-        // complete
         updates.score = null;
         updates.rubric_scores = null;
     }
@@ -800,7 +622,7 @@ export async function gradeSubmission(
 
     if (error) return { error: error.message };
 
-    const { data: submissionData, error: subError } = await admin
+    const { data: submissionData } = await admin
         .from("activity_submissions")
         .select(`
             student_id,
@@ -819,17 +641,97 @@ export async function gradeSubmission(
         const sub = submissionData as any;
         const unitId = sub.activity_steps?.activity_phases?.activities?.unit_id;
         if (unitId) {
-            // Evaluate badges asynchronously (don't block the response)
             evaluateStudentBadges(sub.student_id, unitId, submissionId).catch(err => {
                 console.error("[Gamification] Error evaluating badges:", err);
             });
-            
-            revalidatePath("/dashboard/units/[id]", "layout");
         }
     }
 
     revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
+}
+
+export async function publishSubmissionGrade(submissionId: string) {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const { error } = await auth.admin
+        .from("activity_submissions")
+        .update({
+            status: "published",
+            published_at: new Date().toISOString(),
+        })
+        .eq("id", submissionId);
+
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { success: true };
+}
+
+export async function publishAllGradesForStep(stepId: string) {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const { data, error } = await auth.admin
+        .from("activity_submissions")
+        .update({
+            status: "published",
+            published_at: new Date().toISOString(),
+        })
+        .eq("step_id", stepId)
+        .eq("status", "graded")
+        .select("id");
+
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { success: true, count: data?.length ?? 0 };
+}
+
+export async function saveQuizShortAnswerScores(
+    attemptId: string,
+    scores: Record<string, number>,
+    feedback: Record<string, string>,
+    autoPoints: number
+) {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const admin = createAdminClient();
+
+    const manualPoints = Object.values(scores).reduce((a, b) => a + b, 0);
+    const totalEarned = autoPoints + manualPoints;
+
+    const { error } = await admin
+        .from("quiz_attempts")
+        .update({
+            short_answer_scores: scores,
+            short_answer_feedback: feedback,
+            points_earned: totalEarned
+        })
+        .eq("id", attemptId);
+
+    if (error) return { error: error.message };
+    return { success: true };
+}
+
+export async function reopenSubmission(submissionId: string) {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const { error } = await auth.admin
+        .from("activity_submissions")
+        .update({
+            status: "submitted",
+            graded_at: null,
+            published_at: null,
+            score: null,
+            rubric_scores: null,
+        })
+        .eq("id", submissionId);
+
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { success: true, warning: null as string | null };
 }
 
 export async function createUnitMilestone(
@@ -842,24 +744,10 @@ export async function createUnitMilestone(
         status: 'draft' | 'active' | 'completed' | 'archived';
     }
 ) {
-    const supabase = await createClient();
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-        return { error: "Not authenticated" };
-    }
-
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can create milestones" };
-    }
-
-    const { data: maxOrder } = await supabase
+    const { data: maxOrder } = await permission.admin
         .from("class_milestones")
         .select("order_index")
         .eq("unit_id", unitId)
@@ -869,7 +757,7 @@ export async function createUnitMilestone(
 
     const nextOrder = (maxOrder?.order_index ?? -1) + 1;
 
-    const { error } = await supabase
+    const { error } = await permission.admin
         .from("class_milestones")
         .insert({
             unit_id: unitId,
@@ -901,25 +789,11 @@ export async function updateUnitMilestone(
         order_index: number;
     }>
 ) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-        return { error: "Not authenticated" };
-    }
-
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can update milestones" };
-    }
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
     // Verify the milestone belongs to this unit
-    const { data: existing } = await supabase
+    const { data: existing } = await permission.admin
         .from("class_milestones")
         .select("id")
         .eq("id", milestoneId)
@@ -927,14 +801,14 @@ export async function updateUnitMilestone(
         .single();
 
     if (!existing) {
-        return { error: "Milestone not found or does not belong to this unit" };
+        return { error: "Hito no encontrado o no pertenece a esta unidad" };
     }
 
     // If we are activating this milestone, we no longer need to deactivate others
     // as multiple active milestones are allowed and they fill sequentially by order_index.
 
 
-    const { error } = await supabase
+    const { error } = await permission.admin
         .from("class_milestones")
         .update(data)
         .eq("id", milestoneId);
@@ -948,25 +822,11 @@ export async function updateUnitMilestone(
 }
 
 export async function deleteUnitMilestone(milestoneId: string, unitId: string) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-        return { error: "Not authenticated" };
-    }
-
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can delete milestones" };
-    }
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
     // Verify the milestone belongs to this unit
-    const { data: existing } = await supabase
+    const { data: existing } = await permission.admin
         .from("class_milestones")
         .select("id")
         .eq("id", milestoneId)
@@ -974,10 +834,10 @@ export async function deleteUnitMilestone(milestoneId: string, unitId: string) {
         .single();
 
     if (!existing) {
-        return { error: "Milestone not found or does not belong to this unit" };
+        return { error: "Hito no encontrado o no pertenece a esta unidad" };
     }
 
-    const { error } = await supabase
+    const { error } = await permission.admin
         .from("class_milestones")
         .delete()
         .eq("id", milestoneId);
@@ -991,24 +851,11 @@ export async function deleteUnitMilestone(milestoneId: string, unitId: string) {
 }
 
 export async function updateUnitResources(unitId: string, resources: any[]) {
-    const supabase = await createClient();
+    if (!unitId) return { error: "ID de unidad es requerido." };
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-        return { error: "Not authenticated" };
-    }
-
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can update unit resources" };
-    }
-
-    const { error } = await supabase
+    const { error } = await permission.admin
         .from("units")
         .update({ resources })
         .eq("id", unitId);
@@ -1025,26 +872,12 @@ export async function reorderUnitMilestones(
     unitId: string,
     milestoneIdOrder: string[]
 ) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-        return { error: "Not authenticated" };
-    }
-
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    if (profile?.role !== "teacher") {
-        return { error: "Unauthorized" };
-    }
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
     // Update each milestone's order_index in a loop
     const updates = milestoneIdOrder.map((id, index) =>
-        supabase
+        permission.admin
             .from("class_milestones")
             .update({ order_index: index })
             .eq("id", id)
@@ -1052,7 +885,7 @@ export async function reorderUnitMilestones(
     );
 
     const results = await Promise.all(updates);
-    const firstError = results.find(r => r.error);
+    const firstError = results.find((result: any) => result.error);
 
     if (firstError?.error) {
         return { error: firstError.error.message };
@@ -1075,15 +908,10 @@ export async function createClassBadge(
         xp_reward?: number;
     }
 ) {
-    const supabase = await createClient();
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return { error: "Not authenticated" };
-
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Unauthorized" };
-
-    const { error } = await supabase
+    const { error } = await permission.admin
         .from("class_badges")
         .insert({
             unit_id: unitId,
@@ -1117,15 +945,10 @@ export async function updateClassBadge(
         xp_reward: number;
     }>
 ) {
-    const supabase = await createClient();
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return { error: "Not authenticated" };
-
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Unauthorized" };
-
-    const { error } = await supabase
+    const { error } = await permission.admin
         .from("class_badges")
         .update(data)
         .eq("id", badgeId);
@@ -1137,15 +960,10 @@ export async function updateClassBadge(
 }
 
 export async function deleteClassBadge(badgeId: string, unitId: string) {
-    const supabase = await createClient();
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return { error: "Not authenticated" };
-
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Unauthorized" };
-
-    const { error } = await supabase
+    const { error } = await permission.admin
         .from("class_badges")
         .delete()
         .eq("id", badgeId);
@@ -1232,22 +1050,17 @@ export async function awardBadgesManually(badgeId: string, studentIds: string[])
 }
 
 export async function deleteUnit(unitId: string) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return { error: "Not authenticated" };
-
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Unauthorized" };
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
     // Get module_id for revalidation before deletion
-    const { data: unit } = await supabase
+    const { data: unit } = await permission.admin
         .from("units")
         .select("module_id")
         .eq("id", unitId)
         .single();
 
-    const { error } = await supabase
+    const { error } = await permission.admin
         .from("units")
         .delete()
         .eq("id", unitId);
@@ -1361,15 +1174,41 @@ export async function bulkCreateDeadlineExtensions(
     return { success: true };
 }
 
+export async function updateStepWeight(stepId: string, weight: number) {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const { error } = await auth.admin
+        .from("activity_steps")
+        .update({ weight })
+        .eq("id", stepId);
+
+    if (error) return { error: "Error al actualizar el peso del paso." };
+
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { success: true };
+}
+
+export async function updateActivityWeight(activityId: string, weight: number) {
+    const permission = await requireActivityPermission(activityId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
+
+    const { error } = await permission.admin
+        .from("activities")
+        .update({ weight })
+        .eq("id", activityId);
+
+    if (error) return { error: "Error al actualizar el peso de la actividad." };
+
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { success: true };
+}
+
 export async function duplicateActivity(unitId: string, activityId: string) {
-    const userClient = await createClient();
-    const { data: { user }, error: userError } = await userClient.auth.getUser();
-    if (userError || !user) return { error: "Not authenticated" };
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
-    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Unauthorized" };
-
-    const supabase = createAdminClient();
+    const supabase = permission.admin;
 
     // 1. Get original activity with phases and steps
     const { data: activity, error: activityError } = await supabase
@@ -1384,14 +1223,14 @@ export async function duplicateActivity(unitId: string, activityId: string) {
         .eq("id", activityId)
         .single();
 
-    if (activityError || !activity) return { error: "Activity not found" };
+    if (activityError || !activity) return { error: "Actividad no encontrada." };
 
     // 2. Insert new activity
     const { data: newActivity, error: newActivityError } = await supabase
         .from("activities")
         .insert({
             unit_id: unitId,
-            title: `${activity.title} - copia`,
+            title: `${activity.title} (Copia)`,
             description: activity.description,
             type: activity.type,
             xp: activity.xp,
@@ -1399,43 +1238,47 @@ export async function duplicateActivity(unitId: string, activityId: string) {
             difficulty: activity.difficulty,
             status: 'draft',
             order_index: (activity.order_index ?? 0) + 1,
-            position_x: (activity.position_x ?? 0) + 20,
-            position_y: (activity.position_y ?? 0) + 20,
+            position_x: (activity.position_x ?? 0) + 50,
+            position_y: (activity.position_y ?? 0) + 50,
             logo_url: activity.logo_url
         })
         .select()
         .single();
 
-    if (newActivityError) return { error: newActivityError.message };
+    if (newActivityError) return { error: "Error al duplicar la actividad." };
 
     // 3. Duplicate phases and steps
-    for (const phase of (activity.activity_phases || [])) {
-        const { data: newPhase, error: newPhaseError } = await supabase
-            .from("activity_phases")
-            .insert({
-                activity_id: newActivity.id,
-                title: phase.title,
-                description: phase.description,
-                order_index: phase.order_index
-            })
-            .select()
-            .single();
-
-        if (newPhaseError) continue;
-
-        for (const step of (phase.activity_steps || [])) {
-            await supabase
-                .from("activity_steps")
+    if (activity.activity_phases) {
+        for (const phase of activity.activity_phases) {
+            const { data: newPhase, error: phaseError } = await supabase
+                .from("activity_phases")
                 .insert({
-                    phase_id: newPhase.id,
-                    title: step.title,
-                    content: step.content,
-                    type: step.type,
-                    order_index: step.order_index,
-                    xp_reward: step.xp_reward,
-                    completion_mode: step.completion_mode,
-                    config: step.config
-                });
+                    activity_id: newActivity.id,
+                    title: phase.title,
+                    description: phase.description,
+                    order_index: phase.order_index
+                })
+                .select()
+                .single();
+
+            if (phaseError) continue;
+
+            if (phase.activity_steps) {
+                for (const step of phase.activity_steps) {
+                    await supabase
+                        .from("activity_steps")
+                        .insert({
+                            phase_id: newPhase.id,
+                            title: step.title,
+                            content: step.content,
+                            type: step.type,
+                            order_index: step.order_index,
+                            xp_reward: step.xp_reward,
+                            completion_mode: step.completion_mode,
+                            config: step.config
+                        });
+                }
+            }
         }
     }
 
@@ -1444,14 +1287,10 @@ export async function duplicateActivity(unitId: string, activityId: string) {
 }
 
 export async function duplicateUnit(moduleId: string, unitId: string) {
-    const userClient = await createClient();
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) return { error: "Not authenticated" };
+    const permission = await requireUnitPermission(unitId, "canEditModuleContent");
+    if ("error" in permission) return { error: permission.error };
 
-    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
-    if (profile?.role !== "teacher") return { error: "Unauthorized" };
-
-    const supabase = createAdminClient();
+    const supabase = permission.admin;
 
     // 1. Get original unit with all related data
     const { data: unit, error: unitError } = await supabase
@@ -1471,14 +1310,14 @@ export async function duplicateUnit(moduleId: string, unitId: string) {
         .eq("id", unitId)
         .single();
 
-    if (unitError || !unit) return { error: "Unit not found" };
+    if (unitError || !unit) return { error: "Unidad no encontrada." };
 
     // 2. Insert new unit
     const { data: newUnit, error: newUnitError } = await supabase
         .from("units")
         .insert({
             module_id: moduleId,
-            name: `${unit.name} - copia`,
+            name: `${unit.name} (Copia)`,
             description: unit.description,
             status: 'draft',
             view_type: unit.view_type || 'list',
@@ -1488,93 +1327,102 @@ export async function duplicateUnit(moduleId: string, unitId: string) {
         .select()
         .single();
 
-    if (newUnitError) return { error: newUnitError.message };
+    if (newUnitError) return { error: "Error al duplicar la unidad." };
 
     // 3. Duplicate activities
-    for (const activity of (unit.activities || [])) {
-        const { data: newActivity, error: newActivityError } = await supabase
-            .from("activities")
-            .insert({
-                unit_id: newUnit.id,
-                title: activity.title,
-                description: activity.description,
-                type: activity.type,
-                xp: activity.xp,
-                duration: activity.duration,
-                difficulty: activity.difficulty,
-                status: 'draft',
-                order_index: activity.order_index,
-                position_x: activity.position_x,
-                position_y: activity.position_y,
-                logo_url: activity.logo_url
-            })
-            .select()
-            .single();
-
-        if (newActivityError) continue;
-
-        for (const phase of (activity.activity_phases || [])) {
-            const { data: newPhase, error: newPhaseError } = await supabase
-                .from("activity_phases")
+    if (unit.activities) {
+        for (const activity of unit.activities) {
+            const { data: newActivity, error: newActivityError } = await supabase
+                .from("activities")
                 .insert({
-                    activity_id: newActivity.id,
-                    title: phase.title,
-                    description: phase.description,
-                    order_index: phase.order_index
+                    unit_id: newUnit.id,
+                    title: activity.title,
+                    description: activity.description,
+                    type: activity.type,
+                    xp: activity.xp,
+                    duration: activity.duration,
+                    difficulty: activity.difficulty,
+                    status: 'draft',
+                    order_index: activity.order_index,
+                    position_x: activity.position_x,
+                    position_y: activity.position_y,
+                    logo_url: activity.logo_url
                 })
                 .select()
                 .single();
 
-            if (newPhaseError) continue;
+            if (newActivityError) continue;
 
-            for (const step of (phase.activity_steps || [])) {
-                await supabase
-                    .from("activity_steps")
-                    .insert({
-                        phase_id: newPhase.id,
-                        title: step.title,
-                        content: step.content,
-                        type: step.type,
-                        order_index: step.order_index,
-                        xp_reward: step.xp_reward,
-                        completion_mode: step.completion_mode,
-                        config: step.config
-                    });
+            if (activity.activity_phases) {
+                for (const phase of activity.activity_phases) {
+                    const { data: newPhase, error: newPhaseError } = await supabase
+                        .from("activity_phases")
+                        .insert({
+                            activity_id: newActivity.id,
+                            title: phase.title,
+                            description: phase.description,
+                            order_index: phase.order_index
+                        })
+                        .select()
+                        .single();
+
+                    if (newPhaseError) continue;
+
+                    if (phase.activity_steps) {
+                        for (const step of phase.activity_steps) {
+                            await supabase
+                                .from("activity_steps")
+                                .insert({
+                                    phase_id: newPhase.id,
+                                    title: step.title,
+                                    content: step.content,
+                                    type: step.type,
+                                    order_index: step.order_index,
+                                    xp_reward: step.xp_reward,
+                                    completion_mode: step.completion_mode,
+                                    config: step.config
+                                });
+                        }
+                    }
+                }
             }
         }
     }
 
     // 4. Duplicate milestones
-    for (const milestone of (unit.class_milestones || [])) {
-        await supabase
-            .from("class_milestones")
-            .insert({
-                unit_id: newUnit.id,
-                title: milestone.title,
-                description: milestone.description,
-                target_points: milestone.target_points,
-                reward: milestone.reward,
-                status: 'draft',
-                order_index: milestone.order_index
-            });
+    if (unit.class_milestones) {
+        for (const milestone of unit.class_milestones) {
+            await supabase
+                .from("class_milestones")
+                .insert({
+                    unit_id: newUnit.id,
+                    title: milestone.title,
+                    description: milestone.description,
+                    target_points: milestone.target_points,
+                    reward: milestone.reward,
+                    status: 'draft',
+                    order_index: milestone.order_index
+                });
+        }
     }
 
     // 5. Duplicate badges
-    for (const badge of (unit.class_badges || [])) {
-        await supabase
-            .from("class_badges")
-            .insert({
-                unit_id: newUnit.id,
-                title: badge.title,
-                description: badge.description,
-                icon_url: badge.icon_url,
-                is_hidden: badge.is_hidden,
-                condition_payload: badge.condition_payload,
-                xp_reward: badge.xp_reward
-            });
+    if (unit.class_badges) {
+        for (const badge of unit.class_badges) {
+            await supabase
+                .from("class_badges")
+                .insert({
+                    unit_id: newUnit.id,
+                    title: badge.title,
+                    description: badge.description,
+                    icon_url: badge.icon_url,
+                    is_hidden: badge.is_hidden,
+                    condition_payload: badge.condition_payload,
+                    xp_reward: badge.xp_reward
+                });
+        }
     }
 
     revalidatePath(`/dashboard/modules/${moduleId}`);
     return { success: true };
 }
-

@@ -1,6 +1,8 @@
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { notFound, redirect } from "next/navigation";
 import MapClient from "./client";
+import { getUnitAccess } from "@/lib/module-access";
 
 export default async function UnitMapPage({
     params,
@@ -8,6 +10,7 @@ export default async function UnitMapPage({
     params: { id: string };
 }) {
     const supabase = await createClient();
+    const admin = createAdminClient();
     const { id } = await params;
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -15,8 +18,25 @@ export default async function UnitMapPage({
         redirect("/login");
     }
 
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+    const role = profile?.role || 'student';
+    const unitAccess = role === "teacher" ? await getUnitAccess(id, user.id) : null;
+
+    if (role === "teacher") {
+        if (!unitAccess?.permissions.canViewModule) {
+            redirect("/dashboard");
+        }
+    }
+
+    const dataClient = role === "teacher" ? admin : supabase;
+
     // Fetch Unit Data
-    const { data: unit } = await supabase
+    const { data: unit } = await dataClient
         .from("units")
         .select(`
             *,
@@ -37,7 +57,7 @@ export default async function UnitMapPage({
     }
 
     // Fetch Activities for this unit
-    const { data: activitiesData } = await supabase
+    const { data: activitiesData } = await dataClient
         .from("activities")
         .select(`
             *,
@@ -71,29 +91,20 @@ export default async function UnitMapPage({
         };
     });
 
-    // Get User Role
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    const role = profile?.role || 'student';
-
     // Guard: if teacher changed view_type, redirect student back to unit detail
     if (role === 'student' && unit.view_type !== 'map') {
         redirect(`/dashboard/units/${id}`);
     }
 
     // Fetch milestones and badges for student map view
-    const { data: milestonesData } = await supabase
+    const { data: milestonesData } = await dataClient
         .from("class_milestones")
         .select("*")
         .eq("unit_id", id)
         .in("status", ["active", "completed"])
         .order("order_index", { ascending: true });
 
-    const { data: classBadgesData } = await supabase
+    const { data: classBadgesData } = await dataClient
         .from("class_badges")
         .select("*")
         .eq("unit_id", id);
@@ -131,6 +142,8 @@ export default async function UnitMapPage({
             milestones={milestonesData || []}
             classBadges={classBadgesData || []}
             studentBadges={studentBadgesData || []}
+            moduleRole={unitAccess?.role ?? null}
+            modulePermissions={unitAccess?.permissions ?? null}
         />
     );
 }

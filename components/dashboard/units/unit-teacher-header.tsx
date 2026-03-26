@@ -1,20 +1,30 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname } from "next/navigation";
-import { Map } from "lucide-react";
+import { Map, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useBreadcrumb } from "@/components/dashboard/layout/breadcrumb-context";
 import { UnitTeacherNav } from "./unit-teacher-nav";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+    getModuleRoleLabel,
+    getModuleRoleTooltip,
+    type ModuleCollaboratorRole,
+    type ModulePermissions,
+} from "@/lib/module-collaborator-defs";
 
 interface UnitTeacherHeaderProps {
     unit: any;
     module: any;
+    moduleRole: ModuleCollaboratorRole | null;
+    modulePermissions: ModulePermissions | null;
 }
 
 export function UnitTeacherHeader({
     unit,
     module,
+    moduleRole,
+    modulePermissions,
 }: UnitTeacherHeaderProps) {
     const { setSegments } = useBreadcrumb();
 
@@ -81,6 +91,21 @@ export function UnitTeacherHeader({
                                     {statusConfig.label}
                                 </Badge>
                             )}
+                            {moduleRole && moduleRole !== "creator" && (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300 gap-1.5 py-1 px-3 shadow-sm cursor-help">
+                                                <ShieldAlert className="size-3.5" />
+                                                {getModuleRoleLabel(moduleRole)}
+                                            </Badge>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-xs">
+                                            {getModuleRoleTooltip(moduleRole)}
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            )}
                         </div>
                         <p className="text-sm text-text-muted max-w-xl">
                             {unit.description || "Sin descripción proporcionada para esta unidad."}
@@ -90,7 +115,7 @@ export function UnitTeacherHeader({
             </div>
 
             <div>
-                <UnitTeacherNav unitId={unit.id} />
+                <UnitTeacherNav unitId={unit.id} modulePermissions={modulePermissions} />
             </div>
         </div>
     );

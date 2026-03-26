@@ -87,7 +87,9 @@ export default async function RetosPage({
             <UnitActivitiesWrapper 
                 unitId={unitId} 
                 activities={activities || []} 
-                submissions={submissions} 
+                submissions={submissions}
+                canEditActivities={unitAccess?.permissions.canEditModuleContent ?? false}
+                moduleRole={unitAccess?.role ?? null}
             />
         </div>
     );
