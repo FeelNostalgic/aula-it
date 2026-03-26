@@ -61,28 +61,56 @@ function makeDriveClient(overrides: {
 }
 
 /**
- * The upload route calls admin.from("activity_steps") TWICE:
- *   1. select("title, content, due_date") → needs step config
- *   2. select("phase:activity_phases(...)") → needs teacher_id hierarchy
- *
- * SupabaseMockBuilder returns one fixed response per table, so we need a
- * manual admin mock that returns different data on successive calls.
+ * Folder structure: Aula-it Entregas / module / unit / activity / step / student
+ * createIdResults must provide 6 folder IDs then 1 file ID.
  */
-function makeAdminClientWithDualStepQuery(opts: {
+const DEFAULT_FOLDER_IDS = [
+  { id: "folder-root" },
+  { id: "folder-module" },
+  { id: "folder-unit" },
+  { id: "folder-activity" },
+  { id: "folder-step" },
+  { id: "folder-student" },
+];
+
+/**
+ * The upload route now uses a SINGLE query to activity_steps that includes
+ * the full hierarchy (module name, unit name, activity title, teacher_id).
+ */
+function makeAdminClient(opts: {
   stepConfig: { title: string; content: object; due_date: string | null };
   teacherId: string;
+  moduleName?: string;
+  unitName?: string;
+  activityTitle?: string;
   studentName?: string;
   refreshToken?: string;
 }) {
-  const { stepConfig, teacherId, studentName = "Alice", refreshToken = "mock-refresh-token" } =
-    opts;
+  const {
+    stepConfig,
+    teacherId,
+    moduleName = "Test Module",
+    unitName = "Test Unit",
+    activityTitle = "Test Activity",
+    studentName = "Alice",
+    refreshToken = "mock-refresh-token",
+  } = opts;
 
-  // Responses keyed by table, returned sequentially per table
   const responses: Record<string, unknown[]> = {
     activity_steps: [
-      { data: stepConfig, error: null },
       {
-        data: { phase: { activity: { unit: { module: { teacher_id: teacherId } } } } },
+        data: {
+          ...stepConfig,
+          phase: {
+            activity: {
+              title: activityTitle,
+              unit: {
+                name: unitName,
+                module: { name: moduleName, teacher_id: teacherId },
+              },
+            },
+          },
+        },
         error: null,
       },
     ],
@@ -240,7 +268,7 @@ describe("POST /api/drive/upload", () => {
     const { client: userClient } = new SupabaseMockBuilder().mockAuth(user).build();
     vi.mocked(createClient).mockResolvedValue(userClient as any);
 
-    const adminClient = makeAdminClientWithDualStepQuery({
+    const adminClient = makeAdminClient({
       stepConfig: { title: "Packet Step", content: { allowedTypes: ["pka"], maxFileSizeMb: 10 }, due_date: null },
       teacherId: user.id,
     });
@@ -249,9 +277,7 @@ describe("POST /api/drive/upload", () => {
     const driveClient = makeDriveClient({
       listResult: [],
       createIdResults: [
-        { id: "folder-root" },
-        { id: "folder-step" },
-        { id: "folder-student" },
+        ...DEFAULT_FOLDER_IDS,
         {
           id: "uploaded-pka-id",
           webViewLink: "https://drive.google.com/file/d/uploaded-pka-id/view",
@@ -275,7 +301,7 @@ describe("POST /api/drive/upload", () => {
     const { client: userClient } = new SupabaseMockBuilder().mockAuth(user).build();
     vi.mocked(createClient).mockResolvedValue(userClient as any);
 
-    const adminClient = makeAdminClientWithDualStepQuery({
+    const adminClient = makeAdminClient({
       stepConfig: { title: "Upload Step", content: { allowedTypes: ["pdf"], maxFileSizeMb: 10 }, due_date: null },
       teacherId: user.id,
     });
@@ -285,9 +311,7 @@ describe("POST /api/drive/upload", () => {
     const driveClient = makeDriveClient({
       listResult: [],
       createIdResults: [
-        { id: "folder-root" },
-        { id: "folder-step" },
-        { id: "folder-student" },
+        ...DEFAULT_FOLDER_IDS,
         {
           id: "new-upload-id",
           webViewLink: "https://drive.google.com/file/d/new-upload-id/view",
@@ -315,19 +339,20 @@ describe("POST /api/drive/upload", () => {
     const { client: userClient } = new SupabaseMockBuilder().mockAuth(user).build();
     vi.mocked(createClient).mockResolvedValue(userClient as any);
 
-    const adminClient = makeAdminClientWithDualStepQuery({
+    const adminClient = makeAdminClient({
       stepConfig: { title: "Upload Step", content: { allowedTypes: ["pdf"], maxFileSizeMb: 10 }, due_date: null },
       teacherId: user.id,
-      studentName: "Test User",
+      moduleName: "Redes Locales",
+      unitName: "U.D.4 Protocolos",
+      activityTitle: "TCP/IP",
+      studentName: "1SMRA-25",
     });
     vi.mocked(createAdminClient).mockReturnValue(adminClient as any);
 
     const driveClient = makeDriveClient({
       listResult: [],
       createIdResults: [
-        { id: "folder-root" },
-        { id: "folder-step" },
-        { id: "folder-student" },
+        ...DEFAULT_FOLDER_IDS,
         {
           id: "final-file-id",
           webViewLink: "https://drive.google.com/file/d/final-file-id/view",
@@ -349,5 +374,46 @@ describe("POST /api/drive/upload", () => {
       driveFileName: "report.pdf",
       driveMimeType: "application/pdf",
     });
+
+    // 6 folder creates + 1 file upload = 7 create calls
+    expect(driveClient.files.create).toHaveBeenCalledTimes(7);
+  });
+
+  it("sanitizes folder names with slashes and special chars (e.g. TCP/IP → TCP-IP)", async () => {
+    const user = createMockUser();
+    const { client: userClient } = new SupabaseMockBuilder().mockAuth(user).build();
+    vi.mocked(createClient).mockResolvedValue(userClient as any);
+
+    const adminClient = makeAdminClient({
+      stepConfig: { title: "Memoria ARP", content: { allowedTypes: ["pdf"], maxFileSizeMb: 10 }, due_date: null },
+      teacherId: user.id,
+      moduleName: "Redes Locales",
+      unitName: "U.D.4 Protocolos",
+      activityTitle: "TCP/IP",  // slash that must be sanitized
+      studentName: "1SMRA-25",
+    });
+    vi.mocked(createAdminClient).mockReturnValue(adminClient as any);
+
+    const driveClient = makeDriveClient({
+      listResult: [],
+      createIdResults: [
+        ...DEFAULT_FOLDER_IDS,
+        {
+          id: "file-id",
+          webViewLink: "https://drive.google.com/file/d/file-id/view",
+          name: "memoria.pdf",
+          mimeType: "application/pdf",
+        },
+      ],
+    });
+    vi.mocked(getDriveClient).mockReturnValue(driveClient as any);
+
+    const file = new File(["content"], "memoria.pdf", { type: "application/pdf" });
+    await POST(makeUploadRequest({ file, stepId: "step-1" }));
+
+    // Find the create call that would have been for the activity folder (4th folder = index 3)
+    const createCalls = (driveClient.files.create as ReturnType<typeof vi.fn>).mock.calls;
+    const activityFolderCall = createCalls[3]; // root(0), module(1), unit(2), activity(3)
+    expect(activityFolderCall[0].requestBody.name).toBe("TCP-IP");
   });
 });

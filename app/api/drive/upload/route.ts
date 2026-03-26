@@ -34,13 +34,33 @@ function getMimeAccepted(allowedTypes: AllowedFileType[]): string[] | null {
     return allowedTypes.flatMap(t => ALLOWED_MIME_MAP[t]);
 }
 
+/**
+ * Sanitizes a string for use as a Google Drive folder name.
+ * Drive itself allows most characters, but / is a path separator in many
+ * clients and tools, and other shell-unsafe characters can cause confusion.
+ */
+function sanitizeDriveFolderName(name: string): string {
+    return (
+        name
+            .replace(/\//g, "-")   // TCP/IP → TCP-IP
+            .replace(/\\/g, "-")
+            .replace(/:/g, "-")
+            .replace(/\*/g, "_")
+            .replace(/\?/g, "_")
+            .replace(/"/g, "'")
+            .replace(/[<>|]/g, "-")
+            .trim()
+    ) || "Sin nombre";
+}
+
 async function getOrCreateFolder(
     driveClient: ReturnType<typeof getDriveClient>,
     parentId: string | null,
     name: string
 ): Promise<string> {
+    const safeName = sanitizeDriveFolderName(name);
     const query = [
-        `name = '${name.replace(/'/g, "\\'")}'`,
+        `name = '${safeName.replace(/'/g, "\\'")}'`,
         "mimeType = 'application/vnd.google-apps.folder'",
         "trashed = false",
         parentId ? `'${parentId}' in parents` : "'root' in parents",
@@ -58,7 +78,7 @@ async function getOrCreateFolder(
 
     const created = await driveClient.files.create({
         requestBody: {
-            name,
+            name: safeName,
             mimeType: "application/vnd.google-apps.folder",
             parents: parentId ? [parentId] : undefined,
         },
@@ -83,10 +103,21 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    // Get step config
+    // Single query: get step config + full hierarchy (module → unit → activity → phase → step)
     const { data: step } = await admin
         .from("activity_steps")
-        .select("title, content, due_date")
+        .select(`
+            title, content, due_date,
+            phase:activity_phases(
+                activity:activities(
+                    title,
+                    unit:units(
+                        name,
+                        module:modules(name, teacher_id)
+                    )
+                )
+            )
+        `)
         .eq("id", stepId)
         .single();
 
@@ -125,6 +156,19 @@ export async function POST(request: NextRequest) {
         }
     }
 
+    // Extract hierarchy names
+    const activity = (step?.phase as any)?.activity;
+    const unit = activity?.unit;
+    const module = unit?.module;
+    const teacherId = module?.teacher_id as string | undefined;
+    const moduleName: string = module?.name ?? "Módulo";
+    const unitName: string = unit?.name ?? "Unidad";
+    const activityTitle: string = activity?.title ?? "Reto";
+
+    if (!teacherId) {
+        return NextResponse.json({ error: "No se encontró el profesor de la actividad." }, { status: 400 });
+    }
+
     // Get student name
     const { data: profile } = await admin
         .from("profiles")
@@ -132,18 +176,6 @@ export async function POST(request: NextRequest) {
         .eq("id", user.id)
         .single();
     const studentName = profile?.full_name ?? user.id.slice(-8);
-
-    // Get teacher_drive_tokens — navigate: step -> phase -> activity -> unit -> module -> teacher_id
-    const { data: phaseRow } = await admin
-        .from("activity_steps")
-        .select("phase:activity_phases(activity:activities(unit:units(module:modules(teacher_id))))")
-        .eq("id", stepId)
-        .single();
-
-    const teacherId = (phaseRow?.phase as any)?.activity?.unit?.module?.teacher_id as string | undefined;
-    if (!teacherId) {
-        return NextResponse.json({ error: "No se encontró el profesor de la actividad." }, { status: 400 });
-    }
 
     const { data: tokenRow } = await admin
         .from("teacher_drive_tokens")
@@ -171,10 +203,14 @@ export async function POST(request: NextRequest) {
         }
     }
 
-    // Ensure folder structure: Aula-it Entregas / {stepTitle} / {studentName}
-    const rootFolderId = await getOrCreateFolder(driveClient, null, "Aula-it Entregas");
-    const stepFolderId = await getOrCreateFolder(driveClient, rootFolderId, step.title ?? "Paso");
-    const studentFolderId = await getOrCreateFolder(driveClient, stepFolderId, studentName);
+    // Folder structure:
+    // Aula-it Entregas / {módulo} / {unidad} / {reto} / {actividad} / {alumno}
+    const rootFolderId     = await getOrCreateFolder(driveClient, null,            "Aula-it Entregas");
+    const moduleFolderId   = await getOrCreateFolder(driveClient, rootFolderId,    moduleName);
+    const unitFolderId     = await getOrCreateFolder(driveClient, moduleFolderId,  unitName);
+    const activityFolderId = await getOrCreateFolder(driveClient, unitFolderId,    activityTitle);
+    const stepFolderId     = await getOrCreateFolder(driveClient, activityFolderId, step.title ?? "Paso");
+    const studentFolderId  = await getOrCreateFolder(driveClient, stepFolderId,    studentName);
 
     // Upload to Drive preserving original filename
     const arrayBuffer = await file.arrayBuffer();
