@@ -14,7 +14,7 @@ import {
     Users,
 } from "lucide-react";
 import { pingActiveDay } from "@/app/dashboard/actions";
-import { LevelBadge } from "@/components/dashboard/level-badge";
+import { LevelBadge } from "@/components/dashboard/badges/level-badge";
 import NextLink from "next/link";
 import {
     DropdownMenu,

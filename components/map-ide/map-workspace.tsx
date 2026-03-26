@@ -29,11 +29,11 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Cloud, CloudCheck, MousePointer2, Eraser, FolderDown, FileText, ChevronRight, ExternalLink, LayoutGrid, List, Download, Trash2, Network, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { UserNav } from '@/components/dashboard/user-nav';
-import { DashboardBreadcrumb } from '@/components/dashboard/dashboard-breadcrumb';
+import { UserNav } from '@/components/dashboard/layout/user-nav';
+import { DashboardBreadcrumb } from '@/components/dashboard/layout/dashboard-breadcrumb';
 import { cn } from '@/lib/utils';
 import { toDriveDownloadUrl } from '@/lib/google-drive-urls';
-import { ResourceIcon } from '@/components/dashboard/resource-icon';
+import { ResourceIcon } from '@/components/dashboard/shared/resource-icon';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
     updateActivityPosition,
@@ -41,8 +41,8 @@ import {
     deleteActivityConnection,
     removeActivityFromMap
 } from '@/components/map-ide/actions';
-import { ClassMilestoneWidget } from '@/components/dashboard/class-milestone-widget';
-import { ClassBadgesWidget } from '@/components/dashboard/class-badges-widget';
+import { ClassMilestoneWidget } from '@/components/dashboard/shared/class-milestone-widget';
+import { ClassBadgesWidget } from '@/components/dashboard/badges/class-badges-widget';
 
 const nodeTypes: NodeTypes = {
     mission: MissionNodeComponent,

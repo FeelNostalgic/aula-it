@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { UnitResourcesTab } from "@/components/dashboard/unit-resources-tab";
+import { UnitResourcesTab } from "@/components/dashboard/units/unit-resources-tab";
 
 export default async function RecursosPage({
     params,

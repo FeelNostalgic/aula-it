@@ -74,7 +74,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { ClassMilestone, MilestoneStatus } from "@/types/database";
-import { ClassMilestoneWidget } from "@/components/dashboard/class-milestone-widget";
+import { ClassMilestoneWidget } from "@/components/dashboard/shared/class-milestone-widget";
 import { createUnitMilestone, updateUnitMilestone, deleteUnitMilestone, reorderUnitMilestones } from "@/app/dashboard/units/[id]/actions";
 import { cn } from "@/lib/utils";
 

@@ -12,15 +12,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ActivityPhaseWithSteps, ActivityStepWithClientState } from "@/types/activity";
 import { toast } from "sonner";
-import { MissionBuilderSidebar } from "@/components/dashboard/activity-builder/mission-builder-sidebar";
-import { StepEditorPanel } from "@/components/dashboard/activity-builder/step-editor-panel";
-import { ActivitySettingsPanel } from "@/components/dashboard/activity-builder/activity-settings-panel";
-import { ActivityBadgesPanel } from "@/components/dashboard/activity-builder/activity-badges-panel";
-import { StudentPreview } from "@/components/dashboard/activity-builder/student-preview";
-import { UserNav } from "@/components/dashboard/user-nav";
-import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb";
-import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/breadcrumb-context";
-import { EditorTabsBar } from "@/components/dashboard/activity-builder/editor-tabs-bar";
+import { MissionBuilderSidebar } from "@/components/dashboard/activities/activity-builder/mission-builder-sidebar";
+import { StepEditorPanel } from "@/components/dashboard/activities/activity-builder/step-editor-panel";
+import { ActivitySettingsPanel } from "@/components/dashboard/activities/activity-builder/activity-settings-panel";
+import { ActivityBadgesPanel } from "@/components/dashboard/activities/activity-builder/activity-badges-panel";
+import { StudentPreview } from "@/components/dashboard/activities/activity-builder/student-preview";
+import { UserNav } from "@/components/dashboard/layout/user-nav";
+import { DashboardBreadcrumb } from "@/components/dashboard/layout/dashboard-breadcrumb";
+import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/layout/breadcrumb-context";
+import { EditorTabsBar } from "@/components/dashboard/activities/activity-builder/editor-tabs-bar";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { updateActivityStatus, updateStepTitle, updateActivitySettings } from "./actions";
 

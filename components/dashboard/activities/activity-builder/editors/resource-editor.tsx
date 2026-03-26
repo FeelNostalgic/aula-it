@@ -8,7 +8,7 @@ import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { Plus, Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ResourceIcon } from "../../resource-icon";
+import { ResourceIcon } from "@/components/dashboard/shared/resource-icon";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import {
     DndContext,

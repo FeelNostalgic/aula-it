@@ -12,8 +12,8 @@ import { Progress } from "@/components/ui/progress";
 import { useModuleGamification } from "@/hooks/use-gamification";
 import { cn } from "@/lib/utils";
 import { ModuleRank } from "@/lib/gamification";
-import { RankBadge } from "./rank-badge";
-import { NextDueDisplay } from "./next-due-display";
+import { RankBadge } from "@/components/dashboard/badges/rank-badge";
+import { NextDueDisplay } from "@/components/dashboard/shared/next-due-display";
 
 const ICON_MAP: Record<string, any> = {
     BookOpen,

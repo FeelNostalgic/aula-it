@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { UnitActivitiesTab } from "@/components/dashboard/unit-activities-tab";
+import { UnitActivitiesTab } from "@/components/dashboard/activities/unit-activities-tab";
 import { UnitActivitiesWrapper } from "./activities-wrapper";
 
 export default async function RetosPage({

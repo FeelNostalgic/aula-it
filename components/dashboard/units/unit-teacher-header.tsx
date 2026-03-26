@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Map } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useBreadcrumb } from "./breadcrumb-context";
+import { useBreadcrumb } from "@/components/dashboard/layout/breadcrumb-context";
 import { UnitTeacherNav } from "./unit-teacher-nav";
 
 interface UnitTeacherHeaderProps {

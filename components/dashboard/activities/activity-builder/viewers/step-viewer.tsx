@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { ResourceIcon } from "../../resource-icon";
+import { ResourceIcon } from "@/components/dashboard/shared/resource-icon";
 import { toSlidesDownloadUrl, toDriveDownloadUrl } from "@/lib/google-drive-urls";
 import { selectQuestionsForAttempt } from "@/lib/quiz-pool-selection";
 

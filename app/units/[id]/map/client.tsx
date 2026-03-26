@@ -2,7 +2,7 @@
 
 import { MapWorkspace } from "@/components/map-ide/map-workspace";
 import { ReactFlowProvider } from "@xyflow/react";
-import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/breadcrumb-context";
+import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/layout/breadcrumb-context";
 import { useEffect } from "react";
 
 interface MapClientProps {

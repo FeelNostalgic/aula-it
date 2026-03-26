@@ -14,7 +14,7 @@ import { DeliverableContent, ActivitySubmission, SubmissionStatus, RubricCriteri
 import { submitDeliverable } from "@/app/activities/[id]/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { GoogleEmailPrompt } from "@/components/dashboard/google-email-prompt";
+import { GoogleEmailPrompt } from "@/components/dashboard/shared/google-email-prompt";
 
 interface DeliverableViewerProps {
     content: DeliverableContent;

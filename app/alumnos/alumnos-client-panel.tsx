@@ -27,7 +27,7 @@ import {
   toggleStudentStatus,
 } from "./actions";
 import type { ClassroomStudent, TeacherModule } from "@/components/students/types";
-import { useBreadcrumb } from "@/components/dashboard/breadcrumb-context";
+import { useBreadcrumb } from "@/components/dashboard/layout/breadcrumb-context";
 import {
   KeyRound,
   Loader2,

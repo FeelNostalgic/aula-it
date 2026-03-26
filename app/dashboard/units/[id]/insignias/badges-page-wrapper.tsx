@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Award } from "lucide-react";
-import { ClassBadgesWidget } from "@/components/dashboard/class-badges-widget";
-import ClassBadgesManager from "@/components/dashboard/class-badges-manager";
+import { ClassBadgesWidget } from "@/components/dashboard/badges/class-badges-widget";
+import ClassBadgesManager from "@/components/dashboard/badges/class-badges-manager";
 import { ClassBadge } from "@/types/database";
 
 interface BadgesPageWrapperProps {

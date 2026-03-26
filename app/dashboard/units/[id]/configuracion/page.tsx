@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { UnitSettingsTab } from "@/components/dashboard/unit-settings-tab";
+import { UnitSettingsTab } from "@/components/dashboard/units/unit-settings-tab";
 
 export default async function ConfiguracionPage({
     params,

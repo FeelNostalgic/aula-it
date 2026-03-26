@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
-import { StudentDashboard } from "@/components/dashboard/student-dashboard";
-import { TeacherDashboard } from "@/components/dashboard/teacher-dashboard";
+import { StudentDashboard } from "@/components/dashboard/shared/student-dashboard";
+import { TeacherDashboard } from "@/components/dashboard/shared/teacher-dashboard";
 import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {

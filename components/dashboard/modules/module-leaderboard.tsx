@@ -7,8 +7,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Trophy, Medal, Crown, User } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { RankBadge } from "@/components/dashboard/rank-badge";
-import { BadgeDisplay } from "@/components/dashboard/badge-display";
+import { RankBadge } from "@/components/dashboard/badges/rank-badge";
+import { BadgeDisplay } from "@/components/dashboard/badges/badge-display";
 import type { ClassBadge } from "@/types/database";
 
 interface LeaderboardEntry {

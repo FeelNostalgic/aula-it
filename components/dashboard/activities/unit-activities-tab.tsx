@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { BadgeDisplay } from "./badge-display";
+import { BadgeDisplay } from "@/components/dashboard/badges/badge-display";
 import {
     Select,
     SelectContent,

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useSelectedLayoutSegment } from "next/navigation";
 import { useUIStore } from "@/lib/store/ui-store";
-import { useBreadcrumb } from "./breadcrumb-context";
+import { useBreadcrumb } from "../layout/breadcrumb-context";
 import { UnitTeacherHeader } from "./unit-teacher-header";
 import { UnitTeacherNav } from "./unit-teacher-nav";
 

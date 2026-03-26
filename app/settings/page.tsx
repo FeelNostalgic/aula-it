@@ -2,7 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { SettingsClient } from "./settings-client";
 import { createAdminClient } from "@/utils/supabase/admin";
-import { BreadcrumbProvider } from "@/components/dashboard/breadcrumb-context";
+import { BreadcrumbProvider } from "@/components/dashboard/layout/breadcrumb-context";
 
 export default async function SettingsPage() {
     const supabase = await createClient();

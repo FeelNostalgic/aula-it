@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { UnitEvaluationTab } from "@/components/dashboard/unit-evaluation-tab";
+import { UnitEvaluationTab } from "@/components/dashboard/units/unit-evaluation-tab";
 
 export default async function EvaluacionPage({
     params,

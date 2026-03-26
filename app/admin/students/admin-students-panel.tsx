@@ -33,7 +33,7 @@ import {
   getAllModulesWithTeachers,
 } from "../enrollment/actions";
 import type { ClassroomStudent, BulkCreateResult, AdminModule } from "@/components/students/types";
-import { useBreadcrumb } from "@/components/dashboard/breadcrumb-context";
+import { useBreadcrumb } from "@/components/dashboard/layout/breadcrumb-context";
 import {
   Users,
   KeyRound,

@@ -15,7 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getDurationConfig } from '@/lib/activity-config';
-import { BadgeDisplay } from '@/components/dashboard/badge-display';
+import { BadgeDisplay } from '@/components/dashboard/badges/badge-display';
 
 interface StudentSidebarProps {
     unit: any;

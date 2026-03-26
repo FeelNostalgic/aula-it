@@ -27,22 +27,22 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { useBreadcrumb } from "./breadcrumb-context";
+import { useBreadcrumb } from "@/components/dashboard/layout/breadcrumb-context";
 import { UnitSettingsTab } from "./unit-settings-tab";
-import { UnitActivitiesTab } from "./unit-activities-tab";
+import { UnitActivitiesTab } from "@/components/dashboard/activities/unit-activities-tab";
 import { UnitEvaluationTab } from "./unit-evaluation-tab";
 import { UnitResourcesTab } from "./unit-resources-tab";
 import Link from "next/link";
 import { StudentUnitView } from "./student-unit-view";
-import { ResourceIcon } from "./resource-icon";
+import { ResourceIcon } from "@/components/dashboard/shared/resource-icon";
 import { cn } from "@/lib/utils";
 import { toDriveDownloadUrl } from "@/lib/google-drive-urls";
 import { UnitMilestoneTab } from "./unit-milestone-tab";
 import { ClassMilestone } from "@/types/database";
-import { ClassMilestoneWidget } from "./class-milestone-widget";
-import { ClassBadgesWidget } from "./class-badges-widget";
+import { ClassMilestoneWidget } from "@/components/dashboard/shared/class-milestone-widget";
+import { ClassBadgesWidget } from "@/components/dashboard/badges/class-badges-widget";
 import { ClassBadge, StudentBadge } from "@/types/database";
-import ClassBadgesManager from "./class-badges-manager";
+import ClassBadgesManager from "@/components/dashboard/badges/class-badges-manager";
 
 import { 
     Select, 

@@ -33,14 +33,14 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb";
-import { useBreadcrumb } from "@/components/dashboard/breadcrumb-context";
+import { DashboardBreadcrumb } from "@/components/dashboard/layout/dashboard-breadcrumb";
+import { useBreadcrumb } from "@/components/dashboard/layout/breadcrumb-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { UserNav } from "@/components/dashboard/user-nav";
+import { UserNav } from "@/components/dashboard/layout/user-nav";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 

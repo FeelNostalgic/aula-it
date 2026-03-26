@@ -6,14 +6,14 @@ import {
     ArrowLeft, FileText, Lock, CalendarClock,
     ChevronLeft, ChevronRight, ChevronDown, Folder, FolderOpen, X, Zap, Eye, CheckCircle2, AlertTriangle, GripVertical
 } from "lucide-react";
-import { BadgeDisplay } from "@/components/dashboard/badge-display";
+import { BadgeDisplay } from "@/components/dashboard/badges/badge-display";
 import { Button } from "@/components/ui/button";
 import { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { StepViewer } from "./viewers/step-viewer";
 import { markStepViewed } from "@/app/activities/[id]/actions";
-import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb";
-import { UserNav } from "@/components/dashboard/user-nav";
+import { DashboardBreadcrumb } from "@/components/dashboard/layout/dashboard-breadcrumb";
+import { UserNav } from "@/components/dashboard/layout/user-nav";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";

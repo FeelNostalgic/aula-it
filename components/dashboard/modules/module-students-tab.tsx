@@ -30,7 +30,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { unenrollStudent } from "@/app/dashboard/modules/[id]/actions";
 import { toast } from "sonner";
-import { EnrollStudentDialog } from "./enroll-student-dialog";
+import { EnrollStudentDialog } from "@/components/dashboard/shared/enroll-student-dialog";
 import { cn } from "@/lib/utils";
 import {
     AlertDialog,
@@ -42,7 +42,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { usePresence } from "@/components/dashboard/presence-context";
+import { usePresence } from "@/components/dashboard/shared/presence-context";
 
 interface Student {
     id: string;
@@ -351,7 +351,7 @@ export default function ModuleStudentsTab({ moduleId, initialStudents }: ModuleS
                             </TableRow>
                         ) : (
                             table.getRowModel().rows.map((row) => (
-                                <TableRow key={row.id} className="odd:bg-white/[0.02] even:bg-transparent hover:bg-blue-500/10 transition-colors">
+                                <TableRow key={row.id} className="odd:bg-white/2 even:bg-transparent hover:bg-blue-500/10 transition-colors">
                                     {row.getVisibleCells().map((cell) => (
                                         <TableCell
                                             key={cell.id}

@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Target, ChevronRight } from "lucide-react";
-import { ClassMilestoneWidget } from "@/components/dashboard/class-milestone-widget";
-import { UnitMilestoneTab } from "@/components/dashboard/unit-milestone-tab";
+import { ClassMilestoneWidget } from "@/components/dashboard/shared/class-milestone-widget";
+import { UnitMilestoneTab } from "@/components/dashboard/units/unit-milestone-tab";
 import { ClassMilestone } from "@/types/database";
 
 interface MilestonePageWrapperProps {

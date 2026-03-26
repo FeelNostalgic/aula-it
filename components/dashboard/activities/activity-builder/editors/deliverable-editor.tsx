@@ -7,7 +7,7 @@ import { updateStepContent, updateStepDueDate } from "@/app/activities/[id]/edit
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Link2, HardDrive, CheckCircle2, Copy, MousePointer, ExternalLink, ListChecks } from "lucide-react";
-import { RubricBuilderModal } from "@/components/dashboard/rubric-builder-modal";
+import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toEditableUrl } from "@/lib/google-drive-urls";
 import ReactMarkdown from "react-markdown";
@@ -225,7 +225,7 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
 
                     {/* Delivery mode */}
                     <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
                             <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Modo de entrega</span>
                         </div>
                         <div className="p-5 space-y-3">
@@ -283,7 +283,7 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
 
                     {/* Template URL */}
                     <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
                             <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Plantilla (Opcional)</span>
                         </div>
                         <div className="p-5 space-y-3">
@@ -324,7 +324,7 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
 
                     {/* Rubric */}
                     <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
                             <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Rúbrica</span>
                         </div>
                         <div className="p-5">
@@ -350,7 +350,7 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
 
                     {/* Due date */}
                     <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
                             <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Fecha Límite</span>
                         </div>
                         <div className="p-5 space-y-2">

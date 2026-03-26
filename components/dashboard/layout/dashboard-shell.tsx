@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ActivitySidebar } from "./activity-sidebar";
+import { ActivitySidebar } from "@/components/dashboard/activities/activity-sidebar";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/lib/store/ui-store";
 

@@ -1,14 +1,13 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { APP_VERSION, APP_STATUS } from "@/lib/version";
-import { UserNav } from "@/components/dashboard/user-nav";
-
-import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb";
-import { DashboardShell } from "@/components/dashboard/dashboard-shell";
-import { BreadcrumbProvider } from "@/components/dashboard/breadcrumb-context";
+import { UserNav } from "@/components/dashboard/layout/user-nav";
+import { DashboardBreadcrumb } from "@/components/dashboard/layout/dashboard-breadcrumb";
+import { DashboardShell } from "@/components/dashboard/layout/dashboard-shell";
+import { BreadcrumbProvider } from "@/components/dashboard/layout/breadcrumb-context";
 import { SessionTimeoutGuard } from "@/components/auth/session-timeout-guard";
-import { QueryParamHandler } from "@/components/dashboard/query-param-handler";
-import { PresenceProvider } from "@/components/dashboard/presence-context";
+import { QueryParamHandler } from "@/components/dashboard/shared/query-param-handler";
+import { PresenceProvider } from "@/components/dashboard/shared/presence-context";
 import { Suspense } from "react";
 
 

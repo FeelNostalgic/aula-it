@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { UnitActivitiesTab } from "@/components/dashboard/unit-activities-tab";
+import { UnitActivitiesTab } from "@/components/dashboard/activities/unit-activities-tab";
 
 interface UnitActivitiesWrapperProps {
     unitId: string;

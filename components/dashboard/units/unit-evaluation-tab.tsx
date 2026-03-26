@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
 import { updateStepActivityClosed } from "@/app/activities/[id]/edit/actions";
 import { exportGradesAsCSV } from "@/lib/export-grades";
 import { toast } from "sonner";
-import { GradingModal } from "@/components/dashboard/grading-modal";
+import { GradingModal } from "@/components/dashboard/shared/grading-modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";

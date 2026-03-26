@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical, Search, Loader2, FolderPlus, ChevronRight, ArrowLeft, AlertCircle, Eye, EyeOff, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
-import { ResourceIcon } from "./resource-icon";
+import { ResourceIcon } from "@/components/dashboard/shared/resource-icon";
 import {
     DndContext,
     closestCenter,

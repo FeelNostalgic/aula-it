@@ -29,15 +29,15 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CreateUnitDialog } from "./create-unit-dialog";
-import { EnrollStudentDialog } from "./enroll-student-dialog";
-import { useBreadcrumb } from "./breadcrumb-context";
+import { CreateUnitDialog } from "@/components/dashboard/units/create-unit-dialog";
+import { EnrollStudentDialog } from "@/components/dashboard/shared/enroll-student-dialog";
+import { useBreadcrumb } from "@/components/dashboard/layout/breadcrumb-context";
 import ModuleStudentsTab from "./module-students-tab";
 import { ModuleSettingsTab } from "./module-settings-tab";
 import { cn } from "@/lib/utils";
 import { getModuleRankInfo } from "@/lib/gamification";
 import { useModuleGamification } from "@/hooks/use-gamification";
-import { RankBadge } from "./rank-badge";
+import { RankBadge } from "@/components/dashboard/badges/rank-badge";
 import { ModuleLeaderboard } from "./module-leaderboard";
 import { 
     DndContext, 
@@ -56,7 +56,7 @@ import {
 import { reorderUnits } from "@/app/dashboard/actions";
 import { toast } from "sonner";
 import { useTransition } from "react";
-import { SortableUnitListItem, SortableUnitGridItem } from "./sortable-unit-item";
+import { SortableUnitListItem, SortableUnitGridItem } from "@/components/dashboard/units/sortable-unit-item";
 
 
 import { 

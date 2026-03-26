@@ -1,7 +1,7 @@
 "use client";
 
 import { Award } from "lucide-react";
-import ClassBadgesManager from "@/components/dashboard/class-badges-manager";
+import ClassBadgesManager from "@/components/dashboard/badges/class-badges-manager";
 import { ActivityPhaseWithSteps } from "@/types/activity";
 
 interface ActivityBadgesPanelProps {

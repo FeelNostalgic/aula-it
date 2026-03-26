@@ -98,6 +98,7 @@
     "@types/node": "^25.3.2",
     "@vitest/coverage-v8": "^4.0.18",
     "dotenv": "^17.3.1",
+    "shadcn": "^4.1.0",
     "supabase": "^2.76.15",
     "vitest": "^4.0.18"
   }

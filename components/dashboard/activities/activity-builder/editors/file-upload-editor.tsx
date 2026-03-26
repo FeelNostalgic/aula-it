@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { updateStepContent, updateStepDueDate } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { ListChecks, PanelRightClose, PanelRightOpen } from "lucide-react";
-import { RubricBuilderModal } from "@/components/dashboard/rubric-builder-modal";
+import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -207,7 +207,7 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
 
                     {/* Tipos de archivo */}
                     <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
                             <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Tipos de archivo permitidos</span>
                         </div>
                         <div className="p-5">
@@ -235,7 +235,7 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
 
                     {/* Límites */}
                     <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
                             <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Límites</span>
                         </div>
                         <div className="p-5 flex flex-wrap gap-6">
@@ -282,7 +282,7 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
 
                     {/* Rúbrica */}
                     <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
                             <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Rúbrica</span>
                         </div>
                         <div className="p-5">
@@ -299,7 +299,7 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
 
                     {/* Fecha límite */}
                     <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
                             <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Fecha Límite</span>
                         </div>
                         <div className="p-5 space-y-2">

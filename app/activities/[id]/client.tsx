@@ -1,10 +1,10 @@
 "use client";
 
-import { StudentPreview } from "@/components/dashboard/activity-builder/student-preview";
+import { StudentPreview } from "@/components/dashboard/activities/activity-builder/student-preview";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { ActivityPhaseWithSteps, ActivitySubmission } from "@/types/activity";
-import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/breadcrumb-context";
+import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/layout/breadcrumb-context";
 
 interface StudentActivityClientProps {
     activity: any;

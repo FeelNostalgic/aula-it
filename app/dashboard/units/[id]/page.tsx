@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { UnitDetailView } from "@/components/dashboard/unit-detail-view";
+import { UnitDetailView } from "@/components/dashboard/units/unit-detail-view";
 
 export default async function UnitPage({
     params,

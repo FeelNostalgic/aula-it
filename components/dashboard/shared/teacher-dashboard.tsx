@@ -52,7 +52,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CreateModuleDialog } from "./create-module-dialog";
+import { CreateModuleDialog } from "@/components/dashboard/modules/create-module-dialog";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -73,7 +73,7 @@ import { reorderModules, updateDashboardSettings, duplicateModule } from "@/app/
 import { deleteModule } from "@/app/dashboard/modules/[id]/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { NextDueDisplay } from "./next-due-display";
+import { NextDueDisplay } from "@/components/dashboard/shared/next-due-display";
 import {
     Select,
     SelectContent,

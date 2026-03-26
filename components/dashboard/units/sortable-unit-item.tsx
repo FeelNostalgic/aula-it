@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { NextDueDisplay } from "./next-due-display";
+import { NextDueDisplay } from "@/components/dashboard/shared/next-due-display";
 import {
     DropdownMenu,
     DropdownMenuContent,

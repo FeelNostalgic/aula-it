@@ -1,8 +1,8 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { BreadcrumbProvider } from "@/components/dashboard/breadcrumb-context";
-import { DashboardBreadcrumb } from "@/components/dashboard/dashboard-breadcrumb";
-import { UserNav } from "@/components/dashboard/user-nav";
+import { BreadcrumbProvider } from "@/components/dashboard/layout/breadcrumb-context";
+import { DashboardBreadcrumb } from "@/components/dashboard/layout/dashboard-breadcrumb";
+import { UserNav } from "@/components/dashboard/layout/user-nav";
 import { SessionTimeoutGuard } from "@/components/auth/session-timeout-guard";
 
 export default async function AlumnosLayout({

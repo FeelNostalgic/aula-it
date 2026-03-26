@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGamification } from "@/hooks/use-gamification";
-import { StudentModuleCard } from "./student-module-card";
+import { StudentModuleCard } from "@/components/dashboard/modules/student-module-card";
 import { cn } from "@/lib/utils";
 
 import {

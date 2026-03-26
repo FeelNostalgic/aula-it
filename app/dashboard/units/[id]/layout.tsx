@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { UnitLayoutShell } from "@/components/dashboard/unit-layout-shell";
+import { UnitLayoutShell } from "@/components/dashboard/units/unit-layout-shell";
 
 export default async function UnitLayout({
     children,

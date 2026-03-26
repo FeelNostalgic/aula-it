@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect, notFound } from "next/navigation";
-import { ModuleDetailView } from "@/components/dashboard/module-detail-view";
+import { ModuleDetailView } from "@/components/dashboard/modules/module-detail-view";
 
 interface ModulePageProps {
     params: Promise<{ id: string }>;
