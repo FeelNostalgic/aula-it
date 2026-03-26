@@ -74,6 +74,7 @@ import { deleteModule } from "@/app/dashboard/modules/[id]/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { NextDueDisplay } from "@/components/dashboard/shared/next-due-display";
+import { getModuleRoleLabel, type ModuleCollaboratorRole } from "@/lib/module-collaborator-defs";
 import {
     Select,
     SelectContent,
@@ -106,6 +107,8 @@ type Module = {
     order_index?: number | null;
     created_at: string;
     teacher_id: string;
+    module_role?: ModuleCollaboratorRole;
+    is_shared?: boolean;
     status?: "active" | "completed" | "draft" | null;
     progress?: number;
     next_due_step?: { title: string; due_date: string } | null;
@@ -200,6 +203,10 @@ function ModuleIcon({ module, className }: { module: Module; className?: string 
 }
 
 function ModuleActions({ module }: { module: Module }) {
+    if (module.module_role && module.module_role !== "creator") {
+        return null;
+    }
+
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isPending, setIsPending] = useState(false);
     const router = useRouter();
@@ -320,6 +327,7 @@ function SortableModuleListItem({ module }: { module: Module }) {
         opacity: isDragging ? 0.5 : 1,
     };
 
+    const canReorder = !module.is_shared;
     const progress = module.progress ?? 0;
     const studentsCount = module.enrolled_students?.length || 0;
     const studentAvatars = module.enrolled_students
@@ -338,12 +346,13 @@ function SortableModuleListItem({ module }: { module: Module }) {
             )}
         >
             <button
-                {...attributes}
-                {...listeners}
+                {...(canReorder ? attributes : {})}
+                {...(canReorder ? listeners : {})}
                 className="flex items-center justify-center size-8 rounded-lg text-text-muted hover:text-foreground hover:bg-surface transition-colors cursor-grab active:cursor-grabbing shrink-0 touch-none"
                 tabIndex={-1}
-                aria-label="Arrastrar para reordenar"
+                aria-label={canReorder ? "Arrastrar para reordenar" : "Módulo compartido"}
                 onClick={(e) => e.stopPropagation()}
+                disabled={!canReorder}
             >
                 <GripVertical className="size-5" />
             </button>
@@ -395,15 +404,22 @@ function SortableModuleListItem({ module }: { module: Module }) {
                 </div>
 
                 <div className="w-full md:w-[130px] shrink-0 flex items-center justify-end gap-4 mt-2 md:mt-0">
-                    {statusConfig && (
-                        <Badge
-                            variant="outline"
-                            className={`${statusConfig.border} ${statusConfig.bg} ${statusConfig.color} gap-1.5 py-1 px-3`}
-                        >
-                            <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
-                            {statusConfig.label}
-                        </Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {statusConfig && (
+                            <Badge
+                                variant="outline"
+                                className={`${statusConfig.border} ${statusConfig.bg} ${statusConfig.color} gap-1.5 py-1 px-3`}
+                            >
+                                <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
+                                {statusConfig.label}
+                            </Badge>
+                        )}
+                        {module.module_role && module.module_role !== "creator" && (
+                            <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300">
+                                {getModuleRoleLabel(module.module_role)}
+                            </Badge>
+                        )}
+                    </div>
                     <ModuleActions module={module} />
                 </div>
             </div>
@@ -429,6 +445,7 @@ function SortableModuleGridItem({ module }: { module: Module }) {
         opacity: isDragging ? 0.5 : 1,
     };
 
+    const canReorder = !module.is_shared;
     const progress = module.progress ?? 0;
     const studentsCount = module.enrolled_students?.length || 0;
     const studentAvatars = module.enrolled_students
@@ -453,14 +470,20 @@ function SortableModuleGridItem({ module }: { module: Module }) {
                                     {statusConfig.label}
                                 </Badge>
                             )}
+                            {module.module_role && module.module_role !== "creator" && (
+                                <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300">
+                                    {getModuleRoleLabel(module.module_role)}
+                                </Badge>
+                            )}
                             <ModuleActions module={module} />
                             <button
-                                {...attributes}
-                                {...listeners}
+                                {...(canReorder ? attributes : {})}
+                                {...(canReorder ? listeners : {})}
                                 className="flex items-center justify-center size-7 rounded-lg text-text-muted hover:text-foreground hover:bg-surface transition-colors cursor-grab active:cursor-grabbing shrink-0 touch-none"
                                 tabIndex={-1}
-                                aria-label="Arrastrar para reordenar"
+                                aria-label={canReorder ? "Arrastrar para reordenar" : "Módulo compartido"}
                                 onClick={(e) => e.stopPropagation()}
+                                disabled={!canReorder}
                             >
                                 <GripVertical className="size-4" />
                             </button>
@@ -533,7 +556,15 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats, 
 
     // Sync state with props when they change (e.g. after revalidatePath)
     useEffect(() => {
-        setModules([...initialModules].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)));
+        setModules(
+            [...initialModules].sort((a, b) => {
+                if (!!a.is_shared !== !!b.is_shared) {
+                    return a.is_shared ? 1 : -1;
+                }
+
+                return (a.order_index ?? 0) - (b.order_index ?? 0);
+            })
+        );
     }, [initialModules]);
 
     useEffect(() => {
@@ -583,6 +614,9 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats, 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
         if (!over || active.id === over.id) return;
+        const activeModule = modules.find(m => m.id === active.id);
+        const overModule = modules.find(m => m.id === over.id);
+        if (activeModule?.is_shared || overModule?.is_shared) return;
 
         const oldIndex = modules.findIndex(m => m.id === active.id);
         const newIndex = modules.findIndex(m => m.id === over.id);

@@ -57,6 +57,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { getModuleRoleLabel, getRestrictedActionMessage, type ModuleCollaboratorRole, type ModulePermissions } from "@/lib/module-collaborator-defs";
 
 const ICONS = [
     { value: "BookOpen", label: "Libro", icon: BookOpen },
@@ -82,7 +84,13 @@ type Module = {
     status?: "active" | "completed" | "draft" | "archived" | null;
 };
 
-export function ModuleSettingsTab({ module }: { module: Module }) {
+interface ModuleSettingsTabProps {
+    module: Module;
+    moduleRole: ModuleCollaboratorRole | null;
+    modulePermissions: ModulePermissions | null;
+}
+
+export function ModuleSettingsTab({ module, moduleRole, modulePermissions }: ModuleSettingsTabProps) {
     const [loading, setLoading] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -92,6 +100,11 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
     const [customIconUrl, setCustomIconUrl] = useState<string | null>(module.custom_icon_url || null);
     const { openPicker, isLoading: isPickerLoading } = useGoogleDrivePicker();
     const router = useRouter();
+    const canManageSettings = modulePermissions?.canManageModuleSettings ?? true;
+    const canManageSensitiveSettings = modulePermissions?.canManageSensitiveSettings ?? true;
+    const canArchiveModulePermission = modulePermissions?.canArchiveModule ?? true;
+    const canDeleteModulePermission = modulePermissions?.canDeleteModule ?? true;
+    const roleLabel = moduleRole ? getModuleRoleLabel(moduleRole) : null;
 
     // Sync local state with prop when it changes from the server
     useEffect(() => {
@@ -100,6 +113,7 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
     }, [module.icon, module.custom_icon_url]);
 
     const handlePickIcon = async () => {
+        if (!canManageSettings) return;
         try {
             const files = await openPicker({
                 mimeTypes: ["image/*"],
@@ -117,6 +131,7 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (!canManageSettings) return;
         setLoading(true);
         const formData = new FormData(e.currentTarget);
         formData.append("icon", selectedIcon);
@@ -137,6 +152,7 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
     };
 
     const handleArchive = async () => {
+        if (!canArchiveModulePermission) return;
         setArchiveLoading(true);
         const result = await archiveModule(module.id);
         setArchiveLoading(false);
@@ -151,6 +167,7 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
     };
 
     const handleDelete = async () => {
+        if (!canDeleteModulePermission) return;
         setDeleteLoading(true);
         const result = await deleteModule(module.id);
         setDeleteLoading(false);
@@ -171,6 +188,12 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
 
     return (
         <div className="space-y-8 max-w-4xl">
+            {!canManageSettings && roleLabel && (
+                <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 text-sm text-amber-100/90">
+                    Tienes acceso como <span className="font-bold text-amber-200">{roleLabel}</span>. Puedes revisar la configuración,
+                    pero no modificarla desde este módulo.
+                </div>
+            )}
             {/* General Information */}
             <div className="bg-surface border border-border-strong rounded-2xl p-6 md:p-8">
                 <div className="mb-8 border-b border-border-subtle pb-6">
@@ -199,8 +222,8 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                                         size="icon" 
                                         variant="ghost" 
                                         className="size-9 text-white hover:bg-white/20 rounded-full transition-transform transform scale-90 group-hover:scale-100"
-                                        onClick={handlePickIcon}
-                                        disabled={isPickerLoading}
+                                         onClick={handlePickIcon}
+                                         disabled={isPickerLoading || !canManageSettings}
                                         title="Elegir de Google Drive"
                                     >
                                         <HardDrive className="size-5" />
@@ -212,9 +235,10 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                                                 type="button"
                                                 size="icon" 
                                                 variant="ghost" 
-                                                className="size-9 text-white hover:bg-white/20 rounded-full transition-transform transform scale-90 group-hover:scale-100"
-                                                title="Elegir icono estándar"
-                                            >
+                                             className="size-9 text-white hover:bg-white/20 rounded-full transition-transform transform scale-90 group-hover:scale-100"
+                                             title="Elegir icono estándar"
+                                             disabled={!canManageSettings}
+                                         >
                                                 <LayoutGrid className="size-5" />
                                             </Button>
                                         </PopoverTrigger>
@@ -229,11 +253,12 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                                                             "size-12 p-0 transition-all hover:bg-accent-blue/10 hover:text-accent-blue",
                                                             selectedIcon === item.value && !customIconUrl ? "bg-accent-blue/20 text-accent-blue border border-accent-blue/30" : "text-text-muted"
                                                         )}
-                                                        onClick={() => {
-                                                            setSelectedIcon(item.value);
-                                                            setCustomIconUrl(null);
-                                                        }}
-                                                        title={item.label}
+                                                         onClick={() => {
+                                                             setSelectedIcon(item.value);
+                                                             setCustomIconUrl(null);
+                                                         }}
+                                                         disabled={!canManageSettings}
+                                                         title={item.label}
                                                     >
                                                         <item.icon className="size-6" />
                                                     </Button>
@@ -248,11 +273,12 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                                             size="icon" 
                                             variant="ghost" 
                                             className="size-9 text-white hover:bg-red-500/40 rounded-full transition-transform transform scale-90 group-hover:scale-100"
-                                            onClick={() => {
-                                                setCustomIconUrl(null);
-                                                setSelectedIcon("BookOpen");
-                                            }}
-                                            title="Resetear icono"
+                                             onClick={() => {
+                                                 setCustomIconUrl(null);
+                                                 setSelectedIcon("BookOpen");
+                                             }}
+                                             disabled={!canManageSettings}
+                                             title="Resetear icono"
                                         >
                                             <Trash2 className="size-5" />
                                         </Button>
@@ -274,13 +300,14 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                                         name="name"
                                         defaultValue={module.name}
                                         required
+                                        disabled={!canManageSettings}
                                         className="bg-surface-dark border-border-strong text-foreground focus-visible:ring-accent-blue h-11"
                                     />
                                 </div>
 
                                 <div className="space-y-2">
                                     <Label htmlFor="status" className="text-foreground text-[10px] font-mono font-bold uppercase tracking-widest text-text-muted">Estado del Módulo</Label>
-                                    <Select key={module.status} name="status" defaultValue={module.status || "draft"}>
+                                    <Select key={module.status} name="status" defaultValue={module.status || "draft"} disabled={!canManageSensitiveSettings}>
                                         <SelectTrigger className="bg-surface-dark border-border-strong text-foreground focus:ring-accent-blue h-11">
                                             <SelectValue placeholder="Selecciona un estado" />
                                         </SelectTrigger>
@@ -325,16 +352,17 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                                 <Textarea
                                     id="description"
                                     name="description"
-                                    defaultValue={module.description || ""}
-                                    className="bg-surface-dark border-border-strong text-foreground focus-visible:ring-accent-blue min-h-[120px] resize-none"
-                                />
-                            </div>
+                                        defaultValue={module.description || ""}
+                                        disabled={!canManageSettings}
+                                        className="bg-surface-dark border-border-strong text-foreground focus-visible:ring-accent-blue min-h-[120px] resize-none"
+                                    />
+                                </div>
 
-                            <div className="pt-4 flex justify-end">
-                                <Button type="submit" disabled={loading} className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8 uppercase">
-                                    {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
-                                    GUARDAR CAMBIOS
-                                </Button>
+                                <div className="pt-4 flex justify-end">
+                                    <Button type="submit" disabled={loading || !canManageSettings} className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8 uppercase">
+                                        {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
+                                        GUARDAR CAMBIOS
+                                    </Button>
                             </div>
                         </div>
                     </div>
@@ -362,11 +390,24 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                     </div>
 
                     <AlertDialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="outline" className="border-border-strong text-foreground hover:bg-surface shrink-0 gap-2 h-10 rounded-xl px-4 text-xs font-bold uppercase tracking-wider">
-                                <Archive className="size-4" />
-                                Archivar Módulo
-                            </Button>
+                        <AlertDialogTrigger asChild disabled={!canArchiveModulePermission}>
+                            <span>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <span>
+                                                <Button variant="outline" disabled={!canArchiveModulePermission} className="border-border-strong text-foreground hover:bg-surface shrink-0 gap-2 h-10 rounded-xl px-4 text-xs font-bold uppercase tracking-wider">
+                                                    <Archive className="size-4" />
+                                                    Archivar Módulo
+                                                </Button>
+                                            </span>
+                                        </TooltipTrigger>
+                                        {!canArchiveModulePermission && moduleRole && (
+                                            <TooltipContent>{getRestrictedActionMessage("canArchiveModule", moduleRole)}</TooltipContent>
+                                        )}
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </span>
                         </AlertDialogTrigger>
                         <AlertDialogContent
                             className="bg-surface border-border-strong text-foreground max-w-md p-6 rounded-[32px]"
@@ -407,11 +448,24 @@ export function ModuleSettingsTab({ module }: { module: Module }) {
                     </div>
 
                     <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="outline" className="border-red-500/30 text-red-500 hover:bg-red-500/10 shrink-0 gap-2 h-10 rounded-xl px-4 text-xs font-bold uppercase tracking-wider">
-                                <Trash2 className="size-4" />
-                                Eliminar Módulo
-                            </Button>
+                        <AlertDialogTrigger asChild disabled={!canDeleteModulePermission}>
+                            <span>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <span>
+                                                <Button variant="outline" disabled={!canDeleteModulePermission} className="border-red-500/30 text-red-500 hover:bg-red-500/10 shrink-0 gap-2 h-10 rounded-xl px-4 text-xs font-bold uppercase tracking-wider">
+                                                    <Trash2 className="size-4" />
+                                                    Eliminar Módulo
+                                                </Button>
+                                            </span>
+                                        </TooltipTrigger>
+                                        {!canDeleteModulePermission && moduleRole && (
+                                            <TooltipContent>{getRestrictedActionMessage("canDeleteModule", moduleRole)}</TooltipContent>
+                                        )}
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </span>
                         </AlertDialogTrigger>
                         <AlertDialogContent
                             className="bg-surface border-border-strong text-foreground max-w-md p-6 rounded-[32px]"

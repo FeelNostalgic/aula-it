@@ -36,11 +36,19 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    // Check teacher Drive token
+    const { data: activityOwner } = await admin
+        .from("activities")
+        .select("unit:units(module:modules(teacher_id))")
+        .eq("id", activityId)
+        .single();
+
+    const ownerTeacherId = ((activityOwner?.unit as any)?.module?.teacher_id as string | undefined) ?? user.id;
+
+    // Check creator Drive token
     const { data: tokenRow } = await admin
         .from("teacher_drive_tokens")
         .select("*")
-        .eq("teacher_id", user.id)
+        .eq("teacher_id", ownerTeacherId)
         .single();
     if (!tokenRow) {
         return NextResponse.json(

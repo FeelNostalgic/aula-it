@@ -1,6 +1,8 @@
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { redirect } from "next/navigation";
 import { BadgesPageWrapper } from "./badges-page-wrapper";
+import { getUnitAccess } from "@/lib/module-access";
 
 export default async function InsigniasPage({
     params,
@@ -9,6 +11,7 @@ export default async function InsigniasPage({
 }) {
     const { id: unitId } = await params;
     const supabase = await createClient();
+    const admin = createAdminClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) redirect("/login");
@@ -21,7 +24,10 @@ export default async function InsigniasPage({
         
     if (!profile || profile.role !== "teacher") redirect("/dashboard");
 
-    const { data: classBadges } = await supabase
+    const unitAccess = await getUnitAccess(unitId, user.id);
+    if (!unitAccess?.permissions.canEditModuleContent) redirect("/dashboard");
+
+    const { data: classBadges } = await admin
         .from("class_badges")
         .select("*")
         .eq("unit_id", unitId)

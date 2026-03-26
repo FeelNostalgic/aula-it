@@ -1,6 +1,8 @@
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { redirect, notFound } from "next/navigation";
 import { ModuleDetailView } from "@/components/dashboard/modules/module-detail-view";
+import { getModuleAccess } from "@/lib/module-access";
 
 interface ModulePageProps {
     params: Promise<{ id: string }>;
@@ -12,6 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function ModulePage({ params }: { params: { id: string } }) {
     const { id } = await params;
     const supabase = await createClient();
+    const admin = createAdminClient();
 
     const {
         data: { user },
@@ -31,16 +34,18 @@ export default async function ModulePage({ params }: { params: { id: string } })
     let studentModuleXp = 0;
 
     let module = null;
+    let moduleAccess = null;
 
     if (profile?.role === "teacher") {
-        // Fetch module (owned by this teacher)
-        const { data: ownedModule } = await supabase
-            .from("modules")
-            .select("*")
-            .eq("id", id)
-            .eq("teacher_id", user.id)
-            .single();
-        module = ownedModule;
+        moduleAccess = await getModuleAccess(id, user.id);
+        if (moduleAccess) {
+            const { data: accessibleModule } = await admin
+                .from("modules")
+                .select("*")
+                .eq("id", id)
+                .single();
+            module = accessibleModule;
+        }
     } else if (profile?.role === "student") {
         // Check enrollment
         const { data: enrollment } = await supabase
@@ -72,8 +77,10 @@ export default async function ModulePage({ params }: { params: { id: string } })
         redirect("/dashboard?error=module_not_available");
     }
 
+    const moduleDataClient = profile?.role === "teacher" ? admin : supabase;
+
     // Fetch units for this module with their activities and nested steps
-    const { data: unitsData } = await supabase
+    const { data: unitsData } = await moduleDataClient
         .from("units")
         .select(`
             *,
@@ -202,7 +209,7 @@ export default async function ModulePage({ params }: { params: { id: string } })
     const totalCountableSteps = allCountableSteps.length;
 
     // Fetch enrolled students
-    const { data: enrollments } = await supabase
+    const { data: enrollments } = await moduleDataClient
         .from("module_enrollments")
         .select(`
             student_id,
@@ -234,7 +241,7 @@ export default async function ModulePage({ params }: { params: { id: string } })
             const viewableStepIds = allCountableSteps.filter(s => s.completion_mode === 'viewable').map(s => s.id);
 
             if (requiredStepIds.length > 0) {
-                const { data } = await supabase
+                const { data } = await moduleDataClient
                     .from("activity_submissions")
                     .select("student_id, step_id, submitted_at")
                     .in("student_id", studentIds)
@@ -243,7 +250,7 @@ export default async function ModulePage({ params }: { params: { id: string } })
             }
 
             if (viewableStepIds.length > 0) {
-                const { data } = await supabase
+                const { data } = await moduleDataClient
                     .from("step_views")
                     .select("student_id, step_id, created_at")
                     .in("student_id", studentIds)
@@ -294,6 +301,8 @@ export default async function ModulePage({ params }: { params: { id: string } })
             initialUnits={units || []}
             initialStudents={enrolledStudents as any[]}
             userRole={profile?.role as "teacher" | "student"}
+            moduleRole={moduleAccess?.role ?? null}
+            modulePermissions={moduleAccess?.permissions ?? null}
             moduleXp={studentModuleXp}
         />
     );

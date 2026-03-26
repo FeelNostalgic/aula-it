@@ -1,6 +1,8 @@
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { notFound, redirect } from "next/navigation";
 import { ActivityBuilderClient } from "./client";
+import { getActivityAccess } from "@/lib/module-access";
 
 export default async function ActivityEditPage({
     params,
@@ -9,6 +11,7 @@ export default async function ActivityEditPage({
 }) {
     const { id } = await params;
     const supabase = await createClient();
+    const admin = createAdminClient();
 
     const {
         data: { user },
@@ -29,8 +32,13 @@ export default async function ActivityEditPage({
         redirect("/dashboard");
     }
 
+    const activityAccess = await getActivityAccess(id, user.id);
+    if (!activityAccess?.permissions.canEditModuleContent) {
+        redirect("/dashboard");
+    }
+
     // Fetch Activity and Unit to know where to return to
-    const { data: activity, error } = await supabase
+    const { data: activity, error } = await admin
         .from("activities")
         .select(`
           *,
@@ -53,7 +61,7 @@ export default async function ActivityEditPage({
     }
 
     // Activity phases and steps are fetched by client or passed, let's pass them as initial data
-    const { data: phases, error: phasesError } = await supabase
+    const { data: phases, error: phasesError } = await admin
         .from('activity_phases')
         .select(`
         *,

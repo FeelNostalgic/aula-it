@@ -1,6 +1,8 @@
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { redirect } from "next/navigation";
 import { UnitDetailView } from "@/components/dashboard/units/unit-detail-view";
+import { getUnitAccess } from "@/lib/module-access";
 
 export default async function UnitPage({
     params,
@@ -9,6 +11,7 @@ export default async function UnitPage({
 }) {
     const { id: unitId } = await params;
     const supabase = await createClient();
+    const admin = createAdminClient();
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -25,8 +28,18 @@ export default async function UnitPage({
     if (!profile) redirect("/login");
     const userRole = profile.role as "teacher" | "student";
 
+    let unitAccess = null;
+    if (userRole === "teacher") {
+        unitAccess = await getUnitAccess(unitId, user.id);
+        if (!unitAccess?.permissions.canViewModule) {
+            redirect("/dashboard");
+        }
+    }
+
+    const dataClient = userRole === "teacher" ? admin : supabase;
+
     // Fetch Unit
-    const { data: unit, error: unitError } = await supabase
+    const { data: unit, error: unitError } = await dataClient
         .from("units")
         .select("*")
         .eq("id", unitId)
@@ -54,14 +67,14 @@ export default async function UnitPage({
     }
 
     // Fetch parent Module
-    const { data: module } = await supabase
+    const { data: module } = await dataClient
         .from("modules")
         .select("id, name")
         .eq("id", unit.module_id)
         .single();
 
     // Fetch Activities with extra fields and phase count
-    const { data: activitiesData } = await supabase
+    const { data: activitiesData } = await dataClient
         .from("activities")
         .select(`
             id, unit_id, title, description, type, order_index, status, created_at, duration, difficulty, logo_url, position_x, position_y, grade_weight,
@@ -82,7 +95,7 @@ export default async function UnitPage({
     const activityIds = activitiesData?.map(a => a.id) || [];
     let submissions: any[] = [];
     if (activityIds.length > 0) {
-        const { data: subs } = await supabase
+        const { data: subs } = await dataClient
             .from("submissions")
             .select("*")
             .in("activity_id", activityIds);
@@ -90,7 +103,7 @@ export default async function UnitPage({
     }
 
     // Fetch Badges
-    const { data: classBadges } = await supabase
+    const { data: classBadges } = await dataClient
         .from("class_badges")
         .select("*")
         .eq("unit_id", unitId)
@@ -134,14 +147,14 @@ export default async function UnitPage({
     });
 
     // Fetch unit milestones (all of them for sequential management)
-    const { data: unitMilestones } = await supabase
+    const { data: unitMilestones } = await dataClient
         .from("class_milestones")
         .select("*")
         .eq("unit_id", unitId)
         .order("target_points", { ascending: true });
 
     // Fetch Students enrolled in the Module
-    const { data: enrollments } = await supabase
+    const { data: enrollments } = await dataClient
         .from("module_enrollments")
         .select("student_id")
         .eq("module_id", unit.module_id);
@@ -149,7 +162,7 @@ export default async function UnitPage({
     const studentIds = enrollments?.map(e => e.student_id) || [];
     let students: any[] = [];
     if (studentIds.length > 0) {
-        const { data: profiles } = await supabase
+        const { data: profiles } = await dataClient
             .from("profiles")
             .select("id, full_name, avatar_url")
             .in("id", studentIds);

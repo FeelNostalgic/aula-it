@@ -15,7 +15,7 @@ describe("verifyTeacherOwnsActivity", () => {
   it("returns true when the teacher_id matches userId", async () => {
     const { client } = new SupabaseMockBuilder()
       .mockQuery("activities", {
-        data: { unit: { module: { teacher_id: "user-1" } } },
+        data: { unit: { module: { id: "module-1", teacher_id: "user-1" } } },
         error: null,
       })
       .build();
@@ -29,7 +29,7 @@ describe("verifyTeacherOwnsActivity", () => {
   it("returns false when the teacher_id does not match userId", async () => {
     const { client } = new SupabaseMockBuilder()
       .mockQuery("activities", {
-        data: { unit: { module: { teacher_id: "user-other" } } },
+        data: { unit: { module: { id: "module-1", teacher_id: "user-other" } } },
         error: null,
       })
       .build();
@@ -49,6 +49,24 @@ describe("verifyTeacherOwnsActivity", () => {
 
     expect(result).toBe(false);
   });
+
+  it("returns true when the user is an editor collaborator", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockQuery("activities", {
+        data: { unit: { module: { id: "module-1", teacher_id: "owner-1" } } },
+        error: null,
+      })
+      .mockQuery("module_collaborators", {
+        data: { role: "editor" },
+        error: null,
+      })
+      .build();
+    vi_createAdminClient.mockReturnValue(client as any);
+
+    const result = await verifyTeacherOwnsActivity("activity-1", "user-1");
+
+    expect(result).toBe(true);
+  });
 });
 
 // ─── verifyTeacherOwnsPhase ───────────────────────────────────────────────────
@@ -57,7 +75,7 @@ describe("verifyTeacherOwnsPhase", () => {
   it("returns true when the teacher_id matches userId", async () => {
     const { client } = new SupabaseMockBuilder()
       .mockQuery("activity_phases", {
-        data: { activity: { unit: { module: { teacher_id: "user-1" } } } },
+        data: { activity: { unit: { module: { id: "module-1", teacher_id: "user-1" } } } },
         error: null,
       })
       .build();
@@ -71,7 +89,7 @@ describe("verifyTeacherOwnsPhase", () => {
   it("returns false when the teacher_id does not match userId", async () => {
     const { client } = new SupabaseMockBuilder()
       .mockQuery("activity_phases", {
-        data: { activity: { unit: { module: { teacher_id: "user-other" } } } },
+        data: { activity: { unit: { module: { id: "module-1", teacher_id: "user-other" } } } },
         error: null,
       })
       .build();
@@ -101,7 +119,7 @@ describe("verifyTeacherOwnsStep", () => {
       .mockQuery("activity_steps", {
         data: {
           phase: {
-            activity: { unit: { module: { teacher_id: "user-1" } } },
+            activity: { unit: { module: { id: "module-1", teacher_id: "user-1" } } },
           },
         },
         error: null,
@@ -119,7 +137,7 @@ describe("verifyTeacherOwnsStep", () => {
       .mockQuery("activity_steps", {
         data: {
           phase: {
-            activity: { unit: { module: { teacher_id: "user-other" } } },
+            activity: { unit: { module: { id: "module-1", teacher_id: "user-other" } } },
           },
         },
         error: null,

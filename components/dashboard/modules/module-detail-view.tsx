@@ -23,6 +23,7 @@ import {
     Plus,
     Lock,
     Trophy,
+    ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -39,6 +40,14 @@ import { getModuleRankInfo } from "@/lib/gamification";
 import { useModuleGamification } from "@/hooks/use-gamification";
 import { RankBadge } from "@/components/dashboard/badges/rank-badge";
 import { ModuleLeaderboard } from "./module-leaderboard";
+import { ModuleCollaboratorsTab } from "./module-collaborators-dialog";
+import {
+    getModuleRoleLabel,
+    getRestrictedActionMessage,
+    type ModuleCollaboratorRole,
+    type ModulePermissions,
+} from "@/lib/module-collaborator-defs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
     DndContext, 
     DragEndEvent, 
@@ -134,11 +143,26 @@ interface ModuleDetailViewProps {
     initialUnits: Unit[];
     initialStudents: Student[];
     userRole: "teacher" | "student";
+    moduleRole: ModuleCollaboratorRole | null;
+    modulePermissions: ModulePermissions | null;
     moduleXp?: number;
 }
 
-export function ModuleDetailView({ module, initialUnits, initialStudents, userRole, moduleXp = 0 }: ModuleDetailViewProps) {
+export function ModuleDetailView({
+    module,
+    initialUnits,
+    initialStudents,
+    userRole,
+    moduleRole,
+    modulePermissions,
+    moduleXp = 0,
+}: ModuleDetailViewProps) {
     const isTeacher = userRole === "teacher";
+    const effectiveRole = moduleRole;
+    const isCreator = effectiveRole === "creator";
+    const canEditModuleContent = modulePermissions?.canEditModuleContent ?? isTeacher;
+    const canManageStudents = modulePermissions?.canManageStudents ?? isTeacher;
+    const canManageCollaborators = modulePermissions?.canManageCollaborators ?? isCreator;
     const { moduleXp: liveModuleXp, moduleRank: liveModuleRank, rankPosition } = useModuleGamification(module.id, userRole);
 
     // Use live data for students, prop data for teachers
@@ -190,7 +214,7 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
-        if (!over || active.id === over.id || !isTeacher) return;
+        if (!over || active.id === over.id || !canEditModuleContent) return;
 
         const oldIndex = units.findIndex(u => u.id === active.id);
         const newIndex = units.findIndex(u => u.id === over.id);
@@ -309,50 +333,74 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                     )}
                                 </div>
                             )}
+                            {isTeacher && effectiveRole && effectiveRole !== "creator" && (
+                                <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300 gap-1.5 py-1 px-3 shadow-sm">
+                                    <ShieldAlert className="size-3.5" />
+                                    {getModuleRoleLabel(effectiveRole)}
+                                </Badge>
+                            )}
                         </div>
                         <p className="text-sm text-text-muted max-w-xl">
                             {module.description || "Sin descripción proporcionada para este módulo."}
                         </p>
+                        {isTeacher && effectiveRole && effectiveRole !== "creator" && (
+                            <div className="inline-flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-100/90 max-w-xl">
+                                <ShieldAlert className="size-4 shrink-0 mt-0.5 text-amber-300" />
+                                <span>
+                                    Tienes acceso como <span className="font-bold text-amber-200">{getModuleRoleLabel(effectiveRole)}</span>.
+                                    Algunas acciones siguen reservadas al creador del módulo.
+                                </span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="bg-surface border border-border-subtle rounded-lg p-1 h-auto">
-                    <TabsTrigger
-                        value="dashboard"
-                        className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
-                    >
-                        <LayoutGrid className="mr-2 size-3.5" />
-                        DASHBOARD
-                    </TabsTrigger>
-                    <TabsTrigger
-                        value="ranking"
-                        className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
-                    >
-                        <Trophy className="mr-2 size-3.5" />
-                        RANKING
-                    </TabsTrigger>
-                    {isTeacher && (
-                        <>
-                            <TabsTrigger
-                                value="alumnos"
-                                className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
-                            >
-                                <GraduationCap className="mr-2 size-3.5" />
-                                ALUMNOS
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="configuracion"
-                                className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
-                            >
-                                <Settings className="mr-2 size-3.5" />
-                                CONFIGURACIÓN
-                            </TabsTrigger>
-                        </>
-                    )}
-                </TabsList>
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <TabsList className="bg-surface border border-border-subtle rounded-lg p-1 h-auto">
+                        <TabsTrigger
+                            value="dashboard"
+                            className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
+                        >
+                            <LayoutGrid className="mr-2 size-3.5" />
+                            DASHBOARD
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="ranking"
+                            className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
+                        >
+                            <Trophy className="mr-2 size-3.5" />
+                            RANKING
+                        </TabsTrigger>
+                        {isTeacher && (
+                            <>
+                                <TabsTrigger
+                                    value="alumnos"
+                                    className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
+                                >
+                                    <GraduationCap className="mr-2 size-3.5" />
+                                    ALUMNOS
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="profesores"
+                                    className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
+                                >
+                                    <Users className="mr-2 size-3.5" />
+                                    PROFESORES
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="configuracion"
+                                    className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
+                                >
+                                    <Settings className="mr-2 size-3.5" />
+                                    CONFIGURACIÓN
+                                </TabsTrigger>
+                            </>
+                        )}
+                    </TabsList>
+                </div>
 
                 {/* Dashboard Tab (Units) */}
                 <TabsContent value="dashboard" className="mt-6">
@@ -402,12 +450,28 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                 </Button>
                             </div>
                             {isTeacher && (
-                                <CreateUnitDialog moduleId={module.id}>
-                                    <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
-                                        <Plus className="mr-2 size-4" />
-                                        AÑADIR UNIDAD DIDÁCTICA
-                                    </Button>
-                                </CreateUnitDialog>
+                                canEditModuleContent ? (
+                                    <CreateUnitDialog moduleId={module.id}>
+                                        <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
+                                            <Plus className="mr-2 size-4" />
+                                            AÑADIR UNIDAD DIDÁCTICA
+                                        </Button>
+                                    </CreateUnitDialog>
+                                ) : (
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <span>
+                                                    <Button disabled className="font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
+                                                        <Lock className="mr-2 size-4" />
+                                                        AÑADIR UNIDAD DIDÁCTICA
+                                                    </Button>
+                                                </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent>{getRestrictedActionMessage("canEditModuleContent", effectiveRole ?? "viewer")}</TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                )
                             )}
                         </div>
                     </div>
@@ -430,7 +494,7 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                     }
                                 </p>
                             </div>
-                            {isTeacher && <CreateUnitDialog moduleId={module.id} />}
+                             {isTeacher && canEditModuleContent && <CreateUnitDialog moduleId={module.id} />}
                         </Card>
                     ) : (
                         <DndContext
@@ -448,7 +512,7 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                             <SortableUnitListItem key={unit.id} unit={unit} userRole={userRole} />
                                         ))}
 
-                                        {isTeacher && (
+                                        {isTeacher && canEditModuleContent && (
                                             <CreateUnitDialog moduleId={module.id}>
                                                 <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-xl p-4 flex items-center gap-4 cursor-pointer transition-all group hover:bg-accent-blue/5">
                                                     <div className="size-10 rounded-lg bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all shrink-0">
@@ -468,7 +532,7 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
                                             <SortableUnitGridItem key={unit.id} unit={unit} userRole={userRole} />
                                         ))}
 
-                                        {isTeacher && (
+                                        {isTeacher && canEditModuleContent && (
                                             <CreateUnitDialog moduleId={module.id}>
                                                 <button className="bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all group min-h-[180px] hover:bg-accent-blue/5">
                                                     <div className="size-12 rounded-full bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all">
@@ -490,12 +554,29 @@ export function ModuleDetailView({ module, initialUnits, initialStudents, userRo
 
                 {/* Alumnos Tab */}
                 <TabsContent value="alumnos" className="mt-6">
-                    <ModuleStudentsTab moduleId={module.id} initialStudents={initialStudents} />
+                    <ModuleStudentsTab
+                        moduleId={module.id}
+                        initialStudents={initialStudents}
+                        canManageStudents={canManageStudents}
+                        restrictionMessage={effectiveRole ? getRestrictedActionMessage("canManageStudents", effectiveRole) : null}
+                    />
+                </TabsContent>
+
+                <TabsContent value="profesores" className="mt-6">
+                    <ModuleCollaboratorsTab
+                        moduleId={module.id}
+                        canManageCollaborators={canManageCollaborators}
+                        moduleRole={effectiveRole}
+                    />
                 </TabsContent>
 
                 {/* Configuración Tab */}
                 <TabsContent value="configuracion" className="mt-6">
-                    <ModuleSettingsTab module={module} />
+                    <ModuleSettingsTab
+                        module={module}
+                        moduleRole={effectiveRole}
+                        modulePermissions={modulePermissions}
+                    />
                 </TabsContent>
 
                 {/* Ranking Tab */}

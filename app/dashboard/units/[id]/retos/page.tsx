@@ -1,7 +1,9 @@
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { redirect } from "next/navigation";
 import { UnitActivitiesTab } from "@/components/dashboard/activities/unit-activities-tab";
 import { UnitActivitiesWrapper } from "./activities-wrapper";
+import { getUnitAccess } from "@/lib/module-access";
 
 export default async function RetosPage({
     params,
@@ -10,6 +12,7 @@ export default async function RetosPage({
 }) {
     const { id: unitId } = await params;
     const supabase = await createClient();
+    const admin = createAdminClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) redirect("/login");
@@ -22,7 +25,12 @@ export default async function RetosPage({
         
     if (!profile || profile.role !== "teacher") redirect("/dashboard");
 
-    const { data: activitiesData } = await supabase
+    const unitAccess = await getUnitAccess(unitId, user.id);
+    if (!unitAccess?.permissions.canViewModule) redirect("/dashboard");
+
+    const dataClient = admin;
+
+    const { data: activitiesData } = await dataClient
         .from("activities")
         .select(`
             id, unit_id, title, description, type, order_index, status, created_at, duration, difficulty, logo_url, position_x, position_y, grade_weight,
@@ -37,14 +45,14 @@ export default async function RetosPage({
     const activityIds = activitiesData?.map(a => a.id) || [];
     let submissions: any[] = [];
     if (activityIds.length > 0) {
-        const { data: subs } = await supabase
+        const { data: subs } = await dataClient
             .from("submissions")
             .select("*")
             .in("activity_id", activityIds);
         submissions = subs || [];
     }
 
-    const { data: classBadges } = await supabase
+    const { data: classBadges } = await dataClient
         .from("class_badges")
         .select("*")
         .eq("unit_id", unitId);

@@ -1,6 +1,8 @@
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { redirect } from "next/navigation";
 import { MilestonePageWrapper } from "./milestone-page-wrapper";
+import { getUnitAccess } from "@/lib/module-access";
 
 export default async function HitosPage({
     params,
@@ -9,6 +11,7 @@ export default async function HitosPage({
 }) {
     const { id: unitId } = await params;
     const supabase = await createClient();
+    const admin = createAdminClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) redirect("/login");
@@ -21,7 +24,10 @@ export default async function HitosPage({
         
     if (!profile || profile.role !== "teacher") redirect("/dashboard");
 
-    const { data: unitMilestones } = await supabase
+    const unitAccess = await getUnitAccess(unitId, user.id);
+    if (!unitAccess?.permissions.canEditModuleContent) redirect("/dashboard");
+
+    const { data: unitMilestones } = await admin
         .from("class_milestones")
         .select("*")
         .eq("unit_id", unitId)

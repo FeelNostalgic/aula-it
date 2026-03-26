@@ -1,7 +1,9 @@
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { StudentDashboard } from "@/components/dashboard/shared/student-dashboard";
 import { TeacherDashboard } from "@/components/dashboard/shared/teacher-dashboard";
 import { redirect } from "next/navigation";
+import { MODULE_COLLABORATOR_ROLE, type ModuleCollaboratorRole } from "@/lib/module-collaborator-defs";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -24,8 +26,20 @@ export default async function DashboardPage() {
   const role = profile?.role || "student";
 
   if (role === "teacher") {
+    const admin = createAdminClient();
+
+    const { data: sharedRows } = await admin
+      .from("module_collaborators")
+      .select("module_id, role")
+      .eq("teacher_id", user.id);
+
+    const sharedRoleMap = new Map<string, ModuleCollaboratorRole>(
+      (sharedRows ?? []).map((row) => [row.module_id, row.role as ModuleCollaboratorRole])
+    );
+    const sharedModuleIds = [...sharedRoleMap.keys()];
+
     // ── Module query: order_index + deep step structure for progress/due ──────
-    const { data: modules } = await supabase
+    const { data: ownedModules } = await admin
       .from("modules")
       .select(`
         *,
@@ -54,6 +68,50 @@ export default async function DashboardPage() {
       `)
       .eq("teacher_id", user.id)
       .order("order_index", { ascending: true });
+
+    const { data: sharedModules } = sharedModuleIds.length > 0
+      ? await admin
+          .from("modules")
+          .select(`
+            *,
+            order_index,
+            enrolled_students:module_enrollments (
+              student:profiles (
+                id,
+                avatar_url
+              )
+            ),
+            units (
+              id,
+              activities (
+                id,
+                title,
+                phases:activity_phases (
+                  steps:activity_steps (
+                    id,
+                    title,
+                    completion_mode,
+                    due_date
+                  )
+                )
+              )
+            )
+          `)
+          .in("id", sharedModuleIds)
+      : { data: [] as any[] };
+
+    const modules = [
+      ...(ownedModules ?? []).map((module: any) => ({
+        ...module,
+        module_role: MODULE_COLLABORATOR_ROLE.CREATOR,
+        is_shared: false,
+      })),
+      ...(sharedModules ?? []).map((module: any) => ({
+        ...module,
+        module_role: sharedRoleMap.get(module.id) ?? MODULE_COLLABORATOR_ROLE.VIEWER,
+        is_shared: true,
+      })),
+    ];
 
     // ── Collect all step IDs across all teacher modules ───────────────────────
     const allStepIds: string[] = [];
@@ -197,10 +255,10 @@ export default async function DashboardPage() {
     };
 
     // Fetch dashboard settings for teacher
-    const { data: settings } = await supabase
-      .from("app_settings")
-      .select("grid_columns")
-      .eq("teacher_id", user.id)
+      const { data: settings } = await supabase
+        .from("app_settings")
+        .select("grid_columns")
+        .eq("teacher_id", user.id)
       .single();
 
     return (

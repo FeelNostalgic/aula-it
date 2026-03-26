@@ -30,10 +30,18 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
 
+    const { data: stepOwner } = await admin
+        .from("activity_steps")
+        .select("phase:activity_phases(activity:activities(unit:units(module:modules(teacher_id))))")
+        .eq("id", stepId)
+        .single();
+
+    const ownerTeacherId = ((stepOwner?.phase as any)?.activity?.unit?.module?.teacher_id as string | undefined) ?? user.id;
+
     const { data: tokenRow } = await admin
         .from("teacher_drive_tokens")
         .select("*")
-        .eq("teacher_id", user.id)
+        .eq("teacher_id", ownerTeacherId)
         .single();
     if (!tokenRow) {
         return NextResponse.json({ error: "Google Drive no conectado." }, { status: 400 });

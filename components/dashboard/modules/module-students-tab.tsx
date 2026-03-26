@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition, useMemo } from "react";
-import { Search, GraduationCap, Plus, MoreVertical, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Search, GraduationCap, Plus, MoreVertical, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Lock } from "lucide-react";
 import {
     useReactTable,
     getCoreRowModel,
@@ -43,6 +43,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { usePresence } from "@/components/dashboard/shared/presence-context";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Student {
     id: string;
@@ -58,6 +59,8 @@ interface Student {
 interface ModuleStudentsTabProps {
     moduleId: string;
     initialStudents: Student[];
+    canManageStudents: boolean;
+    restrictionMessage: string | null;
 }
 
 function formatLastActivity(dateStr: string | null | undefined) {
@@ -74,7 +77,12 @@ function formatLastActivity(dateStr: string | null | undefined) {
     return date.toLocaleDateString("es-ES", { day: "2-digit", month: "short" });
 }
 
-export default function ModuleStudentsTab({ moduleId, initialStudents }: ModuleStudentsTabProps) {
+export default function ModuleStudentsTab({
+    moduleId,
+    initialStudents,
+    canManageStudents,
+    restrictionMessage,
+}: ModuleStudentsTabProps) {
     const [enrolledStudents, setEnrolledStudents] = useState<Student[]>(initialStudents);
     const [globalFilter, setGlobalFilter] = useState("");
     const [sorting, setSorting] = useState<SortingState>([]);
@@ -258,15 +266,15 @@ export default function ModuleStudentsTab({ moduleId, initialStudents }: ModuleS
             cell: ({ row }) => (
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button
-                            data-testid="student-actions-button"
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 text-text-muted hover:text-foreground data-[state=open]:bg-surface/50"
-                            disabled={isPending}
-                        >
-                            <MoreVertical className="size-4" />
-                        </Button>
+                         <Button
+                             data-testid="student-actions-button"
+                             variant="ghost"
+                             size="icon"
+                             className="size-8 text-text-muted hover:text-foreground data-[state=open]:bg-surface/50"
+                             disabled={isPending || !canManageStudents}
+                         >
+                             <MoreVertical className="size-4" />
+                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-[180px] bg-surface-dark border-border-strong">
                         <DropdownMenuItem
@@ -302,22 +310,45 @@ export default function ModuleStudentsTab({ moduleId, initialStudents }: ModuleS
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div className="relative w-full max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-text-muted" />
-                    <Input
-                        placeholder="Buscar alumnos..."
-                        className="pl-9 bg-surface border-border-subtle focus-visible:ring-accent-blue"
-                        value={globalFilter}
-                        onChange={(e) => setGlobalFilter(e.target.value)}
-                    />
+            <div className="space-y-3">
+                {!canManageStudents && restrictionMessage && (
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-100/90">
+                        {restrictionMessage}
+                    </div>
+                )}
+                <div className="flex items-center justify-between gap-3">
+                    <div className="relative w-full max-w-sm">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-text-muted" />
+                        <Input
+                            placeholder="Buscar alumnos..."
+                            className="pl-9 bg-surface border-border-subtle focus-visible:ring-accent-blue"
+                            value={globalFilter}
+                            onChange={(e) => setGlobalFilter(e.target.value)}
+                        />
+                    </div>
+                    {canManageStudents ? (
+                        <EnrollStudentDialog moduleId={moduleId}>
+                            <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4">
+                                <Plus className="mr-2 size-4" />
+                                MATRICULAR ALUMNO
+                            </Button>
+                        </EnrollStudentDialog>
+                    ) : (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span>
+                                        <Button disabled className="font-mono font-bold tracking-widest text-[10px] h-9 px-4">
+                                            <Lock className="mr-2 size-4" />
+                                            MATRICULAR ALUMNO
+                                        </Button>
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent>{restrictionMessage}</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    )}
                 </div>
-                <EnrollStudentDialog moduleId={moduleId}>
-                    <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4">
-                        <Plus className="mr-2 size-4" />
-                        MATRICULAR ALUMNO
-                    </Button>
-                </EnrollStudentDialog>
             </div>
 
             <div className="bg-surface-dark border border-border-strong rounded-xl overflow-hidden shadow-sm">

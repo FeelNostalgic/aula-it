@@ -1,6 +1,8 @@
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { redirect } from "next/navigation";
 import { UnitEvaluationTab } from "@/components/dashboard/units/unit-evaluation-tab";
+import { getUnitAccess } from "@/lib/module-access";
 
 export default async function EvaluacionPage({
     params,
@@ -9,6 +11,7 @@ export default async function EvaluacionPage({
 }) {
     const { id: unitId } = await params;
     const supabase = await createClient();
+    const admin = createAdminClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) redirect("/login");
@@ -21,7 +24,10 @@ export default async function EvaluacionPage({
         
     if (!profile || profile.role !== "teacher") redirect("/dashboard");
 
-    const { data: unit } = await supabase
+    const unitAccess = await getUnitAccess(unitId, user.id);
+    if (!unitAccess?.permissions.canManageStudents) redirect("/dashboard");
+
+    const { data: unit } = await admin
         .from("units")
         .select("id, module_id")
         .eq("id", unitId)
@@ -29,7 +35,7 @@ export default async function EvaluacionPage({
 
     if (!unit) redirect("/dashboard");
 
-    const { data: activitiesData } = await supabase
+    const { data: activitiesData } = await admin
         .from("activities")
         .select(`
             id, unit_id, title, description, type, order_index, status, created_at, duration, difficulty, logo_url, position_x, position_y, grade_weight,
@@ -44,14 +50,14 @@ export default async function EvaluacionPage({
     const activityIds = activitiesData?.map(a => a.id) || [];
     let submissions: any[] = [];
     if (activityIds.length > 0) {
-        const { data: subs } = await supabase
+        const { data: subs } = await admin
             .from("submissions")
             .select("*")
             .in("activity_id", activityIds);
         submissions = subs || [];
     }
 
-    const { data: enrollments } = await supabase
+    const { data: enrollments } = await admin
         .from("module_enrollments")
         .select("student_id")
         .eq("module_id", unit.module_id);
@@ -59,7 +65,7 @@ export default async function EvaluacionPage({
     const studentIds = enrollments?.map(e => e.student_id) || [];
     let students: any[] = [];
     if (studentIds.length > 0) {
-        const { data: profiles } = await supabase
+        const { data: profiles } = await admin
             .from("profiles")
             .select("id, full_name, avatar_url")
             .in("id", studentIds);

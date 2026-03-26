@@ -1,46 +1,16 @@
-import { createAdminClient } from "@/utils/supabase/admin";
+import { getActivityAccess, getPhaseAccess, getStepAccess } from "@/lib/module-access";
 
 export async function verifyTeacherOwnsActivity(activityId: string, userId: string): Promise<boolean> {
-    try {
-        const admin = createAdminClient();
-        const { data } = await admin
-            .from("activities")
-            .select("unit:units(module:modules(teacher_id))")
-            .eq("id", activityId)
-            .single();
-        const teacherId = (data?.unit as any)?.module?.teacher_id;
-        return teacherId === userId;
-    } catch {
-        return false;
-    }
+    const access = await getActivityAccess(activityId, userId);
+    return access?.permissions.canEditModuleContent ?? false;
 }
 
 export async function verifyTeacherOwnsPhase(phaseId: string, userId: string): Promise<boolean> {
-    try {
-        const admin = createAdminClient();
-        const { data } = await admin
-            .from("activity_phases")
-            .select("activity:activities(unit:units(module:modules(teacher_id)))")
-            .eq("id", phaseId)
-            .single();
-        const teacherId = (data?.activity as any)?.unit?.module?.teacher_id;
-        return teacherId === userId;
-    } catch {
-        return false;
-    }
+    const access = await getPhaseAccess(phaseId, userId);
+    return access?.permissions.canEditModuleContent ?? false;
 }
 
 export async function verifyTeacherOwnsStep(stepId: string, userId: string): Promise<boolean> {
-    try {
-        const admin = createAdminClient();
-        const { data } = await admin
-            .from("activity_steps")
-            .select("phase:activity_phases(activity:activities(unit:units(module:modules(teacher_id))))")
-            .eq("id", stepId)
-            .single();
-        const teacherId = (data?.phase as any)?.activity?.unit?.module?.teacher_id;
-        return teacherId === userId;
-    } catch {
-        return false;
-    }
+    const access = await getStepAccess(stepId, userId);
+    return access?.permissions.canEditModuleContent ?? false;
 }

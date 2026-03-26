@@ -1,14 +1,45 @@
 "use server";
 
-import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
+import {
+    getModuleAccess,
+} from "@/lib/module-access";
+import {
+    getModuleRoleLabel,
+    getRestrictedActionMessage,
+    MODULE_COLLABORATOR_ROLE,
+    type ModuleCollaboratorRole,
+    type ModulePermissions,
+} from "@/lib/module-collaborator-defs";
 
-export async function createUnit(prevState: any, formData: FormData) {
+interface TeacherSummary {
+    id: string;
+    full_name: string | null;
+    email: string;
+    avatar_url: string | null;
+}
+
+interface CollaboratorSummary extends TeacherSummary {
+    role: ModuleCollaboratorRole;
+}
+
+const ASSIGNABLE_COLLABORATOR_ROLES: ModuleCollaboratorRole[] = [
+    MODULE_COLLABORATOR_ROLE.CO_OWNER,
+    MODULE_COLLABORATOR_ROLE.EDITOR,
+    MODULE_COLLABORATOR_ROLE.VIEWER,
+];
+
+async function requireTeacherUser() {
     const supabase = await createClient();
+    const {
+        data: { user },
+        error: userError,
+    } = await supabase.auth.getUser();
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
-        return { error: "Not authenticated" };
+        return { error: "Not authenticated" as const, supabase: null, user: null };
     }
 
     const { data: profile } = await supabase
@@ -18,9 +49,92 @@ export async function createUnit(prevState: any, formData: FormData) {
         .single();
 
     if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can create units" };
+        return { error: "Solo profesores." as const, supabase: null, user: null };
     }
 
+    return { error: null, supabase, user };
+}
+
+function getPermissionError(permission: keyof ModulePermissions, role: ModuleCollaboratorRole | null) {
+    if (!role) {
+        return "Module not found or unauthorized";
+    }
+
+    return getRestrictedActionMessage(permission, role);
+}
+
+async function requireModulePermission(
+    moduleId: string,
+    permission: keyof ModulePermissions,
+    teacherErrorMessage?: string,
+) {
+    const auth = await requireTeacherUser();
+    if (auth.error || !auth.supabase || !auth.user) {
+        return {
+            error: auth.error === "Solo profesores." && teacherErrorMessage ? teacherErrorMessage : auth.error,
+            supabase: null,
+            user: null,
+            access: null,
+        };
+    }
+
+    const access = await getModuleAccess(moduleId, auth.user.id, auth.supabase as any);
+    if (!access || !access.permissions[permission]) {
+        return {
+            error: getPermissionError(permission, access?.role ?? null),
+            supabase: auth.supabase,
+            user: auth.user,
+            access,
+        };
+    }
+
+    return { error: null, supabase: auth.supabase, user: auth.user, access };
+}
+
+function buildTeacherSummaries(
+    profileRows: Array<{ id: string; full_name: string | null; avatar_url: string | null }>,
+    authUsers: Array<{ id: string; email?: string; user_metadata?: { avatar_url?: string | null } | null }>,
+): TeacherSummary[] {
+    const authMap = new Map(
+        authUsers.map((authUser) => [
+            authUser.id,
+            {
+                email: authUser.email ?? "sin_email@aula.it",
+                avatar_url: authUser.user_metadata?.avatar_url ?? null,
+            },
+        ]),
+    );
+
+    return profileRows.map((profileRow) => {
+        const authData = authMap.get(profileRow.id);
+        return {
+            id: profileRow.id,
+            full_name: profileRow.full_name,
+            email: authData?.email ?? "sin_email@aula.it",
+            avatar_url: profileRow.avatar_url ?? authData?.avatar_url ?? null,
+        };
+    });
+}
+
+async function getTeacherDirectoryByIds(teacherIds: string[]): Promise<TeacherSummary[]> {
+    if (teacherIds.length === 0) {
+        return [];
+    }
+
+    const admin = createAdminClient();
+    const [{ data: profiles }, { data: usersData }] = await Promise.all([
+        admin
+            .from("profiles")
+            .select("id, full_name, avatar_url")
+            .in("id", teacherIds)
+            .eq("role", "teacher"),
+        admin.auth.admin.listUsers(),
+    ]);
+
+    return buildTeacherSummaries(profiles ?? [], usersData?.users ?? []);
+}
+
+export async function createUnit(prevState: unknown, formData: FormData) {
     const moduleId = formData.get("module_id") as string;
     const name = formData.get("name") as string;
     const description = formData.get("description") as string;
@@ -29,20 +143,12 @@ export async function createUnit(prevState: any, formData: FormData) {
         return { error: "Module ID and unit name are required" };
     }
 
-    // Verify the teacher owns this module
-    const { data: module } = await supabase
-        .from("modules")
-        .select("id")
-        .eq("id", moduleId)
-        .eq("teacher_id", user.id)
-        .single();
-
-    if (!module) {
-        return { error: "Module not found or unauthorized" };
+    const permission = await requireModulePermission(moduleId, "canEditModuleContent", "Unauthorized: only teachers can create units");
+    if (permission.error || !permission.supabase) {
+        return { error: permission.error };
     }
 
-    // Get the next order_index
-    const { data: lastUnit } = await supabase
+    const { data: lastUnit } = await permission.supabase
         .from("units")
         .select("order_index")
         .eq("module_id", moduleId)
@@ -51,8 +157,7 @@ export async function createUnit(prevState: any, formData: FormData) {
         .single();
 
     const nextOrder = (lastUnit?.order_index ?? -1) + 1;
-
-    const { error } = await supabase
+    const { error } = await permission.supabase
         .from("units")
         .insert({
             module_id: moduleId,
@@ -70,36 +175,12 @@ export async function createUnit(prevState: any, formData: FormData) {
 }
 
 export async function enrollStudent(moduleId: string, studentId: string) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-        return { error: "Not authenticated" };
+    const permission = await requireModulePermission(moduleId, "canManageStudents", "Unauthorized: only teachers can enroll students");
+    if (permission.error || !permission.supabase) {
+        return { error: permission.error };
     }
 
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can enroll students" };
-    }
-
-    // Verify the teacher owns this module
-    const { data: module } = await supabase
-        .from("modules")
-        .select("id")
-        .eq("id", moduleId)
-        .eq("teacher_id", user.id)
-        .single();
-
-    if (!module) {
-        return { error: "Module not found or unauthorized" };
-    }
-
-    const { error } = await supabase
+    const { error } = await permission.supabase
         .from("module_enrollments")
         .insert({
             module_id: moduleId,
@@ -107,9 +188,10 @@ export async function enrollStudent(moduleId: string, studentId: string) {
         });
 
     if (error) {
-        if (error.code === '23505') {
+        if (error.code === "23505") {
             return { error: "El alumno ya está matriculado en este módulo" };
         }
+
         return { error: error.message };
     }
 
@@ -118,36 +200,12 @@ export async function enrollStudent(moduleId: string, studentId: string) {
 }
 
 export async function unenrollStudent(moduleId: string, studentId: string) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-        return { error: "Not authenticated" };
+    const permission = await requireModulePermission(moduleId, "canManageStudents", "Unauthorized: only teachers can unenroll students");
+    if (permission.error || !permission.supabase) {
+        return { error: permission.error };
     }
 
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can unenroll students" };
-    }
-
-    // Verify the teacher owns this module
-    const { data: module } = await supabase
-        .from("modules")
-        .select("id")
-        .eq("id", moduleId)
-        .eq("teacher_id", user.id)
-        .single();
-
-    if (!module) {
-        return { error: "Module not found or unauthorized" };
-    }
-
-    const { error } = await supabase
+    const { error } = await permission.supabase
         .from("module_enrollments")
         .delete()
         .match({
@@ -164,21 +222,9 @@ export async function unenrollStudent(moduleId: string, studentId: string) {
 }
 
 export async function updateModuleSettings(moduleId: string, formData: FormData) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-        return { error: "Not authenticated" };
-    }
-
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can update modules" };
+    const permission = await requireModulePermission(moduleId, "canManageModuleSettings", "Unauthorized: only teachers can update modules");
+    if (permission.error || !permission.supabase) {
+        return { error: permission.error };
     }
 
     const name = formData.get("name") as string;
@@ -192,51 +238,42 @@ export async function updateModuleSettings(moduleId: string, formData: FormData)
         return { error: "Module name cannot be empty" };
     }
 
-    const { error } = await supabase
+    const updates: Record<string, unknown> = {
+        name: name.trim(),
+        description: description ? description.trim() : null,
+        icon: icon || "BookOpen",
+        icon_style: icon_style || "default",
+        custom_icon_url: custom_icon_url || null,
+    };
+
+    if (permission.access?.permissions.canManageSensitiveSettings) {
+        updates.status = status || "draft";
+    }
+
+    const { error } = await permission.supabase
         .from("modules")
-        .update({
-            name: name.trim(),
-            description: description ? description.trim() : null,
-            status: (status as any) || 'draft',
-            icon: icon || 'BookOpen',
-            icon_style: icon_style || 'default',
-            custom_icon_url: custom_icon_url || null,
-        })
-        .eq("id", moduleId)
-        .eq("teacher_id", user.id);
+        .update(updates)
+        .eq("id", moduleId);
 
     if (error) {
         return { error: error.message };
     }
 
     revalidatePath(`/dashboard/modules/${moduleId}`);
-    revalidatePath(`/dashboard`);
+    revalidatePath("/dashboard");
     return { success: true };
 }
 
 export async function archiveModule(moduleId: string) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-        return { error: "Not authenticated" };
+    const permission = await requireModulePermission(moduleId, "canArchiveModule", "Unauthorized: only teachers can archive modules");
+    if (permission.error || !permission.supabase) {
+        return { error: permission.error };
     }
 
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can archive modules" };
-    }
-
-    const { error } = await supabase
+    const { error } = await permission.supabase
         .from("modules")
-        .update({ status: 'archived' })
-        .eq("id", moduleId)
-        .eq("teacher_id", user.id);
+        .update({ status: "archived" })
+        .eq("id", moduleId);
 
     if (error) {
         return { error: error.message };
@@ -248,29 +285,15 @@ export async function archiveModule(moduleId: string) {
 }
 
 export async function deleteModule(moduleId: string) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-        return { error: "Not authenticated" };
+    const permission = await requireModulePermission(moduleId, "canDeleteModule", "Unauthorized: only teachers can delete modules");
+    if (permission.error || !permission.supabase) {
+        return { error: permission.error };
     }
 
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-    if (profile?.role !== "teacher") {
-        return { error: "Unauthorized: only teachers can delete modules" };
-    }
-
-    // Verify ownership and delete
-    const { error } = await supabase
+    const { error } = await permission.supabase
         .from("modules")
         .delete()
-        .eq("id", moduleId)
-        .eq("teacher_id", user.id);
+        .eq("id", moduleId);
 
     if (error) {
         return { error: error.message };
@@ -282,21 +305,26 @@ export async function deleteModule(moduleId: string) {
 
 export async function getAvailableStudents(moduleId: string, query?: string, prefix?: string) {
     const supabase = await createClient();
+    const {
+        data: { user },
+        error: userError,
+    } = await supabase.auth.getUser();
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
         return { error: "Not authenticated" };
     }
 
-    // Get IDs of already enrolled students
+    const access = await getModuleAccess(moduleId, user.id, supabase as any);
+    if (!access?.permissions.canManageStudents) {
+        return { error: getPermissionError("canManageStudents", access?.role ?? null) };
+    }
+
     const { data: enrolled } = await supabase
         .from("module_enrollments")
         .select("student_id")
         .eq("module_id", moduleId);
 
-    const enrolledIds = enrolled?.map(e => e.student_id) || [];
-
-    // Query profiles for students not in enrolledIds
+    const enrolledIds = enrolled?.map((enrollment) => enrollment.student_id) || [];
     let studentQuery = supabase
         .from("profiles")
         .select("id, full_name, avatar_url")
@@ -315,31 +343,38 @@ export async function getAvailableStudents(moduleId: string, query?: string, pre
     }
 
     const { data, error } = await studentQuery.order("full_name", { ascending: true });
-
     if (error) {
         return { error: error.message };
     }
 
-    let availableStudents = data.map(s => ({
-        id: s.id,
-        full_name: s.full_name,
-        email: `${s.full_name?.toLowerCase().replace(/\s+/g, '.')}@aula-it.edu`,
-        avatar_url: s.avatar_url as string | null,
+    let availableStudents = data.map((student) => ({
+        id: student.id,
+        full_name: student.full_name,
+        email: `${student.full_name?.toLowerCase().replace(/\s+/g, ".")}@aula-it.edu`,
+        avatar_url: student.avatar_url as string | null,
     }));
 
     if (availableStudents.length > 0) {
-        const { createAdminClient } = await import("@/utils/supabase/admin");
         const adminSupabase = createAdminClient();
         const { data: usersData } = await adminSupabase.auth.admin.listUsers();
 
         if (usersData?.users) {
-            const authMap = new Map(usersData.users.map(u => [u.id, { email: u.email, avatar_url: u.user_metadata?.avatar_url }]));
-            availableStudents = availableStudents.map(s => {
-                const authData = authMap.get(s.id);
+            const authMap = new Map(
+                usersData.users.map((user) => [
+                    user.id,
+                    {
+                        email: user.email,
+                        avatar_url: user.user_metadata?.avatar_url,
+                    },
+                ]),
+            );
+
+            availableStudents = availableStudents.map((student) => {
+                const authData = authMap.get(student.id);
                 return {
-                    ...s,
-                    email: authData?.email || s.email,
-                    avatar_url: s.avatar_url || authData?.avatar_url || null,
+                    ...student,
+                    email: authData?.email || student.email,
+                    avatar_url: student.avatar_url || authData?.avatar_url || null,
                 };
             });
         }
@@ -347,39 +382,248 @@ export async function getAvailableStudents(moduleId: string, query?: string, pre
 
     return {
         success: true,
-        students: availableStudents
+        students: availableStudents,
     };
 }
 
 export async function bulkEnrollStudents(moduleId: string, studentIds: string[]) {
-    const supabase = await createClient();
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-        return { error: "Not authenticated" };
+    const permission = await requireModulePermission(moduleId, "canManageStudents");
+    if (permission.error || !permission.supabase) {
+        return { error: permission.error };
     }
 
-    // Verify teacher owns the module
-    const { data: module } = await supabase
-        .from("modules")
-        .select("id")
-        .eq("id", moduleId)
-        .eq("teacher_id", user.id)
-        .single();
-
-    if (!module) {
-        return { error: "No tienes permisos sobre este módulo" };
+    if (studentIds.length === 0) {
+        return { error: "No hay alumnos seleccionados" };
     }
 
-    if (studentIds.length === 0) return { error: "No hay alumnos seleccionados" };
-
-    const rows = studentIds.map((sId) => ({ module_id: moduleId, student_id: sId }));
-    const { error, count } = await supabase
+    const rows = studentIds.map((studentId) => ({ module_id: moduleId, student_id: studentId }));
+    const { error, count } = await permission.supabase
         .from("module_enrollments")
         .upsert(rows, { onConflict: "module_id,student_id", ignoreDuplicates: true, count: "exact" });
 
-    if (error) return { error: error.message };
+    if (error) {
+        return { error: error.message };
+    }
 
     revalidatePath(`/dashboard/modules/${moduleId}`);
     return { success: true, enrolled: count ?? rows.length };
+}
+
+export async function listModuleCollaborators(moduleId: string): Promise<{
+    collaborators?: CollaboratorSummary[];
+    creator?: CollaboratorSummary;
+    roleLabel?: string;
+    error?: string;
+}> {
+    const permission = await requireModulePermission(moduleId, "canViewModule");
+    if (permission.error || !permission.access) {
+        return { error: permission.error ?? "No tienes acceso a este módulo." };
+    }
+
+    const admin = createAdminClient();
+    const { data: moduleRecord, error: moduleError } = await admin
+        .from("modules")
+        .select("id, teacher_id")
+        .eq("id", moduleId)
+        .single();
+
+    if (moduleError || !moduleRecord) {
+        return { error: "No se encontró el módulo." };
+    }
+
+    const { data: collaboratorRows, error: collaboratorError } = await admin
+        .from("module_collaborators")
+        .select("teacher_id, role")
+        .eq("module_id", moduleId);
+
+    if (collaboratorError) {
+        return { error: collaboratorError.message };
+    }
+
+    const teacherIds = [moduleRecord.teacher_id, ...(collaboratorRows ?? []).map((row) => row.teacher_id)];
+    const teacherDirectory = await getTeacherDirectoryByIds(teacherIds);
+    const teacherMap = new Map(teacherDirectory.map((teacher) => [teacher.id, teacher]));
+
+    const creatorTeacher = teacherMap.get(moduleRecord.teacher_id);
+    const creator: CollaboratorSummary | undefined = creatorTeacher
+        ? { ...creatorTeacher, role: MODULE_COLLABORATOR_ROLE.CREATOR }
+        : undefined;
+
+    const collaborators = (collaboratorRows ?? [])
+        .map((row) => {
+            const teacher = teacherMap.get(row.teacher_id);
+            if (!teacher) {
+                return null;
+            }
+
+            return {
+                ...teacher,
+                role: row.role as ModuleCollaboratorRole,
+            };
+        })
+        .filter((row): row is CollaboratorSummary => row !== null);
+
+    return {
+        creator,
+        collaborators,
+        roleLabel: getModuleRoleLabel(permission.access.role),
+    };
+}
+
+export async function listAvailableTeachersForModule(moduleId: string, query?: string): Promise<{
+    teachers?: TeacherSummary[];
+    error?: string;
+}> {
+    const permission = await requireModulePermission(moduleId, "canManageCollaborators");
+    if (permission.error) {
+        return { error: permission.error };
+    }
+
+    const admin = createAdminClient();
+    const [{ data: moduleRecord }, { data: collaboratorRows }, { data: teacherProfiles }, { data: usersData }] = await Promise.all([
+        admin.from("modules").select("teacher_id").eq("id", moduleId).single(),
+        admin.from("module_collaborators").select("teacher_id").eq("module_id", moduleId),
+        admin
+            .from("profiles")
+            .select("id, full_name, avatar_url")
+            .eq("role", "teacher")
+            .order("full_name", { ascending: true }),
+        admin.auth.admin.listUsers(),
+    ]);
+
+    const excludedIds = new Set<string>([
+        moduleRecord?.teacher_id,
+        ...(collaboratorRows ?? []).map((row) => row.teacher_id),
+    ].filter(Boolean) as string[]);
+
+    const normalizedQuery = query?.trim().toLowerCase() ?? "";
+    const teachers = buildTeacherSummaries(teacherProfiles ?? [], usersData?.users ?? []).filter((teacher) => {
+        if (excludedIds.has(teacher.id)) {
+            return false;
+        }
+
+        if (!normalizedQuery) {
+            return true;
+        }
+
+        return (
+            teacher.full_name?.toLowerCase().includes(normalizedQuery) ||
+            teacher.email.toLowerCase().includes(normalizedQuery)
+        );
+    });
+
+    return { teachers };
+}
+
+export async function addModuleCollaborator(moduleId: string, teacherId: string, role: ModuleCollaboratorRole) {
+    const permission = await requireModulePermission(moduleId, "canManageCollaborators");
+    if (permission.error || !permission.user) {
+        return { error: permission.error };
+    }
+
+    if (!ASSIGNABLE_COLLABORATOR_ROLES.includes(role)) {
+        return { error: "Rol de profesor no válido." };
+    }
+
+    const admin = createAdminClient();
+    const [{ data: moduleRecord }, { data: teacherProfile }] = await Promise.all([
+        admin.from("modules").select("teacher_id").eq("id", moduleId).single(),
+        admin.from("profiles").select("id, role").eq("id", teacherId).single(),
+    ]);
+
+    if (!moduleRecord || moduleRecord.teacher_id === teacherId) {
+        return { error: "El creador ya tiene acceso completo al módulo." };
+    }
+
+    if (!teacherProfile || teacherProfile.role !== "teacher") {
+        return { error: "Solo puedes añadir perfiles con rol de profesor." };
+    }
+
+    const { error } = await admin
+        .from("module_collaborators")
+        .upsert(
+            {
+                module_id: moduleId,
+                teacher_id: teacherId,
+                role,
+                created_by: permission.user.id,
+            },
+            { onConflict: "module_id,teacher_id" },
+        );
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    revalidatePath(`/dashboard/modules/${moduleId}`);
+    revalidatePath("/dashboard");
+    return { success: true };
+}
+
+export async function updateModuleCollaboratorRole(moduleId: string, teacherId: string, role: ModuleCollaboratorRole) {
+    const permission = await requireModulePermission(moduleId, "canManageCollaborators");
+    if (permission.error) {
+        return { error: permission.error };
+    }
+
+    if (!ASSIGNABLE_COLLABORATOR_ROLES.includes(role)) {
+        return { error: "Rol de profesor no válido." };
+    }
+
+    const admin = createAdminClient();
+    const { data: moduleRecord } = await admin
+        .from("modules")
+        .select("teacher_id")
+        .eq("id", moduleId)
+        .single();
+
+    if (moduleRecord?.teacher_id === teacherId) {
+        return { error: "No puedes cambiar el rol del creador del módulo." };
+    }
+
+    const { error } = await admin
+        .from("module_collaborators")
+        .update({ role })
+        .eq("module_id", moduleId)
+        .eq("teacher_id", teacherId);
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    revalidatePath(`/dashboard/modules/${moduleId}`);
+    revalidatePath("/dashboard");
+    return { success: true };
+}
+
+export async function removeModuleCollaborator(moduleId: string, teacherId: string) {
+    const permission = await requireModulePermission(moduleId, "canManageCollaborators");
+    if (permission.error) {
+        return { error: permission.error };
+    }
+
+    const admin = createAdminClient();
+    const { data: moduleRecord } = await admin
+        .from("modules")
+        .select("teacher_id")
+        .eq("id", moduleId)
+        .single();
+
+    if (moduleRecord?.teacher_id === teacherId) {
+        return { error: "No puedes eliminar al creador del módulo." };
+    }
+
+    const { error } = await admin
+        .from("module_collaborators")
+        .delete()
+        .eq("module_id", moduleId)
+        .eq("teacher_id", teacherId);
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    revalidatePath(`/dashboard/modules/${moduleId}`);
+    revalidatePath("/dashboard");
+    return { success: true };
 }

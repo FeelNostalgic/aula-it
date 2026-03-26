@@ -72,6 +72,10 @@ describe("createUnit", () => {
         data: createMockProfile({ role: "teacher" }),
         error: null,
       })
+      .mockQuery("modules", {
+        data: createMockModule({ id: MODULE_ID }),
+        error: null,
+      })
       .build();
     vi_createClient.mockResolvedValue(client as any);
 
@@ -336,6 +340,10 @@ describe("updateModuleSettings", () => {
         data: createMockProfile({ role: "teacher" }),
         error: null,
       })
+      .mockQuery("modules", {
+        data: createMockModule({ id: MODULE_ID }),
+        error: null,
+      })
       .build();
     vi_createClient.mockResolvedValue(client as any);
 
@@ -350,6 +358,10 @@ describe("updateModuleSettings", () => {
       .mockAuth(createMockUser())
       .mockQuery("profiles", {
         data: createMockProfile({ role: "teacher" }),
+        error: null,
+      })
+      .mockQuery("modules", {
+        data: createMockModule({ id: MODULE_ID }),
         error: null,
       })
       .mockUpdate("modules", { data: null, error: null })
@@ -405,6 +417,10 @@ describe("archiveModule", () => {
         data: createMockProfile({ role: "teacher" }),
         error: null,
       })
+      .mockQuery("modules", {
+        data: createMockModule({ id: MODULE_ID }),
+        error: null,
+      })
       .mockUpdate("modules", { data: null, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
@@ -453,6 +469,10 @@ describe("deleteModule", () => {
         data: createMockProfile({ role: "teacher" }),
         error: null,
       })
+      .mockQuery("modules", {
+        data: createMockModule({ id: MODULE_ID }),
+        error: null,
+      })
       .mockDelete("modules", { data: null, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
@@ -490,6 +510,7 @@ describe("getAvailableStudents", () => {
 
     const { client } = new SupabaseMockBuilder()
       .mockAuth(user)
+      .mockQuery("modules", { data: createMockModule({ id: MODULE_ID }), error: null })
       .mockQuery("module_enrollments", {
         data: enrolledStudents,
         error: null,
@@ -529,6 +550,7 @@ describe("getAvailableStudents", () => {
 
     const { client } = new SupabaseMockBuilder()
       .mockAuth(user)
+      .mockQuery("modules", { data: createMockModule({ id: MODULE_ID }), error: null })
       .mockQuery("module_enrollments", { data: [], error: null })
       .mockQuery("profiles", { data: studentProfiles, error: null })
       .mockAdminListUsers({ data: { users: authUsers }, error: null })
@@ -550,6 +572,7 @@ describe("getAvailableStudents", () => {
 
     const { client } = new SupabaseMockBuilder()
       .mockAuth(user)
+      .mockQuery("modules", { data: createMockModule({ id: MODULE_ID }), error: null })
       .mockQuery("module_enrollments", { data: [], error: null })
       .mockQuery("profiles", { data: [], error: null })
       .build();
