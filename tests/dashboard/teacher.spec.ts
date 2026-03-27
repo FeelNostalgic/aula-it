@@ -51,7 +51,7 @@ test.describe("Teacher Dashboard", () => {
 
         await loginPage.login(teacherEmail, password);
         await dashboardPage.verifyUrl(/\/dashboard/);
-        await dashboardPage.verifyDashboardRole("Gestión de Módulos");
+        await dashboardPage.verifyDashboardRole("Gestión de módulos");
 
         // 3. Crear módulo
         await dashboardPage.createModule("Playwright POM Module", "Description for Playwright Module");
@@ -108,7 +108,7 @@ test.describe("Teacher Dashboard - Error Paths", () => {
         await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
 
         const dashboardPage = new DashboardPage(page);
-        await dashboardPage.verifyDashboardRole("Gestión de Módulos");
+        await dashboardPage.verifyDashboardRole("Gestión de módulos");
 
         // Open the create module dialog
         await dashboardPage.createNewModuleButton.click();
@@ -119,7 +119,7 @@ test.describe("Teacher Dashboard - Error Paths", () => {
         await dialog.locator('textarea[name="description"]').fill("Some description");
         
         // Verify the button is disabled because 'name' is empty
-        const submitBtn = dialog.locator('button:has-text("CREAR MÓDULO")');
+        const submitBtn = dialog.locator('button:has-text("CREAR MODULO")');
         await expect(submitBtn).toBeDisabled();
 
         // Dialog must remain open

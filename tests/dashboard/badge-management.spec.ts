@@ -90,18 +90,18 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
             await page.waitForURL(/\/insignias/);
 
             // Verify the manager heading is visible to ensure tab content rendered
-            await expect(page.getByText("Gestión de Insignias Globales")).toBeVisible({ timeout: 10000 });
+            await expect(page.getByText("Gestión de insignias globales")).toBeVisible({ timeout: 10000 });
 
             // Verify empty state is shown before creating
             await expect(page.getByText(/No hay insignias/i)).toBeVisible({ timeout: 15000 });
             await expect(page.getByRole("button", { name: /Crear Primera Insignia/i })).toBeVisible({ timeout: 10000 });
 
             // Open create dialog using the header button
-            await page.getByRole("button", { name: "Nueva Insignia" }).click();
+            await page.getByRole("button", { name: "Nueva insignia" }).click();
 
             const dialog = page.locator('div[role="dialog"]');
             await expect(dialog).toBeVisible();
-            await expect(dialog.getByRole("heading", { name: "Nueva Insignia" })).toBeVisible();
+            await expect(dialog.getByRole("heading", { name: "Nueva insignia" })).toBeVisible();
 
             // Fill in the title (identified via label "Título de la Insignia")
             await dialog.getByLabel("Título de la Insignia").fill("Insignia de Prueba E2E");

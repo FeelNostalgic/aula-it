@@ -116,7 +116,7 @@ test.describe("Unit Detail (Creador del Mapa)", () => {
             await unitDetailPage.createActivity("A1: Teoría básica", "Lee el documento adjunto.");
 
             // Verify success toast appears
-            await expect(page.getByText("¡Reto creado con éxito!")).toBeVisible();
+            await expect(page.getByText("Reto creado con exito")).toBeVisible();
 
             // Wait for form processing + page revalidation
             await page.waitForLoadState("networkidle");

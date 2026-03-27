@@ -47,8 +47,8 @@ test.describe("Admin Student Management (/admin/students)", () => {
 
     test("admin can create students in bulk with valid prefix", async ({ page }) => {
         const loginPage = new LoginPage(page);
-        await loginPage.loginTeacher(adminEmail, password);
-        await page.waitForURL(/\/(dashboard|admin)/, { timeout: 15000 });
+        await loginPage.login(adminEmail, password);
+        await page.waitForURL(/\/admin/, { timeout: 15000 });
 
         const adminPage = new AdminStudentManagementPage(page);
         await adminPage.goto();
@@ -66,8 +66,8 @@ test.describe("Admin Student Management (/admin/students)", () => {
 
     test("shows validation error for invalid prefix (special chars)", async ({ page }) => {
         const loginPage = new LoginPage(page);
-        await loginPage.loginTeacher(adminEmail, password);
-        await page.waitForURL(/\/(dashboard|admin)/, { timeout: 15000 });
+        await loginPage.login(adminEmail, password);
+        await page.waitForURL(/\/admin/, { timeout: 15000 });
 
         const adminPage = new AdminStudentManagementPage(page);
         await adminPage.goto();
@@ -82,8 +82,8 @@ test.describe("Admin Student Management (/admin/students)", () => {
 
     test("shows validation error for count exceeding 60", async ({ page }) => {
         const loginPage = new LoginPage(page);
-        await loginPage.loginTeacher(adminEmail, password);
-        await page.waitForURL(/\/(dashboard|admin)/, { timeout: 15000 });
+        await loginPage.login(adminEmail, password);
+        await page.waitForURL(/\/admin/, { timeout: 15000 });
 
         const adminPage = new AdminStudentManagementPage(page);
         await adminPage.goto();

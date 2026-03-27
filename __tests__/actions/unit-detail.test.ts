@@ -195,11 +195,11 @@ describe("createActivity", () => {
       .build();
     vi_createAdminClient.mockReturnValue(adminClient as any);
 
-    // Missing type
-    const formData = createFormData({ unit_id: "unit-1", title: "My Activity" });
+    // Missing title
+    const formData = createFormData({ unit_id: "unit-1" });
     const result = await createActivity(formData);
 
-    expect(result).toEqual({ error: "ID de unidad, título y tipo son requeridos" });
+    expect(result).toEqual({ error: "ID de unidad y título son requeridos" });
   });
 
   it("calculates order_index as max+1 from last activity and inserts successfully", async () => {

@@ -10,10 +10,10 @@ export class DashboardPage extends BasePage {
 
     constructor(page: any) {
         super(page);
-        this.createNewModuleButton = page.getByRole('button', { name: 'CREAR NUEVO MÓDULO', exact: true }).first();
+        this.createNewModuleButton = page.getByRole('button', { name: 'NUEVO MODULO', exact: true }).first();
         this.moduleNameInput = page.locator('input[name="name"]');
         this.moduleDescriptionInput = page.locator('textarea[name="description"]');
-        this.createModuleSubmitButton = page.getByRole('button', { name: 'CREAR MÓDULO', exact: true });
+        this.createModuleSubmitButton = page.getByRole('button', { name: 'CREAR MODULO', exact: true });
         this.modulesGrid = page.locator("h2"); // Using H2 as reference for now
         }
 
@@ -24,7 +24,7 @@ export class DashboardPage extends BasePage {
         await dialog.locator('input[name="name"]').fill(name);
         await dialog.locator('textarea[name="description"]').fill(description);
 
-        await dialog.getByRole('button', { name: 'CREAR MÓDULO', exact: true }).click();
+        await dialog.getByRole('button', { name: 'CREAR MODULO', exact: true }).click();
         }
 
     async verifyModuleExists(name: string) {

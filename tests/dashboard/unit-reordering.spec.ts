@@ -82,8 +82,8 @@ test.describe("Unit Reordering (Drag and Drop)", () => {
         // Verify we are on the right page
         await expect(page.getByText("Module for Reordering").first()).toBeVisible({ timeout: 15000 });
 
-        // Switch to list view using the aria-label
-        const listViewBtn = page.getByLabel("Vista de lista");
+        // Switch to list view using the actual toggle label
+        const listViewBtn = page.getByRole("button", { name: "Lista", exact: true });
         await expect(listViewBtn).toBeVisible({ timeout: 10000 });
         await listViewBtn.click();
 
@@ -129,7 +129,7 @@ test.describe("Unit Reordering (Drag and Drop)", () => {
         await page.waitForLoadState("networkidle");
         
         // Return to list view
-        await page.getByLabel("Vista de lista").click();
+        await page.getByRole("button", { name: "Lista", exact: true }).click();
         
         const unitCardsAfter = page.getByTestId("units-list-container").locator('> div[class*="bg-surface-dark"]');
         await expect(unitCardsAfter.nth(0)).toContainText("Unit B");

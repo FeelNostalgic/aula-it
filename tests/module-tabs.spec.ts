@@ -73,7 +73,7 @@ test.describe("Module Details Tabs", () => {
         // Verify the dialog
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible();
-        await expect(page.getByRole('heading', { name: 'Añadir Alumnos' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Añadir alumnos' })).toBeVisible();
 
         // 1. Scope to the dialog so you don't hit background elements
         const searchInput = dialog.getByRole('textbox');
@@ -95,7 +95,7 @@ test.describe("Module Details Tabs", () => {
         // Wait for hydration
         await page.waitForTimeout(1000);
 
-        await expect(page.getByRole('heading', { name: 'Información General' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Información general' })).toBeVisible();
         await expect(page.getByText('Nombre del módulo')).toBeVisible();
         await expect(page.getByText('Estado del Módulo')).toBeVisible();
 
@@ -117,7 +117,7 @@ test.describe("Module Details Tabs", () => {
         await page.getByRole('tab', { name: 'CONFIGURACIÓN' }).click();
 
         // Check for general information
-        await expect(page.getByRole('heading', { name: 'Información General' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Información general' })).toBeVisible();
 
         // Change status to active
         const statusSelect = page.getByRole('combobox').first();
@@ -155,7 +155,7 @@ test.describe("Module Details Tabs", () => {
         await expect(page).toHaveURL(/.*\/dashboard/);
 
         // Archiving redirects to dashboard. Let's ensure we are there.
-        await expect(page.getByRole('heading', { name: 'Gestión de Módulos' })).toBeVisible({ timeout: 10000 });
+        await expect(page.getByRole('heading', { name: 'Gestión de módulos' })).toBeVisible({ timeout: 10000 });
     });
 
     test("settings tab allows deleting a module", async ({ page }) => {

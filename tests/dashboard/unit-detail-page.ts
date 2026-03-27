@@ -36,7 +36,7 @@ export class UnitDetailPage extends BasePage {
         this.tabMap = page.getByRole("link", { name: /MAPA/i });
 
         // Activities
-        this.addActivityButton = page.locator('button:has-text("Añadir Reto")').first();
+        this.addActivityButton = page.getByRole("button", { name: "NUEVO RETO", exact: true }).first();
         this.activitiesList = page.locator('h4'); // We can target h4 tags which are the titles of activities
         this.emptyState = page.locator('text=Aún no hay retos creados');
 
@@ -74,7 +74,7 @@ export class UnitDetailPage extends BasePage {
             await dialog.locator('textarea[name="description"]').fill(description);
         }
 
-        await dialog.locator('button:has-text("Crear Reto")').click();
+        await dialog.getByRole("button", { name: "CREAR RETO", exact: true }).click();
         
         // Wait for the dialog to disappear to ensure processing is done
         await expect(dialog).toBeHidden({ timeout: 10000 });
@@ -85,7 +85,7 @@ export class UnitDetailPage extends BasePage {
     }
 
     async switchToListView(): Promise<void> {
-        await this.page.getByRole('button', { name: 'Vista lista' }).click();
+        await this.page.getByRole('button', { name: 'Lista', exact: true }).click();
         // Wait for the list layout to render
         await this.page.waitForTimeout(300);
     }

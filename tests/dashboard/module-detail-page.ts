@@ -19,15 +19,15 @@ export class ModuleDetailPage extends BasePage {
         // Breadcrumb is now in the top nav header
         this.breadcrumbInicio = page.locator('header a:has-text("Inicio")');
         this.breadcrumbModuleName = page.locator("header");
-        this.addUnitButton = page.getByRole('button', { name: 'AÑADIR UNIDAD DIDÁCTICA', exact: true }).first();
+        this.addUnitButton = page.getByRole('button', { name: 'UNIDAD DIDÁCTICA', exact: true }).first();
         this.addStudentsButton = page.getByRole('button', { name: 'MATRICULAR ALUMNO', exact: true });
         this.unitCards = page.locator('[class*="bg-surface-dark"][class*="border-border-subtle"]').filter({ has: page.locator("h3") });
         this.emptyState = page.locator('text=No hay unidades registradas');
         this.tabDashboard = page.getByRole("tab", { name: 'DASHBOARD', exact: true });
         this.tabAlumnos = page.getByRole("tab", { name: 'ALUMNOS', exact: true });
         this.tabConfiguracion = page.getByRole("tab", { name: 'CONFIGURACIÓN', exact: true });
-        this.viewModeGrid = page.getByRole("button", { name: "Vista de cuadrícula" });
-        this.viewModeList = page.getByRole("button", { name: "Vista de lista" });
+        this.viewModeGrid = page.getByRole("button", { name: "Grid", exact: true });
+        this.viewModeList = page.getByRole("button", { name: "Lista", exact: true });
     }
 
     async goto(moduleId: string): Promise<void> {
@@ -40,7 +40,7 @@ export class ModuleDetailPage extends BasePage {
         await expect(dialog).toBeVisible();
         await dialog.locator('input[name="name"]').fill(name);
         if (description) {
-            await dialog.locator('input[name="description"]').fill(description);
+            await dialog.locator('textarea[name="description"]').fill(description);
         }
         await dialog.getByRole('button', { name: 'CREAR UNIDAD', exact: true }).click();
     }

@@ -148,7 +148,7 @@ describe("updateUnitMilestone", () => {
 
     const result = await updateUnitMilestone(MILESTONE_ID, UNIT_ID, { title: "New title" });
 
-    expect(result).toEqual({ error: "Hito no encontrado o no pertenece a esta unidad" });
+    expect(result).toEqual({ error: "Objetivo no encontrado o no pertenece a esta unidad" });
   });
 
   it("updates milestone and returns success", async () => {
@@ -215,7 +215,7 @@ describe("deleteUnitMilestone", () => {
 
     const result = await deleteUnitMilestone(MILESTONE_ID, UNIT_ID);
 
-    expect(result).toEqual({ error: "Hito no encontrado o no pertenece a esta unidad" });
+    expect(result).toEqual({ error: "Objetivo no encontrado o no pertenece a esta unidad" });
   });
 
   it("deletes milestone and returns success", async () => {
