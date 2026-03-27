@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { Users2, CheckCircle2, Clock, ChevronLeft, ChevronRight, ExternalLink, ClipboardList, MessageSquare } from "lucide-react";
+import { Users2, CheckCircle2, Clock, ChevronLeft, ChevronRight, ExternalLink, ClipboardList, MessageSquare, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { PeerEvaluationContent, ActivitySubmission, RubricCriteria, criteriaMaxPoints } from "@/types/activity";
-import { getMyPeerAssignments, submitPeerEvaluation, type PeerAssignmentWithTarget } from "@/app/activities/[id]/actions";
+import { getMyPeerAssignments, submitPeerEvaluation, getMyReceivedPeerFeedback, type PeerAssignmentWithTarget } from "@/app/activities/[id]/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -27,13 +27,20 @@ export function PeerEvaluationViewer({
     isClosed,
 }: PeerEvaluationViewerProps) {
     const [assignments, setAssignments] = useState<PeerAssignmentWithTarget[]>([]);
+    const [receivedFeedback, setReceivedFeedback] = useState<{ rubricScores: Record<string, number>; justifications: Record<string, string> }[]>([]);
+    const [feedbackVisible, setFeedbackVisible] = useState(false);
     const [loading, setLoading] = useState(true);
     const [currentIndex, setCurrentIndex] = useState(0);
 
     useEffect(() => {
         if (isPreview) { setLoading(false); return; }
-        getMyPeerAssignments(stepId).then(res => {
-            if (res.assignments) setAssignments(res.assignments);
+        Promise.all([
+            getMyPeerAssignments(stepId),
+            getMyReceivedPeerFeedback(stepId),
+        ]).then(([assignRes, feedbackRes]) => {
+            if (assignRes.assignments) setAssignments(assignRes.assignments);
+            if (feedbackRes.items) setReceivedFeedback(feedbackRes.items);
+            setFeedbackVisible(feedbackRes.visible ?? false);
             setLoading(false);
         });
     }, [stepId, isPreview]);
@@ -116,6 +123,41 @@ export function PeerEvaluationViewer({
                 onPrev={() => setCurrentIndex(i => Math.max(0, i - 1))}
                 onNext={() => setCurrentIndex(i => Math.min(assignments.length - 1, i + 1))}
             />
+
+            {/* Received feedback section */}
+            {feedbackVisible && receivedFeedback.length > 0 && (
+                <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-4">
+                    <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
+                        <MessageCircle className="size-4 text-indigo-400" /> Feedback recibido
+                    </h3>
+                    <p className="text-xs text-text-muted">Estas son las evaluaciones que recibiste de tus compañeros.</p>
+                    <div className="space-y-4">
+                        {receivedFeedback.map((fb, idx) => (
+                            <div key={idx} className="p-4 bg-surface border border-border/50 rounded-xl space-y-3">
+                                <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Evaluación {idx + 1}</p>
+                                {content.rubric?.map(criterion => {
+                                    const pts = fb.rubricScores[criterion.id];
+                                    const justif = fb.justifications[criterion.id];
+                                    if (pts === undefined && !justif) return null;
+                                    return (
+                                        <div key={criterion.id} className="space-y-1">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-xs font-semibold text-foreground">{criterion.name}</p>
+                                                {pts !== undefined && (
+                                                    <span className="text-xs font-mono text-indigo-400 font-bold">{pts} pts</span>
+                                                )}
+                                            </div>
+                                            {justif && (
+                                                <p className="text-xs text-text-muted leading-relaxed">{justif}</p>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

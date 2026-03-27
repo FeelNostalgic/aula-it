@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition, useEffect, useMemo } from "react";
-import { Users2, AlertTriangle, CheckCircle2, Clock, RefreshCw, PlayCircle, Send, ShieldAlert, Star } from "lucide-react";
+import { useState, useTransition, useEffect, useMemo, useCallback } from "react";
+import { Users2, AlertTriangle, CheckCircle2, Clock, RefreshCw, PlayCircle, Send, ShieldAlert, Star, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,8 @@ import {
     getPeerEvaluationResults,
     computeEvaluatorReliability,
     publishPeerFinalGrades,
+    togglePeerFeedbackVisible,
+    overridePeerScore,
 } from "@/app/dashboard/units/[id]/actions";
 import { toast } from "sonner";
 
@@ -35,6 +37,7 @@ type Assignment = {
         student_id: string | null;
         group_id: string | null;
         score: number | null;
+        peer_eval_override_score: number | null;
         student: { full_name: string | null } | null;
         group: { name: string } | null;
     } | null;
@@ -54,6 +57,7 @@ type EvaluatorRow = {
 
 export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle }: PeerEvaluationTeacherViewProps) {
     const [assignments, setAssignments] = useState<Assignment[]>([]);
+    const [feedbackVisible, setFeedbackVisible] = useState(false);
     const [loading, setLoading] = useState(true);
     const [isPending, startTransition] = useTransition();
 
@@ -61,6 +65,7 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle }: PeerE
         setLoading(true);
         getPeerEvaluationResults(stepId).then(res => {
             if (res.assignments) setAssignments(res.assignments as Assignment[]);
+            setFeedbackVisible(res.peerFeedbackVisibleToStudents ?? false);
             setLoading(false);
         });
     };
@@ -96,13 +101,27 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle }: PeerE
 
     // Group submissions by target (who is being evaluated)
     const targetRows = useMemo(() => {
-        const map = new Map<string, { targetName: string; count: number; avgScore: number | null }>();
+        const map = new Map<string, {
+            submissionId: string;
+            targetName: string;
+            count: number;
+            teacherScore: number | null;
+            overrideScore: number | null;
+        }>();
         for (const a of assignments) {
             const key = a.target_submission_id;
             const name = a.target_submission?.group?.name
                 ?? a.target_submission?.student?.full_name
                 ?? "Alumno";
-            if (!map.has(key)) map.set(key, { targetName: name, count: 0, avgScore: null });
+            if (!map.has(key)) {
+                map.set(key, {
+                    submissionId: key,
+                    targetName: name,
+                    count: 0,
+                    teacherScore: a.target_submission?.score ?? null,
+                    overrideScore: a.target_submission?.peer_eval_override_score ?? null,
+                });
+            }
             if (a.eval_submission_id) map.get(key)!.count++;
         }
         return [...map.values()].sort((a, b) => a.targetName.localeCompare(b.targetName));
@@ -127,6 +146,16 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle }: PeerE
             if (res.error) { toast.error(res.error); return; }
             toast.success("Fiabilidad calculada.");
             load();
+        });
+    }
+
+    function handleToggleFeedback() {
+        const next = !feedbackVisible;
+        startTransition(async () => {
+            const res = await togglePeerFeedbackVisible(stepId, next);
+            if (res.error) { toast.error(res.error); return; }
+            setFeedbackVisible(next);
+            toast.success(next ? "Feedback visible para alumnos." : "Feedback oculto.");
         });
     }
 
@@ -178,6 +207,19 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle }: PeerE
                                 <RefreshCw className={cn("size-3.5", isPending && "animate-spin")} />
                                 Actualizar
                             </Button>
+                            <Button
+                                onClick={handleToggleFeedback}
+                                variant="outline"
+                                size="sm"
+                                disabled={isPending}
+                                className={cn(
+                                    "gap-2 border-border/50",
+                                    feedbackVisible && "border-indigo-500/30 text-indigo-400 bg-indigo-500/5"
+                                )}
+                            >
+                                {feedbackVisible ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                                {feedbackVisible ? "Feedback visible" : "Mostrar feedback"}
+                            </Button>
                             <Button onClick={handleComputeReliability} variant="outline" size="sm" disabled={isPending} className="gap-2 border-border/50">
                                 <Star className="size-3.5 text-amber-400" />
                                 Calcular fiabilidad
@@ -204,7 +246,17 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle }: PeerE
                     {/* Evaluators table */}
                     <EvaluatorsTable rows={evaluatorRows} />
                     {/* Targets summary */}
-                    <TargetsSummary rows={targetRows} totalAssignments={assignments.length} />
+                    <TargetsSummary
+                        rows={targetRows}
+                        totalAssignments={assignments.length}
+                        onOverrideChange={(submissionId, score) => {
+                            setAssignments(prev => prev.map(a =>
+                                a.target_submission_id === submissionId && a.target_submission
+                                    ? { ...a, target_submission: { ...a.target_submission, peer_eval_override_score: score } }
+                                    : a
+                            ));
+                        }}
+                    />
                 </div>
             )}
         </div>
@@ -304,7 +356,19 @@ function EvaluatorRowItem({ row }: { row: EvaluatorRow }) {
 
 // ─── Targets summary ──────────────────────────────────────────────────────────
 
-function TargetsSummary({ rows, totalAssignments }: { rows: { targetName: string; count: number; avgScore: number | null }[]; totalAssignments: number }) {
+type TargetRow = {
+    submissionId: string;
+    targetName: string;
+    count: number;
+    teacherScore: number | null;
+    overrideScore: number | null;
+};
+
+function TargetsSummary({ rows, totalAssignments, onOverrideChange }: {
+    rows: TargetRow[];
+    totalAssignments: number;
+    onOverrideChange: (submissionId: string, score: number | null) => void;
+}) {
     return (
         <div className="bg-surface-dark border border-white/5 rounded-2xl overflow-hidden">
             <div className="px-5 py-3 border-b border-white/5 flex items-center gap-2">
@@ -313,19 +377,80 @@ function TargetsSummary({ rows, totalAssignments }: { rows: { targetName: string
                 <span className="ml-auto text-[10px] font-mono text-text-muted">{rows.length} entregas</span>
             </div>
             <div className="divide-y divide-white/5">
-                {rows.map((row, i) => (
-                    <div key={i} className="px-5 py-3 flex items-center justify-between gap-4">
-                        <p className="text-sm font-medium text-foreground truncate">{row.targetName}</p>
-                        <div className="flex items-center gap-2 shrink-0">
-                            {row.avgScore !== null && (
-                                <span className="text-xs font-mono text-accent-blue">{row.avgScore.toFixed(1)} pts</span>
-                            )}
-                            <span className="text-[10px] font-mono text-text-muted">
-                                {row.count} eval{row.count !== 1 ? "s" : ""}
-                            </span>
-                        </div>
-                    </div>
+                {rows.map((row) => (
+                    <TargetRowItem key={row.submissionId} row={row} onOverrideChange={onOverrideChange} />
                 ))}
+            </div>
+        </div>
+    );
+}
+
+function TargetRowItem({ row, onOverrideChange }: {
+    row: TargetRow;
+    onOverrideChange: (submissionId: string, score: number | null) => void;
+}) {
+    const [editMode, setEditMode] = useState(false);
+    const [value, setValue] = useState(row.overrideScore?.toString() ?? "");
+    const [isPending, startTransition] = useTransition();
+
+    function handleSave() {
+        const parsed = value.trim() === "" ? null : parseFloat(value);
+        if (parsed !== null && isNaN(parsed)) { setEditMode(false); return; }
+        startTransition(async () => {
+            const res = await overridePeerScore(row.submissionId, parsed as any);
+            if ((res as any).error) { toast.error((res as any).error); return; }
+            onOverrideChange(row.submissionId, parsed);
+            setEditMode(false);
+        });
+    }
+
+    return (
+        <div className="px-5 py-3 flex items-center gap-4">
+            <p className="text-sm font-medium text-foreground truncate flex-1">{row.targetName}</p>
+            <div className="flex items-center gap-3 shrink-0">
+                {row.teacherScore !== null && (
+                    <span className="text-xs font-mono text-text-muted">
+                        Profe: <span className="text-emerald-400 font-bold">{row.teacherScore}</span>
+                    </span>
+                )}
+                {editMode ? (
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="10"
+                            value={value}
+                            onChange={e => setValue(e.target.value)}
+                            className="w-16 h-6 text-xs font-mono bg-surface border border-border/50 rounded px-1.5 text-foreground focus:outline-none focus:border-indigo-500/50"
+                            autoFocus
+                        />
+                        <button
+                            onClick={handleSave}
+                            disabled={isPending}
+                            className="text-[10px] font-black text-emerald-400 hover:text-emerald-300 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20"
+                        >OK</button>
+                        <button
+                            onClick={() => { setValue(row.overrideScore?.toString() ?? ""); setEditMode(false); }}
+                            className="text-[10px] font-black text-text-muted hover:text-foreground px-1.5 py-0.5"
+                        >✕</button>
+                    </div>
+                ) : (
+                    <button
+                        onClick={() => setEditMode(true)}
+                        className={cn(
+                            "text-xs font-mono px-2 py-0.5 rounded border transition-colors",
+                            row.overrideScore !== null
+                                ? "text-indigo-400 border-indigo-500/30 bg-indigo-500/10"
+                                : "text-text-muted border-border/30 hover:border-border/60 hover:text-foreground"
+                        )}
+                    >
+                        {row.overrideScore !== null ? `Override: ${row.overrideScore}` : "Override"}
+                    </button>
+                )}
+                <span className="text-[10px] font-mono text-text-muted">
+                    {row.count} eval{row.count !== 1 ? "s" : ""}
+                </span>
             </div>
         </div>
     );

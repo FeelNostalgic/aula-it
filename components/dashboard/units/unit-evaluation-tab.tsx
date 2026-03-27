@@ -27,6 +27,7 @@ import {
     bulkReopenSubmissions,
     createDeadlineExtension,
     bulkCreateDeadlineExtensions,
+    publishGroupGrade,
     StepSubmissionRow,
 } from "@/app/dashboard/units/[id]/actions";
 import { criteriaMaxPoints } from "@/types/activity";
@@ -36,6 +37,7 @@ import { exportGradesAsCSV } from "@/lib/export-grades";
 import { toast } from "sonner";
 import { GradingModal } from "@/components/dashboard/shared/grading-modal";
 import { PeerEvaluationTeacherView } from "@/components/dashboard/units/peer-evaluation-teacher-view";
+import { SelfEvaluationTeacherView } from "@/components/dashboard/units/self-evaluation-teacher-view";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -636,6 +638,10 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
         return <PeerEvaluationTeacherView stepId={stepId} moduleId={moduleId} stepTitle={stepData.stepTitle} />;
     }
 
+    if (stepData.stepType === 'self_evaluation') {
+        return <SelfEvaluationTeacherView stepId={stepId} stepTitle={stepData.stepTitle} />;
+    }
+
     const selectedRows = table.getSelectedRowModel().rows.map(r => r.original);
     const selectedIdSet = new Set(selectedRows.map(r => r.id));
 
@@ -850,6 +856,7 @@ function SubmissionActions({ row, table, onGrade, onReopen, onExtendDeadline, on
 }) {
     const [isPendingReopen, startReopen] = useTransition();
     const [isPendingPublish, startPublish] = useTransition();
+    const [isPendingPropagate, startPropagate] = useTransition();
 
     function handleReopen() {
         startReopen(async () => {
@@ -880,6 +887,7 @@ function SubmissionActions({ row, table, onGrade, onReopen, onExtendDeadline, on
     const canReopen = row.status === "graded" || row.status === "published";
     const canPublish = row.status === "graded" && !row.published_at && !row.synthetic;
     const canGrade = !row.synthetic;
+    const canPropagate = !!row.group_id && row.status === "published" && !row.synthetic;
 
     return (
         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -925,6 +933,24 @@ function SubmissionActions({ row, table, onGrade, onReopen, onExtendDeadline, on
                     title="Publicar nota"
                 >
                     <Star className="size-3.5" />
+                </Button>
+            )}
+            {canPropagate && (
+                <Button
+                    size="icon"
+                    variant="outline"
+                    className="size-8 border-indigo-500/20 text-indigo-500/60 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all"
+                    disabled={isPendingPropagate}
+                    title="Propagar nota a todos los miembros del grupo"
+                    onClick={() => {
+                        startPropagate(async () => {
+                            const res = await publishGroupGrade(row.id);
+                            if ((res as any).error) toast.error((res as any).error);
+                            else toast.success("Nota propagada a todos los miembros del grupo.");
+                        });
+                    }}
+                >
+                    <Users className="size-3.5" />
                 </Button>
             )}
         </div>

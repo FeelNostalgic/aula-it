@@ -436,6 +436,7 @@ export type StepSubmissionRow = {
         resolved_questions: import('@/types/activity').QuizQuestion[];
         completed_at: string;
     }[];
+    group_id?: string | null;
     synthetic?: boolean; // true = no real submission, injected for display
     step_is_locked?: boolean;
 };
@@ -568,6 +569,7 @@ export async function getUnitStepSubmissions(
             quiz_content: meta?.quizContent,
             quiz_attempt: lastAttempt,
             quiz_attempts: attempts,
+            group_id: sub.group_id ?? null,
             step_is_locked: meta?.isLocked
         };
     });
@@ -1133,32 +1135,46 @@ export async function generatePeerAssignments(
  */
 export async function getPeerEvaluationResults(stepId: string): Promise<{
     assignments?: any[];
+    peerFeedbackVisibleToStudents?: boolean;
+    anonymousEvaluation?: boolean;
     error?: string;
 }> {
     const auth = await requireTeacher();
     if ("error" in auth) return { error: auth.error };
 
-    const { data, error } = await auth.admin
-        .from("peer_evaluation_assignments")
-        .select(`
-            id, evaluator_id, evaluator_group_id, target_submission_id, eval_submission_id,
-            reliability_score, is_outlier, calibration_score,
-            evaluator:profiles!evaluator_id(id, full_name),
-            evaluator_group:module_groups!evaluator_group_id(id, name),
-            target_submission:activity_submissions!target_submission_id(
-                id, student_id, group_id, score,
-                student:profiles!student_id(full_name),
-                group:module_groups!group_id(name)
-            ),
-            eval_submission:activity_submissions!eval_submission_id(
-                id, self_eval_rubric_scores, self_eval_justifications, files
-            )
-        `)
-        .eq("step_id", stepId)
-        .order("created_at");
+    const [{ data: step }, { data, error }] = await Promise.all([
+        auth.admin
+            .from("activity_steps")
+            .select("content")
+            .eq("id", stepId)
+            .single(),
+        auth.admin
+            .from("peer_evaluation_assignments")
+            .select(`
+                id, evaluator_id, evaluator_group_id, target_submission_id, eval_submission_id,
+                reliability_score, is_outlier, calibration_score,
+                evaluator:profiles!evaluator_id(id, full_name),
+                evaluator_group:module_groups!evaluator_group_id(id, name),
+                target_submission:activity_submissions!target_submission_id(
+                    id, student_id, group_id, score, peer_eval_override_score,
+                    student:profiles!student_id(full_name),
+                    group:module_groups!group_id(name)
+                ),
+                eval_submission:activity_submissions!eval_submission_id(
+                    id, self_eval_rubric_scores, self_eval_justifications, files
+                )
+            `)
+            .eq("step_id", stepId)
+            .order("created_at"),
+    ]);
 
     if (error) return { error: error.message };
-    return { assignments: data ?? [] };
+    const content = step?.content as any;
+    return {
+        assignments: data ?? [],
+        peerFeedbackVisibleToStudents: content?.peerFeedbackVisibleToStudents ?? false,
+        anonymousEvaluation: content?.anonymousEvaluation ?? false,
+    };
 }
 
 /**
@@ -1383,6 +1399,103 @@ export async function publishPeerFinalGrades(
 
     revalidatePath("/dashboard/units/[id]", "layout");
     return { published };
+}
+
+/**
+ * Teacher override of the final peer-evaluation score for a specific submission.
+ */
+export async function overridePeerScore(
+    submissionId: string,
+    score: number,
+): Promise<{ error?: string }> {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const { error } = await auth.admin
+        .from("activity_submissions")
+        .update({ peer_eval_override_score: score })
+        .eq("id", submissionId);
+
+    if (error) return { error: error.message };
+    return {};
+}
+
+/**
+ * Returns all self-evaluation submissions for a step, including teacher scores.
+ */
+export async function getSelfEvaluationResults(stepId: string): Promise<{
+    rows?: {
+        student_id: string;
+        student_name: string | null;
+        self_eval_rubric_scores: Record<string, number> | null;
+        self_eval_justifications: Record<string, string> | null;
+        teacher_score: number | null;
+        status: string;
+    }[];
+    rubric?: import('@/types/activity').RubricCriteria[];
+    error?: string;
+}> {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const { data: step } = await auth.admin
+        .from("activity_steps")
+        .select("content")
+        .eq("id", stepId)
+        .single();
+
+    if (!step) return { error: "Paso no encontrado." };
+    const rubric = (step.content as any)?.rubric ?? [];
+
+    const { data, error } = await auth.admin
+        .from("activity_submissions")
+        .select(`
+            student_id, score, status,
+            self_eval_rubric_scores, self_eval_justifications,
+            student:profiles!student_id(full_name)
+        `)
+        .eq("step_id", stepId)
+        .not("self_eval_rubric_scores", "is", null);
+
+    if (error) return { error: error.message };
+
+    const rows = (data ?? []).map((d: any) => ({
+        student_id: d.student_id,
+        student_name: d.student?.full_name ?? null,
+        self_eval_rubric_scores: d.self_eval_rubric_scores,
+        self_eval_justifications: d.self_eval_justifications,
+        teacher_score: d.score,
+        status: d.status,
+    }));
+
+    return { rows, rubric };
+}
+
+/**
+ * Toggles whether peer feedback (justifications) are visible to students.
+ */
+export async function togglePeerFeedbackVisible(stepId: string, visible: boolean): Promise<{ error?: string }> {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const { data: step } = await auth.admin
+        .from("activity_steps")
+        .select("content")
+        .eq("id", stepId)
+        .single();
+
+    if (!step) return { error: "Paso no encontrado." };
+
+    const updatedContent = { ...(step.content as any), peerFeedbackVisibleToStudents: visible };
+
+    const { error } = await auth.admin
+        .from("activity_steps")
+        .update({ content: updatedContent })
+        .eq("id", stepId);
+
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return {};
 }
 
 export async function updateUnitResources(unitId: string, resources: any[]) {

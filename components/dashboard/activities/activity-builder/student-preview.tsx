@@ -523,6 +523,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                         step={selectedStep}
                                         activityId={activity.id}
                                         submission={submissionsMap?.[selectedStep.id]}
+                                        submissionsMap={submissionsMap}
                                         googleEmail={googleEmail}
                                         userId={user?.id}
                                         studentName={profile?.full_name}
@@ -588,6 +589,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                     step={selectedStep}
                                     activityId={activity.id}
                                     submission={submissionsMap?.[selectedStep.id]}
+                                    submissionsMap={submissionsMap}
                                     googleEmail={googleEmail}
                                     userId={user?.id}
                                     studentName={profile?.full_name}

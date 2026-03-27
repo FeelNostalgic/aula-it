@@ -397,3 +397,42 @@ export async function getMyGroupForModule(
     if (error) return { error: error.message };
     return { group: (data as any)?.group ?? null };
 }
+
+/**
+ * Allows a student to leave their current group (only in self_enrollment modules).
+ */
+export async function studentLeaveGroup(
+    groupId: string,
+): Promise<{ error?: string }> {
+    const { error: authError, supabase, user } = await requireStudent();
+    if (authError || !supabase || !user) return { error: authError ?? "Sin permisos." };
+
+    // Verify the group is in a self_enrollment module
+    const { data: group } = await supabase
+        .from("module_groups")
+        .select("module_id")
+        .eq("id", groupId)
+        .single();
+
+    if (!group) return { error: "Grupo no encontrado." };
+
+    const { data: module } = await supabase
+        .from("modules")
+        .select("groups_enrollment_mode")
+        .eq("id", group.module_id)
+        .single();
+
+    if (module?.groups_enrollment_mode !== "self_enrollment") {
+        return { error: "No puedes salir del grupo manualmente en este módulo." };
+    }
+
+    const { error: deleteError } = await supabase
+        .from("module_group_members")
+        .delete()
+        .eq("group_id", groupId)
+        .eq("student_id", user.id);
+
+    if (deleteError) return { error: deleteError.message };
+    revalidatePath(`/dashboard/modules/${group.module_id}`);
+    return {};
+}

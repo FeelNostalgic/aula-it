@@ -37,6 +37,7 @@ interface StepViewerProps {
     step: ActivityStepWithClientState;
     activityId?: string;
     submission?: ActivitySubmission;
+    submissionsMap?: Record<string, ActivitySubmission>;
     googleEmail?: string | null;
     userId?: string | null;
     studentName?: string | null;
@@ -44,7 +45,7 @@ interface StepViewerProps {
     groupName?: string | null;
 }
 
-export function StepViewer({ step, activityId, submission, googleEmail, userId, studentName, isPreview, groupName }: StepViewerProps) {
+export function StepViewer({ step, activityId, submission, submissionsMap, googleEmail, userId, studentName, isPreview, groupName }: StepViewerProps) {
     if (!step) return null;
     if (step.is_locked) {
         return (
@@ -102,20 +103,26 @@ export function StepViewer({ step, activityId, submission, googleEmail, userId, 
             return null;
         case 'animation':
             return <AnimationViewer content={step.content as AnimationContent} />;
-        case 'self_evaluation':
+        case 'self_evaluation': {
             if (activityId) {
+                const selfContent = step.content as SelfEvaluationContent;
+                const refSub = selfContent.referenceStepId && submissionsMap
+                    ? submissionsMap[selfContent.referenceStepId]
+                    : undefined;
                 return (
                     <SelfEvaluationViewer
-                        content={step.content as SelfEvaluationContent}
+                        content={selfContent}
                         stepId={step.id}
                         activityId={activityId}
                         initialSubmission={submission}
+                        referenceSubmission={refSub}
                         isPreview={isPreview}
                         isClosed={step.is_activity_closed ?? false}
                     />
                 );
             }
             return null;
+        }
         case 'peer_evaluation':
             if (activityId) {
                 return (

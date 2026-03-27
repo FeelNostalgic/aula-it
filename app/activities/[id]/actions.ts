@@ -585,3 +585,66 @@ export async function submitPeerEvaluation(
     revalidatePath(`/activities/${activityId}`);
     return {};
 }
+
+/**
+ * Returns peer feedback received by the current student for a given step.
+ * Only returns data when peerFeedbackVisibleToStudents is true in step content.
+ * Evaluator identity is never exposed.
+ */
+export async function getMyReceivedPeerFeedback(stepId: string): Promise<{
+    items?: {
+        rubricScores: Record<string, number>;
+        justifications: Record<string, string>;
+    }[];
+    visible?: boolean;
+    error?: string;
+}> {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    // Check step content visibility flag
+    const { data: step } = await supabase
+        .from("activity_steps")
+        .select("content")
+        .eq("id", stepId)
+        .single();
+
+    const content = step?.content as any;
+    if (!content?.peerFeedbackVisibleToStudents) return { visible: false, items: [] };
+
+    const sourceStepId = content?.sourceStepId as string | undefined;
+    if (!sourceStepId) return { visible: false, items: [] };
+
+    // Find student's submission on the source step
+    const { data: sourceSub } = await supabase
+        .from("activity_submissions")
+        .select("id")
+        .eq("step_id", sourceStepId)
+        .eq("student_id", user.id)
+        .maybeSingle();
+
+    if (!sourceSub) return { visible: true, items: [] };
+
+    // Fetch assignments where this student's submission is the target — no evaluator_id exposed
+    const { data: assignments } = await supabase
+        .from("peer_evaluation_assignments")
+        .select(`
+            eval_submission:activity_submissions!eval_submission_id(
+                self_eval_rubric_scores, self_eval_justifications
+            )
+        `)
+        .eq("step_id", stepId)
+        .eq("target_submission_id", sourceSub.id)
+        .not("eval_submission_id", "is", null);
+
+    const items = (assignments ?? [])
+        .map((a: any) => a.eval_submission)
+        .filter(Boolean)
+        .map((es: any) => ({
+            rubricScores: (es.self_eval_rubric_scores ?? {}) as Record<string, number>,
+            justifications: (es.self_eval_justifications ?? {}) as Record<string, string>,
+        }));
+
+    return { visible: true, items };
+}

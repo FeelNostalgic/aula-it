@@ -40,6 +40,7 @@ import { ModuleLeaderboard } from "./module-leaderboard";
 import { ModuleCollaboratorsTab } from "./module-collaborators-dialog";
 import { getModuleIconVisualProps } from "@/components/dashboard/modules/module-identity";
 import { ModuleGroupsTab } from "./module-groups-tab";
+import { GroupSelfEnrollmentCard } from "./group-self-enrollment-card";
 import {
     getModuleRoleLabel,
     getModuleRoleTooltip,
