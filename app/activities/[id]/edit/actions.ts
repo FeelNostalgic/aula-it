@@ -5,6 +5,8 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { verifyTeacherOwnsActivity, verifyTeacherOwnsPhase, verifyTeacherOwnsStep } from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
 import { ActivityPhase, ActivityStep, ActivityStepType, CompletionMode, RubricCriteria, RubricLevel } from "@/types/activity";
+import { extractGoogleFileId } from "@/lib/google-drive-urls";
+import { setFormAcceptingResponses } from "@/lib/google-forms-api";
 
 type RubricCriterionLibraryVisibility = "private" | "public";
 
@@ -518,6 +520,39 @@ export async function updatePhaseStepsActivityClosed(phaseId: string, isClosed: 
         .update({ is_activity_closed: isClosed })
         .eq('phase_id', phaseId);
     if (error) return { error: error.message };
+
+    // Sync any google_form quiz steps in this phase
+    const { data: steps } = await admin
+        .from('activity_steps')
+        .select('id, content')
+        .eq('phase_id', phaseId)
+        .eq('type', 'quiz');
+
+    const googleFormSteps = (steps ?? []).filter(
+        s => (s.content as any)?.quizMode === 'google_form' && (s.content as any)?.googleFormUrl
+    );
+
+    if (googleFormSteps.length > 0) {
+        const { data: tokenRow } = await admin
+            .from('teacher_drive_tokens')
+            .select('refresh_token')
+            .eq('teacher_id', user.id)
+            .single();
+
+        if (tokenRow?.refresh_token) {
+            for (const step of googleFormSteps) {
+                const formId = extractGoogleFileId((step.content as any).googleFormUrl);
+                if (formId) {
+                    try {
+                        await setFormAcceptingResponses(tokenRow.refresh_token, formId, !isClosed);
+                    } catch (formErr: any) {
+                        console.warn(`Forms API warning (step ${step.id}):`, formErr?.message);
+                    }
+                }
+            }
+        }
+    }
+
     return { data: true };
 }
 
@@ -553,6 +588,28 @@ export async function updateStepActivityClosed(stepId: string, isClosed: boolean
         console.error("Error updating step activity closed:", error);
         return { error: error.message };
     }
+
+    // If it's a google_form quiz, also sync the form's accepting state
+    const content = data?.content as any;
+    if (data?.type === 'quiz' && content?.quizMode === 'google_form' && content?.googleFormUrl) {
+        const formId = extractGoogleFileId(content.googleFormUrl);
+        if (formId) {
+            const { data: tokenRow } = await admin
+                .from('teacher_drive_tokens')
+                .select('refresh_token')
+                .eq('teacher_id', user.id)
+                .single();
+            if (tokenRow?.refresh_token) {
+                try {
+                    await setFormAcceptingResponses(tokenRow.refresh_token, formId, !isClosed);
+                    return { data, formssynced: true };
+                } catch (formErr: any) {
+                    return { data, formserror: (formErr?.message as string) };
+                }
+            }
+        }
+    }
+
     return { data };
 }
 

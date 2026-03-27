@@ -609,12 +609,20 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
     };
 
     const handleToggleActivityClosed = async (phaseId: string, stepId: string, currentClosed: boolean) => {
-        const result = await updateStepActivityClosed(stepId, !currentClosed);
-        if (result.error) {
-            toast.error("Error al actualizar cierre de entregas");
-        } else {
-            setPhases(phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => s.id === stepId ? { ...s, is_activity_closed: !currentClosed } : s) } : p));
-        }
+        const nextClosed = !currentClosed;
+        const promise = updateStepActivityClosed(stepId, nextClosed);
+
+        toast.promise(promise, {
+            loading: nextClosed ? "Cerrando entregas..." : "Abriendo entregas...",
+            success: (result) => {
+                if (result.error) throw new Error(result.error);
+                setPhases(phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => s.id === stepId ? { ...s, is_activity_closed: nextClosed } : s) } : p));
+                if ("formserror" in result) return "Entregas actualizadas, pero no se pudo sincronizar Google Forms";
+                if ("formssynced" in result) return nextClosed ? "Formulario cerrado en Google Forms" : "Formulario abierto en Google Forms";
+                return nextClosed ? "Entregas cerradas" : "Entregas abiertas";
+            },
+            error: "Error al actualizar cierre de entregas",
+        });
     };
 
     const handleTogglePhaseVisibility = async (phaseId: string) => {
