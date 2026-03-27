@@ -980,6 +980,411 @@ export async function publishGroupGrade(submissionId: string) {
     return { success: true, propagated: members.length };
 }
 
+// ─── Coevaluación — acciones del profesor ────────────────────────────────────
+
+/**
+ * Generates balanced peer evaluation assignments for a step.
+ * Each submission is assigned to `submissionsPerEvaluator` different evaluators.
+ * Skips re-generation if assignments already exist for this step.
+ */
+export async function generatePeerAssignments(
+    stepId: string,
+    moduleId: string,
+): Promise<{ error?: string; generated?: number }> {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const admin = auth.admin;
+
+    // Check if assignments already exist
+    const { count: existing } = await admin
+        .from("peer_evaluation_assignments")
+        .select("id", { count: "exact", head: true })
+        .eq("step_id", stepId);
+    if ((existing ?? 0) > 0) {
+        return { error: "Las asignaciones ya han sido generadas para este paso." };
+    }
+
+    // Fetch step content to get submissionsPerEvaluator and mode
+    const { data: step } = await admin
+        .from("activity_steps")
+        .select("content")
+        .eq("id", stepId)
+        .single();
+    if (!step) return { error: "Paso no encontrado." };
+
+    const content = step.content as any;
+    const mode = content?.mode ?? "individual";
+    const sourceStepId = content?.sourceStepId as string | undefined;
+    if (!sourceStepId) return { error: "El paso de coevaluación no tiene un entregable fuente configurado." };
+
+    const submissionsPerEvaluator = content?.submissionsPerEvaluator ?? 2;
+
+    if (mode === "individual") {
+        // Fetch all submissions for the source step (individual + group)
+        const { data: submissions } = await admin
+            .from("activity_submissions")
+            .select("id, student_id, group_id")
+            .eq("step_id", sourceStepId)
+            .not("status", "eq", "pending");
+
+        if (!submissions || submissions.length < 2) {
+            return { error: "Se necesitan al menos 2 entregas para generar asignaciones." };
+        }
+
+        // Fetch evaluators: enrolled students in this module
+        const { data: enrollments } = await admin
+            .from("module_enrollments")
+            .select("student_id")
+            .eq("module_id", moduleId);
+
+        const evaluatorIds = (enrollments ?? []).map((e: any) => e.student_id as string);
+        if (evaluatorIds.length === 0) return { error: "No hay alumnos matriculados." };
+
+        // Round-robin balanced assignment: each submission gets ~submissionsPerEvaluator evaluators
+        // Use Fisher-Yates shuffle, then distribute
+        const shuffledSubs = [...submissions].sort(() => Math.random() - 0.5);
+        const rows: {
+            step_id: string;
+            evaluator_id: string;
+            target_submission_id: string;
+        }[] = [];
+
+        const subCount = shuffledSubs.length;
+        const evalCount = evaluatorIds.length;
+
+        for (let i = 0; i < subCount; i++) {
+            const sub = shuffledSubs[i];
+            let assigned = 0;
+            let offset = 0;
+
+            while (assigned < submissionsPerEvaluator && offset < evalCount) {
+                const evalId = evaluatorIds[(i + offset) % evalCount];
+                // Don't self-evaluate
+                if (evalId !== sub.student_id) {
+                    // Avoid duplicate (same evaluator + same submission)
+                    const alreadyAdded = rows.some(
+                        r => r.evaluator_id === evalId && r.target_submission_id === sub.id
+                    );
+                    if (!alreadyAdded) {
+                        rows.push({ step_id: stepId, evaluator_id: evalId, target_submission_id: sub.id });
+                        assigned++;
+                    }
+                }
+                offset++;
+            }
+        }
+
+        if (rows.length === 0) return { error: "No fue posible generar asignaciones." };
+
+        const { error } = await admin.from("peer_evaluation_assignments").insert(rows);
+        if (error) return { error: error.message };
+
+        revalidatePath("/dashboard/units/[id]", "layout");
+        return { generated: rows.length };
+    }
+
+    // Group mode: each group evaluates all other groups
+    const { data: groups } = await admin
+        .from("module_groups")
+        .select("id")
+        .eq("module_id", moduleId)
+        .eq("status", "active");
+
+    if (!groups || groups.length < 2) {
+        return { error: "Se necesitan al menos 2 grupos activos." };
+    }
+
+    const { data: submissions } = await admin
+        .from("activity_submissions")
+        .select("id, group_id")
+        .eq("step_id", sourceStepId)
+        .not("group_id", "is", null);
+
+    const subByGroup = new Map<string, string>(
+        (submissions ?? []).map((s: any) => [s.group_id, s.id])
+    );
+
+    const rows: { step_id: string; evaluator_group_id: string; target_submission_id: string }[] = [];
+    for (const evaluatorGroup of groups) {
+        for (const targetGroup of groups) {
+            if (evaluatorGroup.id === targetGroup.id) continue;
+            const targetSubId = subByGroup.get(targetGroup.id);
+            if (!targetSubId) continue;
+            rows.push({
+                step_id: stepId,
+                evaluator_group_id: evaluatorGroup.id,
+                target_submission_id: targetSubId,
+            });
+        }
+    }
+
+    if (rows.length === 0) return { error: "No fue posible generar asignaciones de grupo." };
+
+    const { error } = await admin.from("peer_evaluation_assignments").insert(rows);
+    if (error) return { error: error.message };
+
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { generated: rows.length };
+}
+
+/**
+ * Returns all peer evaluation results for the teacher view.
+ */
+export async function getPeerEvaluationResults(stepId: string): Promise<{
+    assignments?: any[];
+    error?: string;
+}> {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const { data, error } = await auth.admin
+        .from("peer_evaluation_assignments")
+        .select(`
+            id, evaluator_id, evaluator_group_id, target_submission_id, eval_submission_id,
+            reliability_score, is_outlier, calibration_score,
+            evaluator:profiles!evaluator_id(id, full_name),
+            evaluator_group:module_groups!evaluator_group_id(id, name),
+            target_submission:activity_submissions!target_submission_id(
+                id, student_id, group_id, score,
+                student:profiles!student_id(full_name),
+                group:module_groups!group_id(name)
+            ),
+            eval_submission:activity_submissions!eval_submission_id(
+                id, self_eval_rubric_scores, self_eval_justifications, files
+            )
+        `)
+        .eq("step_id", stepId)
+        .order("created_at");
+
+    if (error) return { error: error.message };
+    return { assignments: data ?? [] };
+}
+
+/**
+ * Computes reliability scores and outlier flags for all evaluators of a step.
+ */
+export async function computeEvaluatorReliability(stepId: string): Promise<{ error?: string }> {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const admin = auth.admin;
+
+    // Fetch step content for outlier sensitivity
+    const { data: step } = await admin
+        .from("activity_steps")
+        .select("content")
+        .eq("id", stepId)
+        .single();
+    const sensitivityMap: Record<string, number> = { strict: 1.0, normal: 1.5, lenient: 2.0 };
+    const sensitivity = sensitivityMap[(step?.content as any)?.outlierSensitivity ?? "normal"];
+
+    // Fetch all assignments with their scores
+    const { data: assignments } = await admin
+        .from("peer_evaluation_assignments")
+        .select("id, evaluator_id, evaluator_group_id, target_submission_id, eval_submission_id")
+        .eq("step_id", stepId)
+        .not("eval_submission_id", "is", null);
+
+    if (!assignments?.length) return {};
+
+    // Load the actual scores from eval submissions
+    const evalSubIds = assignments.map((a: any) => a.eval_submission_id);
+    const { data: evalSubs } = await admin
+        .from("activity_submissions")
+        .select("id, self_eval_rubric_scores")
+        .in("id", evalSubIds);
+
+    const scoreMap = new Map<string, number>();
+    for (const es of evalSubs ?? []) {
+        const scores = (es.self_eval_rubric_scores ?? {}) as Record<string, number>;
+        const total = Object.values(scores).reduce((a: number, b: number) => a + b, 0);
+        scoreMap.set(es.id, total);
+    }
+
+    // Group by target submission to compute median and std dev
+    const byTarget = new Map<string, { assignmentId: string; score: number }[]>();
+    for (const a of assignments) {
+        const score = scoreMap.get(a.eval_submission_id);
+        if (score === undefined) continue;
+        const list = byTarget.get(a.target_submission_id) ?? [];
+        list.push({ assignmentId: a.id, score });
+        byTarget.set(a.target_submission_id, list);
+    }
+
+    const updates: { id: string; reliability_score: number; is_outlier: boolean }[] = [];
+
+    for (const [, items] of byTarget) {
+        if (items.length < 2) continue;
+        const scores = items.map(i => i.score);
+        const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+        const sorted = [...scores].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        const median = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+        const variance = scores.reduce((a, b) => a + (b - mean) ** 2, 0) / scores.length;
+        const stdDev = Math.sqrt(variance);
+
+        for (const item of items) {
+            const deviation = Math.abs(item.score - median);
+            const reliability = 1 / (1 + deviation);
+            const isOutlier = stdDev > 0 ? deviation > sensitivity * stdDev : false;
+            updates.push({ id: item.assignmentId, reliability_score: reliability, is_outlier: isOutlier });
+        }
+    }
+
+    for (const u of updates) {
+        await admin
+            .from("peer_evaluation_assignments")
+            .update({ reliability_score: u.reliability_score, is_outlier: u.is_outlier })
+            .eq("id", u.id);
+    }
+
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return {};
+}
+
+/**
+ * Calculates and publishes final peer evaluation grades for all students.
+ */
+export async function publishPeerFinalGrades(
+    stepId: string,
+    excludeOutliers = false,
+): Promise<{ error?: string; published?: number }> {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const admin = auth.admin;
+
+    const { data: step } = await admin
+        .from("activity_steps")
+        .select("content, phase:activity_phases(activity:activities(unit:units(module_id)))")
+        .eq("id", stepId)
+        .single();
+    if (!step) return { error: "Paso no encontrado." };
+
+    const content = step.content as any;
+    const peerWeight = (content?.peerWeight ?? 30) / 100;
+    const nonEvaluatorPolicy = content?.nonEvaluatorPolicy ?? "fallback_teacher";
+    const penaltyPoints = content?.nonEvaluatorPenaltyPoints ?? 0;
+    const sourceStepId = content?.sourceStepId as string | undefined;
+    if (!sourceStepId) return { error: "No hay paso fuente configurado." };
+
+    const moduleId = ((step.phase as any)?.activity?.unit?.module_id) as string | undefined;
+    if (!moduleId) return { error: "No se encontró el módulo." };
+
+    // Fetch all assignments
+    const { data: assignments } = await admin
+        .from("peer_evaluation_assignments")
+        .select("id, evaluator_id, target_submission_id, eval_submission_id, reliability_score, is_outlier")
+        .eq("step_id", stepId);
+
+    // Fetch all source submissions (the ones being evaluated)
+    const { data: sourceSubs } = await admin
+        .from("activity_submissions")
+        .select("id, student_id, score")
+        .eq("step_id", sourceStepId);
+
+    // Fetch eval submission scores
+    const evalSubIds = (assignments ?? [])
+        .map((a: any) => a.eval_submission_id)
+        .filter(Boolean);
+
+    const evalScores = new Map<string, number>();
+    if (evalSubIds.length > 0) {
+        const { data: evalSubs } = await admin
+            .from("activity_submissions")
+            .select("id, self_eval_rubric_scores")
+            .in("id", evalSubIds);
+        for (const es of evalSubs ?? []) {
+            const scores = (es.self_eval_rubric_scores ?? {}) as Record<string, number>;
+            evalScores.set(es.id, Object.values(scores).reduce((a: number, b: number) => a + b, 0));
+        }
+    }
+
+    // Who evaluated (to detect non-evaluators)
+    const evaluatedBy = new Set<string>(
+        (assignments ?? [])
+            .filter((a: any) => a.eval_submission_id)
+            .map((a: any) => a.evaluator_id)
+            .filter(Boolean)
+    );
+
+    // Enrolled students
+    const { data: enrollments } = await admin
+        .from("module_enrollments")
+        .select("student_id")
+        .eq("module_id", moduleId);
+    const enrolledIds = new Set<string>(
+        (enrollments ?? []).map((e: any) => e.student_id as string)
+    );
+
+    // Group assignments by target_submission_id
+    const byTarget = new Map<string, { score: number; reliability: number }[]>();
+    for (const a of assignments ?? []) {
+        if (!a.eval_submission_id) continue;
+        if (excludeOutliers && a.is_outlier) continue;
+        const score = evalScores.get(a.eval_submission_id);
+        if (score === undefined) continue;
+        const reliability = a.reliability_score ?? 1;
+        const list = byTarget.get(a.target_submission_id) ?? [];
+        list.push({ score, reliability });
+        byTarget.set(a.target_submission_id, list);
+    }
+
+    // Rubric max for normalization
+    const rubric = (content?.rubric ?? []) as any[];
+    const rubricMax = rubric.reduce((sum: number, c: any) => {
+        const pts = c.levels?.map((l: any) => l.points) ?? [0];
+        return sum + Math.max(...pts);
+    }, 0) || 10;
+
+    const now = new Date().toISOString();
+    let published = 0;
+
+    for (const sub of sourceSubs ?? []) {
+        const evaluatorItems = byTarget.get(sub.id) ?? [];
+        const isNonEvaluator = sub.student_id ? !evaluatedBy.has(sub.student_id) : false;
+        const teacherScore = sub.score ?? 0;
+
+        let finalScore: number;
+
+        if (evaluatorItems.length === 0 || (isNonEvaluator && nonEvaluatorPolicy === "fallback_teacher")) {
+            finalScore = teacherScore;
+        } else {
+            // Weighted peer average
+            const totalReliability = evaluatorItems.reduce((a, b) => a + b.reliability, 0);
+            const weightedPeerRaw = totalReliability > 0
+                ? evaluatorItems.reduce((a, b) => a + b.score * b.reliability, 0) / totalReliability
+                : evaluatorItems.reduce((a, b) => a + b.score, 0) / evaluatorItems.length;
+            const weightedPeer = Math.round((weightedPeerRaw / rubricMax) * 1000) / 100; // normalize to /10
+
+            finalScore = Math.round(
+                (peerWeight * weightedPeer + (1 - peerWeight) * teacherScore) * 100
+            ) / 100;
+
+            if (isNonEvaluator && nonEvaluatorPolicy === "grade_penalty") {
+                finalScore = Math.max(0, finalScore - penaltyPoints);
+            }
+        }
+
+        await admin
+            .from("activity_submissions")
+            .update({
+                score: finalScore,
+                grading_mode: "score",
+                graded_at: now,
+                status: "published",
+                published_at: now,
+            })
+            .eq("id", sub.id);
+
+        published++;
+    }
+
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { published };
+}
+
 export async function updateUnitResources(unitId: string, resources: any[]) {
     if (!unitId) return { error: "ID de unidad es requerido." };
     const permission = await requireUnitPermission(unitId, "canEditModuleContent");

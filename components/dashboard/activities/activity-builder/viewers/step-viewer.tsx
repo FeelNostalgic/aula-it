@@ -1,9 +1,10 @@
 "use client";
 
-import { ActivityStepWithClientState, TheoryContent, QuizContent, PresentationContent, ResourceContent, DeliverableContent, AnimationContent, FileUploadContent, SelfEvaluationContent, ActivitySubmission, QuizAttempt, QuizStructuredAnswers } from "@/types/activity";
+import { ActivityStepWithClientState, TheoryContent, QuizContent, PresentationContent, ResourceContent, DeliverableContent, AnimationContent, FileUploadContent, SelfEvaluationContent, PeerEvaluationContent, ActivitySubmission, QuizAttempt, QuizStructuredAnswers } from "@/types/activity";
 import { DeliverableViewer } from "./deliverable-viewer";
 import { FileUploadViewer } from "./file-upload-viewer";
 import { SelfEvaluationViewer } from "./self-evaluation-viewer";
+import { PeerEvaluationViewer } from "./peer-evaluation-viewer";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -116,12 +117,19 @@ export function StepViewer({ step, activityId, submission, googleEmail, userId, 
             }
             return null;
         case 'peer_evaluation':
-            return (
-                <div className="flex flex-col items-center justify-center p-12 bg-surface-dark/20 rounded-2xl border border-white/5 text-center">
-                    <GraduationCap className="size-12 text-text-muted/20 mb-4" />
-                    <p className="text-text-muted font-mono text-sm uppercase tracking-widest">Coevaluación — próximamente</p>
-                </div>
-            );
+            if (activityId) {
+                return (
+                    <PeerEvaluationViewer
+                        content={step.content as PeerEvaluationContent}
+                        stepId={step.id}
+                        activityId={activityId}
+                        initialSubmission={submission}
+                        isPreview={isPreview}
+                        isClosed={step.is_activity_closed ?? false}
+                    />
+                );
+            }
+            return null;
         default:
             return (
                 <div className="flex flex-col items-center justify-center p-12 bg-surface-dark/20 rounded-2xl border border-white/5">

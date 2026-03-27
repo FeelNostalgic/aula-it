@@ -896,6 +896,7 @@ export function UnitDetailView({
                         <TabsContent value="evaluacion" className="mt-6 px-12 pb-12">
                             <UnitEvaluationTab
                                 unitId={unit.id}
+                                moduleId={unit.module_id}
                                 activities={activities}
                                 students={students}
                                 submissions={submissions}

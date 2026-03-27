@@ -443,3 +443,145 @@ export async function submitSelfEvaluation(
     revalidatePath(`/activities/${activityId}`);
     return {};
 }
+
+// ─── Coevaluación — acciones del alumno ──────────────────────────────────────
+
+export type PeerAssignmentWithTarget = {
+    id: string;
+    step_id: string;
+    evaluator_id: string | null;
+    evaluator_group_id: string | null;
+    target_submission_id: string;
+    eval_submission_id: string | null;
+    target_submission: {
+        id: string;
+        drive_file_url: string | null;
+        student_id: string | null;
+        group_id: string | null;
+        student?: { full_name: string | null } | null;
+        group?: { name: string } | null;
+    };
+};
+
+export async function getMyPeerAssignments(
+    stepId: string,
+): Promise<{ assignments?: PeerAssignmentWithTarget[]; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+
+    // Get the student's group in this step's module (for group-mode assignments)
+    const { data: stepRow } = await supabase
+        .from("activity_steps")
+        .select("phase:activity_phases(activity:activities(unit:units(module_id)))")
+        .eq("id", stepId)
+        .single();
+    const moduleId = (stepRow?.phase as any)?.activity?.unit?.module_id as string | undefined;
+
+    let groupId: string | null = null;
+    if (moduleId) {
+        const { data: memberRow } = await supabase
+            .from("module_group_members")
+            .select("group_id, group:module_groups(module_id)")
+            .eq("student_id", user.id)
+            .filter("group.module_id", "eq", moduleId)
+            .maybeSingle();
+        groupId = memberRow?.group_id ?? null;
+    }
+
+    // Fetch individual + group assignments
+    const orFilter = groupId
+        ? `evaluator_id.eq.${user.id},evaluator_group_id.eq.${groupId}`
+        : `evaluator_id.eq.${user.id}`;
+
+    const { data, error } = await supabase
+        .from("peer_evaluation_assignments")
+        .select(`
+            id, step_id, evaluator_id, evaluator_group_id, target_submission_id, eval_submission_id,
+            target_submission:activity_submissions!target_submission_id(
+                id, drive_file_url, student_id, group_id,
+                student:profiles!student_id(full_name),
+                group:module_groups!group_id(name)
+            )
+        `)
+        .eq("step_id", stepId)
+        .or(orFilter)
+        .order("created_at");
+
+    if (error) return { error: error.message };
+    return { assignments: (data ?? []) as unknown as PeerAssignmentWithTarget[] };
+}
+
+export async function submitPeerEvaluation(
+    assignmentId: string,
+    activityId: string,
+    rubricScores: Record<string, number>,
+    justifications: Record<string, string>,
+    qaNotes?: string,
+): Promise<{ error?: string }> {
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return { error: "No autenticado." };
+
+    // Verify the assignment belongs to this evaluator
+    const { data: assignment } = await supabase
+        .from("peer_evaluation_assignments")
+        .select("id, step_id, evaluator_id, evaluator_group_id, target_submission_id")
+        .eq("id", assignmentId)
+        .single();
+
+    if (!assignment) return { error: "Asignación no encontrada." };
+    if (assignment.evaluator_id && assignment.evaluator_id !== user.id) {
+        return { error: "No autorizado." };
+    }
+
+    // Create/update the peer eval submission
+    const { data: existing } = await supabase
+        .from("activity_submissions")
+        .select("id")
+        .eq("student_id", user.id)
+        .eq("step_id", assignment.step_id)
+        .maybeSingle();
+
+    let evalSubmissionId: string;
+
+    const filesPayload = qaNotes ? [{ qaNotes }] : null;
+
+    if (existing) {
+        await supabase
+            .from("activity_submissions")
+            .update({
+                self_eval_rubric_scores: rubricScores,
+                self_eval_justifications: justifications,
+                files: filesPayload,
+                status: "submitted",
+                submitted_at: new Date().toISOString(),
+            })
+            .eq("id", existing.id);
+        evalSubmissionId = existing.id;
+    } else {
+        const { data: newSub } = await supabase
+            .from("activity_submissions")
+            .insert({
+                student_id: user.id,
+                step_id: assignment.step_id,
+                self_eval_rubric_scores: rubricScores,
+                self_eval_justifications: justifications,
+                files: filesPayload,
+                status: "submitted",
+                submitted_at: new Date().toISOString(),
+            })
+            .select("id")
+            .single();
+        evalSubmissionId = newSub!.id;
+    }
+
+    // Link back to the assignment
+    await supabase
+        .from("peer_evaluation_assignments")
+        .update({ eval_submission_id: evalSubmissionId })
+        .eq("id", assignmentId);
+
+    revalidatePath(`/activities/${activityId}`);
+    return {};
+}

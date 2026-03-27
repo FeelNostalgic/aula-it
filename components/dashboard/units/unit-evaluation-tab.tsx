@@ -35,6 +35,7 @@ import { updateStepActivityClosed } from "@/app/activities/[id]/edit/actions";
 import { exportGradesAsCSV } from "@/lib/export-grades";
 import { toast } from "sonner";
 import { GradingModal } from "@/components/dashboard/shared/grading-modal";
+import { PeerEvaluationTeacherView } from "@/components/dashboard/units/peer-evaluation-teacher-view";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -80,13 +81,14 @@ type Submission = {
 
 interface UnitEvaluationTabProps {
     unitId: string;
+    moduleId: string;
     students: Student[];
     activities: Activity[];
     submissions: Submission[];
     activityIds?: string[];
 }
 
-export function UnitEvaluationTab({ unitId, students, activities, submissions, activityIds }: UnitEvaluationTabProps) {
+export function UnitEvaluationTab({ unitId, moduleId, students, activities, submissions, activityIds }: UnitEvaluationTabProps) {
     const [viewMode, setViewMode] = useState<'correction' | 'global'>('correction');
 
     const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>(() => {
@@ -332,9 +334,10 @@ export function UnitEvaluationTab({ unitId, students, activities, submissions, a
                                 className="h-full p-6"
                             >
                                 {selectedStepId && selectedActivityId && grouped[selectedActivityId]?.byStep[selectedStepId] ? (
-                                    <CorrectionDetail 
+                                    <CorrectionDetail
                                         stepId={selectedStepId}
                                         activityId={selectedActivityId}
+                                        moduleId={moduleId}
                                         stepData={grouped[selectedActivityId].byStep[selectedStepId]}
                                         onSubmissionsChange={setStepSubmissions}
                                         allSubmissions={stepSubmissions}
@@ -498,8 +501,8 @@ function SortableHeader({ column, label }: { column: Column<StepSubmissionRow, u
     );
 }
 
-function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, allSubmissions }: {
-    stepId: string, activityId: string, stepData: any, onSubmissionsChange: (rows: StepSubmissionRow[]) => void, allSubmissions: StepSubmissionRow[]
+function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmissionsChange, allSubmissions }: {
+    stepId: string, activityId: string, moduleId: string, stepData: any, onSubmissionsChange: (rows: StepSubmissionRow[]) => void, allSubmissions: StepSubmissionRow[]
 }) {
     const [gradingState, setGradingState] = useState<{ rows: StepSubmissionRow[]; index: number } | null>(null);
     const gradingSubmission = gradingState ? gradingState.rows[gradingState.index] : null;
@@ -628,6 +631,10 @@ function CorrectionDetail({ stepId, activityId, stepData, onSubmissionsChange, a
     });
 
     if (!stepData) return null;
+
+    if (stepData.stepType === 'peer_evaluation') {
+        return <PeerEvaluationTeacherView stepId={stepId} moduleId={moduleId} stepTitle={stepData.stepTitle} />;
+    }
 
     const selectedRows = table.getSelectedRowModel().rows.map(r => r.original);
     const selectedIdSet = new Set(selectedRows.map(r => r.id));

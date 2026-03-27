@@ -72,7 +72,7 @@ export default async function EvaluacionPage({
         students = profiles || [];
     }
 
-    const EVALUABLE_TYPES = ['deliverable', 'quiz', 'file_upload'];
+    const EVALUABLE_TYPES = ['deliverable', 'quiz', 'file_upload', 'self_evaluation', 'peer_evaluation'];
 
     const activities = activitiesData?.map(activity => {
         let totalXp = 0;
@@ -105,6 +105,7 @@ export default async function EvaluacionPage({
         <div className="px-12 pb-12 h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
             <UnitEvaluationTab
                 unitId={unit.id}
+                moduleId={unit.module_id}
                 activities={activities || []}
                 students={students || []}
                 submissions={submissions || []}
