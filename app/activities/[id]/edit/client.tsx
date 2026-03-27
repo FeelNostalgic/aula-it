@@ -362,7 +362,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user, 
                                     onUpdate={setActivityData}
                                 />
                             ) : selectedStep ? (
-                                <StepEditorPanel step={selectedStep} onUpdateStep={handleUpdateStep} activityId={activityData.id} />
+                                <StepEditorPanel step={selectedStep} onUpdateStep={handleUpdateStep} activityId={activityData.id} phases={phases} />
                             ) : (
                                 <div className="flex-1 flex flex-col items-center justify-center text-text-muted">
                                     <FileText className="size-12 mb-4 opacity-20" />

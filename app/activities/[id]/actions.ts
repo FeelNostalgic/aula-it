@@ -407,3 +407,39 @@ export async function getStepSubmissions(stepId: string) {
     if (error) return { error: error.message };
     return { data };
 }
+
+export async function submitSelfEvaluation(
+    stepId: string,
+    activityId: string,
+    rubricScores: Record<string, number>,
+    justifications: Record<string, string>,
+): Promise<{ error?: string }> {
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return { error: "No autenticado." };
+
+    const { data: step } = await supabase
+        .from("activity_steps")
+        .select("is_activity_closed")
+        .eq("id", stepId)
+        .single();
+    if (step?.is_activity_closed) return { error: "Las entregas están cerradas para este paso." };
+
+    const { error } = await supabase
+        .from("activity_submissions")
+        .upsert(
+            {
+                student_id: user.id,
+                step_id: stepId,
+                self_eval_rubric_scores: rubricScores,
+                self_eval_justifications: justifications,
+                status: "submitted",
+                submitted_at: new Date().toISOString(),
+            },
+            { onConflict: "student_id,step_id" }
+        );
+
+    if (error) return { error: error.message };
+    revalidatePath(`/activities/${activityId}`);
+    return {};
+}

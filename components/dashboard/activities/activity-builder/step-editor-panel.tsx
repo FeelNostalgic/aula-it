@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { ActivityStepWithClientState, CompletionMode } from "@/types/activity";
+import { ActivityStepWithClientState, ActivityPhaseWithSteps, CompletionMode } from "@/types/activity";
 import { TheoryEditor } from "./editors/theory-editor";
 import { AnimationEditor } from "./editors/animation-editor";
 
@@ -25,6 +25,14 @@ const ResourceEditor = dynamic(
     () => import("./editors/resource-editor").then(m => ({ default: m.ResourceEditor })),
     { ssr: false }
 );
+const SelfEvaluationEditor = dynamic(
+    () => import("./editors/self-evaluation-editor").then(m => ({ default: m.SelfEvaluationEditor })),
+    { ssr: false }
+);
+const PeerEvaluationEditor = dynamic(
+    () => import("./editors/peer-evaluation-editor").then(m => ({ default: m.PeerEvaluationEditor })),
+    { ssr: false }
+);
 
 import { Copy, Zap, ClipboardCheck, Eye, Minus } from "lucide-react";
 
@@ -44,9 +52,10 @@ interface StepEditorPanelProps {
     step?: ActivityStepWithClientState;
     onUpdateStep: (updatedStep: ActivityStepWithClientState) => void;
     activityId?: string;
+    phases?: ActivityPhaseWithSteps[];
 }
 
-export function StepEditorPanel({ step, onUpdateStep, activityId }: StepEditorPanelProps) {
+export function StepEditorPanel({ step, onUpdateStep, activityId, phases }: StepEditorPanelProps) {
     if (!step) {
         return (
             <div className="flex flex-col items-center justify-center p-8 text-center h-full text-text-muted">
@@ -109,6 +118,8 @@ export function StepEditorPanel({ step, onUpdateStep, activityId }: StepEditorPa
                 {step.type === "quiz" && <QuizEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === "presentation" && <PresentationEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === "resource" && <ResourceEditor step={step} onUpdate={onUpdateStep} />}
+                {step.type === "self_evaluation" && <SelfEvaluationEditor step={step} onUpdate={onUpdateStep} phases={phases} />}
+                {step.type === "peer_evaluation" && <PeerEvaluationEditor step={step} onUpdate={onUpdateStep} phases={phases} />}
             </div>
         </div>
     );

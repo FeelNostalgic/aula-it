@@ -11,7 +11,7 @@ import {
     Paperclip, CheckCircle2, Clock, Star, ExternalLink,
     Upload, X, AlertTriangle, CalendarClock, RefreshCw,
     FileText, Image, FileSpreadsheet, FileVideo, FileAudio,
-    FileCode, FileArchive, File, ClipboardList,
+    FileCode, FileArchive, File, ClipboardList, Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ interface FileUploadViewerProps {
     dueDate?: string | null;
     isPreview?: boolean;
     isClosed?: boolean;
+    groupName?: string | null;
 }
 
 const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.ElementType; className: string }> = {
@@ -139,7 +140,7 @@ function getMimeIcon(mimeType: string | null): LucideIcon {
     return File;
 }
 
-export function FileUploadViewer({ content, stepId, activityId, initialSubmission, dueDate, isPreview, isClosed }: FileUploadViewerProps) {
+export function FileUploadViewer({ content, stepId, activityId, initialSubmission, dueDate, isPreview, isClosed, groupName }: FileUploadViewerProps) {
     const [submission, setSubmission] = useState<ActivitySubmission | null>(initialSubmission ?? null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
@@ -337,6 +338,14 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
                         ? "Plazo cerrado — ya no se aceptan entregas."
                         : `Fecha límite: ${new Date(dueDate).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })}`
                     }
+                </div>
+            )}
+
+            {/* Group badge */}
+            {groupName && (
+                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-sm font-medium">
+                    <Users className="size-4 shrink-0" />
+                    Entrega grupal — <span className="font-bold">{groupName}</span>
                 </div>
             )}
 

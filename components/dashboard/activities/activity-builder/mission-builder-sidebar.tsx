@@ -381,6 +381,13 @@ function SortablePhaseHeader({
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('resource'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
                             {getTabStepIcon('resource')} Añadir Recursos
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('self_evaluation'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
+                            {getTabStepIcon('self_evaluation')} Añadir Autoevaluación
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setActivePhaseForStep(phase.id); setActiveStepType('peer_evaluation'); setIsAddingStep(true); }} className="cursor-pointer text-xs">
+                            {getTabStepIcon('peer_evaluation')} Añadir Coevaluación
+                        </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
 

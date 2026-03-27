@@ -497,7 +497,7 @@ export function ModuleGroupsTab({
                 getModuleGroups(moduleId).then((res) => { if (res.groups) setGroups(res.groups); });
             }
         });
-    }, [groups, enrolledStudents, moduleId, initialGroups]);
+    }, [groups, enrolledStudents, moduleId]);
 
     const handleCreateGroup = (name: string, color: string, maxMembers?: number) => {
         startTransition(async () => {
@@ -506,7 +506,7 @@ export function ModuleGroupsTab({
                 toast.error(result.error);
             } else {
                 toast.success(`Grupo "${name}" creado.`);
-                // La revalidación del servidor actualizará initialGroups en la próxima carga
+                // La revalidación del servidor recargará los grupos en la siguiente carga
             }
         });
     };

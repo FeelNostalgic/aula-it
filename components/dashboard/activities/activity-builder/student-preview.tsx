@@ -32,6 +32,7 @@ interface StudentPreviewProps {
     isPreview?: boolean;
     classBadges?: any[];
     earnedBadgeIds?: string[];
+    groupName?: string | null;
 }
 
 function StepXpBadge({ xp }: { xp: number }) {
@@ -164,7 +165,7 @@ function SortableTab({
     );
 }
 
-export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, viewsMap, googleEmail, isPreview = false, classBadges, earnedBadgeIds }: StudentPreviewProps) {
+export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, viewsMap, googleEmail, isPreview = false, classBadges, earnedBadgeIds, groupName }: StudentPreviewProps) {
     const allSteps = useMemo(() => {
         return phases.flatMap(p => p.steps.filter(s => s.is_visible !== false));
     }, [phases]);
@@ -525,6 +526,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                         googleEmail={googleEmail}
                                         userId={user?.id}
                                         studentName={profile?.full_name}
+                                        groupName={submissionsMap?.[selectedStep.id]?.group_id ? groupName : null}
                                     />
                                 </div>
                                 <div className="flex justify-between items-center px-6 py-3 border-t border-border/50 shrink-0 print:hidden">
@@ -590,6 +592,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                     userId={user?.id}
                                     studentName={profile?.full_name}
                                     isPreview={isPreview}
+                                    groupName={submissionsMap?.[selectedStep.id]?.group_id ? groupName : null}
                                 />
 
                                 {/* Navigation footer */}

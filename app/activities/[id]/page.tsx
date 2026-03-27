@@ -124,6 +124,18 @@ export default async function ActivityPage({
         }
     }
 
+    // Fetch student's group name for this module (used to show group badge in viewers)
+    let studentGroupName: string | null = null;
+    if (!isTeacher && activity.unit?.module_id) {
+        const { data: memberRow } = await supabase
+            .from("module_group_members")
+            .select("group:module_groups(name, module_id)")
+            .eq("student_id", user.id)
+            .filter("group.module_id", "eq", activity.unit.module_id)
+            .maybeSingle();
+        studentGroupName = (memberRow?.group as any)?.name ?? null;
+    }
+
     let viewsMap: Record<string, boolean> = {};
     if (!isTeacher && allStepIds.length > 0) {
         const { data: views } = await supabase
@@ -150,6 +162,7 @@ export default async function ActivityPage({
             classBadges={classBadges || []}
             earnedBadgeIds={earnedBadgeIds}
             readOnly={isReadOnlyTeacher}
+            groupName={studentGroupName}
         />
     );
 }

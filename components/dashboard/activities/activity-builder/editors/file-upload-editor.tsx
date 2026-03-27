@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { updateStepContent, updateStepDueDate } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { ListChecks, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { ListChecks, PanelRightClose, PanelRightOpen, Users } from "lucide-react";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -204,6 +204,40 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                     </div>
 
                     <StepConfigSection step={step} onUpdateStep={onUpdate} />
+
+                    {/* Group submission toggle */}
+                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
+                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Entrega Grupal</span>
+                        </div>
+                        <div className="p-5 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <Users className="size-4 text-text-muted shrink-0" />
+                                <div>
+                                    <p className="text-sm text-foreground font-medium">Entrega por grupos</p>
+                                    <p className="text-xs text-text-muted mt-0.5">
+                                        Todos los miembros del grupo comparten los archivos subidos.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                role="switch"
+                                aria-checked={!!content.is_group_submission}
+                                onClick={() => saveContent({ ...content, is_group_submission: !content.is_group_submission })}
+                                className={cn(
+                                    "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none",
+                                    content.is_group_submission ? "bg-accent-blue" : "bg-surface-dark border border-border/50"
+                                )}
+                            >
+                                <span
+                                    className={cn(
+                                        "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transition-transform",
+                                        content.is_group_submission ? "translate-x-5" : "translate-x-0"
+                                    )}
+                                />
+                            </button>
+                        </div>
+                    </div>
 
                     {/* Tipos de archivo */}
                     <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">

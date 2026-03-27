@@ -209,6 +209,10 @@ export function createMockSubmission(
     grading_mode: null,
     files: null,
     published_at: null,
+    group_id: null,
+    self_eval_rubric_scores: null,
+    self_eval_justifications: null,
+    peer_eval_override_score: null,
     ...overrides,
   };
 }

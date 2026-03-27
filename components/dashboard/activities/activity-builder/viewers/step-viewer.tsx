@@ -1,8 +1,9 @@
 "use client";
 
-import { ActivityStepWithClientState, TheoryContent, QuizContent, PresentationContent, ResourceContent, DeliverableContent, AnimationContent, FileUploadContent, ActivitySubmission, QuizAttempt, QuizStructuredAnswers } from "@/types/activity";
+import { ActivityStepWithClientState, TheoryContent, QuizContent, PresentationContent, ResourceContent, DeliverableContent, AnimationContent, FileUploadContent, SelfEvaluationContent, ActivitySubmission, QuizAttempt, QuizStructuredAnswers } from "@/types/activity";
 import { DeliverableViewer } from "./deliverable-viewer";
 import { FileUploadViewer } from "./file-upload-viewer";
+import { SelfEvaluationViewer } from "./self-evaluation-viewer";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -39,9 +40,10 @@ interface StepViewerProps {
     userId?: string | null;
     studentName?: string | null;
     isPreview?: boolean;
+    groupName?: string | null;
 }
 
-export function StepViewer({ step, activityId, submission, googleEmail, userId, studentName, isPreview }: StepViewerProps) {
+export function StepViewer({ step, activityId, submission, googleEmail, userId, studentName, isPreview, groupName }: StepViewerProps) {
     if (!step) return null;
     if (step.is_locked) {
         return (
@@ -76,6 +78,7 @@ export function StepViewer({ step, activityId, submission, googleEmail, userId, 
                         dueDate={step.due_date}
                         isPreview={isPreview}
                         isClosed={step.is_activity_closed ?? false}
+                        groupName={groupName}
                     />
                 );
             }
@@ -91,12 +94,34 @@ export function StepViewer({ step, activityId, submission, googleEmail, userId, 
                         dueDate={step.due_date}
                         isPreview={isPreview}
                         isClosed={step.is_activity_closed ?? false}
+                        groupName={groupName}
                     />
                 );
             }
             return null;
         case 'animation':
             return <AnimationViewer content={step.content as AnimationContent} />;
+        case 'self_evaluation':
+            if (activityId) {
+                return (
+                    <SelfEvaluationViewer
+                        content={step.content as SelfEvaluationContent}
+                        stepId={step.id}
+                        activityId={activityId}
+                        initialSubmission={submission}
+                        isPreview={isPreview}
+                        isClosed={step.is_activity_closed ?? false}
+                    />
+                );
+            }
+            return null;
+        case 'peer_evaluation':
+            return (
+                <div className="flex flex-col items-center justify-center p-12 bg-surface-dark/20 rounded-2xl border border-white/5 text-center">
+                    <GraduationCap className="size-12 text-text-muted/20 mb-4" />
+                    <p className="text-text-muted font-mono text-sm uppercase tracking-widest">Coevaluación — próximamente</p>
+                </div>
+            );
         default:
             return (
                 <div className="flex flex-col items-center justify-center p-12 bg-surface-dark/20 rounded-2xl border border-white/5">

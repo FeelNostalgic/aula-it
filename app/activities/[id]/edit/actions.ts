@@ -109,6 +109,10 @@ export async function createStep(phaseId: string, title: string, type: ActivityS
         defaultContent = { items: [], markdownHeader: '' };
     } else if (type === 'file_upload') {
         defaultContent = { instructionsMarkdown: '', allowedTypes: ['pdf', 'image', 'word'], maxFileSizeMb: 10, maxFiles: 1 };
+    } else if (type === 'self_evaluation') {
+        defaultContent = { rubric: [], requireJustification: false, countsTowardGrade: false };
+    } else if (type === 'peer_evaluation') {
+        defaultContent = { mode: 'individual', sourceStepId: '', rubric: [], requireJustification: false, submissionsPerEvaluator: 2, peerWeight: 30, anonymousEvaluation: true, outlierSensitivity: 'normal', nonEvaluatorPolicy: 'fallback_teacher' };
     }
 
     const admin = createAdminClient();

@@ -7,7 +7,7 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
-import { PencilRuler, ExternalLink, Send, CheckCircle2, Clock, Star, Link, Copy, CalendarClock, AlertTriangle, ClipboardList } from "lucide-react";
+import { PencilRuler, ExternalLink, Send, CheckCircle2, Clock, Star, Link, Copy, CalendarClock, AlertTriangle, ClipboardList, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DeliverableContent, ActivitySubmission, SubmissionStatus, RubricCriteria, criteriaMaxPoints } from "@/types/activity";
@@ -25,6 +25,7 @@ interface DeliverableViewerProps {
     dueDate?: string | null;
     isPreview?: boolean;
     isClosed?: boolean;
+    groupName?: string | null;
 }
 
 const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.ElementType; className: string }> = {
@@ -98,7 +99,7 @@ function RubricDisplay({ rubric, selectedScores, isPublished }: { rubric: Rubric
     );
 }
 
-export function DeliverableViewer({ content, stepId, activityId, initialSubmission, googleEmail: initialGoogleEmail, dueDate, isPreview, isClosed }: DeliverableViewerProps) {
+export function DeliverableViewer({ content, stepId, activityId, initialSubmission, googleEmail: initialGoogleEmail, dueDate, isPreview, isClosed, groupName }: DeliverableViewerProps) {
     const [submission, setSubmission] = useState<ActivitySubmission | null>(initialSubmission ?? null);
     const [url, setUrl] = useState(initialSubmission?.drive_file_url ?? "");
     const [isPending, startTransition] = useTransition();
@@ -141,6 +142,14 @@ export function DeliverableViewer({ content, stepId, activityId, initialSubmissi
                         ? "Plazo cerrado — ya no se aceptan entregas."
                         : `Fecha límite: ${new Date(dueDate).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })}`
                     }
+                </div>
+            )}
+
+            {/* Group badge */}
+            {groupName && (
+                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-sm font-medium">
+                    <Users className="size-4 shrink-0" />
+                    Entrega grupal — <span className="font-bold">{groupName}</span>
                 </div>
             )}
 
