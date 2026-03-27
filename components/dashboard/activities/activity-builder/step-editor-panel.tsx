@@ -43,9 +43,10 @@ const COMPLETION_ICONS: Record<CompletionMode, typeof Minus> = {
 interface StepEditorPanelProps {
     step?: ActivityStepWithClientState;
     onUpdateStep: (updatedStep: ActivityStepWithClientState) => void;
+    activityId?: string;
 }
 
-export function StepEditorPanel({ step, onUpdateStep }: StepEditorPanelProps) {
+export function StepEditorPanel({ step, onUpdateStep, activityId }: StepEditorPanelProps) {
     if (!step) {
         return (
             <div className="flex flex-col items-center justify-center p-8 text-center h-full text-text-muted">
@@ -102,7 +103,7 @@ export function StepEditorPanel({ step, onUpdateStep }: StepEditorPanelProps) {
 
             <div className="flex-1 overflow-hidden">
                 {step.type === "theory" && <TheoryEditor step={step} onUpdate={onUpdateStep} />}
-                {step.type === "deliverable" && <DeliverableEditor step={step} onUpdate={onUpdateStep} />}
+                {step.type === "deliverable" && <DeliverableEditor step={step} onUpdate={onUpdateStep} activityId={activityId} />}
                 {step.type === "file_upload" && <FileUploadEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === "animation" && <AnimationEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === "quiz" && <QuizEditor step={step} onUpdate={onUpdateStep} />}

@@ -80,17 +80,24 @@ vi.mock("@/utils/supabase/admin", () => ({
 }));
 
 // ─── @/lib/google-drive-api ───────────────────────────────────────────────────
+// Keep getOrCreateFolder and sanitizeDriveFolderName as real implementations
+// so upload tests can verify folder name sanitization through the drive client.
 
-vi.mock("@/lib/google-drive-api", () => ({
-  getAuthorizeUrl: vi.fn(),
-  exchangeCodeForTokens: vi.fn(),
-  getDriveClient: vi.fn(),
-  extractFileIdFromUrl: vi.fn(),
-  copyFile: vi.fn(),
-  shareFile: vi.fn(),
-  listPermissions: vi.fn(),
-  removePermission: vi.fn(),
-}));
+vi.mock("@/lib/google-drive-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/google-drive-api")>();
+  return {
+    ...actual,
+    getAuthorizeUrl: vi.fn(),
+    exchangeCodeForTokens: vi.fn(),
+    getDriveClient: vi.fn(),
+    extractFileIdFromUrl: vi.fn(),
+    copyFile: vi.fn(),
+    shareFile: vi.fn(),
+    listPermissions: vi.fn(),
+    removePermission: vi.fn(),
+    updateFilePermissionRole: vi.fn(),
+  };
+});
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 

@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { ActivityPhase, ActivityStep, ActivityStepType, CompletionMode, RubricCriteria, RubricLevel } from "@/types/activity";
 import { extractGoogleFileId } from "@/lib/google-drive-urls";
 import { setFormAcceptingResponses } from "@/lib/google-forms-api";
+import { getDriveClient, updateFilePermissionRole } from "@/lib/google-drive-api";
 
 type RubricCriterionLibraryVisibility = "private" | "public";
 
@@ -508,6 +509,37 @@ export async function updatePhaseStepsVisibility(phaseId: string, isVisible: boo
     return { data: true };
 }
 
+// Locks/unlocks all teacher_copy deliverable submissions for a set of step IDs.
+// Best-effort: logs warnings but never throws.
+async function syncDeliverableFilesLock(
+    stepIds: string[],
+    refreshToken: string,
+    readOnly: boolean,
+    admin: ReturnType<typeof createAdminClient>
+): Promise<void> {
+    if (stepIds.length === 0) return;
+    const { data: subs } = await admin
+        .from("activity_submissions")
+        .select("drive_file_id, student:profiles!inner(google_email)")
+        .in("step_id", stepIds)
+        .not("drive_file_id", "is", null);
+
+    if (!subs || subs.length === 0) return;
+
+    const driveClient = getDriveClient(refreshToken);
+    const role = readOnly ? "reader" : "writer";
+
+    for (const sub of subs) {
+        const email = (sub.student as any)?.google_email as string | null;
+        if (!sub.drive_file_id || !email) continue;
+        try {
+            await updateFilePermissionRole(driveClient, sub.drive_file_id, email, role);
+        } catch (err: any) {
+            console.warn(`Drive permission warning (${sub.drive_file_id}):`, err?.message);
+        }
+    }
+}
+
 export async function updatePhaseStepsActivityClosed(phaseId: string, isClosed: boolean) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -521,18 +553,21 @@ export async function updatePhaseStepsActivityClosed(phaseId: string, isClosed: 
         .eq('phase_id', phaseId);
     if (error) return { error: error.message };
 
-    // Sync any google_form quiz steps in this phase
+    // Sync google_form quiz steps and teacher_copy deliverable steps in this phase
     const { data: steps } = await admin
         .from('activity_steps')
-        .select('id, content')
+        .select('id, type, content')
         .eq('phase_id', phaseId)
-        .eq('type', 'quiz');
+        .in('type', ['quiz', 'deliverable']);
 
     const googleFormSteps = (steps ?? []).filter(
-        s => (s.content as any)?.quizMode === 'google_form' && (s.content as any)?.googleFormUrl
+        s => s.type === 'quiz' && (s.content as any)?.quizMode === 'google_form' && (s.content as any)?.googleFormUrl
     );
+    const teacherCopyStepIds = (steps ?? [])
+        .filter(s => s.type === 'deliverable' && (s.content as any)?.deliveryMode === 'teacher_copy')
+        .map(s => s.id);
 
-    if (googleFormSteps.length > 0) {
+    if (googleFormSteps.length > 0 || teacherCopyStepIds.length > 0) {
         const { data: tokenRow } = await admin
             .from('teacher_drive_tokens')
             .select('refresh_token')
@@ -550,6 +585,7 @@ export async function updatePhaseStepsActivityClosed(phaseId: string, isClosed: 
                     }
                 }
             }
+            await syncDeliverableFilesLock(teacherCopyStepIds, tokenRow.refresh_token, isClosed, admin);
         }
     }
 
@@ -589,23 +625,36 @@ export async function updateStepActivityClosed(stepId: string, isClosed: boolean
         return { error: error.message };
     }
 
-    // If it's a google_form quiz, also sync the form's accepting state
     const content = data?.content as any;
-    if (data?.type === 'quiz' && content?.quizMode === 'google_form' && content?.googleFormUrl) {
-        const formId = extractGoogleFileId(content.googleFormUrl);
-        if (formId) {
-            const { data: tokenRow } = await admin
-                .from('teacher_drive_tokens')
-                .select('refresh_token')
-                .eq('teacher_id', user.id)
-                .single();
-            if (tokenRow?.refresh_token) {
-                try {
-                    await setFormAcceptingResponses(tokenRow.refresh_token, formId, !isClosed);
-                    return { data, formssynced: true };
-                } catch (formErr: any) {
-                    return { data, formserror: (formErr?.message as string) };
+    const needsToken =
+        (data?.type === 'quiz' && content?.quizMode === 'google_form' && content?.googleFormUrl) ||
+        (data?.type === 'deliverable' && content?.deliveryMode === 'teacher_copy');
+
+    if (needsToken) {
+        const { data: tokenRow } = await admin
+            .from('teacher_drive_tokens')
+            .select('refresh_token')
+            .eq('teacher_id', user.id)
+            .single();
+
+        if (tokenRow?.refresh_token) {
+            // Google Form quiz
+            if (data?.type === 'quiz' && content?.quizMode === 'google_form' && content?.googleFormUrl) {
+                const formId = extractGoogleFileId(content.googleFormUrl);
+                if (formId) {
+                    try {
+                        await setFormAcceptingResponses(tokenRow.refresh_token, formId, !isClosed);
+                        return { data, formssynced: true };
+                    } catch (formErr: any) {
+                        return { data, formserror: (formErr?.message as string) };
+                    }
                 }
+            }
+
+            // Teacher-copy deliverable
+            if (data?.type === 'deliverable' && content?.deliveryMode === 'teacher_copy') {
+                await syncDeliverableFilesLock([stepId], tokenRow.refresh_token, isClosed, admin);
+                return { data, drivesynced: true };
             }
         }
     }

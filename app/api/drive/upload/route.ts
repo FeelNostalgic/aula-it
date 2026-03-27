@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
-import { getDriveClient } from "@/lib/google-drive-api";
+import { getDriveClient, sanitizeDriveFolderName, getOrCreateFolder } from "@/lib/google-drive-api";
 import { AllowedFileType } from "@/types/activity";
 import { Readable } from "stream";
 
@@ -34,58 +34,6 @@ function getMimeAccepted(allowedTypes: AllowedFileType[]): string[] | null {
     return allowedTypes.flatMap(t => ALLOWED_MIME_MAP[t]);
 }
 
-/**
- * Sanitizes a string for use as a Google Drive folder name.
- * Drive itself allows most characters, but / is a path separator in many
- * clients and tools, and other shell-unsafe characters can cause confusion.
- */
-function sanitizeDriveFolderName(name: string): string {
-    return (
-        name
-            .replace(/\//g, "-")   // TCP/IP → TCP-IP
-            .replace(/\\/g, "-")
-            .replace(/:/g, "-")
-            .replace(/\*/g, "_")
-            .replace(/\?/g, "_")
-            .replace(/"/g, "'")
-            .replace(/[<>|]/g, "-")
-            .trim()
-    ) || "Sin nombre";
-}
-
-async function getOrCreateFolder(
-    driveClient: ReturnType<typeof getDriveClient>,
-    parentId: string | null,
-    name: string
-): Promise<string> {
-    const safeName = sanitizeDriveFolderName(name);
-    const query = [
-        `name = '${safeName.replace(/'/g, "\\'")}'`,
-        "mimeType = 'application/vnd.google-apps.folder'",
-        "trashed = false",
-        parentId ? `'${parentId}' in parents` : "'root' in parents",
-    ].join(" and ");
-
-    const list = await driveClient.files.list({
-        q: query,
-        fields: "files(id)",
-        spaces: "drive",
-    });
-
-    if (list.data.files && list.data.files.length > 0) {
-        return list.data.files[0].id!;
-    }
-
-    const created = await driveClient.files.create({
-        requestBody: {
-            name: safeName,
-            mimeType: "application/vnd.google-apps.folder",
-            parents: parentId ? [parentId] : undefined,
-        },
-        fields: "id",
-    });
-    return created.data.id!;
-}
 
 export async function POST(request: NextRequest) {
     const supabase = await createClient();

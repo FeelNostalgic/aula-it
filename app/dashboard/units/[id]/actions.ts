@@ -568,6 +568,48 @@ export async function getUnitStepSubmissions(
         };
     });
 
+    // Add virtual rows for students who haven't submitted yet
+    if (students && students.length > 0) {
+        const submittedKeys = new Set(results.map(r => `${r.student_id}:${r.step_id}`));
+        for (const step of steps) {
+            const meta = stepMeta[step.id];
+            if (!meta) continue;
+            for (const student of students) {
+                const key = `${student.student_id}:${step.id}`;
+                if (submittedKeys.has(key)) continue;
+                results.push({
+                    id: `virtual:${key}`,
+                    step_id: step.id,
+                    step_title: meta.title,
+                    step_type: meta.stepType as any,
+                    activity_id: meta.activityId,
+                    activity_title: meta.activityTitle,
+                    student_id: student.student_id,
+                    student_name: student.name,
+                    student_email: "",
+                    drive_file_url: null,
+                    drive_file_id: null,
+                    files: null,
+                    status: "not_submitted",
+                    submitted_at: null,
+                    delivery_mode: meta.deliveryMode,
+                    score: null,
+                    feedback: null,
+                    graded_at: null,
+                    published_at: null,
+                    rubric_scores: null,
+                    grading_mode: null,
+                    step_rubric: meta.rubric ?? [],
+                    quiz_content: meta.quizContent,
+                    quiz_attempt: null,
+                    quiz_attempts: [],
+                    step_is_locked: meta.isLocked,
+                    synthetic: true,
+                });
+            }
+        }
+    }
+
     return { data: results };
 }
 

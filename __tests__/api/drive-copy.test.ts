@@ -97,8 +97,22 @@ describe("POST /api/drive/copy", () => {
       .build();
     vi.mocked(createClient).mockResolvedValue(userClient as any);
     vi.mocked(verifyTeacherOwnsActivity).mockResolvedValue(true);
+    vi.mocked(extractFileIdFromUrl).mockReturnValue("template-id");
 
     const { client: adminClient } = new SupabaseMockBuilder()
+      .mockQuery("activity_steps", {
+        data: {
+          title: "Entregable",
+          content: { templateUrl: "https://drive.google.com/file/d/template-id/view" },
+          phase: {
+            activity: {
+              title: "Reto",
+              unit: { name: "Unidad", module: { name: "Módulo", teacher_id: "teacher-123" } },
+            },
+          },
+        },
+        error: null,
+      })
       .mockQuery("teacher_drive_tokens", { data: null, error: null })
       .build();
     vi.mocked(createAdminClient).mockReturnValue(adminClient as any);
@@ -149,17 +163,24 @@ describe("POST /api/drive/copy", () => {
     vi.mocked(verifyTeacherOwnsActivity).mockResolvedValue(true);
 
     const { client: adminClient } = new SupabaseMockBuilder()
-      .mockQuery("teacher_drive_tokens", {
-        data: { refresh_token: "mock-refresh" },
-        error: null,
-      })
       .mockQuery("activity_steps", {
         data: {
           title: "Entregable",
           content: { templateUrl: "https://drive.google.com/file/d/template-id/view" },
+          phase: {
+            activity: {
+              title: "Reto",
+              unit: { name: "Unidad", module: { name: "Módulo", teacher_id: user.id } },
+            },
+          },
         },
         error: null,
       })
+      .mockQuery("teacher_drive_tokens", {
+        data: { refresh_token: "mock-refresh" },
+        error: null,
+      })
+      .mockQuery("activity_submissions", { data: [], error: null }) // no existing copies
       .mockQuery("activities", {
         data: { unit: { module_id: "module-1" } },
         error: null,
@@ -168,7 +189,7 @@ describe("POST /api/drive/copy", () => {
         data: [
           {
             student_id: "student-1",
-            student: { id: "student-1", full_name: "Alice", google_email: "alice@school.com" },
+            student: { id: "student-1", full_name: "Alice", google_email: "alice@gmail.com" },
           },
           {
             student_id: "student-2",
@@ -181,7 +202,14 @@ describe("POST /api/drive/copy", () => {
       .build();
     vi.mocked(createAdminClient).mockReturnValue(adminClient as any);
 
-    const fakeClient = {};
+    // Drive client needs files.list + files.create for getOrCreateFolder, and files.update to move
+    const fakeClient = {
+      files: {
+        list: vi.fn().mockResolvedValue({ data: { files: [] } }),
+        create: vi.fn().mockResolvedValue({ data: { id: "folder-id" } }),
+        update: vi.fn().mockResolvedValue({ data: { id: "new-file-id" } }),
+      },
+    };
     vi.mocked(getDriveClient).mockReturnValue(fakeClient as any);
     vi.mocked(extractFileIdFromUrl).mockReturnValue("template-id");
     vi.mocked(copyFile).mockResolvedValue({
@@ -198,6 +226,6 @@ describe("POST /api/drive/copy", () => {
     expect(body.skipped).toBe(1); // student-2 has no google_email
     expect(body.errors).toHaveLength(0);
     expect(copyFile).toHaveBeenCalledWith(fakeClient, "template-id", "[Alice] Entregable");
-    expect(shareFile).toHaveBeenCalledWith(fakeClient, "new-file-id", "alice@school.com", "writer");
+    expect(shareFile).toHaveBeenCalledWith(fakeClient, "new-file-id", "alice@gmail.com", "writer");
   });
 });

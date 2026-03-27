@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { updateStepContent, updateStepDueDate } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Link2, HardDrive, CheckCircle2, Copy, MousePointer, ExternalLink, ListChecks } from "lucide-react";
+import { Link2, HardDrive, CheckCircle2, Copy, MousePointer, ExternalLink, ListChecks, Send } from "lucide-react";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toEditableUrl } from "@/lib/google-drive-urls";
@@ -26,9 +26,10 @@ import { StepConfigSection } from "./step-config-section";
 interface DeliverableEditorProps {
     step: ActivityStepWithClientState;
     onUpdate: (updated: ActivityStepWithClientState) => void;
+    activityId?: string;
 }
 
-export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
+export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEditorProps) {
     const defaultContent = (step.content as DeliverableContent) || { templateUrl: "", instructionsMarkdown: "", deliveryMode: "manual" };
     const [content, setContent] = useState<DeliverableContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
@@ -36,6 +37,7 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
     const [driveConnected, setDriveConnected] = useState<boolean | null>(null);
     const [rubricModalOpen, setRubricModalOpen] = useState(false);
     const [dueDate, setDueDate] = useState<string | null>(step.due_date ?? null);
+    const [isDistributing, setIsDistributing] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const dueDateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
@@ -121,6 +123,34 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
             if (res.error) toast.error("Error al guardar la fecha límite");
             setIsSaving(false);
         }, 1000);
+    };
+
+    const handleDistribute = () => {
+        if (!activityId) return;
+        setIsDistributing(true);
+
+        const promise = fetch("/api/drive/copy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ stepId: step.id, activityId }),
+        })
+            .then(async (res) => {
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error ?? "Error al distribuir la plantilla");
+                return data as { copied: number; skipped: number; errors: string[] };
+            })
+            .finally(() => setIsDistributing(false));
+
+        toast.promise(promise, {
+            loading: "Distribuyendo plantilla...",
+            success: (data) => {
+                const parts = [`${data.copied} copia${data.copied !== 1 ? "s" : ""} creada${data.copied !== 1 ? "s" : ""}`];
+                if (data.skipped > 0) parts.push(`${data.skipped} sin @gmail`);
+                if (data.errors?.length > 0) parts.push(`${data.errors.length} error${data.errors.length !== 1 ? "es" : ""}`);
+                return parts.join(" · ");
+            },
+            error: (err) => err?.message ?? "Error al distribuir la plantilla",
+        });
     };
 
     const deliveryMode: DeliveryMode = content.deliveryMode ?? "manual";
@@ -260,21 +290,35 @@ export function DeliverableEditor({ step, onUpdate }: DeliverableEditorProps) {
                             </p>
 
                             {deliveryMode === "teacher_copy" && (
-                                <div className="flex items-center gap-3 px-4 py-3 bg-surface border border-border-strong rounded-xl">
-                                    <HardDrive className="size-4 text-accent-blue shrink-0" />
-                                    {driveConnected === null && <span className="text-xs text-text-muted animate-pulse">Verificando conexión...</span>}
-                                    {driveConnected === true && (
-                                        <span className="text-xs text-emerald-400 flex items-center gap-1.5 font-semibold">
-                                            <CheckCircle2 className="size-3.5" /> Drive conectado
-                                        </span>
-                                    )}
-                                    {driveConnected === false && (
-                                        <span className="text-xs text-text-muted flex-1">
-                                            Drive no conectado —{" "}
-                                            <a href="/settings" target="_blank" rel="noopener noreferrer" className="text-accent-blue hover:underline">
-                                                Conectar en Configuración →
-                                            </a>
-                                        </span>
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-3 px-4 py-3 bg-surface border border-border-strong rounded-xl">
+                                        <HardDrive className="size-4 text-accent-blue shrink-0" />
+                                        {driveConnected === null && <span className="text-xs text-text-muted animate-pulse">Verificando conexión...</span>}
+                                        {driveConnected === true && (
+                                            <span className="text-xs text-emerald-400 flex items-center gap-1.5 font-semibold">
+                                                <CheckCircle2 className="size-3.5" /> Drive conectado
+                                            </span>
+                                        )}
+                                        {driveConnected === false && (
+                                            <span className="text-xs text-text-muted flex-1">
+                                                Drive no conectado —{" "}
+                                                <a href="/settings" target="_blank" rel="noopener noreferrer" className="text-accent-blue hover:underline">
+                                                    Conectar en Configuración →
+                                                </a>
+                                            </span>
+                                        )}
+                                    </div>
+                                    {driveConnected === true && content.templateUrl && activityId && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleDistribute}
+                                            disabled={isDistributing}
+                                            className="w-full h-9 text-xs gap-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                                        >
+                                            <Send className="size-3.5" />
+                                            {isDistributing ? "Distribuyendo..." : "Distribuir plantilla a alumnos"}
+                                        </Button>
                                     )}
                                 </div>
                             )}

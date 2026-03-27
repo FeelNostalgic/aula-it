@@ -619,6 +619,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                 setPhases(phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => s.id === stepId ? { ...s, is_activity_closed: nextClosed } : s) } : p));
                 if ("formserror" in result) return "Entregas actualizadas, pero no se pudo sincronizar Google Forms";
                 if ("formssynced" in result) return nextClosed ? "Formulario cerrado en Google Forms" : "Formulario abierto en Google Forms";
+                if ("drivesynced" in result) return nextClosed ? "Documentos bloqueados en Drive" : "Documentos desbloqueados en Drive";
                 return nextClosed ? "Entregas cerradas" : "Entregas abiertas";
             },
             error: "Error al actualizar cierre de entregas",
