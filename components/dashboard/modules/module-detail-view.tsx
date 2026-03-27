@@ -23,6 +23,7 @@ import {
     Lock,
     Trophy,
     ShieldAlert,
+    UsersRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -38,6 +39,7 @@ import { RankBadge } from "@/components/dashboard/badges/rank-badge";
 import { ModuleLeaderboard } from "./module-leaderboard";
 import { ModuleCollaboratorsTab } from "./module-collaborators-dialog";
 import { getModuleIconVisualProps } from "@/components/dashboard/modules/module-identity";
+import { ModuleGroupsTab } from "./module-groups-tab";
 import {
     getModuleRoleLabel,
     getModuleRoleTooltip,

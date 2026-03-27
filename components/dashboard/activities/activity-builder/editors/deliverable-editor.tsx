@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { updateStepContent, updateStepDueDate } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Link2, HardDrive, CheckCircle2, Copy, MousePointer, ExternalLink, ListChecks, Send } from "lucide-react";
+import { Link2, HardDrive, CheckCircle2, Copy, MousePointer, ExternalLink, ListChecks, Send, Users } from "lucide-react";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toEditableUrl } from "@/lib/google-drive-urls";
@@ -99,6 +99,19 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
         } catch {
             toast.error("Error al abrir Google Drive");
         }
+    };
+
+    const handleGroupToggle = (value: boolean) => {
+        const newContent = { ...content, is_group_submission: value };
+        setContent(newContent);
+        onUpdate({ ...step, content: newContent });
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        setIsSaving(true);
+        timeoutRef.current = setTimeout(async () => {
+            const res = await updateStepContent(step.id, newContent);
+            if (res.error) toast.error("Error al guardar configuración");
+            setIsSaving(false);
+        }, 500);
     };
 
     const handleRubricChange = (newRubric: RubricCriteria[]) => {
@@ -322,6 +335,40 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                                     )}
                                 </div>
                             )}
+                        </div>
+                    </div>
+
+                    {/* Group submission toggle */}
+                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
+                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Entrega Grupal</span>
+                        </div>
+                        <div className="p-5 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <Users className="size-4 text-text-muted shrink-0" />
+                                <div>
+                                    <p className="text-sm text-foreground font-medium">Entrega por grupos</p>
+                                    <p className="text-xs text-text-muted mt-0.5">
+                                        Un documento compartido por grupo en lugar de uno por alumno.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                role="switch"
+                                aria-checked={!!content.is_group_submission}
+                                onClick={() => handleGroupToggle(!content.is_group_submission)}
+                                className={cn(
+                                    "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none",
+                                    content.is_group_submission ? "bg-accent-blue" : "bg-surface-dark border border-border/50"
+                                )}
+                            >
+                                <span
+                                    className={cn(
+                                        "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transition-transform",
+                                        content.is_group_submission ? "translate-x-5" : "translate-x-0"
+                                    )}
+                                />
+                            </button>
                         </div>
                     </div>
 

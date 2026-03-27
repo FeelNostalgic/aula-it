@@ -10,8 +10,17 @@ export type ActivityPhase = {
     updated_at: string;
 };
 
-// Los cinco tipos de pasos soportados + resource + file_upload
-export type ActivityStepType = 'theory' | 'deliverable' | 'animation' | 'quiz' | 'presentation' | 'resource' | 'file_upload';
+// Tipos de pasos soportados
+export type ActivityStepType =
+    | 'theory'
+    | 'deliverable'
+    | 'animation'
+    | 'quiz'
+    | 'presentation'
+    | 'resource'
+    | 'file_upload'
+    | 'self_evaluation'
+    | 'peer_evaluation';
 
 export type CompletionMode = 'none' | 'required' | 'viewable';
 
@@ -73,6 +82,7 @@ export type DeliverableContent = {
     instructionsMarkdown: string;
     deliveryMode?: DeliveryMode; // undefined = 'manual' (backwards-compat)
     rubric?: RubricCriteria[];
+    is_group_submission?: boolean; // si true, la entrega es grupal
 };
 
 // 3. Animation/Interactive
@@ -280,6 +290,7 @@ export type FileUploadContent = {
     maxFileSizeMb: number;
     maxFiles: number;
     rubric?: RubricCriteria[];
+    is_group_submission?: boolean; // si true, todos los miembros del grupo comparten los archivos
 };
 
 // 6. Resource (Files/Links)
@@ -299,6 +310,44 @@ export type ResourceContent = {
     markdownHeader?: string;
 };
 
+// 8. Self-Evaluation (autoevaluación del alumno mediante rúbrica)
+export type SelfEvaluationContent = {
+    rubric: RubricCriteria[];
+    referenceStepId?: string;       // paso del que mostrar la entrega propia como contexto
+    requireJustification: boolean;  // exige texto de justificación por criterio
+    countsTowardGrade: boolean;     // si true, la autoevaluación contribuye a la nota final
+    selfEvalWeight?: number;        // % de la nota final (0–100), sólo si countsTowardGrade
+    instructionsMarkdown?: string;
+};
+
+// 9. Peer Evaluation (coevaluación entre alumnos o grupos)
+export type PeerEvaluationMode = 'individual' | 'group';
+export type OutlierSensitivity = 'strict' | 'normal' | 'lenient';
+export type NonEvaluatorPolicy = 'none' | 'fallback_teacher' | 'grade_penalty';
+
+export type PeerEvaluationContent = {
+    mode: PeerEvaluationMode;
+    sourceStepId: string;               // deliverable/file_upload cuyas submissions se evalúan
+    rubric: RubricCriteria[];
+    requireJustification: boolean;
+    // Modo A — Individual
+    submissionsPerEvaluator?: number;   // cuántos trabajos evalúa cada alumno
+    peerWeight?: number;                // % de la nota del promedio de pares (0–100)
+    anonymousEvaluation?: boolean;      // oculta el evaluador al alumno evaluado
+    peerFeedbackVisibleToStudents?: boolean; // el profesor revela justificaciones recibidas al publicar
+    // Anti-gaming
+    calibrationSubmissionId?: string;   // submission modelo para calibración previa obligatoria
+    minJustificationLength?: number;    // mínimo de caracteres por justificación
+    outlierSensitivity?: OutlierSensitivity; // strict=1σ | normal=1.5σ | lenient=2σ (default: 'normal')
+    nonEvaluatorPolicy?: NonEvaluatorPolicy; // qué pasa si un alumno no evalúa (default: 'fallback_teacher')
+    nonEvaluatorPenaltyPoints?: number; // descuento si policy = 'grade_penalty'
+    // Modo B — Grupos
+    evaluateAllGroups?: boolean;        // cada grupo evalúa a todos los demás
+    individualEvaluatorMode?: boolean;  // false=grupo envía 1 eval; true=cada miembro individualmente
+    livePresentationMode?: boolean;     // añade sección Q&A al final de la rúbrica
+    instructionsMarkdown?: string;
+};
+
 export type ActivityStepContent =
     | TheoryContent
     | DeliverableContent
@@ -307,13 +356,15 @@ export type ActivityStepContent =
     | PresentationContent
     | ResourceContent
     | FileUploadContent
+    | SelfEvaluationContent
+    | PeerEvaluationContent
     | null;
 
 // Tipos para el estado en cliente (inclusiones anidadas para el sidebar)
 export type ActivityStepWithClientState = ActivityStep & {
     isExpanded?: boolean;
     isSelected?: boolean;
-    content: TheoryContent | DeliverableContent | AnimationContent | QuizContent | PresentationContent | ResourceContent | FileUploadContent; // tipado fuerte
+    content: TheoryContent | DeliverableContent | AnimationContent | QuizContent | PresentationContent | ResourceContent | FileUploadContent | SelfEvaluationContent | PeerEvaluationContent;
 };
 
 export type ActivityPhaseWithSteps = ActivityPhase & {
@@ -326,8 +377,9 @@ export type SubmissionStatus = 'pending' | 'submitted' | 'graded' | 'published';
 
 export type ActivitySubmission = {
     id: string;
-    student_id: string;
+    student_id: string | null;      // null para entregas grupales
     step_id: string;
+    group_id: string | null;        // set para entregas grupales
     drive_file_url: string | null;
     drive_file_id: string | null;
     drive_file_name: string | null;
@@ -343,6 +395,11 @@ export type ActivitySubmission = {
     grading_mode: 'score' | 'rubric' | 'complete' | null;
     files: SubmissionFile[] | null;
     published_at: string | null;
+    // Autoevaluación (self_evaluation steps)
+    self_eval_rubric_scores: Record<string, number> | null;
+    self_eval_justifications: Record<string, string> | null;
+    // Coevaluación (peer_evaluation steps)
+    peer_eval_override_score: number | null;
 };
 
 // Step views (tracking de visualización de pasos por estudiante)

@@ -167,7 +167,14 @@ export async function getStudentSubmissionsForActivity(activityId: string): Prom
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return {};
 
-    // Get all step IDs for this activity
+    // Get all step IDs for this activity + module_id
+    const { data: activityRow } = await supabase
+        .from("activities")
+        .select("unit:units(module_id)")
+        .eq("id", activityId)
+        .single();
+    const moduleId = (activityRow?.unit as any)?.module_id as string | undefined;
+
     const { data: phases } = await supabase
         .from("activity_phases")
         .select("steps:activity_steps(id, type)")
@@ -180,6 +187,7 @@ export async function getStudentSubmissionsForActivity(activityId: string): Prom
     );
     if (allStepIds.length === 0) return {};
 
+    // Individual submissions
     const { data: submissions } = await supabase
         .from("activity_submissions")
         .select("*")
@@ -190,6 +198,33 @@ export async function getStudentSubmissionsForActivity(activityId: string): Prom
     for (const sub of submissions || []) {
         map[sub.step_id] = sub as ActivitySubmission;
     }
+
+    // Group submissions — only if the student belongs to a group in this module
+    if (moduleId) {
+        const { data: memberRow } = await supabase
+            .from("module_group_members")
+            .select("group_id, group:module_groups(module_id)")
+            .eq("student_id", user.id)
+            .filter("group.module_id", "eq", moduleId)
+            .maybeSingle();
+
+        const groupId = memberRow?.group_id as string | undefined;
+        if (groupId) {
+            const { data: groupSubs } = await supabase
+                .from("activity_submissions")
+                .select("*")
+                .eq("group_id", groupId)
+                .in("step_id", allStepIds);
+
+            for (const sub of groupSubs || []) {
+                // Only fill in steps not already covered by individual submission
+                if (!map[sub.step_id]) {
+                    map[sub.step_id] = sub as ActivitySubmission;
+                }
+            }
+        }
+    }
+
     return map;
 }
 

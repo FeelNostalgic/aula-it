@@ -912,6 +912,74 @@ export async function deleteUnitMilestone(milestoneId: string, unitId: string) {
     return { success: true };
 }
 
+/**
+ * Publishes a group submission's grade and propagates it to individual rows
+ * for each group member, creating them if they don't exist.
+ */
+export async function publishGroupGrade(submissionId: string) {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const admin = auth.admin;
+
+    // Fetch the group submission with grade data
+    const { data: sub } = await admin
+        .from("activity_submissions")
+        .select("id, step_id, group_id, score, rubric_scores, feedback, grading_mode, drive_file_url, drive_file_id")
+        .eq("id", submissionId)
+        .single();
+
+    if (!sub) return { error: "Entrega no encontrada." };
+    if (!sub.group_id) return { error: "Esta entrega no es grupal." };
+    if (sub.score === null && sub.rubric_scores === null) {
+        return { error: "La entrega aún no tiene nota. Califica primero antes de publicar." };
+    }
+
+    // Fetch group members
+    const { data: members } = await admin
+        .from("module_group_members")
+        .select("student_id")
+        .eq("group_id", sub.group_id);
+
+    if (!members || members.length === 0) {
+        return { error: "El grupo no tiene miembros." };
+    }
+
+    const now = new Date().toISOString();
+
+    // Publish the group submission itself
+    await admin
+        .from("activity_submissions")
+        .update({ status: "published", published_at: now })
+        .eq("id", submissionId);
+
+    // Upsert individual rows for each member
+    const rows = members.map((m: { student_id: string }) => ({
+        student_id: m.student_id,
+        step_id: sub.step_id,
+        group_id: sub.group_id,
+        drive_file_url: sub.drive_file_url,
+        drive_file_id: sub.drive_file_id,
+        score: sub.score,
+        rubric_scores: sub.rubric_scores,
+        feedback: sub.feedback,
+        grading_mode: sub.grading_mode,
+        status: "published" as const,
+        submitted_at: now,
+        graded_at: now,
+        published_at: now,
+    }));
+
+    const { error } = await admin
+        .from("activity_submissions")
+        .upsert(rows, { onConflict: "student_id,step_id" });
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { success: true, propagated: members.length };
+}
+
 export async function updateUnitResources(unitId: string, resources: any[]) {
     if (!unitId) return { error: "ID de unidad es requerido." };
     const permission = await requireUnitPermission(unitId, "canEditModuleContent");
