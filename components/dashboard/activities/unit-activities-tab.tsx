@@ -389,7 +389,7 @@ function SortableActivityItem({
                         <div className="shrink-0">
                             {activity.logo_url ? (
                                 <div className="size-14 rounded-xl border border-border-subtle bg-surface overflow-hidden shadow-sm">
-                                    <img src={activity.logo_url} alt={activity.title} className="size-full object-cover" />
+                                    <img src={activity.logo_url} alt={activity.title} className="size-full object-contain p-[10%]" />
                                 </div>
                             ) : (
                                 <div className="size-14 rounded-xl border border-border-subtle bg-surface flex items-center justify-center shadow-sm">
@@ -426,29 +426,31 @@ function SortableActivityItem({
 
                     {/* Footer Stats & Badges */}
                     <div className="mt-6 pt-4 border-t border-border-subtle flex flex-col gap-3">
-                        {/* Badges strip */}
-                        {(activity as any).badges && (activity as any).badges.length > 0 && (
-                            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                                {(activity as any).badges
-                                    .filter((b: any) => {
-                                        if (isTeacher) return true;
-                                        const isEarned = studentBadges?.some(sb => sb.badge_id === b.id);
-                                        return isEarned || !b.is_hidden;
-                                    })
-                                    .map((badge: any) => {
-                                        const earnedRecord = studentBadges?.find(sb => sb.badge_id === badge.id);
-                                        return (
-                                            <BadgeDisplay 
-                                                key={badge.id}
-                                                badge={badge}
-                                                isEarned={!!earnedRecord || !!isTeacher}
-                                                earnedAt={earnedRecord?.earned_at}
-                                                variant="compact"
-                                            />
-                                        );
-                                    })}
-                            </div>
-                        )}
+                        <div className="min-h-10 pt-1">
+                            {(activity as any).badges && (activity as any).badges.length > 0 && (
+                                <div className="flex h-10 items-center gap-2 overflow-x-auto overflow-y-hidden">
+                                    {(activity as any).badges
+                                        .filter((b: any) => {
+                                            if (isTeacher) return true;
+                                            const isEarned = studentBadges?.some(sb => sb.badge_id === b.id);
+                                            return isEarned || !b.is_hidden;
+                                        })
+                                        .map((badge: any) => {
+                                            const earnedRecord = studentBadges?.find(sb => sb.badge_id === badge.id);
+                                            return (
+                                                <BadgeDisplay 
+                                                    key={badge.id}
+                                                    badge={badge}
+                                                    isEarned={!!earnedRecord || !!isTeacher}
+                                                    earnedAt={earnedRecord?.earned_at}
+                                                    variant="compact"
+                                                    className="shrink-0"
+                                                />
+                                            );
+                                        })}
+                                </div>
+                            )}
+                        </div>
 
                         <div className="flex justify-between items-center text-[10px] font-bold text-text-muted uppercase tracking-wider">
                             <div className="flex items-center gap-4">
@@ -503,7 +505,7 @@ function SortableActivityItem({
                 <div className="shrink-0">
                     {activity.logo_url ? (
                         <div className="size-12 rounded-xl border border-border-subtle bg-surface overflow-hidden">
-                            <img src={activity.logo_url} alt={activity.title} className="size-full object-cover" />
+                            <img src={activity.logo_url} alt={activity.title} className="size-full object-contain p-[10%]" />
                         </div>
                     ) : (
                         <div className="bg-surface p-3 rounded-xl border border-border-subtle">
@@ -573,8 +575,9 @@ function SortableActivityItem({
                     </div>
                     
                     {/* Badges strip (List view) */}
+                    <div className="flex h-10 w-[200px] items-center justify-end overflow-x-auto overflow-y-hidden">
                     {(activity as any).badges && (activity as any).badges.length > 0 && (
-                        <div className="flex items-center justify-end gap-2 max-w-[200px] flex-wrap">
+                        <div className="flex items-center justify-end gap-2 pl-2">
                             {(activity as any).badges
                                 .filter((b: any) => {
                                     if (isTeacher) return true;
@@ -590,11 +593,13 @@ function SortableActivityItem({
                                             isEarned={!!earnedRecord || !!isTeacher}
                                             earnedAt={earnedRecord?.earned_at}
                                             variant="compact"
+                                            className="shrink-0"
                                         />
                                     );
                                 })}
                         </div>
                     )}
+                    </div>
                 </div>
 
                 {isTeacher && canEditActivities && <ActionsMenu />}
@@ -731,24 +736,30 @@ export function UnitActivitiesTab({
                     )}
 
                     {/* View Mode Toggle */}
-                    <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
+                    <div className="flex items-center gap-2 p-1 bg-surface border border-border-subtle rounded-xl shadow-sm self-end md:self-center">
                         <Button
-                            aria-label="Vista cuadrícula"
-                            variant={viewMode === "grid" ? "secondary" : "ghost"}
-                            size="icon"
-                            className={cn("h-8 w-8", viewMode === 'grid' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleViewModeChange('grid')}
+                            className={cn(
+                                "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                viewMode === 'grid' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                            )}
                         >
-                            <LayoutGrid className="size-4" />
+                            <LayoutGrid className="size-3.5 mr-2" />
+                            Grid
                         </Button>
                         <Button
-                            aria-label="Vista lista"
-                            variant={viewMode === "list" ? "secondary" : "ghost"}
-                            size="icon"
-                            className={cn("h-8 w-8", viewMode === 'list' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleViewModeChange('list')}
+                            className={cn(
+                                "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                viewMode === 'list' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                            )}
                         >
-                            <List className="size-4" />
+                            <List className="size-3.5 mr-2" />
+                            Lista
                         </Button>
                     </div>
 
@@ -756,7 +767,7 @@ export function UnitActivitiesTab({
                         <CreateActivityDialog unitId={unitId}>
                             <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
                                 <Plus className="mr-2 size-4" />
-                                AÑADIR RETO
+                                NUEVO RETO
                             </Button>
                         </CreateActivityDialog>
                     )}
@@ -767,7 +778,7 @@ export function UnitActivitiesTab({
                                     <span>
                                         <Button disabled className="font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
                                             <Lock className="mr-2 size-4" />
-                                            AÑADIR RETO
+                                            NUEVO RETO
                                         </Button>
                                     </span>
                                 </TooltipTrigger>
@@ -793,7 +804,7 @@ export function UnitActivitiesTab({
                         <CreateActivityDialog unitId={unitId}>
                             <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8 uppercase">
                                 <Plus className="mr-2 size-4" />
-                                AÑADIR RETO
+                                NUEVO RETO
                             </Button>
                         </CreateActivityDialog>
                     )}
@@ -853,7 +864,7 @@ export function UnitActivitiesTab({
                                             </div>
                                             <div className={viewMode === 'grid' ? "text-center" : "text-left"}>
                                                 <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">
-                                                    Nuevo Reto
+                                                    Nuevo reto
                                                 </p>
                                                 <p className={cn(
                                                     "text-xs text-text-muted",

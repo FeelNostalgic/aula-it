@@ -178,7 +178,7 @@ export function StudentUnitView({
                                 <Trophy className="w-5 h-5 text-orange-500" />
                             </div>
                             <div>
-                                <div className="text-[10px] text-zinc-500 uppercase font-black tracking-tighter">Siguiente Hito</div>
+                                <div className="text-[10px] text-zinc-500 uppercase font-black tracking-tighter">Siguiente objetivo</div>
                                 <div className="text-xs font-bold text-zinc-200">Examen de Módulo</div>
                             </div>
                         </div>

@@ -100,7 +100,7 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label, onTog
                                 </h3>
                                 <div className="h-px w-8 bg-accent-blue/30" />
                                 <span className="text-[10px] font-bold bg-accent-blue/10 text-accent-blue px-2.5 py-1 rounded-md border border-accent-blue/20">
-                                    {currentIndex + 1} / {totalCount} HITOS
+                                    {currentIndex + 1} / {totalCount} OBJETIVOS
                                 </span>
                             </div>
                             <h2 className="text-3xl font-black text-foreground tracking-tighter leading-none group-hover/title:text-foreground/90 transition-colors">
@@ -127,7 +127,7 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label, onTog
 
                             <div className="space-y-1 relative z-10 flex-1">
                                 <h4 className="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em] opacity-80 leading-none">
-                                    Recompensa Hito
+                                    Recompensa objetivo
                                 </h4>
                                 <p className="text-sm font-bold text-foreground leading-tight tracking-tight mt-1.5 line-clamp-2">
                                     {currentActive.reward}
@@ -191,7 +191,7 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label, onTog
                                                 className="bg-zinc-800 border-white/10 text-white p-3 shadow-2xl backdrop-blur-xl max-w-[200px]"
                                             >
                                                 <div className="space-y-1.5">
-                                                    <p className="font-black text-[10px] uppercase tracking-tighter text-amber-500">RECOMPENSA HITO {idx + 1}</p>
+                                                    <p className="font-black text-[10px] uppercase tracking-tighter text-amber-500">RECOMPENSA OBJETIVO {idx + 1}</p>
                                                     <p className="font-bold text-sm tracking-tight leading-tight">{m.title}</p>
                                                     <p className="text-xs text-zinc-300 leading-relaxed font-medium">{m.reward}</p>
                                                     <div className="pt-2 flex items-center justify-between border-t border-white/10 mt-2">

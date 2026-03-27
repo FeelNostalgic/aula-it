@@ -14,9 +14,20 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { createUnit } from "@/app/dashboard/modules/[id]/actions";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
+import {
+    CREATE_DIALOG_BODY_CLASS,
+    CREATE_DIALOG_CONTENT_CLASS,
+    CREATE_DIALOG_FOOTER_CLASS,
+    CREATE_DIALOG_HEADER_CLASS,
+    CREATE_DIALOG_INPUT_CLASS,
+    CREATE_DIALOG_LABEL_CLASS,
+    CREATE_DIALOG_PRIMARY_ACTION_CLASS,
+    CREATE_DIALOG_TEXTAREA_CLASS,
+} from "@/components/dashboard/shared/create-dialog-styles";
 
 function SubmitButton() {
     const { pending } = useFormStatus();
@@ -24,7 +35,7 @@ function SubmitButton() {
         <Button 
             type="submit" 
             disabled={pending} 
-            className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8"
+            className={CREATE_DIALOG_PRIMARY_ACTION_CLASS}
         >
             {pending ? "CREANDO..." : "CREAR UNIDAD"}
         </Button>
@@ -55,44 +66,53 @@ export function CreateUnitDialog({ moduleId, children }: CreateUnitDialogProps) 
                 {children ?? (
                     <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4">
                         <Plus className="mr-2 size-4" />
-                        AÑADIR UNIDAD DIDÁCTICA
+                        UNIDAD DIDÁCTICA
                     </Button>
                 )}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] bg-surface-dark border-border-subtle text-foreground">
-                <DialogHeader>
-                    <DialogTitle className="text-xl font-bold tracking-tight">Nueva Unidad Didáctica</DialogTitle>
-                    <DialogDescription className="text-text-muted text-xs font-medium">
+            <DialogContent className={`sm:max-w-[425px] ${CREATE_DIALOG_CONTENT_CLASS}`}
+             onInteractOutside={(e) => { e.preventDefault(); }}
+             onPointerDownOutside={(e) => { e.preventDefault(); }}
+             onEscapeKeyDown={(e) => { e.preventDefault(); }}>
+                <DialogHeader className={CREATE_DIALOG_HEADER_CLASS}>
+                    <DialogTitle>Nueva unidad didáctica</DialogTitle>
+                    <DialogDescription>
                         Añade una nueva unidad didáctica a este módulo.
                     </DialogDescription>
                 </DialogHeader>
-                <form action={handleSubmit} className="grid gap-6 py-4">
+                <form action={handleSubmit}>
                     <input type="hidden" name="module_id" value={moduleId} />
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="name" className="text-[10px] font-mono font-bold text-text-muted uppercase tracking-widest">
-                            Nombre de la Unidad
-                        </Label>
-                        <Input
-                            id="name"
-                            name="name"
-                            placeholder="ej. U.D.1 Introducción a Redes"
-                            className="bg-background border-border-subtle focus-visible:ring-accent-blue"
-                            required
-                        />
+                    <div className={`${CREATE_DIALOG_BODY_CLASS} space-y-6`}>
+                        <div className="space-y-2">
+                            <Label htmlFor="name" className={CREATE_DIALOG_LABEL_CLASS}>
+                                Nombre de la unidad
+                            </Label>
+                            <Input
+                                id="name"
+                                name="name"
+                                placeholder="Ej: U.D.1 Introducción a Redes"
+                                className={`${CREATE_DIALOG_INPUT_CLASS} h-11`}
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="description" className={CREATE_DIALOG_LABEL_CLASS}>
+                                Descripción
+                            </Label>
+                            <Textarea
+                                id="description"
+                                name="description"
+                                placeholder="Describe el enfoque y los objetivos principales de la unidad..."
+                                className={`${CREATE_DIALOG_TEXTAREA_CLASS} min-h-[120px] resize-none`}
+                            />
+                        </div>
                     </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="description" className="text-[10px] font-mono font-bold text-text-muted uppercase tracking-widest">
-                            Descripción
-                        </Label>
-                        <Input
-                            id="description"
-                            name="description"
-                            placeholder="Conceptos básicos de topología de red..."
-                            className="bg-background border-border-subtle focus-visible:ring-accent-blue"
-                        />
-                    </div>
-                    <DialogFooter>
+
+                    <DialogFooter className={CREATE_DIALOG_FOOTER_CLASS}>
+                        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+                            Cancelar
+                        </Button>
                         <SubmitButton />
                     </DialogFooter>
                 </form>

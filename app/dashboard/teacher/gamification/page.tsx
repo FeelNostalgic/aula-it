@@ -38,10 +38,10 @@ export default async function TeacherGamificationPage() {
                         <Target className="size-6" />
                     </div>
                     <div className="space-y-1">
-                        <CardTitle className="text-lg">Los hitos ahora son por Unidad Didáctica</CardTitle>
+                        <CardTitle className="text-lg">Los objetivos ahora son por unidad didáctica</CardTitle>
                         <CardDescription className="text-sm leading-relaxed">
-                            Los milestones se configuran desde cada Unidad Didáctica directamente.
-                            Accede a cualquier unidad, abre la pestaña <strong>HITO</strong> y define el objetivo cooperativo para esa unidad.
+                            Los objetivos se configuran desde cada unidad didáctica directamente.
+                            Accede a cualquier unidad, abre la pestaña <strong>OBJETIVO</strong> y define el objetivo cooperativo para esa unidad.
                         </CardDescription>
                     </div>
                 </CardHeader>
@@ -49,7 +49,7 @@ export default async function TeacherGamificationPage() {
                     <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-xl border border-border/30">
                         <Trophy className="size-5 text-amber-500 shrink-0" />
                         <p className="text-sm text-muted-foreground">
-                            Cada unidad puede tener un único hito activo. Los alumnos lo verán en la pestaña HITO de la unidad cuando esté activado.
+                            Cada unidad puede tener un único objetivo activo. Los alumnos lo verán en la pestaña OBJETIVO de la unidad cuando esté activado.
                         </p>
                     </div>
                 </CardContent>

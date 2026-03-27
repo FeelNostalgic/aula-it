@@ -51,10 +51,10 @@ export function UnitTeacherNav({ unitId, modulePermissions }: UnitTeacherNavProp
             visible: modulePermissions?.canManageStudents ?? true,
         },
         {
-            href: `/dashboard/units/${unitId}/hitos`,
-            label: "HITO",
+            href: `/dashboard/units/${unitId}/objetivos`,
+            label: "OBJETIVOS",
             icon: CheckCircle, // Reusing icon based on current UI
-            match: `/dashboard/units/${unitId}/hitos`,
+            match: `/dashboard/units/${unitId}/objetivos`,
             visible: modulePermissions?.canEditModuleContent ?? true,
         },
         {

@@ -984,7 +984,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                                                     <ClassMilestoneWidget
                                                         milestones={milestones}
                                                         activeMilestone={milestones.find(m => m.status === 'active') ?? null}
-                                                        label="Objetivo de la Unidad"
+                                                        label="Objetivo de la unidad"
                                                     />
                                                 </motion.div>
                                             )}

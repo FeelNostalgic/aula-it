@@ -41,6 +41,7 @@ import { useModuleGamification } from "@/hooks/use-gamification";
 import { RankBadge } from "@/components/dashboard/badges/rank-badge";
 import { ModuleLeaderboard } from "./module-leaderboard";
 import { ModuleCollaboratorsTab } from "./module-collaborators-dialog";
+import { getModuleIconVisualProps } from "@/components/dashboard/modules/module-identity";
 import {
     getModuleRoleLabel,
     getModuleRoleTooltip,
@@ -97,6 +98,7 @@ type Module = {
     name: string;
     description: string | null;
     icon: string;
+    icon_style?: string | null;
     custom_icon_url?: string | null;
     created_at: string;
     teacher_id: string;
@@ -205,6 +207,7 @@ export function ModuleDetailView({
     }, [initialUnits]);
 
     const ModuleIcon = ICON_MAP[module.icon] || BookOpen;
+    const moduleIconVisual = getModuleIconVisualProps(module.icon_style);
     const { setSegments } = useBreadcrumb();
 
     const sensors = useSensors(
@@ -306,8 +309,8 @@ export function ModuleDetailView({
                             <img src={module.custom_icon_url} alt={module.name} className="size-full object-cover p-2" />
                         </div>
                     ) : (
-                        <div className="size-14 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center text-accent-blue shrink-0">
-                            <ModuleIcon className="size-7" />
+                        <div className="size-14 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center shrink-0">
+                            <ModuleIcon className={cn("size-7", moduleIconVisual.className)} style={moduleIconVisual.style} />
                         </div>
                     )}
                     <div className="space-y-1.5">
@@ -432,32 +435,38 @@ export function ModuleDetailView({
                                     </Select>
                                 </div>
                             )}
-                            <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
-                                <Button
-                                    variant={viewMode === "grid" ? "secondary" : "ghost"}
-                                    size="icon"
-                                    onClick={() => setViewMode("grid")}
-                                    aria-label="Vista de cuadrícula"
-                                    className={`size-8 rounded-md ${viewMode === "grid" ? "bg-background shadow-sm text-foreground" : "text-text-muted"}`}
-                                >
-                                    <LayoutGrid className="size-4" />
-                                </Button>
-                                <Button
-                                    variant={viewMode === "list" ? "secondary" : "ghost"}
-                                    size="icon"
-                                    onClick={() => setViewMode("list")}
-                                    aria-label="Vista de lista"
-                                    className={`size-8 rounded-md ${viewMode === "list" ? "bg-background shadow-sm text-foreground" : "text-text-muted"}`}
-                                >
-                                    <List className="size-4" />
-                                </Button>
-                            </div>
+                    <div className="flex items-center gap-2 p-1 bg-surface border border-border-subtle rounded-xl shadow-sm self-end md:self-center">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setViewMode('grid')}
+                            className={cn(
+                                "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                viewMode === 'grid' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                            )}
+                        >
+                            <LayoutGrid className="size-3.5 mr-2" />
+                            Grid
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setViewMode('list')}
+                            className={cn(
+                                "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                viewMode === 'list' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                            )}
+                        >
+                            <List className="size-3.5 mr-2" />
+                            Lista
+                        </Button>
+                    </div>
                             {isTeacher && (
                                 canEditModuleContent ? (
                                     <CreateUnitDialog moduleId={module.id}>
                                         <Button className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
                                             <Plus className="mr-2 size-4" />
-                                            AÑADIR UNIDAD DIDÁCTICA
+                                            UNIDAD DIDÁCTICA
                                         </Button>
                                     </CreateUnitDialog>
                                 ) : (
@@ -467,7 +476,7 @@ export function ModuleDetailView({
                                                 <span>
                                                     <Button disabled className="font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
                                                         <Lock className="mr-2 size-4" />
-                                                        AÑADIR UNIDAD DIDÁCTICA
+                                                        UNIDAD DIDÁCTICA
                                                     </Button>
                                                 </span>
                                             </TooltipTrigger>
@@ -485,7 +494,7 @@ export function ModuleDetailView({
                                 {module.custom_icon_url ? (
                                     <img src={module.custom_icon_url} alt={module.name} className="size-full object-cover p-2" />
                                 ) : (
-                                    <ModuleIcon className="size-6 text-accent-blue" />
+                                    <ModuleIcon className={cn("size-6", moduleIconVisual.className)} style={moduleIconVisual.style} />
                                 )}
                             </div>
                             <div className="space-y-1">
@@ -522,7 +531,7 @@ export function ModuleDetailView({
                                                         <Plus className="size-4 text-text-muted group-hover:text-accent-blue transition-colors" />
                                                     </div>
                                                     <div className="text-left">
-                                                        <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nueva Unidad</p>
+                                                        <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nueva unidad didáctica</p>
                                                         <p className="text-xs text-text-muted">Crear contenido didáctico</p>
                                                     </div>
                                                 </button>
@@ -542,7 +551,7 @@ export function ModuleDetailView({
                                                         <Plus className="size-5 text-text-muted group-hover:text-accent-blue transition-colors" />
                                                     </div>
                                                     <div className="text-center">
-                                                        <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nueva Unidad</p>
+                                                        <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nueva unidad didáctica</p>
                                                         <p className="text-xs text-text-muted mt-0.5">Crear contenido didáctico</p>
                                                     </div>
                                                 </button>

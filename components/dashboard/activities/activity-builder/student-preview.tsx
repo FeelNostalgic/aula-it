@@ -319,7 +319,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                 <div className="shrink-0 flex items-center gap-3 px-6 py-2.5 bg-amber-500/10 border-b border-amber-500/20 print:hidden">
                     <AlertTriangle className="size-4 text-amber-500 shrink-0" />
                     <p className="text-xs text-amber-200/80">
-                        <span className="font-bold text-amber-400">Vista Previa del Profesor</span>
+                        <span className="font-bold text-amber-400">Vista previa del profesor</span>
                         {" — "}Las entregas, marcas de visto y cuestionarios no se guardarán.
                     </p>
                 </div>

@@ -88,7 +88,7 @@ export function UnitSettingsTab({ unit }: { unit: Unit }) {
         <div className="space-y-8 max-w-3xl pb-12">
             <div className="bg-surface border border-border-strong rounded-2xl p-6 md:p-8">
                 <div className="mb-6 border-b border-border-subtle pb-4">
-                    <h2 className="text-xl font-bold text-foreground">Configuración de la Unidad</h2>
+                    <h2 className="text-xl font-bold text-foreground">Configuración de la unidad</h2>
                     <p className="text-sm text-text-muted mt-1">
                         Actualiza los detalles y define cómo verán los alumnos esta unidad.
                     </p>
@@ -97,7 +97,7 @@ export function UnitSettingsTab({ unit }: { unit: Unit }) {
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                            <Label htmlFor="name" className="text-foreground">Título de la Unidad</Label>
+                            <Label htmlFor="name" className="text-foreground">Título de la unidad</Label>
                             <Input
                                 id="name"
                                 name="name"
@@ -191,7 +191,7 @@ export function UnitSettingsTab({ unit }: { unit: Unit }) {
                                         <div>
                                             <div className="flex items-center gap-2 font-bold text-foreground">
                                                 <Map className="size-4" />
-                                                Mapa Interactivo Gamificado
+                                                Mapa interactivo gamificado
                                             </div>
                                             <p className="text-xs text-text-muted mt-1">Transforma la unidad en un tablero de aventura para mayor inmersión y gamificación.</p>
                                         </div>
@@ -217,7 +217,7 @@ export function UnitSettingsTab({ unit }: { unit: Unit }) {
                         <AlertTriangle className="size-5 text-accent-orange" />
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold text-accent-orange">Zona de Peligro</h2>
+                        <h2 className="text-xl font-bold text-accent-orange">Zona de peligro</h2>
                         <p className="text-sm text-text-muted mt-1 font-medium">
                             Acciones irreversibles para esta unidad didáctica.
                         </p>
@@ -226,15 +226,15 @@ export function UnitSettingsTab({ unit }: { unit: Unit }) {
 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-4">
                     <div>
-                        <h3 className="font-bold text-foreground mb-1">Eliminar Unidad</h3>
-                        <p className="text-xs text-text-muted mr-4">Esta acción eliminará permanentemente la unidad, sus retos, recursos e hitos asociados.</p>
+                        <h3 className="font-bold text-foreground mb-1">Eliminar unidad</h3>
+                        <p className="text-xs text-text-muted mr-4">Esta acción eliminará permanentemente la unidad, sus retos, recursos y objetivos asociados.</p>
                     </div>
 
                     <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                         <AlertDialogTrigger asChild>
                             <Button variant="outline" className="border-red-500/30 text-red-500 hover:bg-red-500/10 shrink-0 gap-2 h-10 rounded-xl px-4 text-xs font-bold uppercase tracking-wider">
                                 <Trash2 className="size-4" />
-                                Eliminar Unidad
+                                Eliminar unidad
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent className="bg-surface border-border-strong text-foreground max-w-md p-6 rounded-[32px]">

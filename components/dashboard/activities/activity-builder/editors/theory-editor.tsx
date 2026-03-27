@@ -90,7 +90,7 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
                                     <button
                                         onClick={() => setIsPreviewCollapsed(!isPreviewCollapsed)}
                                         className="text-text-muted hover:text-foreground transition-colors flex items-center gap-1 bg-surface border border-border-subtle rounded-md px-2 py-1 shadow-sm h-7"
-                                        title={isPreviewCollapsed ? "Expandir Vista Previa" : "Ocultar Vista Previa"}
+                                        title={isPreviewCollapsed ? "Expandir vista previa" : "Ocultar vista previa"}
                                     >
                                         {isPreviewCollapsed ? <PanelRightOpen className="size-3.5" /> : <PanelRightClose className="size-3.5" />}
                                     </button>
@@ -117,7 +117,7 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
                         >
                             <div className="flex flex-col h-full bg-background relative border-l border-border-subtle">
                                 <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50">
-                                    <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Vista Previa</span>
+                                    <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Vista previa</span>
                                 </div>
                                 <div className="flex-1 p-8 overflow-y-auto prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-a:text-accent-blue hover:prose-a:text-accent-blue/80 prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-pre:border-none prose-code:bg-surface-dark prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none font-sans">
                                     {content.markdown ? (

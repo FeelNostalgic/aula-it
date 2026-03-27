@@ -131,13 +131,14 @@ export async function createActivity(formData: FormData) {
     }
     const title = formData.get("title") as string;
     const description = formData.get("description") as string;
-    const type = formData.get("type") as string;
+    const type = (formData.get("type") as string) || "other";
     const difficulty = formData.get("difficulty") as string;
+    const logoUrl = formData.get("logo_url") as string;
     const durationRaw = formData.get("duration") as string;
     const duration = parseInt(durationRaw) || 30;
 
-    if (!unitId || !title || !type) {
-        return { error: "ID de unidad, título y tipo son requeridos" };
+    if (!unitId || !title) {
+        return { error: "ID de unidad y título son requeridos" };
     }
 
     // Get the next order_index
@@ -160,6 +161,7 @@ export async function createActivity(formData: FormData) {
             type,
             difficulty: difficulty || 'Bajo',
             duration,
+            logo_url: logoUrl || null,
             order_index: nextOrder,
             position_x: null,
             position_y: null,
@@ -859,7 +861,7 @@ export async function updateUnitMilestone(
         .single();
 
     if (!existing) {
-        return { error: "Hito no encontrado o no pertenece a esta unidad" };
+        return { error: "Objetivo no encontrado o no pertenece a esta unidad" };
     }
 
     // If we are activating this milestone, we no longer need to deactivate others
@@ -892,7 +894,7 @@ export async function deleteUnitMilestone(milestoneId: string, unitId: string) {
         .single();
 
     if (!existing) {
-        return { error: "Hito no encontrado o no pertenece a esta unidad" };
+        return { error: "Objetivo no encontrado o no pertenece a esta unidad" };
     }
 
     const { error } = await permission.admin

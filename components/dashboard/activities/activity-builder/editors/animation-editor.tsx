@@ -145,7 +145,7 @@ export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
                     {/* Preview panel */}
                     <div className="flex-1 flex flex-col h-full bg-background relative overflow-hidden">
                         <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50">
-                            <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Vista Previa</span>
+                            <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Vista previa</span>
                         </div>
                         <div className="flex-1 overflow-y-auto p-4">
                             {selectedMeta && PreviewComponent ? (

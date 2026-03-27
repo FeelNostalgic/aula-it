@@ -1,31 +1,67 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Settings, Zap, HardDrive, Trash2 } from "lucide-react";
+import { Settings, Zap, HardDrive, Trash2, Palette, Check, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
 import { updateActivitySettings } from "@/app/activities/[id]/edit/actions";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
+import {
+    ACTIVITY_IDENTITY_COLORS,
+    ACTIVITY_IDENTITY_PRESETS,
+    buildActivityPresetLogoUrl,
+    getActivityIdentityColor,
+    inferActivityIdentityFromLogoUrl,
+} from "@/components/dashboard/activities/activity-identity";
 
 interface ActivitySettingsPanelProps {
     activity: any;
     onUpdate: (updatedActivity: any) => void;
 }
 
+const DEFAULT_PRESET = "game";
+const DEFAULT_COLOR = "violet";
+
 export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPanelProps) {
+    const inferredIdentity = inferActivityIdentityFromLogoUrl(activity.logo_url);
     const [title, setTitle] = useState(activity.title || "");
     const [description, setDescription] = useState(activity.description || "");
     const [duration, setDuration] = useState(activity.duration || 30);
-    const [difficulty, setDifficulty] = useState(activity.difficulty || "Medio");
+    const [difficulty, setDifficulty] = useState(activity.difficulty || "Bajo");
     const [logoUrl, setLogoUrl] = useState(activity.logo_url || "");
+    const [selectedPreset, setSelectedPreset] = useState(inferredIdentity?.preset ?? DEFAULT_PRESET);
+    const [selectedColor, setSelectedColor] = useState(inferredIdentity?.color ?? DEFAULT_COLOR);
     const [isSaving, setIsSaving] = useState(false);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const selectedColorConfig = getActivityIdentityColor(selectedColor);
+    const SelectedPresetIcon =
+        ACTIVITY_IDENTITY_PRESETS.find((preset) => preset.value === selectedPreset)?.icon ??
+        ACTIVITY_IDENTITY_PRESETS[0].icon;
+    const isUsingCustomImage = Boolean(logoUrl) && !logoUrl.startsWith("data:image/svg+xml;utf8,");
+
+    useEffect(() => {
+        const nextIdentity = inferActivityIdentityFromLogoUrl(activity.logo_url);
+
+        setTitle(activity.title || "");
+        setDescription(activity.description || "");
+        setDuration(activity.duration || 30);
+        setDifficulty(activity.difficulty || "Bajo");
+        setLogoUrl(activity.logo_url || "");
+        setSelectedPreset(nextIdentity?.preset ?? DEFAULT_PRESET);
+        setSelectedColor(nextIdentity?.color ?? DEFAULT_COLOR);
+    }, [activity]);
+
+    useEffect(() => {
+        return () => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        };
+    }, []);
 
     const triggerSave = (updates: any) => {
         setIsSaving(true);
@@ -42,43 +78,54 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
         }, 1000);
     };
 
-    const handleTitleChange = (val: string) => {
-        setTitle(val);
-        triggerSave({ title: val, description, duration, difficulty, logo_url: logoUrl });
-        // Optimistic update for the breadcrumb/header
-        onUpdate({ ...activity, title: val });
+    const handleTitleChange = (value: string) => {
+        setTitle(value);
+        triggerSave({ title: value, description, duration, difficulty, logo_url: logoUrl });
+        onUpdate({ ...activity, title: value });
     };
 
-    const handleLogoChange = (val: string) => {
-        setLogoUrl(val);
-        triggerSave({ title, description, duration, difficulty, logo_url: val });
-        onUpdate({ ...activity, logo_url: val });
+    const handleDescriptionChange = (value: string) => {
+        setDescription(value);
+        triggerSave({ title, description: value, duration, difficulty, logo_url: logoUrl });
     };
 
-    const handleDifficultyChange = (val: string) => {
-        setDifficulty(val);
-        triggerSave({ title, description, duration, difficulty: val, logo_url: logoUrl });
+    const handleDurationChange = (value: number) => {
+        setDuration(value);
+        triggerSave({ title, description, duration: value, difficulty, logo_url: logoUrl });
     };
 
-    const handleDescriptionChange = (val: string) => {
-        setDescription(val);
-        triggerSave({ title, description: val, duration, difficulty, logo_url: logoUrl });
+    const handleDifficultyChange = (value: string) => {
+        setDifficulty(value);
+        triggerSave({ title, description, duration, difficulty: value, logo_url: logoUrl });
     };
 
-    const handleDurationChange = (val: number) => {
-        setDuration(val);
-        triggerSave({ title, description, duration: val, difficulty, logo_url: logoUrl });
+    const handleLogoChange = (value: string) => {
+        setLogoUrl(value);
+        triggerSave({ title, description, duration, difficulty, logo_url: value });
+        onUpdate({ ...activity, logo_url: value });
+    };
+
+    const handlePresetChange = (presetValue: (typeof ACTIVITY_IDENTITY_PRESETS)[number]["value"]) => {
+        const nextLogoUrl = buildActivityPresetLogoUrl(presetValue, selectedColor);
+        setSelectedPreset(presetValue);
+        handleLogoChange(nextLogoUrl);
+    };
+
+    const handleColorChange = (colorValue: string) => {
+        const nextLogoUrl = buildActivityPresetLogoUrl(selectedPreset, colorValue);
+        setSelectedColor(colorValue);
+        handleLogoChange(nextLogoUrl);
     };
 
     return (
-        <div className="flex flex-col h-full w-full p-8 overflow-y-auto max-w-2xl mx-auto space-y-8">
+        <div className="mx-auto flex h-full w-full max-w-5xl flex-col space-y-8 overflow-y-auto p-8">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                    <h2 className="flex items-center gap-2 text-2xl font-bold text-foreground">
                         <Settings className="size-6 text-accent-blue" />
-                        Configuración de la Actividad
+                        Configuración de la actividad
                     </h2>
-                    <p className="text-sm text-text-muted mt-1">
+                    <p className="mt-1 text-sm text-text-muted">
                         Establece los parámetros generales y la metainformación de la misión.
                     </p>
                 </div>
@@ -89,19 +136,109 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                 )}
             </div>
 
-            <div className="space-y-6 bg-surface-dark/50 p-6 rounded-xl border border-border/50">
+            <div className="space-y-6 rounded-xl border border-border/50 bg-surface-dark/50 p-6">
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                        <div className="space-y-2">
+                            <label htmlFor="activity-title" className="text-sm font-semibold text-text-muted">
+                                Nombre de la actividad
+                            </label>
+                            <Input
+                                id="activity-title"
+                                value={title}
+                                onChange={(e) => handleTitleChange(e.target.value)}
+                                placeholder="Ej: Misión 1: Introducción a Next.js"
+                                className="bg-surface border-border/50 focus:border-accent-blue/50"
+                            />
+                        </div>
 
-                <div className="grid grid-cols-[120px_1fr] gap-8 items-start">
-                    <div 
-                        className="aspect-square rounded-2xl bg-surface-dark border border-border/50 flex items-center justify-center overflow-hidden relative group"
+                        <div className="space-y-2">
+                            <label htmlFor="activity-difficulty" className="text-sm font-semibold text-foreground">
+                                Nivel de dificultad
+                            </label>
+                            <Select value={difficulty} onValueChange={handleDifficultyChange}>
+                                <SelectTrigger id="activity-difficulty" className="bg-surface border-border/50">
+                                    <SelectValue placeholder="Selecciona..." />
+                                </SelectTrigger>
+                                <SelectContent className="bg-surface-dark border-border-strong">
+                                    <SelectItem value="Bajo">
+                                        <div className="flex items-center gap-2 text-accent-green">
+                                            <Zap className="size-3" />
+                                            Facil
+                                        </div>
+                                    </SelectItem>
+                                    <SelectItem value="Medio">
+                                        <div className="flex items-center gap-2 text-accent-amber">
+                                            <Zap className="size-3" />
+                                            Medio
+                                        </div>
+                                    </SelectItem>
+                                    <SelectItem value="Difícil">
+                                        <div className="flex items-center gap-2 text-accent-orange">
+                                            <Zap className="size-3" />
+                                            Dificil
+                                        </div>
+                                    </SelectItem>
+                                    <SelectItem value="Experto">
+                                        <div className="flex items-center gap-2 text-red-700">
+                                            <Zap className="size-3" />
+                                            Experto
+                                        </div>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label htmlFor="activity-description" className="text-sm font-semibold text-foreground">
+                            Descripción para el alumno
+                        </label>
+                        <Textarea
+                            id="activity-description"
+                            value={description}
+                            onChange={(e) => handleDescriptionChange(e.target.value)}
+                            placeholder="Describe brevemente qué aprenderá y hará el alumno..."
+                            className="h-32 resize-none bg-surface border-border/50"
+                        />
+                    </div>
+
+                    <div className="max-w-[280px] space-y-2">
+                        <label htmlFor="activity-duration" className="text-sm font-semibold text-foreground">
+                            Duración estimada (min)
+                        </label>
+                        <Input
+                            id="activity-duration"
+                            type="number"
+                            value={duration}
+                            onChange={(e) => handleDurationChange(parseInt(e.target.value) || 0)}
+                            className="bg-surface border-border/50"
+                        />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-[180px_1fr] lg:items-start">
+                    <div
+                        className="group relative aspect-square w-full max-w-[180px] rounded-2xl border border-border/50 bg-surface-dark"
                         data-testid="activity-logo-container"
                     >
-                        {logoUrl ? (
-                            <img src={logoUrl} alt="Logo" className="size-full object-contain p-4" data-testid="activity-logo-image" />
-                        ) : (
-                            <Settings className="size-10 text-text-muted/20" />
-                        )}
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <div className="flex size-full items-center justify-center overflow-hidden rounded-2xl">
+                            {logoUrl ? (
+                                <img
+                                    src={logoUrl}
+                                    alt="Logo"
+                                    className="size-full object-contain p-4"
+                                    data-testid="activity-logo-image"
+                                />
+                            ) : (
+                                <SelectedPresetIcon
+                                    className={cn("size-16", selectedColorConfig.className)}
+                                    style={selectedColorConfig.style}
+                                />
+                            )}
+                        </div>
+
+                        <div className="absolute inset-0 flex items-center justify-center gap-2 rounded-2xl bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
                             <Button
                                 size="icon"
                                 variant="ghost"
@@ -110,10 +247,10 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                                 onClick={async () => {
                                     try {
                                         const files = await openPicker();
-                                        if (files && files.length > 0) {
+                                        if (files?.[0]) {
                                             handleLogoChange(files[0].url);
                                         }
-                                    } catch (error) {
+                                    } catch {
                                         toast.error("Error al abrir Google Drive");
                                     }
                                 }}
@@ -121,88 +258,126 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                             >
                                 <HardDrive className={cn("size-4", isDriveLoading && "animate-pulse")} />
                             </Button>
+
                             {logoUrl && (
                                 <Button
                                     size="icon"
                                     variant="ghost"
                                     className="size-8 text-white hover:bg-white/20"
                                     data-testid="remove-logo"
-                                    onClick={() => handleLogoChange("")}
+                                    onClick={() => {
+                                        setSelectedPreset(DEFAULT_PRESET);
+                                        setSelectedColor(DEFAULT_COLOR);
+                                        handleLogoChange(buildActivityPresetLogoUrl(DEFAULT_PRESET, DEFAULT_COLOR));
+                                    }}
                                 >
                                     <Trash2 className="size-4" />
                                 </Button>
                             )}
                         </div>
                     </div>
-                    <div className="space-y-4 flex-1">
-                        <div className="space-y-2">
-                            <label htmlFor="activity-title" className="text-sm font-semibold text-text-muted">Nombre de la Actividad</label>
-                                <Input
-                                    id="activity-title"
-                                    value={title}
-                                    onChange={(e) => handleTitleChange(e.target.value)}
-                                    placeholder="Ej: Misión 1: Introducción a Next.js"
-                                    className="bg-surface border-border/50 focus:border-accent-blue/50"
-                                />
+
+                    <div className="space-y-4 rounded-2xl border border-border/50 bg-surface-dark/60 p-5">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <div className="flex items-center gap-2">
+                                <LayoutGrid className="size-4 text-accent-blue" />
+                                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-text-muted">
+                                    Identidad visual
+                                </span>
+                            </div>
+                            <span className="text-[10px] font-mono uppercase tracking-widest text-text-muted">
+                                {isUsingCustomImage ? "Usando imagen personalizada desde Drive" : "Elige el icono base del reto"}
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-4 gap-3 sm:grid-cols-4 xl:grid-cols-6">
+                            {ACTIVITY_IDENTITY_PRESETS.map((preset) => {
+                                const isSelected = selectedPreset === preset.value && !isUsingCustomImage;
+
+                                return (
+                                    <Button
+                                        key={preset.value}
+                                        type="button"
+                                        variant="ghost"
+                                        className={cn(
+                                            "relative flex h-[70px] items-center justify-center rounded-xl border transition-all hover:bg-accent-blue/10 hover:text-accent-blue",
+                                            isSelected
+                                                ? "border-accent-blue/40 bg-accent-blue/15 text-accent-blue shadow-[0_0_0_1px_rgba(59,130,246,0.15)]"
+                                                : "border-border/50 bg-surface text-text-muted"
+                                        )}
+                                        onClick={() => handlePresetChange(preset.value)}
+                                        title={preset.label}
+                                    >
+                                        {isSelected ? (
+                                            <div className="absolute right-1.5 top-1.5 rounded-full bg-accent-blue/20 p-1 text-accent-blue">
+                                                <Check className="size-3" />
+                                            </div>
+                                        ) : null}
+
+                                            <preset.icon
+                                                className={cn(
+                                                    "size-10 shrink-0",
+                                                    isSelected ? selectedColorConfig.className : "text-text-muted"
+                                                )}
+                                                style={isSelected ? selectedColorConfig.style : undefined}
+                                            />
+                                    </Button>
+                                );
+                            })}
+                        </div>
+
+                        <div className="space-y-3 rounded-xl border border-border/50 bg-surface/70 p-4">
+                            <div className="flex items-center gap-2">
+                                <Palette className="size-4 text-accent-blue" />
+                                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-text-muted">
+                                    Color del icono
+                                </span>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                                {ACTIVITY_IDENTITY_COLORS.map((color) => {
+                                    const isSelected = selectedColor === color.value;
+
+                                    return (
+                                        <button
+                                            key={color.value}
+                                            type="button"
+                                            className={cn(
+                                                "relative flex size-10 items-center justify-center rounded-full border border-white/10 transition-transform hover:scale-105",
+                                                color.swatchClassName,
+                                                isSelected && "ring-2 ring-offset-2 ring-offset-surface-dark",
+                                                isSelected && color.ringClassName
+                                            )}
+                                            onClick={() => handleColorChange(color.value)}
+                                            aria-label={`Seleccionar color ${color.label}`}
+                                            title={color.label}
+                                        >
+                                            {isSelected ? <Check className="size-4 text-slate-950" /> : null}
+                                        </button>
+                                    );
+                                })}
+
+                                <label
+                                    className={cn(
+                                        "relative flex size-10 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-white/10 bg-[conic-gradient(from_180deg_at_50%_50%,#38bdf8_0deg,#34d399_72deg,#fbbf24_144deg,#f472b6_216deg,#a78bfa_288deg,#38bdf8_360deg)] transition-transform hover:scale-105",
+                                        selectedColorConfig.isCustom && "ring-2 ring-white/70 ring-offset-2 ring-offset-surface-dark"
+                                    )}
+                                    title="Color personalizado"
+                                >
+                                    <input
+                                        type="color"
+                                        className="absolute inset-0 cursor-pointer opacity-0"
+                                        value={selectedColorConfig.hex}
+                                        onChange={(event) => handleColorChange(event.target.value)}
+                                        aria-label="Seleccionar color personalizado"
+                                    />
+                                    <Palette className="size-4 text-slate-950" />
+                                </label>
                             </div>
                         </div>
                     </div>
-    
-                    <div className="space-y-2">
-                        <label htmlFor="activity-description" className="text-sm font-semibold text-foreground">Descripción para el Alumno</label>
-                        <Textarea
-                            id="activity-description"
-                            value={description}
-                            onChange={(e) => handleDescriptionChange(e.target.value)}
-                            placeholder="Describe brevemente qué aprenderá y hará el alumno..."
-                            className="bg-surface border-border/50 resize-none h-32"
-                        />
-                    </div>
-    
-                    <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label htmlFor="activity-duration" className="text-sm font-semibold text-foreground">Duración Estimada (min)</label>
-                            <Input
-                                id="activity-duration"
-                                type="number"
-                                value={duration}
-                                onChange={(e) => handleDurationChange(parseInt(e.target.value) || 0)}
-                                className="bg-surface border-border/50"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label htmlFor="activity-difficulty" className="text-sm font-semibold text-foreground">Nivel de Dificultad</label>
-                            <Select value={difficulty} onValueChange={handleDifficultyChange}>
-                                <SelectTrigger id="activity-difficulty" className="bg-surface border-border/50">
-                                    <SelectValue placeholder="Selecciona..." />
-                                </SelectTrigger>
-                                <SelectContent className="bg-surface-dark border-border-strong">
-                                    <SelectItem value="Fácil">
-                                        <div className="flex items-center gap-2 text-accent-green">
-                                            <Zap className="size-3" /> Fácil
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="Medio">
-                                        <div className="flex items-center gap-2 text-accent-amber">
-                                            <Zap className="size-3" /> Medio
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="Difícil">
-                                        <div className="flex items-center gap-2 text-accent-orange">
-                                            <Zap className="size-3" /> Difícil
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="Experto">
-                                        <div className="flex items-center gap-2 text-red-700">
-                                            <Zap className="size-3" /> Experto
-                                        </div>
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-    
                 </div>
             </div>
-        );
-    }
+        </div>
+    );
+}

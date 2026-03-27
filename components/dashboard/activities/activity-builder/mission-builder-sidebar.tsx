@@ -37,9 +37,10 @@ import {
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogFooter,
 } from "@/components/ui/dialog";
 import {
     AlertDialog,
@@ -83,6 +84,15 @@ import { CSS } from "@dnd-kit/utilities";
 // Mock imports for server actions
 import { createPhase, createStep, deletePhase, deleteStep, duplicateStep, reorderSteps, reorderPhases, updatePhaseTitle, updateStepVisibility, updateStepLock, updateStepActivityClosed, updatePhaseStepsVisibility, updatePhaseStepsActivityClosed, updatePhaseStepsLock } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
+import {
+    CREATE_DIALOG_BODY_CLASS,
+    CREATE_DIALOG_CONTENT_CLASS,
+    CREATE_DIALOG_FOOTER_CLASS,
+    CREATE_DIALOG_HEADER_CLASS,
+    CREATE_DIALOG_INPUT_CLASS,
+    CREATE_DIALOG_LABEL_CLASS,
+    CREATE_DIALOG_PRIMARY_ACTION_CLASS,
+} from "@/components/dashboard/shared/create-dialog-styles";
 
 interface MissionBuilderSidebarProps {
     activityId: string;
@@ -813,13 +823,16 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
             </div>
 
             <Dialog open={isAddingPhase} onOpenChange={setIsAddingPhase}>
-                <DialogContent className="bg-surface-dark border-border/50 text-foreground">
-                    <DialogHeader>
+                <DialogContent className={`sm:max-w-[460px] ${CREATE_DIALOG_CONTENT_CLASS}`}>
+                    <DialogHeader className={CREATE_DIALOG_HEADER_CLASS}>
                         <DialogTitle>Nueva Fase</DialogTitle>
+                        <DialogDescription>
+                            Define el siguiente bloque de trabajo para estructurar el reto.
+                        </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-4">
+                    <div className={`${CREATE_DIALOG_BODY_CLASS} space-y-4`}>
                         <div className="space-y-2">
-                            <Label htmlFor="phase-title">Nombre de la fase</Label>
+                            <Label htmlFor="phase-title" className={CREATE_DIALOG_LABEL_CLASS}>Nombre de la fase</Label>
                             <Input
                                 id="phase-title"
                                 autoFocus
@@ -829,12 +842,13 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') handleAddPhase();
                                 }}
+                                className={`${CREATE_DIALOG_INPUT_CLASS} h-11`}
                             />
                         </div>
                     </div>
-                    <DialogFooter>
+                    <DialogFooter className={CREATE_DIALOG_FOOTER_CLASS}>
                         <Button variant="ghost" onClick={() => setIsAddingPhase(false)} disabled={isCreatingPhase}>Cancelar</Button>
-                        <Button onClick={handleAddPhase} disabled={isCreatingPhase}>
+                        <Button onClick={handleAddPhase} disabled={isCreatingPhase} className={CREATE_DIALOG_PRIMARY_ACTION_CLASS}>
                             {isCreatingPhase && <span className="mr-2 size-3.5 rounded-full border-2 border-current border-t-transparent animate-spin inline-block" />}
                             Crear Fase
                         </Button>
@@ -843,13 +857,16 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
             </Dialog>
 
             <Dialog open={isAddingStep} onOpenChange={setIsAddingStep}>
-                <DialogContent className="bg-surface-dark border-border/50 text-foreground">
-                    <DialogHeader>
+                <DialogContent className={`sm:max-w-[460px] ${CREATE_DIALOG_CONTENT_CLASS}`}>
+                    <DialogHeader className={CREATE_DIALOG_HEADER_CLASS}>
                         <DialogTitle>Nueva Actividad</DialogTitle>
+                        <DialogDescription>
+                            Crea una nueva actividad dentro de la fase seleccionada.
+                        </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-4">
+                    <div className={`${CREATE_DIALOG_BODY_CLASS} space-y-4`}>
                         <div className="space-y-2">
-                            <Label htmlFor="step-title">Título de la actividad</Label>
+                            <Label htmlFor="step-title" className={CREATE_DIALOG_LABEL_CLASS}>Título de la actividad</Label>
                             <Input
                                 id="step-title"
                                 autoFocus
@@ -859,12 +876,13 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') handleAddStep();
                                 }}
+                                className={`${CREATE_DIALOG_INPUT_CLASS} h-11`}
                             />
                         </div>
                     </div>
-                    <DialogFooter>
+                    <DialogFooter className={CREATE_DIALOG_FOOTER_CLASS}>
                         <Button variant="ghost" onClick={() => setIsAddingStep(false)} disabled={isCreatingStep}>Cancelar</Button>
-                        <Button onClick={handleAddStep} disabled={isCreatingStep}>
+                        <Button onClick={handleAddStep} disabled={isCreatingStep} className={CREATE_DIALOG_PRIMARY_ACTION_CLASS}>
                             {isCreatingStep && <span className="mr-2 size-3.5 rounded-full border-2 border-current border-t-transparent animate-spin inline-block" />}
                             Crear Actividad
                         </Button>

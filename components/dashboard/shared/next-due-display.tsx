@@ -12,7 +12,7 @@ export function NextDueDisplay({ nextDueStep, viewMode }: NextDueDisplayProps) {
     return (
         <div className={cn(
             "bg-surface border border-border-subtle rounded-xl flex items-center gap-3 transition-colors",
-            viewMode === 'grid' ? "p-3 min-h-[68px]" : "p-2 w-[350px] min-h-[54px]"
+            viewMode === 'grid' ? "p-3 min-h-[68px]" : "p-2 w-full max-w-[750px] min-h-[54px]"
         )}>
             <div className={cn(
                 "rounded-lg bg-surface-dark border border-border-subtle flex items-center justify-center text-text-muted shrink-0",

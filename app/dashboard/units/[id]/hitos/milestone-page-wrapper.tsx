@@ -49,7 +49,7 @@ export function MilestonePageWrapper({ unitId, milestones, isTeacher }: Mileston
                                 <ClassMilestoneWidget 
                                     milestones={milestones} 
                                     activeMilestone={activeMilestone} 
-                                    label="Objetivo de la Unidad" 
+                                    label="Objetivos de la Unidad" 
                                     onToggle={() => handleToggleMilestone(false)}
                                 />
                             </motion.div>
@@ -73,7 +73,7 @@ export function MilestonePageWrapper({ unitId, milestones, isTeacher }: Mileston
                                 </motion.div>
                                 <div className="flex-1 relative z-10">
                                     <h3 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                                        {activeMilestone ? "Objetivo Actual" : "Objetivos de Unidad"}
+                                        {activeMilestone ? "Objetivo actual" : "Objetivos de unidad"}
                                         <span className="size-1 rounded-full bg-accent-blue animate-pulse" />
                                     </h3>
                                     <p className="text-[10px] text-text-muted font-bold uppercase tracking-tight opacity-70">Pulsa para ver el progreso del camino</p>
@@ -81,7 +81,7 @@ export function MilestonePageWrapper({ unitId, milestones, isTeacher }: Mileston
                                 {activeMilestone && (
                                     <div className="relative z-10 flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-sm group-hover:bg-white/10 transition-colors">
                                         <div className="flex flex-col items-end">
-                                            <span className="text-[9px] font-black text-accent-blue uppercase tracking-tighter leading-none mb-1">HITO ACTUAL</span>
+                                            <span className="text-[9px] font-black text-accent-blue uppercase tracking-tighter leading-none mb-1">OBJETIVO ACTUAL</span>
                                             <span className="text-xs font-bold text-foreground leading-none">{activeMilestone.title}</span>
                                         </div>
                                         <div className="size-6 rounded-lg bg-accent-blue/10 flex items-center justify-center text-accent-blue">

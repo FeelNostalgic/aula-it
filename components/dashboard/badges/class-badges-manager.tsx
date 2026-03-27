@@ -296,10 +296,44 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
     const earnedStudentIds = new Set(
         studentsData?.studentBadges.filter(sb => sb.badge_id === selectedBadgeForAward).map(sb => sb.student_id) ?? []
     );
+    const createBadgeTrigger = (
+        <button
+            type="button"
+            onClick={() => setIsCreating(true)}
+            className={cn(
+                "bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 cursor-pointer transition-all group hover:bg-accent-blue/5 w-full",
+                viewMode === "grid"
+                    ? "rounded-2xl p-6 min-h-[180px] h-full flex flex-col items-center justify-center gap-3 text-center"
+                    : "rounded-xl p-4 flex items-center gap-4 text-left"
+            )}
+        >
+            <div
+                className={cn(
+                    "bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all shrink-0",
+                    viewMode === "grid" ? "size-12 rounded-full" : "size-10 rounded-lg"
+                )}
+            >
+                <Plus
+                    className={cn(
+                        "text-text-muted group-hover:text-accent-blue transition-colors",
+                        viewMode === "grid" ? "size-5" : "size-4"
+                    )}
+                />
+            </div>
+            <div className={viewMode === "grid" ? "text-center" : "text-left"}>
+                <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">
+                    Nueva insignia
+                </p>
+                <p className="text-xs text-text-muted">
+                    Crear una nueva recompensa visual
+                </p>
+            </div>
+        </button>
+    );
 
     return (
         <div className="space-y-6">
-            {/* Manager-level tabs: Insignias | Entrega Manual */}
+            {/* Manager-level tabs: Insignias | Entrega manual */}
             <div className="flex items-center gap-1 bg-surface border border-border/50 rounded-lg p-1 w-fit">
                 <button
                     onClick={() => handleManagerTabChange('badges')}
@@ -318,7 +352,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                     )}
                 >
                     <UserCheck className="size-3" />
-                    Entrega Manual
+                    Entrega manual
                 </button>
             </div>
 
@@ -461,7 +495,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
             <div className="flex items-center justify-between">
                 <div>
                     <h3 className="text-xl font-bold tracking-tight">
-                        {activityId ? 'Insignias del Reto' : 'Gestión de Insignias Globales'}
+                        {activityId ? 'Insignias del Reto' : 'Gestión de insignias globales'}
                     </h3>
                     <p className="text-sm text-text-muted">
                         {activityId
@@ -470,25 +504,33 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
+                    <div className="flex items-center gap-2 p-1 bg-surface border border-border-subtle rounded-xl shadow-sm self-end md:self-center">
                         <Button
-                            variant={viewMode === "grid" ? "secondary" : "ghost"}
-                            size="icon"
-                            className={cn("h-8 w-8", viewMode === 'grid' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
+                            variant="ghost"
+                            size="sm"
                             onClick={() => setViewMode('grid')}
+                            className={cn(
+                                "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                viewMode === 'grid' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                            )}
                         >
-                            <LayoutGrid className="size-4" />
+                            <LayoutGrid className="size-3.5 mr-2" />
+                            Grid
                         </Button>
                         <Button
-                            variant={viewMode === "list" ? "secondary" : "ghost"}
-                            size="icon"
-                            className={cn("h-8 w-8", viewMode === 'list' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
+                            variant="ghost"
+                            size="sm"
                             onClick={() => setViewMode('list')}
+                            className={cn(
+                                "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                viewMode === 'list' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                            )}
                         >
-                            <List className="size-4" />
+                            <List className="size-3.5 mr-2" />
+                            Lista
                         </Button>
                     </div>
-                    <Button
+                                        <Button
                         onClick={() => setIsCreating(true)}
                         className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase"
                     >
@@ -498,9 +540,6 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                 </div>
             </div>
 
-            {(isCreating || !!isEditing) && (
-                <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" aria-hidden="true" />
-            )}
             <Dialog
                 open={isCreating || !!isEditing}
                 onOpenChange={(open) => !open && resetForm()}
@@ -508,11 +547,12 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
             >
                 <DialogContent
                     className="max-w-3xl bg-surface border-border-strong p-0 overflow-hidden z-50"
+                    onInteractOutside={(e) => e.preventDefault()}
                     onPointerDownOutside={(e) => e.preventDefault()}
                     onEscapeKeyDown={(e) => e.preventDefault()}
                 >
                     <DialogHeader className="p-6 pb-0">
-                        <DialogTitle>{isEditing ? "Editar Insignia" : "Nueva Insignia"}</DialogTitle>
+                        <DialogTitle>{isEditing ? "Editar insignia" : "Nueva insignia"}</DialogTitle>
                         <DialogDescription>Configura los detalles y las reglas de obtención.</DialogDescription>
                     </DialogHeader>
 
@@ -521,7 +561,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                             <TabsList className="bg-transparent gap-6 p-0 h-12">
                                 <TabsTrigger value="general" className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:bg-transparent px-2 h-full">General</TabsTrigger>
                                 <TabsTrigger value="obtention" className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:bg-transparent px-2 h-full">Obtención</TabsTrigger>
-                                <TabsTrigger value="preview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:bg-transparent px-2 h-full">Vista Previa</TabsTrigger>
+                                <TabsTrigger value="preview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:bg-transparent px-2 h-full">Vista previa</TabsTrigger>
                             </TabsList>
                         </div>
 
@@ -567,7 +607,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
 
                                     <div className="space-y-4">
                                         <div className="space-y-2">
-                                            <Label htmlFor="badge-title">Título de la Insignia</Label>
+                                            <Label htmlFor="badge-title">Título de la insignia</Label>
                                             <Input id="badge-title" value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Francotirador Visual" className="bg-surface-dark border-border/50" />
                                         </div>
                                         <div className="space-y-2">
@@ -599,7 +639,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                                                 className="text-accent-blue hover:text-accent-blue/80 gap-2 font-bold p-0"
                                                 onClick={() => setActiveTab("preview")}
                                             >
-                                                Ver Vista Previa →
+                                                Ver Vista previa →
                                             </Button>
                                         </div>
                                     </div>
@@ -608,7 +648,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
 
                             <TabsContent value="obtention" className="mt-0 space-y-6">
                                 <div className="space-y-4">
-                                    <Label className="text-base font-bold">Regla de Desbloqueo</Label>
+                                    <Label className="text-base font-bold">Regla de desbloqueo</Label>
                                     <div className="space-y-4 p-4 border border-border/50 rounded-xl bg-surface-dark/50">
 
                                         {/* ASIGNAR A — solo cuando es badge de reto con steps disponibles */}
@@ -669,33 +709,33 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                                                     {activityId ? (
                                                         (steps.length === 0 || assignTo === 'actividad') ? (
                                                             <>
-                                                                <SelectItem value="no_retries">Aprobado sin Reintentos</SelectItem>
-                                                                <SelectItem value="perfect_score">Nota Perfecta (100%)</SelectItem>
-                                                                <SelectItem value="first_to_submit">Primero en Entregar</SelectItem>
-                                                                <SelectItem value="first_attempt_score">Nota Primer Intento (0-100)</SelectItem>
-                                                                <SelectItem value="score">Nota de esta Actividad (0-100)</SelectItem>
-                                                                <SelectItem value="improvement">Mejora con Aprobado (nota mínima)</SelectItem>
-                                                                <SelectItem value="fastest_completion">Completado más Rápido (top N)</SelectItem>
+                                                                <SelectItem value="no_retries">Aprobado sin reintentos</SelectItem>
+                                                                <SelectItem value="perfect_score">Nota perfecta (100%)</SelectItem>
+                                                                <SelectItem value="first_to_submit">Primero en entregar</SelectItem>
+                                                                <SelectItem value="first_attempt_score">Nota primer intento (0-100)</SelectItem>
+                                                                <SelectItem value="score">Nota de esta actividad (0-100)</SelectItem>
+                                                                <SelectItem value="improvement">Mejora con aprobado (nota mínima)</SelectItem>
+                                                                <SelectItem value="fastest_completion">Completado más rápido (top N)</SelectItem>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <SelectItem value="score">Nota del Reto (0-100)</SelectItem>
-                                                                <SelectItem value="steps_completed">Actividades Completadas</SelectItem>
-                                                                <SelectItem value="specific_activity_completed">Completar este Reto</SelectItem>
-                                                                <SelectItem value="improvement">Mejora con Aprobado (nota mínima)</SelectItem>
-                                                                <SelectItem value="fastest_completion">Completado más Rápido (top N)</SelectItem>
+                                                                <SelectItem value="score">Nota del reto (0-100)</SelectItem>
+                                                                <SelectItem value="steps_completed">Actividades completadas</SelectItem>
+                                                                <SelectItem value="specific_activity_completed">Completar este reto</SelectItem>
+                                                                <SelectItem value="improvement">Mejora con aprobado (nota mínima)</SelectItem>
+                                                                <SelectItem value="fastest_completion">Completado más rápido (top N)</SelectItem>
                                                             </>
                                                         )
                                                     ) : (
                                                         <>
-                                                            <SelectItem value="average_score">Nota Media Unidad (0-100)</SelectItem>
-                                                            <SelectItem value="unit_completion">% Completado Unidad (0-100)</SelectItem>
+                                                            <SelectItem value="average_score">Nota media unidad (0-100)</SelectItem>
+                                                            <SelectItem value="unit_completion">% Completado unidad (0-100)</SelectItem>
                                                             <SelectItem value="activities_completed">Actividades completadas</SelectItem>
-                                                            <SelectItem value="total_xp">XP Total Acumulado</SelectItem>
-                                                            <SelectItem value="streak_days">Racha de Días</SelectItem>
-                                                            <SelectItem value="all_activities_completed">Todos los Retos Completados</SelectItem>
-                                                            <SelectItem value="top_rank">Alcanzar Rango X</SelectItem>
-                                                            <SelectItem value="consecutive_perfect">Perfectos Consecutivos</SelectItem>
+                                                            <SelectItem value="total_xp">XP total acumulado</SelectItem>
+                                                            <SelectItem value="streak_days">Racha de días</SelectItem>
+                                                            <SelectItem value="all_activities_completed">Todos los retos completados</SelectItem>
+                                                            <SelectItem value="top_rank">Alcanzar rango X</SelectItem>
+                                                            <SelectItem value="consecutive_perfect">Perfectos consecutivos</SelectItem>
                                                         </>
                                                     )}
                                                 </SelectContent>
@@ -774,7 +814,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                                             className="text-accent-blue hover:text-accent-blue/80 gap-2 font-bold p-0"
                                             onClick={() => setActiveTab("preview")}
                                         >
-                                            Ver Vista Previa →
+                                            Ver Vista previa →
                                         </Button>
                                     </div>
                                 </div>
@@ -782,12 +822,12 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
 
                             <TabsContent value="preview" className="mt-0 space-y-6">
                                 <div className="space-y-4">
-                                    <Label className="text-base font-bold text-center block">Vista Previa de la Insignia</Label>
+                                    <Label className="text-base font-bold text-center block">Vista previa de la insignia</Label>
                                     <div className="bg-surface-dark/50 border border-border/50 rounded-xl p-10 flex flex-col items-center justify-center gap-10 min-h-[300px]">
                                         <div className="flex flex-col sm:flex-row gap-12 sm:gap-20">
                                             <div className="text-center space-y-3">
                                                 <BadgeDisplay 
-                                                    badge={{ id: "preview", title: title || "Vista Previa", description, icon_url: iconUrl || null, is_hidden: isHidden } as any}
+                                                    badge={{ id: "preview", title: title || "Vista previa", description, icon_url: iconUrl || null, is_hidden: isHidden } as any}
                                                     isEarned={true}
                                                 />
                                                 <div className="px-3 py-1 bg-accent-green/10 border border-accent-green/20 rounded-full">
@@ -796,7 +836,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                                             </div>
                                             <div className="text-center space-y-3">
                                                 <BadgeDisplay 
-                                                    badge={{ id: "preview2", title: title || "Vista Previa", description, icon_url: iconUrl || null, is_hidden: isHidden } as any}
+                                                    badge={{ id: "preview2", title: title || "Vista previa", description, icon_url: iconUrl || null, is_hidden: isHidden } as any}
                                                     isEarned={false}
                                                 />
                                                 <div className="px-3 py-1 bg-surface border border-border/50 rounded-full">
@@ -910,6 +950,12 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                         </CardContent>
                     </Card>
                 ))}
+                
+                {filteredBadges.length > 0 && (
+                    <div className={viewMode === "grid" ? "h-full" : undefined}>
+                        {createBadgeTrigger}
+                    </div>
+                )}
                 
                 {filteredBadges.length === 0 && (
                     <div className="col-span-full py-20 text-center space-y-4 bg-surface-dark/30 rounded-2xl border border-dashed border-border/50">

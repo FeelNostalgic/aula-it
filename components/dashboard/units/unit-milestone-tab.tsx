@@ -56,6 +56,7 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
@@ -77,6 +78,18 @@ import { ClassMilestone, MilestoneStatus } from "@/types/database";
 import { ClassMilestoneWidget } from "@/components/dashboard/shared/class-milestone-widget";
 import { createUnitMilestone, updateUnitMilestone, deleteUnitMilestone, reorderUnitMilestones } from "@/app/dashboard/units/[id]/actions";
 import { cn } from "@/lib/utils";
+import {
+    CREATE_DIALOG_BODY_CLASS,
+    CREATE_DIALOG_CONTENT_CLASS,
+    CREATE_DIALOG_FOOTER_CLASS,
+    CREATE_DIALOG_HEADER_CLASS,
+    CREATE_DIALOG_INPUT_CLASS,
+    CREATE_DIALOG_LABEL_CLASS,
+    CREATE_DIALOG_PRIMARY_ACTION_CLASS,
+    CREATE_DIALOG_SELECT_CONTENT_CLASS,
+    CREATE_DIALOG_SELECT_TRIGGER_CLASS,
+    CREATE_DIALOG_TEXTAREA_CLASS,
+} from "@/components/dashboard/shared/create-dialog-styles";
 
 interface UnitMilestoneTabProps {
     unitId: string;
@@ -123,11 +136,13 @@ function MilestoneForm({
     unitId,
     initialData,
     milestoneId,
+    onCancel,
     onSuccess,
 }: {
     unitId: string;
     initialData?: Partial<MilestoneFormData>;
     milestoneId?: string;
+    onCancel?: () => void;
     onSuccess?: () => void;
 }) {
     const [isPending, startTransition] = useTransition();
@@ -166,59 +181,60 @@ function MilestoneForm({
             if (result?.error) {
                 toast.error(result.error);
             } else {
-                toast.success(milestoneId ? "Hito actualizado correctamente" : "Hito creado correctamente");
+                toast.success(milestoneId ? "Objetivo actualizado correctamente" : "Objetivo creado correctamente");
                 onSuccess?.();
             }
         });
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="contents">
+            <div className={`${CREATE_DIALOG_BODY_CLASS} space-y-5`}>
             <div className="space-y-2">
-                <Label htmlFor="title" className="text-xs font-bold text-text-muted uppercase tracking-wider">Título</Label>
+                <Label htmlFor="title" className={CREATE_DIALOG_LABEL_CLASS}>Título</Label>
                 <Input
                     id="title"
                     value={form.title}
                     onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))}
                     placeholder="Ej: Exploradores de Node.js"
-                    className="bg-surface-dark border-border-strong text-foreground focus-visible:ring-accent-blue"
+                    className={`${CREATE_DIALOG_INPUT_CLASS} h-11`}
                 />
             </div>
 
             <div className="space-y-2">
-                <Label htmlFor="description" className="text-xs font-bold text-text-muted uppercase tracking-wider">Descripción</Label>
+                <Label htmlFor="description" className={CREATE_DIALOG_LABEL_CLASS}>Descripción</Label>
                 <Textarea
                     id="description"
                     value={form.description}
                     onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
                     placeholder="Describe el objetivo..."
-                    className="bg-surface-dark border-border-strong text-foreground focus-visible:ring-accent-blue min-h-[80px]"
+                    className={`${CREATE_DIALOG_TEXTAREA_CLASS} min-h-[96px] resize-none`}
                 />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="target_points" className="text-xs font-bold text-text-muted uppercase tracking-wider">XP Objetivo</Label>
+                    <Label htmlFor="target_points" className={CREATE_DIALOG_LABEL_CLASS}>XP Objetivo</Label>
                     <Input
                         id="target_points"
                         type="number"
                         min={1}
                         value={form.target_points}
                         onChange={(e) => setForm(f => ({ ...f, target_points: Number(e.target.value) }))}
-                        className="bg-surface-dark border-border-strong text-foreground focus-visible:ring-accent-blue"
+                        className={`${CREATE_DIALOG_INPUT_CLASS} h-11`}
                     />
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="status" className="text-xs font-bold text-text-muted uppercase tracking-wider">Estado inicial</Label>
+                    <Label htmlFor="status" className={CREATE_DIALOG_LABEL_CLASS}>Estado inicial</Label>
                     <Select
                         value={form.status}
                         onValueChange={(v) => setForm(f => ({ ...f, status: v as MilestoneStatus }))}
                     >
-                        <SelectTrigger className="bg-surface-dark border-border-strong text-foreground focus:ring-accent-blue">
+                        <SelectTrigger className={`${CREATE_DIALOG_SELECT_TRIGGER_CLASS} h-11`}>
                             <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-surface-dark border-border-strong text-foreground">
+                        <SelectContent className={CREATE_DIALOG_SELECT_CONTENT_CLASS}>
                             <SelectItem value="draft">
                                 <div className="flex items-center gap-2">
                                     <DraftingCompass className="size-3.5 text-text-muted" />
@@ -237,26 +253,29 @@ function MilestoneForm({
             </div>
 
             <div className="space-y-2">
-                <Label htmlFor="reward" className="text-xs font-bold text-text-muted uppercase tracking-wider">Recompensa</Label>
+                <Label htmlFor="reward" className={CREATE_DIALOG_LABEL_CLASS}>Recompensa</Label>
                 <Input
                     id="reward"
                     value={form.reward}
                     onChange={(e) => setForm(f => ({ ...f, reward: e.target.value }))}
                     placeholder="Ej: +0.5 en el examen final"
-                    className="bg-surface-dark border-border-strong text-foreground focus-visible:ring-accent-blue"
+                    className={`${CREATE_DIALOG_INPUT_CLASS} h-11`}
                 />
             </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
+            </div>
+            <DialogFooter className={CREATE_DIALOG_FOOTER_CLASS}>
+                <Button type="button" variant="ghost" onClick={onCancel}>
+                    Cancelar
+                </Button>
                 <Button
                     type="submit"
                     disabled={isPending}
-                    className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8"
+                    className={CREATE_DIALOG_PRIMARY_ACTION_CLASS}
                 >
                     {isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-                    {milestoneId ? "ACTUALIZAR" : "CREAR HITO"}
+                    {milestoneId ? "ACTUALIZAR" : "CREAR OBJETIVO"}
                 </Button>
-            </div>
+            </DialogFooter>
         </form>
     );
 }
@@ -294,7 +313,7 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
             if (result?.error) {
                 toast.error(result.error);
             } else {
-                toast.success("Hito eliminado");
+                toast.success("Objetivo eliminado");
             }
         });
     };
@@ -374,9 +393,9 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
                                 </AlertDialogTrigger>
                                 <AlertDialogContent className="bg-surface-dark border-border-strong">
                                     <AlertDialogHeader>
-                                        <AlertDialogTitle>¿Eliminar hito?</AlertDialogTitle>
+                                        <AlertDialogTitle>¿Eliminar objetivo?</AlertDialogTitle>
                                         <AlertDialogDescription className="text-text-muted">
-                                            Esta acción eliminará el hito "{milestone.title}" permanentemente.
+                                            Esta acción eliminará el objetivo "{milestone.title}" permanentemente.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -453,6 +472,40 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
     };
 
     const sortedActiveAndDrafts = [...activeAndDrafts].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+    const createMilestoneTrigger = (
+        <button
+            type="button"
+            onClick={() => setIsCreateOpen(true)}
+            className={cn(
+                "bg-transparent border-2 border-dashed border-border-subtle hover:border-accent-blue/50 cursor-pointer transition-all group hover:bg-accent-blue/5",
+                viewMode === "grid"
+                    ? "rounded-2xl p-5 h-full w-full flex flex-col items-center justify-center gap-3 text-center"
+                    : "rounded-xl p-4 w-full flex items-center gap-4 text-left"
+            )}
+        >
+            <div
+                className={cn(
+                    "bg-surface border border-border-subtle group-hover:border-accent-blue/30 group-hover:bg-accent-blue/10 flex items-center justify-center transition-all shrink-0",
+                    viewMode === "grid" ? "size-12 rounded-full" : "size-10 rounded-lg"
+                )}
+            >
+                <Plus
+                    className={cn(
+                        "text-text-muted group-hover:text-accent-blue transition-colors",
+                        viewMode === "grid" ? "size-5" : "size-4"
+                    )}
+                />
+            </div>
+            <div className={viewMode === "grid" ? "text-center" : "text-left"}>
+                <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">
+                    Nuevo objetivo
+                </p>
+                <p className="text-xs text-text-muted">
+                    Definir un nuevo hito de progreso
+                </p>
+            </div>
+        </button>
+    );
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -462,7 +515,7 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
                     <div>
                         <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
                             <Target className="size-5 text-accent-blue" />
-                            Planificación de Hitos
+                            Planificación de objetivos
                         </h2>
                         <p className="text-sm text-text-muted mt-1">
                             Gestiona la secuencia de objetivos cooperativos para los alumnos.
@@ -470,30 +523,38 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
-                            <Button
-                                variant={viewMode === "grid" ? "secondary" : "ghost"}
-                                size="icon"
-                                className={cn("h-8 w-8", viewMode === 'grid' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
-                                onClick={() => setViewMode('grid')}
-                            >
-                                <LayoutGrid className="size-4" />
-                            </Button>
-                            <Button
-                                variant={viewMode === "list" ? "secondary" : "ghost"}
-                                size="icon"
-                                className={cn("h-8 w-8", viewMode === 'list' ? "bg-background shadow-sm text-foreground" : "text-text-muted")}
-                                onClick={() => setViewMode('list')}
-                            >
-                                <List className="size-4" />
-                            </Button>
-                        </div>
+                        <div className="flex items-center gap-2 p-1 bg-surface border border-border-subtle rounded-xl shadow-sm self-end md:self-center">
                         <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setViewMode('grid')}
+                            className={cn(
+                                "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                viewMode === 'grid' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                            )}
+                        >
+                            <LayoutGrid className="size-3.5 mr-2" />
+                            Grid
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setViewMode('list')}
+                            className={cn(
+                                "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                viewMode === 'list' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                            )}
+                        >
+                            <List className="size-3.5 mr-2" />
+                            Lista
+                        </Button>
+                    </div>
+                    <Button
                             onClick={() => setIsCreateOpen(true)}
                             className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase"
                         >
                             <Plus className="mr-2 size-4" />
-                            AÑADIR HITO
+                            NUEVO OBJETIVO
                         </Button>
                     </div>
                 </div>
@@ -505,13 +566,13 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
                         </div>
                         <h3 className="text-lg font-bold text-foreground mb-2">Empieza la aventura</h3>
                         <p className="max-w-xs text-text-muted text-sm mb-8 italic">
-                            Crea el primer hito de la unidad para motivar a tus alumnos a colaborar.
+                            Crea el primer objetivo de la unidad para motivar a tus alumnos a colaborar.
                         </p>
                         <Button
                             onClick={() => setIsCreateOpen(true)}
                             className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-11 px-8 uppercase"
                         >
-                            CREAR MI PRIMER HITO
+                            CREAR MI PRIMER OBJETIVO
                         </Button>
                     </div>
                 ) : (
@@ -531,6 +592,7 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
                                 {sortedActiveAndDrafts.map(m => (
                                     <SortableMilestoneCard key={m.id} milestone={m} />
                                 ))}
+                                <div className={viewMode === "grid" ? "h-full" : undefined}>{createMilestoneTrigger}</div>
                             </div>
                         </SortableContext>
                     </DndContext>
@@ -548,7 +610,7 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
                     {completedAndArchived.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center py-10 opacity-30 text-center grayscale">
                             <Trophy className="size-10 mb-4" />
-                            <p className="text-xs font-bold uppercase tracking-widest font-mono">No hay hitos completados aún</p>
+                            <p className="text-xs font-bold uppercase tracking-widest font-mono">No hay objetivos completados aún</p>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -581,45 +643,43 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
 
             {/* Modals */}
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                <DialogContent className="bg-surface border-border-strong sm:max-w-[450px]">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                            <Plus className="size-5 text-accent-blue" />
-                            Nuevo Hito Secuencial
-                        </DialogTitle>
-                        <DialogDescription className="text-text-muted">
-                            Añade un nuevo objetivo. Los hitos se activan automáticamente en orden de XP.
+                <DialogContent className={`sm:max-w-[450px] ${CREATE_DIALOG_CONTENT_CLASS}`}
+                    onInteractOutside={(e) => { e.preventDefault(); }}
+                    onPointerDownOutside={(e) => { e.preventDefault(); }}
+                    onEscapeKeyDown={(e) => { e.preventDefault(); }}>
+                    <DialogHeader className={CREATE_DIALOG_HEADER_CLASS}>
+                        <DialogTitle>Nuevo objetivo</DialogTitle>
+                        <DialogDescription>
+                            Añade un nuevo objetivo. Los objetivos se activan automáticamente en orden.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="pt-4">
-                        <MilestoneForm unitId={unitId} onSuccess={() => setIsCreateOpen(false)} />
-                    </div>
+                    <MilestoneForm
+                        unitId={unitId}
+                        onCancel={() => setIsCreateOpen(false)}
+                        onSuccess={() => setIsCreateOpen(false)}
+                    />
                 </DialogContent>
             </Dialog>
 
             <Dialog open={!!editingMilestone} onOpenChange={(open) => !open && setEditingMilestone(null)}>
-                <DialogContent className="bg-surface border-border-strong sm:max-w-[450px]">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                            <Edit className="size-5 text-accent-blue" />
-                            Editar Hito
-                        </DialogTitle>
+                <DialogContent className={`sm:max-w-[450px] ${CREATE_DIALOG_CONTENT_CLASS}`}>
+                    <DialogHeader className={CREATE_DIALOG_HEADER_CLASS}>
+                        <DialogTitle>Editar objetivo</DialogTitle>
                     </DialogHeader>
                     {editingMilestone && (
-                        <div className="pt-4">
-                            <MilestoneForm
-                                unitId={unitId}
-                                milestoneId={editingMilestone.id}
-                                initialData={{
-                                    title: editingMilestone.title,
-                                    description: editingMilestone.description ?? "",
-                                    target_points: editingMilestone.target_points,
-                                    reward: editingMilestone.reward,
-                                    status: editingMilestone.status,
-                                }}
-                                onSuccess={() => setEditingMilestone(null)}
-                            />
-                        </div>
+                        <MilestoneForm
+                            unitId={unitId}
+                            milestoneId={editingMilestone.id}
+                            initialData={{
+                                title: editingMilestone.title,
+                                description: editingMilestone.description ?? "",
+                                target_points: editingMilestone.target_points,
+                                reward: editingMilestone.reward,
+                                status: editingMilestone.status,
+                            }}
+                            onCancel={() => setEditingMilestone(null)}
+                            onSuccess={() => setEditingMilestone(null)}
+                        />
                     )}
                 </DialogContent>
             </Dialog>

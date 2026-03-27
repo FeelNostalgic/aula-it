@@ -37,7 +37,7 @@ function BreadcrumbSetter({ unit }: { unit: any }) {
             href: `/dashboard/units/${unit.id}`
         });
 
-        segments.push({ label: "Mapa Interactivo", href: "" });
+        segments.push({ label: "Mapa interactivo", href: "" });
 
         setSegments(segments);
     }, [unit, setSegments]);

@@ -75,6 +75,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { NextDueDisplay } from "@/components/dashboard/shared/next-due-display";
 import { getModuleRoleLabel, type ModuleCollaboratorRole } from "@/lib/module-collaborator-defs";
+import { getModuleIconVisualProps } from "@/components/dashboard/modules/module-identity";
 import {
     Select,
     SelectContent,
@@ -103,6 +104,7 @@ type Module = {
     name: string;
     description: string | null;
     icon: string;
+    icon_style?: string | null;
     custom_icon_url?: string | null;
     order_index?: number | null;
     created_at: string;
@@ -180,6 +182,7 @@ const STATUS_CONFIG = {
 
 function ModuleIcon({ module, className }: { module: Module; className?: string }) {
     const Icon = ICON_MAP[module.icon] || BookOpen;
+    const iconVisual = getModuleIconVisualProps(module.icon_style);
 
     if (module.custom_icon_url) {
         return (
@@ -194,10 +197,10 @@ function ModuleIcon({ module, className }: { module: Module; className?: string 
 
     return (
         <div className={cn(
-            "size-10 rounded-lg bg-surface border border-accent-blue/20 shadow-[0_0_10px_rgba(34,211,238,0.05)] flex items-center justify-center text-accent-blue group-hover:scale-110 transition-transform shrink-0",
+            "size-10 rounded-lg bg-surface border border-accent-blue/20 shadow-[0_0_10px_rgba(34,211,238,0.05)] flex items-center justify-center group-hover:scale-110 transition-transform shrink-0",
             className
         )}>
-            <Icon className="size-5" />
+            <Icon className={cn("size-5", iconVisual.className)} style={iconVisual.style} />
         </div>
     );
 }
@@ -379,7 +382,7 @@ function SortableModuleListItem({ module }: { module: Module }) {
                     <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
                 </div>
 
-                <div className="hidden lg:block">
+                <div className="hidden lg:block w-[600px] min-w-0 shrink">
                     <NextDueDisplay nextDueStep={module.next_due_step} viewMode="list" />
                 </div>
 
@@ -661,7 +664,7 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats, 
         <div className="flex flex-col gap-10">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
-                    <h2 className="text-2xl font-bold tracking-tight text-foreground">Gestión de Módulos</h2>
+                    <h2 className="text-2xl font-bold tracking-tight text-foreground">Gestión de módulos</h2>
                     <p className="text-sm font-medium text-text-muted">Supervisión general de tus cursos y contenidos.</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -681,22 +684,30 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats, 
                             </Select>
                         </div>
                     )}
-                    <div className="flex items-center bg-surface border border-border-subtle rounded-lg p-1">
+                    <div className="flex items-center gap-2 p-1 bg-surface border border-border-subtle rounded-xl shadow-sm self-end md:self-center">
                         <Button
-                            variant={viewMode === "grid" ? "secondary" : "ghost"}
-                            size="icon"
-                            onClick={() => setViewMode("grid")}
-                            className={`size-8 rounded-md ${viewMode === "grid" ? "bg-background shadow-sm text-foreground" : "text-text-muted"}`}
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setViewMode('grid')}
+                            className={cn(
+                                "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                viewMode === 'grid' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                            )}
                         >
-                            <LayoutGrid className="size-4" />
+                            <LayoutGrid className="size-3.5 mr-2" />
+                            Grid
                         </Button>
                         <Button
-                            variant={viewMode === "list" ? "secondary" : "ghost"}
-                            size="icon"
-                            onClick={() => setViewMode("list")}
-                            className={`size-8 rounded-md ${viewMode === "list" ? "bg-background shadow-sm text-foreground" : "text-text-muted"}`}
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setViewMode('list')}
+                            className={cn(
+                                "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                viewMode === 'list' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                            )}
                         >
-                            <List className="size-4" />
+                            <List className="size-3.5 mr-2" />
+                            Lista
                         </Button>
                     </div>
                     <CreateModuleDialog />
@@ -795,7 +806,7 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats, 
                                             <Plus className="size-4 text-text-muted group-hover:text-accent-blue transition-colors" />
                                         </div>
                                         <div className="text-left">
-                                            <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nuevo Módulo</p>
+                                            <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nuevo módulo</p>
                                             <p className="text-xs text-text-muted">Crear módulo formativo</p>
                                         </div>
                                     </button>
@@ -812,7 +823,7 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats, 
                                             <Plus className="size-5 text-text-muted group-hover:text-accent-blue transition-colors" />
                                         </div>
                                         <div className="text-center">
-                                            <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nuevo Módulo</p>
+                                            <p className="text-sm font-bold text-foreground group-hover:text-accent-blue transition-colors">Nuevo módulo</p>
                                             <p className="text-xs text-text-muted mt-0.5">Crear módulo formativo</p>
                                         </div>
                                     </button>

@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { ModuleRank } from "@/lib/gamification";
 import { RankBadge } from "@/components/dashboard/badges/rank-badge";
 import { NextDueDisplay } from "@/components/dashboard/shared/next-due-display";
+import { getModuleIconVisualProps } from "@/components/dashboard/modules/module-identity";
 
 const ICON_MAP: Record<string, any> = {
     BookOpen,
@@ -54,6 +55,7 @@ interface StudentModuleCardProps {
 
 function ModuleIcon({ module, className, viewMode }: { module: any; className?: string; viewMode: "grid" | "list" }) {
     const Icon = ICON_MAP[module.icon] || BookOpen;
+    const iconVisual = getModuleIconVisualProps(module.icon_style);
 
     if (module.custom_icon_url) {
         return (
@@ -69,11 +71,11 @@ function ModuleIcon({ module, className, viewMode }: { module: any; className?: 
 
     return (
         <div className={cn(
-            "size-12 rounded-xl bg-surface border border-border-subtle flex items-center justify-center text-accent-blue group-hover:bg-accent-blue/10 transition-colors shrink-0",
+            "size-12 rounded-xl bg-surface border border-border-subtle flex items-center justify-center group-hover:bg-accent-blue/10 transition-colors shrink-0",
             viewMode === "list" && "size-10 rounded-lg",
             className
         )}>
-            <Icon className={viewMode === "list" ? "size-4" : "size-5"} />
+            <Icon className={cn(viewMode === "list" ? "size-4" : "size-5", iconVisual.className)} style={iconVisual.style} />
         </div>
     );
 }

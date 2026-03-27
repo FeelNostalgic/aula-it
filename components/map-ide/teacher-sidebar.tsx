@@ -93,7 +93,7 @@ export function TeacherSidebar({ unit, activities, onAddActivity, moduleRole, mo
                         trigger={
                             <Button className="w-full bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-black uppercase tracking-wider text-[10px] h-10 gap-2 shadow-[0_0_20px_rgba(34,211,238,0.2)]">
                                 <Plus className="size-4" />
-                                Crear nuevo reto
+                                Nuevo reto
                             </Button>
                         }
                     />
@@ -127,8 +127,16 @@ export function TeacherSidebar({ unit, activities, onAddActivity, moduleRole, mo
                                     canEditMap ? "cursor-grab active:cursor-grabbing" : "cursor-default opacity-80"
                                 )}
                             >
-                                <div className="shrink-0 size-10 rounded-lg bg-background border border-border flex items-center justify-center transition-colors group-hover:border-accent-blue/20">
-                                    {getActivityIcon(activity.type)}
+                                <div className="shrink-0 size-10 rounded-lg bg-background border border-border flex items-center justify-center transition-colors group-hover:border-accent-blue/20 overflow-hidden">
+                                    {activity.logo_url ? (
+                                        <img
+                                            src={activity.logo_url}
+                                            alt={activity.title}
+                                            className="size-full object-cover"
+                                        />
+                                    ) : (
+                                        getActivityIcon(activity.type)
+                                    )}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h4 className="text-xs font-bold text-foreground truncate group-hover:text-accent-blue transition-colors">

@@ -40,6 +40,7 @@ interface Activity {
     xp?: number;
     type?: string;
     description?: string | null;
+    logo_url?: string | null;
 }
 
 interface Connection {
@@ -244,15 +245,30 @@ export function UnitMapConfigTab({ unitId, activities, connections }: UnitMapCon
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <button className={cn(
-                                        "flex items-center justify-center w-12 h-12 rounded-xl border-2 transition-all duration-300",
+                                        "relative flex items-center justify-center w-12 h-12 rounded-xl border-2 transition-all duration-300 overflow-hidden",
                                         activity.status === 'published' ? "bg-blue-500/10 border-blue-500/50 text-blue-400" :
                                             activity.status === 'blocked' ? "bg-zinc-800 border-zinc-700 text-zinc-500" :
                                                 "bg-zinc-900 border-dashed border-zinc-700 text-zinc-600",
                                         isConnecting === activity.id && "ring-4 ring-blue-500/50 scale-110"
                                     )}>
-                                        {activity.status === 'published' && <Play className="w-5 h-5" />}
-                                        {activity.status === 'blocked' && <Lock className="w-5 h-5" />}
-                                        {activity.status === 'draft' && <EyeOff className="w-5 h-5" />}
+                                        {activity.logo_url ? (
+                                            <img
+                                                src={activity.logo_url}
+                                                alt={activity.title}
+                                                className="size-full object-cover p-2"
+                                            />
+                                        ) : (
+                                            <>
+                                                {activity.status === 'published' && <Play className="w-5 h-5" />}
+                                                {activity.status === 'blocked' && <Lock className="w-5 h-5" />}
+                                                {activity.status === 'draft' && <EyeOff className="w-5 h-5" />}
+                                            </>
+                                        )}
+                                        <div className="absolute bottom-1 right-1 rounded-full border border-zinc-900/80 bg-zinc-950/90 p-0.5 shadow-sm">
+                                            {activity.status === 'published' && <Play className="size-2.5 text-blue-400" />}
+                                            {activity.status === 'blocked' && <Lock className="size-2.5 text-zinc-400" />}
+                                            {activity.status === 'draft' && <EyeOff className="size-2.5 text-zinc-500" />}
+                                        </div>
                                     </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="center" className="w-48 bg-zinc-900 border-zinc-800 text-zinc-300">

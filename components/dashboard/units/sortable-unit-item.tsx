@@ -182,7 +182,7 @@ function UnitActions({ unit }: { unit: Unit }) {
                     <AlertDialogHeader>
                         <AlertDialogTitle className="text-red-500">¿Eliminar unidad permanentemente?</AlertDialogTitle>
                         <AlertDialogDescription className="text-text-muted">
-                            Esta acción eliminará la unidad <span className="text-foreground font-bold">"{unit.name}"</span> y todos sus retos, hitos y datos asociados. Esta acción no se puede deshacer.
+                            Esta acción eliminará la unidad <span className="text-foreground font-bold">"{unit.name}"</span> y todos sus retos, objetivos y datos asociados. Esta acción no se puede deshacer.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -267,34 +267,37 @@ export function SortableUnitListItem({ unit, userRole, moduleRole, canEditConten
                     </div>
                 </div>
 
-                {/* Col 2: Next Delivery */}
-                <div className="hidden lg:block">
-                    <NextDueDisplay nextDueStep={unit.next_due_step} viewMode="list" />
-                </div>
-
-                {/* Col 3: Progress */}
-                <div className="w-full md:w-[180px] shrink-0">
-                    <div className="flex justify-between items-center mb-1.5">
-                        <span className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Progreso</span>
-                        <span className="text-xs font-bold text-foreground">{progress}%</span>
-                    </div>
-                    <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
-                </div>
-
-                {/* Col 4: Status Badge */}
-                <div className="w-full md:w-[130px] shrink-0 flex items-center justify-end gap-4 mt-2 md:mt-0">
-                    <Badge variant="outline" className={`${unitStatusConfig.border} ${unitStatusConfig.bg} ${unitStatusConfig.color} gap-1.5 py-1 px-3 shadow-sm`}>
-                        <span className={`size-1.5 rounded-full ${unitStatusConfig.dotBg}`} />
-                        {unitStatusConfig.label}
-                    </Badge>
-                    {isTeacher && canEditContent && <UnitActions unit={unit} />}
-                    {isTeacher && !canEditContent && moduleRole && moduleRole !== "viewer" && (
-                        <div onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" className="size-8 text-text-muted" disabled>
-                                <MoreVertical className="size-4" />
-                            </Button>
+                {/* Right Cluster */}
+                <div className="w-full md:ml-auto min-w-0 flex flex-col md:flex-row md:items-center md:justify-end gap-4 md:gap-4 mt-2 md:mt-0">
+                    <div className="w-full md:w-[120px] lg:w-[140px] shrink-0">
+                        <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-[10px] uppercase tracking-widest font-bold text-text-muted">Progreso</span>
+                            <span className="text-xs font-bold text-foreground">{progress}%</span>
                         </div>
-                    )}
+                        <Progress value={progress} className="h-1.5 bg-surface [&>div]:bg-accent-blue" />
+                    </div>
+
+                    <div className="hidden lg:block w-[600px] min-w-0 shrink">
+                        <NextDueDisplay nextDueStep={unit.next_due_step} viewMode="list" />
+                    </div>
+
+                    <div className="shrink-0 flex items-center justify-end gap-3">
+                        <Badge
+                            variant="outline"
+                            className={`${unitStatusConfig.border} ${unitStatusConfig.bg} ${unitStatusConfig.color} gap-1.5 py-1 px-3 shadow-sm whitespace-nowrap shrink-0`}
+                        >
+                            <span className={`size-1.5 rounded-full ${unitStatusConfig.dotBg}`} />
+                            {unitStatusConfig.label}
+                        </Badge>
+                        {isTeacher && canEditContent && <UnitActions unit={unit} />}
+                        {isTeacher && !canEditContent && moduleRole && moduleRole !== "viewer" && (
+                            <div onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="size-8 text-text-muted" disabled>
+                                    <MoreVertical className="size-4" />
+                                </Button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </>

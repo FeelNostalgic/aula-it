@@ -6,10 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Search, Loader2, Users } from "lucide-react";
-import { enrollStudent, bulkEnrollStudents, getAvailableStudents } from "@/app/dashboard/modules/[id]/actions";
+import { bulkEnrollStudents, getAvailableStudents } from "@/app/dashboard/modules/[id]/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { PrefixCombobox } from "@/components/students/prefix-combobox";
+import {
+    CREATE_DIALOG_BODY_CLASS,
+    CREATE_DIALOG_CONTENT_CLASS,
+    CREATE_DIALOG_FOOTER_CLASS,
+    CREATE_DIALOG_HEADER_CLASS,
+    CREATE_DIALOG_INPUT_CLASS,
+    CREATE_DIALOG_PRIMARY_ACTION_CLASS,
+} from "@/components/dashboard/shared/create-dialog-styles";
 
 interface EnrollStudentDialogProps {
     moduleId: string;
@@ -116,14 +124,14 @@ export function EnrollStudentDialog({ moduleId, children }: EnrollStudentDialogP
             <DialogTrigger asChild>
                 {children}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[520px] border-border-strong bg-surface-dark">
-                <DialogHeader>
-                    <DialogTitle className="text-xl font-bold text-foreground">Añadir Alumnos</DialogTitle>
-                    <DialogDescription className="text-text-muted">
+            <DialogContent className={`sm:max-w-[560px] ${CREATE_DIALOG_CONTENT_CLASS}`}>
+                <DialogHeader className={CREATE_DIALOG_HEADER_CLASS}>
+                    <DialogTitle>Añadir alumnos</DialogTitle>
+                    <DialogDescription>
                         Busca y selecciona alumnos para matricularlos en este módulo.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="py-4 flex flex-col gap-4">
+                <div className={`${CREATE_DIALOG_BODY_CLASS} flex flex-col gap-4`}>
                     {/* Filters */}
                     <div className="flex gap-3 items-center">
                         <div className="w-36 shrink-0">
@@ -142,7 +150,7 @@ export function EnrollStudentDialog({ moduleId, children }: EnrollStudentDialogP
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 placeholder="Buscar alumnos..."
-                                className="pl-10 h-10 bg-surface/50 border-border-strong text-foreground placeholder:text-text-muted focus-visible:ring-1 focus-visible:ring-accent-blue focus-visible:border-accent-blue transition-all"
+                                className={`${CREATE_DIALOG_INPUT_CLASS} pl-10 h-10 placeholder:text-text-muted transition-all`}
                             />
                             {loading && (
                                 <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 size-4 animate-spin text-text-muted" />
@@ -152,12 +160,12 @@ export function EnrollStudentDialog({ moduleId, children }: EnrollStudentDialogP
 
                     {/* Select all row */}
                     {results.length > 0 && (
-                        <div className="flex items-center gap-3 px-3 py-1.5 border-b border-border-subtle">
+                        <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-surface-dark/60 px-3 py-2">
                             <Checkbox
                                 checked={allSelected || (someSelected ? "indeterminate" : false)}
                                 onCheckedChange={toggleAll}
                             />
-                            <span className="text-xs text-muted-foreground font-mono">
+                            <span className="text-xs text-muted-foreground font-mono uppercase tracking-wide">
                                 {selected.size > 0 ? `${selected.size} seleccionado${selected.size !== 1 ? "s" : ""}` : "Seleccionar todos"}
                             </span>
                         </div>
@@ -166,7 +174,7 @@ export function EnrollStudentDialog({ moduleId, children }: EnrollStudentDialogP
                     {/* Student list */}
                     <div className="space-y-2 max-h-[320px] overflow-y-auto pr-2 custom-scrollbar">
                         {results.length === 0 && !loading && (
-                            <div className="flex flex-col items-center justify-center py-10 space-y-2">
+                            <div className="flex flex-col items-center justify-center rounded-2xl border border-border/50 bg-surface-dark/40 py-10 space-y-2">
                                 <Users className="size-10 text-border-strong" />
                                 <p className="text-sm text-text-muted text-center">
                                     {search || selectedPrefix !== "__all__"
@@ -178,7 +186,7 @@ export function EnrollStudentDialog({ moduleId, children }: EnrollStudentDialogP
                         {results.map((student) => (
                             <div
                                 key={student.id}
-                                className="flex items-center gap-3 p-3 rounded-xl border border-border-subtle bg-surface/30 hover:bg-surface/50 transition-colors cursor-pointer"
+                                className="flex items-center gap-3 p-3 rounded-xl border border-border/50 bg-surface-dark/40 hover:bg-surface-dark/70 transition-colors cursor-pointer"
                                 onClick={() => toggleSelect(student.id)}
                             >
                                 <Checkbox
@@ -209,12 +217,12 @@ export function EnrollStudentDialog({ moduleId, children }: EnrollStudentDialogP
                     </div>
                 </div>
 
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+                <DialogFooter className={CREATE_DIALOG_FOOTER_CLASS}>
+                    <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
                     <Button
                         onClick={handleBulkEnroll}
                         disabled={selected.size === 0 || enrolling}
-                        className="bg-accent-blue hover:bg-accent-blue/90 text-surface-dark font-bold"
+                        className={CREATE_DIALOG_PRIMARY_ACTION_CLASS}
                     >
                         {enrolling ? (
                             <Loader2 className="size-4 animate-spin mr-2" />

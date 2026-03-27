@@ -144,7 +144,7 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
                     {/* Live preview */}
                     <div className="flex-1 bg-background flex flex-col">
                         <div className="h-10 border-b border-border/50 flex items-center px-4 shrink-0 bg-surface-dark/50">
-                            <span className="text-xs font-medium text-text-muted">Vista Previa</span>
+                            <span className="text-xs font-medium text-text-muted">Vista previa</span>
                         </div>
                         <div className="flex-1 p-8 overflow-y-auto bg-grid-pattern">
                             {slidesUrl ? (

@@ -97,7 +97,7 @@ export function StudentUnitListView({ unit, activities, onStartActivity }: Stude
                         {visibleActivities.length}
                     </Badge>
                     <span className="w-1 h-1 rounded-full bg-zinc-800" />
-                    <span className="text-zinc-600 italic uppercase text-[10px] font-bold tracking-widest">Unidad Didáctica</span>
+                    <span className="text-zinc-600 italic uppercase text-[10px] font-bold tracking-widest">Unidad didáctica</span>
                 </div>
             </div>
 
