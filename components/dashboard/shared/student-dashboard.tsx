@@ -10,14 +10,6 @@ import { useGamification } from "@/hooks/use-gamification";
 import { StudentModuleCard } from "@/components/dashboard/modules/student-module-card";
 import { cn } from "@/lib/utils";
 
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-
 type Module = {
     id: string;
     name: string;
@@ -185,36 +177,48 @@ export function StudentDashboard({ initialModules, gridColumns: initialGridColum
                     <div className="flex items-center gap-4">
                         {viewMode === 'grid' && (
                             <div className="flex items-center gap-2 mr-2">
-                                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest hidden lg:inline">Columnas:</span>
-                                <Select value={gridCols.toString()} onValueChange={(val) => setGridCols(parseInt(val))}>
-                                    <SelectTrigger className="w-[60px] h-8 bg-surface border-border-subtle focus:ring-accent-blue text-xs">
-                                        <SelectValue placeholder="3" />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-surface border-border-subtle">
-                                        <SelectItem value="2">2</SelectItem>
-                                        <SelectItem value="3">3</SelectItem>
-                                        <SelectItem value="4">4</SelectItem>
-                                        <SelectItem value="5">5</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <div className="flex items-center bg-muted/30 dark:bg-surface-dark/50 p-1 rounded-xl border border-border/50">
+                                    {([2, 3, 4, 5] as const).map((count) => (
+                                        <Button
+                                            key={count}
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setGridCols(count)}
+                                            className={cn(
+                                                "h-8 w-8 p-0 rounded-lg transition-all text-xs font-bold",
+                                                gridCols === count ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                            )}
+                                        >
+                                            {count}
+                                        </Button>
+                                    ))}
+                                </div>
                             </div>
                         )}
-                        <div className="flex items-center bg-surface border border-border-subtle rounded-md p-1">
+                        <div className="flex items-center gap-2 p-1 bg-surface border border-border-subtle rounded-xl shadow-sm self-end md:self-center">
                             <Button
                                 variant="ghost"
-                                size="icon"
-                                className={`size-7 rounded-sm ${viewMode === 'grid' ? 'bg-surface-dark text-foreground shadow-sm' : 'text-text-muted hover:text-foreground hover:bg-transparent'}`}
                                 onClick={() => setViewMode('grid')}
+                                size="sm"
+                                className={cn(
+                                    "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                    viewMode === 'grid' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                )}
                             >
-                                <LayoutGrid className="size-4" />
+                                <LayoutGrid className="size-3.5 mr-2" />
+                                Grid
                             </Button>
                             <Button
                                 variant="ghost"
-                                size="icon"
-                                className={`size-7 rounded-sm ${viewMode === 'list' ? 'bg-surface-dark text-foreground shadow-sm' : 'text-text-muted hover:text-foreground hover:bg-transparent'}`}
                                 onClick={() => setViewMode('list')}
+                                size="sm"
+                                className={cn(
+                                    "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                    viewMode === 'list' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                )}
                             >
-                                <List className="size-4" />
+                                <List className="size-3.5 mr-2" />
+                                Lista
                             </Button>
                         </div>
                     </div>

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useEffect } from "react";
 import {
     LayoutGrid,
@@ -28,15 +27,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { CreateUnitDialog } from "@/components/dashboard/units/create-unit-dialog";
-import { EnrollStudentDialog } from "@/components/dashboard/shared/enroll-student-dialog";
 import { useBreadcrumb } from "@/components/dashboard/layout/breadcrumb-context";
 import ModuleStudentsTab from "./module-students-tab";
 import { ModuleSettingsTab } from "./module-settings-tab";
 import { cn } from "@/lib/utils";
-import { getModuleRankInfo } from "@/lib/gamification";
 import { useModuleGamification } from "@/hooks/use-gamification";
 import { RankBadge } from "@/components/dashboard/badges/rank-badge";
 import { ModuleLeaderboard } from "./module-leaderboard";
@@ -68,15 +64,6 @@ import { reorderUnits } from "@/app/dashboard/actions";
 import { toast } from "sonner";
 import { useTransition } from "react";
 import { SortableUnitListItem, SortableUnitGridItem } from "@/components/dashboard/units/sortable-unit-item";
-
-
-import { 
-    Select, 
-    SelectContent, 
-    SelectItem, 
-    SelectTrigger, 
-    SelectValue 
-} from "@/components/ui/select";
 
 const ICON_MAP: Record<string, any> = {
     BookOpen,
@@ -284,6 +271,14 @@ export function ModuleDetailView({
     };
 
     const statusConfig = statusConfigMap[module.status as keyof typeof statusConfigMap || "draft"];
+    const moduleTabs = [
+        { value: "dashboard", label: "Dashboard", icon: LayoutGrid, visible: true },
+        { value: "ranking", label: "Ranking", icon: Trophy, visible: true },
+        { value: "alumnos", label: "Alumnos", icon: GraduationCap, visible: isTeacher },
+        { value: "profesores", label: "Profesores", icon: Users, visible: isTeacher },
+        { value: "configuracion", label: "Configuración", icon: Settings, visible: modulePermissions?.canManageModuleSettings !== false },
+    ] as const;
+    const visibleModuleTabs = moduleTabs.filter((tab) => tab.visible);
 
     const gridColsClass = {
         2: "md:grid-cols-2 lg:grid-cols-2",
@@ -298,169 +293,171 @@ export function ModuleDetailView({
         return () => setSegments([]);
     }, [module.name, module.id, setSegments]);
 
-    return (
-        <div className="flex flex-col gap-8">
+    useEffect(() => {
+        if (!visibleModuleTabs.some((tab) => tab.value === activeTab)) {
+            setActiveTab("dashboard");
+        }
+    }, [activeTab, isTeacher, modulePermissions?.canManageModuleSettings]);
 
-            {/* Module Header */}
-            <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-                <div className="flex items-start gap-5">
-                    {module.custom_icon_url ? (
-                        <div className="size-14 rounded-xl overflow-hidden flex items-center justify-center shrink-0 bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]">
-                            <img src={module.custom_icon_url} alt={module.name} className="size-full object-cover p-2" />
-                        </div>
-                    ) : (
-                        <div className="size-14 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center shrink-0">
-                            <ModuleIcon className={cn("size-7", moduleIconVisual.className)} style={moduleIconVisual.style} />
-                        </div>
-                    )}
-                    <div className="space-y-1.5">
-                        <div className="flex items-center gap-3">
-                            <h1 className="text-2xl font-bold tracking-tight text-foreground">{module.name}</h1>
-                            {statusConfig && (
-                                <Badge variant="outline" className={`${statusConfig.border} ${statusConfig.bg} ${statusConfig.color} gap-1.5 py-1 px-3 shadow-sm`}>
-                                    <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
-                                    {statusConfig.label}
-                                </Badge>
-                            )}
-                            {!isTeacher && (
-                                <div className="flex items-center gap-3">
-                                    <RankBadge
-                                        rank={rankLetter}
-                                        showLabel
-                                        className="py-1.5 shadow-md"
-                                    />
-                                    {rankPosition && (
-                                        <Badge variant="outline" className="bg-surface border-border/50 text-text-muted px-2.5 py-1.5 h-auto">
-                                            <span className="text-[10px] uppercase font-mono font-bold tracking-widest mr-1 opacity-70">Top</span>
-                                            <span className="font-bold text-foreground">#{rankPosition}</span>
-                                        </Badge>
-                                    )}
-                                </div>
-                            )}
-                            {isTeacher && effectiveRole && effectiveRole !== "creator" && (
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300 gap-1.5 py-1 px-3 shadow-sm cursor-help">
-                                                <ShieldAlert className="size-3.5" />
-                                                {getModuleRoleLabel(effectiveRole)}
+    return (
+        <div className="-mx-24 -my-8 flex min-h-[calc(100vh-68px)] bg-background">
+            <aside className="w-[60px] shrink-0 self-stretch border-r border-border/50 bg-background">
+                <div className="flex h-full flex-col items-center gap-3 py-4">
+                    <TooltipProvider>
+                        {visibleModuleTabs.map((tab) => {
+                            const TabIcon = tab.icon;
+                            const isActive = activeTab === tab.value;
+
+                            return (
+                                <Tooltip key={tab.value}>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => setActiveTab(tab.value)}
+                                            className={cn(
+                                                "relative size-10 rounded-xl transition-all duration-300",
+                                                isActive
+                                                    ? "bg-accent-blue/10 text-accent-blue shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+                                                    : "text-text-muted hover:bg-accent/10 hover:text-foreground"
+                                            )}
+                                        >
+                                            <TabIcon className="size-5" />
+                                            {isActive && (
+                                                <div className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-accent-blue shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+                                            )}
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right">
+                                        {tab.label}
+                                    </TooltipContent>
+                                </Tooltip>
+                            );
+                        })}
+                    </TooltipProvider>
+                </div>
+            </aside>
+
+            <div className="min-w-0 flex-1 px-8 py-8 sm:px-10">
+                {/* Module Header */}
+                <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+                    <div className="flex items-start gap-5">
+                        {module.custom_icon_url ? (
+                            <div className="size-14 rounded-xl overflow-hidden flex items-center justify-center shrink-0 bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]">
+                                <img src={module.custom_icon_url} alt={module.name} className="size-full object-cover p-2" />
+                            </div>
+                        ) : (
+                            <div className="size-14 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center shrink-0">
+                                <ModuleIcon className={cn("size-7", moduleIconVisual.className)} style={moduleIconVisual.style} />
+                            </div>
+                        )}
+                        <div className="space-y-1.5">
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-2xl font-bold tracking-tight text-foreground">{module.name}</h1>
+                                {statusConfig && (
+                                    <Badge variant="outline" className={`${statusConfig.border} ${statusConfig.bg} ${statusConfig.color} gap-1.5 py-1 px-3 shadow-sm`}>
+                                        <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
+                                        {statusConfig.label}
+                                    </Badge>
+                                )}
+                                {!isTeacher && (
+                                    <div className="flex items-center gap-3">
+                                        <RankBadge
+                                            rank={rankLetter}
+                                            showLabel
+                                            className="py-1.5 shadow-md"
+                                        />
+                                        {rankPosition && (
+                                            <Badge variant="outline" className="bg-surface border-border/50 text-text-muted px-2.5 py-1.5 h-auto">
+                                                <span className="text-[10px] uppercase font-mono font-bold tracking-widest mr-1 opacity-70">Top</span>
+                                                <span className="font-bold text-foreground">#{rankPosition}</span>
                                             </Badge>
-                                        </TooltipTrigger>
-                                        <TooltipContent className="max-w-xs">
-                                            {getModuleRoleTooltip(effectiveRole)}
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            )}
+                                        )}
+                                    </div>
+                                )}
+                                {isTeacher && effectiveRole && effectiveRole !== "creator" && (
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300 gap-1.5 py-1 px-3 shadow-sm cursor-help">
+                                                    <ShieldAlert className="size-3.5" />
+                                                    {getModuleRoleLabel(effectiveRole)}
+                                                </Badge>
+                                            </TooltipTrigger>
+                                            <TooltipContent className="max-w-xs">
+                                                {getModuleRoleTooltip(effectiveRole)}
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                )}
+                            </div>
+                            <p className="text-sm text-text-muted max-w-xl">
+                                {module.description || "Sin descripción proporcionada para este módulo."}
+                            </p>
                         </div>
-                        <p className="text-sm text-text-muted max-w-xl">
-                            {module.description || "Sin descripción proporcionada para este módulo."}
-                        </p>
                     </div>
                 </div>
-            </div>
 
-            {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <TabsList className="bg-surface border border-border-subtle rounded-lg p-1 h-auto">
-                        <TabsTrigger
-                            value="dashboard"
-                            className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
-                        >
-                            <LayoutGrid className="mr-2 size-3.5" />
-                            DASHBOARD
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="ranking"
-                            className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
-                        >
-                            <Trophy className="mr-2 size-3.5" />
-                            RANKING
-                        </TabsTrigger>
-                        {isTeacher && (
-                            <>
-                                <TabsTrigger
-                                    value="alumnos"
-                                    className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
-                                >
-                                    <GraduationCap className="mr-2 size-3.5" />
-                                    ALUMNOS
-                                </TabsTrigger>
-                                <TabsTrigger
-                                    value="profesores"
-                                    className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
-                                >
-                                    <Users className="mr-2 size-3.5" />
-                                    PROFESORES
-                                </TabsTrigger>
-                                {modulePermissions?.canManageModuleSettings !== false && (
-                                    <TabsTrigger
-                                        value="configuracion"
-                                        className="font-mono text-[10px] font-bold tracking-widest uppercase px-5 py-2 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm rounded-md"
-                                    >
-                                        <Settings className="mr-2 size-3.5" />
-                                        CONFIGURACIÓN
-                                    </TabsTrigger>
-                                )}
-                            </>
-                        )}
-                    </TabsList>
-                </div>
-
-                {/* Dashboard Tab (Units) */}
-                <TabsContent value="dashboard" className="mt-6">
+                {/* Tabs */}
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                    {/* Dashboard Tab (Units) */}
+                    <TabsContent value="dashboard" className="mt-0">
                     {/* View Mode Toggle + Count */}
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex flex-col gap-4 mb-6 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex items-center gap-3">
                             <h2 className="text-lg font-bold tracking-tight text-foreground">Unidades Didácticas</h2>
                             <Badge variant="outline" className="border-border-subtle text-text-muted text-[10px] font-mono font-bold">
                                 {initialUnits.length}
                             </Badge>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
                             {viewMode === "grid" && (
                                 <div className="flex items-center gap-2 mr-2">
-                                    <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest hidden lg:inline">Columnas:</span>
-                                    <Select value={gridCols.toString()} onValueChange={(val) => setGridCols(parseInt(val))}>
-                                        <SelectTrigger className="w-[60px] h-8 bg-surface border-border-subtle focus:ring-accent-blue text-xs">
-                                            <SelectValue placeholder="3" />
-                                        </SelectTrigger>
-                                        <SelectContent className="bg-surface border-border-subtle">
-                                            <SelectItem value="2">2</SelectItem>
-                                            <SelectItem value="3">3</SelectItem>
-                                            <SelectItem value="4">4</SelectItem>
-                                            <SelectItem value="5">5</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                    <div className="flex items-center bg-muted/30 dark:bg-surface-dark/50 p-1 rounded-xl border border-border/50">
+                                        {([2, 3, 4, 5] as const).map((count) => (
+                                            <Button
+                                                key={count}
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setGridCols(count)}
+                                                className={cn(
+                                                    "h-8 w-8 p-0 rounded-lg transition-all text-xs font-bold",
+                                                    gridCols === count ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                                )}
+                                            >
+                                                {count}
+                                            </Button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
-                    <div className="flex items-center gap-2 p-1 bg-surface border border-border-subtle rounded-xl shadow-sm self-end md:self-center">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setViewMode('grid')}
-                            className={cn(
-                                "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
-                                viewMode === 'grid' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
-                            )}
-                        >
-                            <LayoutGrid className="size-3.5 mr-2" />
-                            Grid
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setViewMode('list')}
-                            className={cn(
-                                "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
-                                viewMode === 'list' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
-                            )}
-                        >
-                            <List className="size-3.5 mr-2" />
-                            Lista
-                        </Button>
-                    </div>
+                            <div className="flex items-center gap-2 p-1 bg-surface border border-border-subtle rounded-xl shadow-sm self-end md:self-center">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setViewMode('grid')}
+                                    className={cn(
+                                        "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                        viewMode === 'grid' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                    )}
+                                >
+                                    <LayoutGrid className="size-3.5 mr-2" />
+                                    Grid
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setViewMode('list')}
+                                    className={cn(
+                                        "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                                        viewMode === 'list' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                    )}
+                                >
+                                    <List className="size-3.5 mr-2" />
+                                    Lista
+                                </Button>
+                            </div>
                             {isTeacher && (
                                 canEditModuleContent ? (
                                     <CreateUnitDialog moduleId={module.id}>
@@ -562,42 +559,43 @@ export function ModuleDetailView({
                             </SortableContext>
                         </DndContext>
                     )}
-                </TabsContent>
+                    </TabsContent>
 
-                {/* Alumnos Tab */}
-                <TabsContent value="alumnos" className="mt-6">
-                    <ModuleStudentsTab
-                        moduleId={module.id}
-                        initialStudents={initialStudents}
-                        canManageStudents={canManageStudents}
-                        restrictionMessage={effectiveRole ? getRestrictedActionMessage("canManageStudents", effectiveRole) : null}
-                    />
-                </TabsContent>
-
-                <TabsContent value="profesores" className="mt-6">
-                    <ModuleCollaboratorsTab
-                        moduleId={module.id}
-                        canManageCollaborators={canManageCollaborators}
-                        moduleRole={effectiveRole}
-                    />
-                </TabsContent>
-
-                {/* Configuración Tab */}
-                {modulePermissions?.canManageModuleSettings !== false && (
-                    <TabsContent value="configuracion" className="mt-6">
-                        <ModuleSettingsTab
-                            module={module}
-                            moduleRole={effectiveRole}
-                            modulePermissions={modulePermissions}
+                    {/* Alumnos Tab */}
+                    <TabsContent value="alumnos" className="mt-0">
+                        <ModuleStudentsTab
+                            moduleId={module.id}
+                            initialStudents={initialStudents}
+                            canManageStudents={canManageStudents}
+                            restrictionMessage={effectiveRole ? getRestrictedActionMessage("canManageStudents", effectiveRole) : null}
                         />
                     </TabsContent>
-                )}
 
-                {/* Ranking Tab */}
-                <TabsContent value="ranking" className="mt-6">
-                    <ModuleLeaderboard moduleId={module.id} userRole={userRole} />
-                </TabsContent>
-            </Tabs>
+                    <TabsContent value="profesores" className="mt-0">
+                        <ModuleCollaboratorsTab
+                            moduleId={module.id}
+                            canManageCollaborators={canManageCollaborators}
+                            moduleRole={effectiveRole}
+                        />
+                    </TabsContent>
+
+                    {/* Configuración Tab */}
+                    {modulePermissions?.canManageModuleSettings !== false && (
+                        <TabsContent value="configuracion" className="mt-0">
+                            <ModuleSettingsTab
+                                module={module}
+                                moduleRole={effectiveRole}
+                                modulePermissions={modulePermissions}
+                            />
+                        </TabsContent>
+                    )}
+
+                    {/* Ranking Tab */}
+                    <TabsContent value="ranking" className="mt-0">
+                        <ModuleLeaderboard moduleId={module.id} userRole={userRole} />
+                    </TabsContent>
+                </Tabs>
+            </div>
         </div>
     );
 }

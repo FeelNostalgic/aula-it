@@ -50,13 +50,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { BadgeDisplay } from "@/components/dashboard/badges/badge-display";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getRestrictedActionMessage, type ModuleCollaboratorRole } from "@/lib/module-collaborator-defs";
 
@@ -720,18 +713,22 @@ export function UnitActivitiesTab({
                     {/* Grid Column Selector */}
                     {viewMode === "grid" && setGridCols && (
                         <div className="flex items-center gap-2 mr-2">
-                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest hidden lg:inline">Columnas:</span>
-                            <Select value={gridCols.toString()} onValueChange={(val) => setGridCols(parseInt(val))}>
-                                <SelectTrigger className="w-[60px] h-8 bg-surface border-border-subtle focus:ring-accent-blue text-xs">
-                                    <SelectValue placeholder="3" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-surface border-border-subtle">
-                                    <SelectItem value="2">2</SelectItem>
-                                    <SelectItem value="3">3</SelectItem>
-                                    <SelectItem value="4">4</SelectItem>
-                                    <SelectItem value="5">5</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <div className="flex items-center bg-muted/30 dark:bg-surface-dark/50 p-1 rounded-xl border border-border/50">
+                                {([2, 3, 4, 5] as const).map((count) => (
+                                    <Button
+                                        key={count}
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setGridCols(count)}
+                                        className={cn(
+                                            "h-8 w-8 p-0 rounded-lg transition-all text-xs font-bold",
+                                            gridCols === count ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                        )}
+                                    >
+                                        {count}
+                                    </Button>
+                                ))}
+                            </div>
                         </div>
                     )}
 

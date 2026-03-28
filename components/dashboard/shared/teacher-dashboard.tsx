@@ -76,13 +76,6 @@ import { cn } from "@/lib/utils";
 import { NextDueDisplay } from "@/components/dashboard/shared/next-due-display";
 import { getModuleRoleLabel, type ModuleCollaboratorRole } from "@/lib/module-collaborator-defs";
 import { getModuleIconVisualProps } from "@/components/dashboard/modules/module-identity";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 
 export const ICON_MAP: Record<string, any> = {
     BookOpen,
@@ -670,18 +663,22 @@ export function TeacherDashboard({ initialModules, totalStudents, teacherStats, 
                 <div className="flex items-center gap-3">
                     {viewMode === "grid" && (
                         <div className="flex items-center gap-2 mr-2">
-                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest hidden lg:inline">Columnas:</span>
-                            <Select value={gridCols.toString()} onValueChange={handleGridColsChange}>
-                                <SelectTrigger className="w-[60px] h-8 bg-surface border-border-subtle focus:ring-accent-blue text-xs">
-                                    <SelectValue placeholder="3" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-surface border-border-subtle">
-                                    <SelectItem value="2">2</SelectItem>
-                                    <SelectItem value="3">3</SelectItem>
-                                    <SelectItem value="4">4</SelectItem>
-                                    <SelectItem value="5">5</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <div className="flex items-center bg-muted/30 dark:bg-surface-dark/50 p-1 rounded-xl border border-border/50">
+                                {([2, 3, 4, 5] as const).map((count) => (
+                                    <Button
+                                        key={count}
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleGridColsChange(count.toString())}
+                                        className={cn(
+                                            "h-8 w-8 p-0 rounded-lg transition-all text-xs font-bold",
+                                            gridCols === count ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                        )}
+                                    >
+                                        {count}
+                                    </Button>
+                                ))}
+                            </div>
                         </div>
                     )}
                     <div className="flex items-center gap-2 p-1 bg-surface border border-border-subtle rounded-xl shadow-sm self-end md:self-center">
