@@ -7,10 +7,10 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
-import { UserCheck, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, ClipboardList, MessageSquare } from "lucide-react";
+import { UserCheck, CheckCircle2, Link2, ClipboardList, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { SelfEvaluationContent, ActivitySubmission, RubricCriteria, criteriaMaxPoints } from "@/types/activity";
+import { SelfEvaluationContent, ActivitySubmission, RubricCriteria, criteriaMaxPoints, QuizQuestion } from "@/types/activity";
 import { submitSelfEvaluation } from "@/app/activities/[id]/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -20,7 +20,8 @@ interface SelfEvaluationViewerProps {
     stepId: string;
     activityId: string;
     initialSubmission?: ActivitySubmission | null;
-    referenceSubmission?: ActivitySubmission | null;
+    referenceStepTitle?: string | null;
+    referenceScore?: number | null;  // published score of the linked deliverable (after weighting)
     isPreview?: boolean;
     isClosed?: boolean;
 }
@@ -30,13 +31,14 @@ export function SelfEvaluationViewer({
     stepId,
     activityId,
     initialSubmission,
-    referenceSubmission,
+    referenceStepTitle,
+    referenceScore,
     isPreview,
     isClosed,
 }: SelfEvaluationViewerProps) {
     const evalMode = content.evalMode ?? "rubric";
     const rubric = content.rubric ?? [];
-    const questions = content.questions ?? [];
+    const questions = (content.questions ?? []) as QuizQuestion[];
 
     const hasSubmitted = !!(
         evalMode === "questions"
@@ -51,13 +53,32 @@ export function SelfEvaluationViewer({
     const [answers, setAnswers] = useState<Record<string, string>>(
         initialSubmission?.self_eval_justifications ?? {}
     );
-    const [referenceExpanded, setReferenceExpanded] = useState(false);
     const [isPending, startTransition] = useTransition();
 
     // Validation
     const allScored = evalMode === "questions" || rubric.every(c => scores[c.id] !== undefined);
-    const allAnswered = evalMode !== "questions" || questions.every(q => (answers[q.id] ?? "").trim().length > 0);
-    const allJustified = evalMode !== "rubric" || !content.requireJustification || rubric.every(c => (answers[c.id] ?? "").trim().length > 0);
+    const allAnswered = evalMode !== "questions" || questions.every(q => {
+        const ans = (answers[q.id] ?? "").trim();
+        if (!ans) return false;
+        if (q.type === 'short_answer' && q.minLength && ans.length < q.minLength) return false;
+        if (q.type === 'likert') {
+            // Likert requires a scale selection (stored as string "1".."N" in answers)
+            if (!ans) return false;
+            if (q.requireJustification) {
+                const just = (answers[`${q.id}:justification`] ?? "").trim();
+                if (!just) return false;
+                if (q.minLength && just.length < q.minLength) return false;
+            }
+        }
+        return true;
+    });
+    const minJustLen = content.minJustificationLength ?? 0;
+    const allJustified = evalMode !== "rubric" || !content.requireJustification || rubric.every(c => {
+        const j = (answers[c.id] ?? "").trim();
+        if (!j) return false;
+        if (minJustLen > 0 && j.length < minJustLen) return false;
+        return true;
+    });
     const canSubmit = allScored && allAnswered && allJustified && !isPreview && !isClosed && !hasSubmitted;
 
     function handleSubmit() {
@@ -77,7 +98,6 @@ export function SelfEvaluationViewer({
     const rubricMax = rubric.reduce((sum, c) => sum + criteriaMaxPoints(c), 0);
     const selfTotal = Object.values(scores).reduce((a, b) => a + b, 0);
     const selfNormalized = rubricMax > 0 ? Math.round((selfTotal / rubricMax) * 1000) / 100 : 0;
-    const teacherScore = isPublished ? initialSubmission?.score : null;
 
     return (
         <div className="max-w-4xl mx-auto space-y-8">
@@ -98,40 +118,33 @@ export function SelfEvaluationViewer({
                 </div>
             )}
 
-            {/* Reference submission (collapsible) */}
-            {referenceSubmission?.drive_file_url && (
-                <div className="rounded-2xl border border-white/5 bg-surface-dark overflow-hidden">
-                    <button
-                        className="w-full px-6 py-4 flex items-center justify-between text-sm font-semibold text-foreground hover:bg-white/2 transition-colors"
-                        onClick={() => setReferenceExpanded(v => !v)}
-                    >
-                        <span className="flex items-center gap-2">
-                            <ExternalLink className="size-4 text-accent-blue" />
-                            Tu entrega de referencia
-                        </span>
-                        {referenceExpanded ? <ChevronUp className="size-4 text-text-muted" /> : <ChevronDown className="size-4 text-text-muted" />}
-                    </button>
-                    {referenceExpanded && (
-                        <div className="px-6 pb-6">
-                            <div className="aspect-4/3 w-full rounded-xl overflow-hidden border border-border bg-white shadow">
-                                <iframe src={referenceSubmission.drive_file_url} className="w-full h-full" title="Entrega de referencia" />
-                            </div>
-                        </div>
-                    )}
+            {/* Linked deliverable badge */}
+            {referenceStepTitle && (
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-dark border border-white/5 text-xs text-text-muted">
+                    <Link2 className="size-3.5 text-accent-blue shrink-0" />
+                    Vinculado a: <span className="font-semibold text-foreground">{referenceStepTitle}</span>
                 </div>
             )}
 
-            {/* Published comparison banner — rubric mode only */}
-            {evalMode === "rubric" && isPublished && teacherScore !== null && (
-                <div className="grid grid-cols-2 gap-4">
+            {/* Published comparison banner — rubric mode, student has submitted */}
+            {evalMode === "rubric" && isPublished && hasSubmitted && (
+                <div className={cn(
+                    "grid gap-4",
+                    content.countsTowardGrade && referenceScore != null ? "grid-cols-2" : "grid-cols-1 max-w-xs"
+                )}>
                     <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
                         <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-1">Tu autoevaluación</span>
                         <span className="text-2xl font-black font-mono text-indigo-400">{selfNormalized} / 10</span>
                     </div>
-                    <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-                        <span className="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-1">Nota del profesor</span>
-                        <span className="text-2xl font-black font-mono text-emerald-400">{teacherScore} / 10</span>
-                    </div>
+                    {content.countsTowardGrade && referenceScore != null && (
+                        <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                            <span className="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-1">Nota final del entregable</span>
+                            <span className="text-2xl font-black font-mono text-emerald-400">{referenceScore} / 10</span>
+                            <span className="text-[10px] text-emerald-400/60 mt-1 text-center">
+                                {content.selfEvalWeight ?? 20}% autoevaluación + {100 - (content.selfEvalWeight ?? 20)}% profesor
+                            </span>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -149,6 +162,7 @@ export function SelfEvaluationViewer({
                                 selected={scores[criterion.id]}
                                 justification={answers[criterion.id] ?? ""}
                                 requireJustification={content.requireJustification}
+                                minJustificationLength={content.minJustificationLength}
                                 readOnly={hasSubmitted || !!isPreview || !!isClosed}
                                 onSelect={(pts) => setScores(prev => ({ ...prev, [criterion.id]: pts }))}
                                 onJustify={(text) => setAnswers(prev => ({ ...prev, [criterion.id]: text }))}
@@ -170,27 +184,16 @@ export function SelfEvaluationViewer({
                             <MessageSquare className="size-4" /> Reflexión
                         </h3>
                         {questions.map((q, idx) => (
-                            <div key={q.id} className="space-y-2">
-                                <div>
-                                    <p className="text-sm font-semibold text-foreground">
-                                        <span className="text-text-muted font-normal mr-1">{idx + 1}.</span>
-                                        {q.text}
-                                    </p>
-                                    {q.description && (
-                                        <p className="text-xs text-text-muted mt-0.5">{q.description}</p>
-                                    )}
-                                </div>
-                                <Textarea
-                                    value={answers[q.id] ?? ""}
-                                    onChange={(e) => !hasSubmitted && !isPreview && !isClosed && setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                                    readOnly={hasSubmitted || !!isPreview || !!isClosed}
-                                    placeholder="Escribe tu respuesta..."
-                                    className={cn(
-                                        "resize-none text-sm min-h-[96px] bg-surface border-border/50",
-                                        (hasSubmitted || isPreview || isClosed) && "cursor-default opacity-80"
-                                    )}
-                                />
-                            </div>
+                            <QuestionBlock
+                                key={q.id}
+                                question={q}
+                                index={idx}
+                                answer={answers[q.id] ?? ""}
+                                justification={answers[`${q.id}:justification`] ?? ""}
+                                readOnly={hasSubmitted || !!isPreview || !!isClosed}
+                                onAnswer={(v) => !hasSubmitted && !isPreview && !isClosed && setAnswers(prev => ({ ...prev, [q.id]: v }))}
+                                onJustification={(v) => !hasSubmitted && !isPreview && !isClosed && setAnswers(prev => ({ ...prev, [`${q.id}:justification`]: v }))}
+                            />
                         ))}
                     </div>
                 ) : (
@@ -234,6 +237,7 @@ function CriterionBlock({
     selected,
     justification,
     requireJustification,
+    minJustificationLength,
     readOnly,
     onSelect,
     onJustify,
@@ -242,10 +246,15 @@ function CriterionBlock({
     selected?: number;
     justification: string;
     requireJustification: boolean;
+    minJustificationLength?: number;
     readOnly: boolean;
     onSelect: (pts: number) => void;
     onJustify: (text: string) => void;
 }) {
+    const charCount = justification.trim().length;
+    const minLen = minJustificationLength ?? 0;
+    const showWarning = !readOnly && requireJustification && minLen > 0 && charCount > 0 && charCount < minLen;
+
     return (
         <div className="space-y-3">
             <div>
@@ -281,16 +290,144 @@ function CriterionBlock({
                 })}
             </div>
             {(requireJustification || justification) && (
-                <Textarea
-                    value={justification}
-                    onChange={(e) => !readOnly && onJustify(e.target.value)}
-                    readOnly={readOnly}
-                    placeholder={requireJustification ? "Justifica tu puntuación (obligatorio)..." : "Justificación (opcional)..."}
-                    className={cn(
-                        "resize-none text-sm min-h-[72px] bg-surface border-border/50",
-                        readOnly && "cursor-default opacity-80"
+                <div className="space-y-1">
+                    <Textarea
+                        value={justification}
+                        onChange={(e) => !readOnly && onJustify(e.target.value)}
+                        readOnly={readOnly}
+                        placeholder={requireJustification ? "Justifica tu puntuación (obligatorio)..." : "Justificación (opcional)..."}
+                        className={cn(
+                            "resize-none text-sm min-h-[72px] bg-surface border-border/50",
+                            readOnly && "cursor-default opacity-80",
+                            showWarning && "border-amber-500/50"
+                        )}
+                    />
+                    {minLen > 0 && !readOnly && (
+                        <p className={cn("text-[10px] text-right", showWarning ? "text-amber-400" : "text-text-muted/50")}>
+                            {charCount}/{minLen} caracteres mínimos
+                        </p>
                     )}
-                />
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ─── Sub-component: question block (questions mode — short_answer + likert) ──
+
+function QuestionBlock({
+    question,
+    index,
+    answer,
+    justification,
+    readOnly,
+    onAnswer,
+    onJustification,
+}: {
+    question: QuizQuestion;
+    index: number;
+    answer: string;
+    justification: string;
+    readOnly: boolean;
+    onAnswer: (v: string) => void;
+    onJustification: (v: string) => void;
+}) {
+    const isLikert = question.type === 'likert';
+    const scale = question.likertScale ?? 5;
+    const labels = question.likertLabels ?? [];
+    const charCount = answer.trim().length;
+    const justificationCharCount = justification.trim().length;
+    const minLength = question.minLength ?? 0;
+    const showMinLengthWarning = !isLikert && !readOnly && minLength > 0 && charCount > 0 && charCount < minLength;
+    const showJustificationWarning = isLikert && question.requireJustification && !readOnly && minLength > 0 && justificationCharCount > 0 && justificationCharCount < minLength;
+
+    return (
+        <div className="space-y-2">
+            <div>
+                <p className="text-sm font-semibold text-foreground">
+                    <span className="text-text-muted font-normal mr-1">{index + 1}.</span>
+                    {question.text}
+                </p>
+                {question.explanation && (
+                    <p className="text-xs text-text-muted mt-0.5">{question.explanation}</p>
+                )}
+            </div>
+
+            {isLikert ? (
+                <div className="space-y-2">
+                    <div className={cn("grid gap-1.5", scale <= 5 ? "grid-cols-5" : "grid-cols-7")}>
+                        {Array.from({ length: scale }, (_, i) => {
+                            const val = String(i + 1);
+                            const isSelected = answer === val;
+                            const label = labels[i] ?? val;
+                            return (
+                                <button
+                                    key={val}
+                                    disabled={readOnly}
+                                    onClick={() => !readOnly && onAnswer(val)}
+                                    className={cn(
+                                        "flex flex-col items-center gap-1 p-2 rounded-xl border text-center transition-colors",
+                                        isSelected
+                                            ? "bg-indigo-500/15 border-indigo-500/40 ring-1 ring-indigo-500/40"
+                                            : "bg-surface border-border/50 hover:bg-surface-dark",
+                                        readOnly && "cursor-default"
+                                    )}
+                                >
+                                    <span className={cn("text-xs font-bold", isSelected ? "text-indigo-400" : "text-foreground")}>{val}</span>
+                                    {label !== val && (
+                                        <span className={cn("text-[9px] leading-tight", isSelected ? "text-indigo-400" : "text-text-muted")}>{label}</span>
+                                    )}
+                                    {isSelected && <CheckCircle2 className="size-3 text-indigo-400 shrink-0" />}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {question.requireJustification && (
+                        <div className="space-y-1">
+                            <Textarea
+                                value={justification}
+                                onChange={(e) => !readOnly && onJustification(e.target.value)}
+                                readOnly={readOnly}
+                                placeholder="Justifica tu respuesta (obligatorio)..."
+                                className={cn(
+                                    "resize-none text-sm min-h-[72px] bg-surface border-border/50",
+                                    readOnly && "cursor-default opacity-80",
+                                    showJustificationWarning && "border-amber-500/50"
+                                )}
+                            />
+                            {minLength > 0 && !readOnly && (
+                                <p className={cn(
+                                    "text-[10px] text-right",
+                                    showJustificationWarning ? "text-amber-400" : "text-text-muted/50"
+                                )}>
+                                    {justificationCharCount}/{minLength} caracteres mínimos
+                                </p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <div className="space-y-1">
+                    <Textarea
+                        value={answer}
+                        onChange={(e) => !readOnly && onAnswer(e.target.value)}
+                        readOnly={readOnly}
+                        placeholder="Escribe tu respuesta..."
+                        className={cn(
+                            "resize-none text-sm min-h-[96px] bg-surface border-border/50",
+                            readOnly && "cursor-default opacity-80",
+                            showMinLengthWarning && "border-amber-500/50"
+                        )}
+                    />
+                    {minLength > 0 && !readOnly && (
+                        <p className={cn(
+                            "text-[10px] text-right",
+                            showMinLengthWarning ? "text-amber-400" : "text-text-muted/50"
+                        )}>
+                            {charCount}/{minLength} caracteres mínimos
+                        </p>
+                    )}
+                </div>
             )}
         </div>
     );

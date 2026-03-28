@@ -502,10 +502,42 @@ export async function submitSelfEvaluation(
 
     const { data: step } = await supabase
         .from("activity_steps")
-        .select("is_activity_closed")
+        .select("is_activity_closed, content")
         .eq("id", stepId)
         .single();
     if (step?.is_activity_closed) return { error: "Las entregas están cerradas para este paso." };
+
+    const stepContent = step?.content as any;
+
+    // Validate minJustificationLength for rubric mode
+    if ((!stepContent?.evalMode || stepContent?.evalMode === 'rubric') && stepContent?.requireJustification && stepContent?.minJustificationLength) {
+        const minLen = stepContent.minJustificationLength as number;
+        const rubric: any[] = stepContent?.rubric ?? [];
+        for (const c of rubric) {
+            const just = (justifications[c.id] ?? "").trim();
+            if (just.length < minLen) {
+                return { error: `La justificación de "${c.name}" requiere al menos ${minLen} caracteres.` };
+            }
+        }
+    }
+
+    // Validate minLength for questions in questions mode
+    if (stepContent?.evalMode === 'questions' && Array.isArray(stepContent?.questions)) {
+        for (const q of stepContent.questions as any[]) {
+            if (q.type === 'short_answer' && q.minLength) {
+                const ans = (justifications[q.id] ?? "").trim();
+                if (ans.length < q.minLength) {
+                    return { error: `La pregunta "${q.text}" requiere al menos ${q.minLength} caracteres.` };
+                }
+            }
+            if (q.type === 'likert' && q.requireJustification && q.minLength) {
+                const just = (justifications[`${q.id}:justification`] ?? "").trim();
+                if (just.length < q.minLength) {
+                    return { error: `La justificación de "${q.text}" requiere al menos ${q.minLength} caracteres.` };
+                }
+            }
+        }
+    }
 
     const admin = createAdminClient();
     const { data: existingSelf } = await admin

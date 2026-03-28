@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect } from "react";
 import { Users2, CheckCircle2, Clock, ChevronLeft, ChevronRight, ExternalLink, ClipboardList, MessageSquare, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { PeerEvaluationContent, ActivitySubmission, RubricCriteria, criteriaMaxPoints } from "@/types/activity";
+import { PeerEvaluationContent, ActivitySubmission, RubricCriteria, criteriaMaxPoints, QuizQuestion } from "@/types/activity";
 import { getMyPeerAssignments, submitPeerEvaluation, getMyReceivedPeerFeedback, type PeerAssignmentWithTarget } from "@/app/activities/[id]/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -187,7 +187,7 @@ function AssignmentPanel({
 }) {
     const evalMode = content.evalMode ?? "rubric";
     const rubric = content.rubric ?? [];
-    const questions = content.questions ?? [];
+    const questions = (content.questions ?? []) as QuizQuestion[];
     const isCompleted = !!assignment.eval_submission_id;
 
     const [scores, setScores] = useState<Record<string, number>>({});
@@ -200,7 +200,17 @@ function AssignmentPanel({
         ?? "Alumno";
 
     const allScored = evalMode === "questions" || rubric.every(c => scores[c.id] !== undefined);
-    const allAnswered = evalMode !== "questions" || questions.every(q => (answers[q.id] ?? "").trim().length > 0);
+    const allAnswered = evalMode !== "questions" || questions.every(q => {
+        const ans = (answers[q.id] ?? "").trim();
+        if (!ans) return false;
+        if (q.type === 'likert' && q.requireJustification) {
+            const just = (answers[`${q.id}:justification`] ?? "").trim();
+            if (!just) return false;
+            if (q.minLength && just.length < q.minLength) return false;
+        }
+        if (q.type === 'short_answer' && q.minLength && (answers[q.id] ?? "").trim().length < q.minLength) return false;
+        return true;
+    });
     const allJustified = evalMode !== "rubric" || !content.requireJustification
         || rubric.every(c => {
             const text = answers[c.id] ?? "";
@@ -299,25 +309,100 @@ function AssignmentPanel({
                             <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
                                 <MessageSquare className="size-4" /> Preguntas de evaluación
                             </h3>
-                            {questions.map((q, idx) => (
-                                <div key={q.id} className="space-y-2">
-                                    <div>
-                                        <p className="text-sm font-semibold text-foreground">
-                                            <span className="text-text-muted font-normal mr-1">{idx + 1}.</span>
-                                            {q.text}
-                                        </p>
-                                        {q.description && (
-                                            <p className="text-xs text-text-muted mt-0.5">{q.description}</p>
-                                        )}
+                            {questions.map((q, idx) => {
+                                const isLikert = q.type === 'likert';
+                                const scale = q.likertScale ?? 5;
+                                const labels = q.likertLabels ?? [];
+                                return (
+                                    <div key={q.id} className="space-y-2">
+                                        <div>
+                                            <p className="text-sm font-semibold text-foreground">
+                                                <span className="text-text-muted font-normal mr-1">{idx + 1}.</span>
+                                                {q.text}
+                                            </p>
+                                            {q.explanation && (
+                                                <p className="text-xs text-text-muted mt-0.5">{q.explanation}</p>
+                                            )}
+                                        </div>
+                                        {isLikert ? (
+                                            <div className="space-y-2">
+                                                <div className={cn("grid gap-1.5", scale <= 5 ? "grid-cols-5" : "grid-cols-7")}>
+                                                    {Array.from({ length: scale }, (_, i) => {
+                                                        const val = String(i + 1);
+                                                        const isSelected = answers[q.id] === val;
+                                                        const label = labels[i] ?? val;
+                                                        return (
+                                                            <button
+                                                                key={val}
+                                                                onClick={() => setAnswers(p => ({ ...p, [q.id]: val }))}
+                                                                className={cn(
+                                                                    "flex flex-col items-center gap-1 p-2 rounded-xl border text-center transition-colors",
+                                                                    isSelected
+                                                                        ? "bg-indigo-500/15 border-indigo-500/40 ring-1 ring-indigo-500/40"
+                                                                        : "bg-surface border-border/50 hover:bg-surface-dark"
+                                                                )}
+                                                            >
+                                                                <span className={cn("text-xs font-bold", isSelected ? "text-indigo-400" : "text-foreground")}>{val}</span>
+                                                                {label !== val && (
+                                                                    <span className={cn("text-[9px] leading-tight", isSelected ? "text-indigo-400" : "text-text-muted")}>{label}</span>
+                                                                )}
+                                                                {isSelected && <CheckCircle2 className="size-3 text-indigo-400 shrink-0" />}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                                {q.requireJustification && (() => {
+                                                    const justVal = answers[`${q.id}:justification`] ?? "";
+                                                    const justCount = justVal.trim().length;
+                                                    const minLen = q.minLength ?? 0;
+                                                    const showWarn = minLen > 0 && justCount > 0 && justCount < minLen;
+                                                    return (
+                                                        <div className="space-y-1">
+                                                            <Textarea
+                                                                value={justVal}
+                                                                onChange={(e) => setAnswers(p => ({ ...p, [`${q.id}:justification`]: e.target.value }))}
+                                                                placeholder="Justifica tu respuesta (obligatorio)..."
+                                                                className={cn(
+                                                                    "resize-none text-sm min-h-[72px] bg-surface border-border/50",
+                                                                    showWarn && "border-amber-500/50"
+                                                                )}
+                                                            />
+                                                            {minLen > 0 && (
+                                                                <p className={cn("text-[10px] text-right", showWarn ? "text-amber-400" : "text-text-muted/50")}>
+                                                                    {justCount}/{minLen} caracteres mínimos
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        ) : (() => {
+                                            const ansVal = answers[q.id] ?? "";
+                                            const ansCount = ansVal.trim().length;
+                                            const minLen = q.minLength ?? 0;
+                                            const showWarn = minLen > 0 && ansCount > 0 && ansCount < minLen;
+                                            return (
+                                                <div className="space-y-1">
+                                                    <Textarea
+                                                        value={ansVal}
+                                                        onChange={(e) => setAnswers(p => ({ ...p, [q.id]: e.target.value }))}
+                                                        placeholder="Escribe tu respuesta..."
+                                                        className={cn(
+                                                            "resize-none text-sm min-h-[96px] bg-surface border-border/50",
+                                                            showWarn && "border-amber-500/50"
+                                                        )}
+                                                    />
+                                                    {minLen > 0 && (
+                                                        <p className={cn("text-[10px] text-right", showWarn ? "text-amber-400" : "text-text-muted/50")}>
+                                                            {ansCount}/{minLen} caracteres mínimos
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
-                                    <Textarea
-                                        value={answers[q.id] ?? ""}
-                                        onChange={(e) => setAnswers(p => ({ ...p, [q.id]: e.target.value }))}
-                                        placeholder="Escribe tu respuesta..."
-                                        className="resize-none text-sm min-h-[96px] bg-surface border-border/50"
-                                    />
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
 

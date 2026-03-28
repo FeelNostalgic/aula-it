@@ -1,17 +1,20 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ActivityStepWithClientState, SelfEvaluationContent, RubricCriteria, ActivityPhaseWithSteps, EvalQuestion } from "@/types/activity";
+import { ActivityStepWithClientState, SelfEvaluationContent, RubricCriteria, ActivityPhaseWithSteps, QuizQuestion } from "@/types/activity";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { ListChecks, MessageSquare, Plus, Trash2, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { ListChecks, MessageSquare, Plus, Trash2, PanelRightClose, PanelRightOpen, AlignLeft, GripVertical } from "lucide-react";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StepConfigSection } from "./step-config-section";
 import { cn } from "@/lib/utils";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -71,12 +74,27 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
     const evalMode = content.evalMode ?? "rubric";
     const questions = content.questions ?? [];
 
-    function addQuestion() {
-        save({ ...content, questions: [...questions, { id: generateId(), text: "", description: "" }] });
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
+
+    function handleDragEnd(event: DragEndEvent) {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+        const qs = questions as QuizQuestion[];
+        const oldIdx = qs.findIndex(q => q.id === active.id);
+        const newIdx = qs.findIndex(q => q.id === over.id);
+        save({ ...content, questions: arrayMove(qs, oldIdx, newIdx) });
     }
 
-    function updateQuestion(id: string, patch: Partial<EvalQuestion>) {
-        save({ ...content, questions: questions.map(q => q.id === id ? { ...q, ...patch } : q) });
+    function addQuestion() {
+        const newQ: QuizQuestion = { id: generateId(), type: 'short_answer', text: "", options: [], points: 0 };
+        save({ ...content, questions: [...questions, newQ] });
+    }
+
+    function updateQuestion(id: string, patch: Partial<QuizQuestion>) {
+        save({ ...content, questions: (questions as QuizQuestion[]).map(q => q.id === id ? { ...q, ...patch } : q) });
     }
 
     function removeQuestion(id: string) {
@@ -91,6 +109,11 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
                 <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">
                     <TabsTrigger value="instrucciones" className={tabTriggerClass}>Instrucciones</TabsTrigger>
                     <TabsTrigger value="configuracion" className={tabTriggerClass}>Configuración</TabsTrigger>
+                    {evalMode === "questions" && (
+                        <TabsTrigger value="preguntas" className={tabTriggerClass}>
+                            Preguntas {questions.length > 0 && <span className="ml-1 text-[9px] font-bold bg-accent-blue/20 text-accent-blue px-1.5 py-0.5 rounded-full">{questions.length}</span>}
+                        </TabsTrigger>
+                    )}
                 </TabsList>
                 <div className="ml-auto">
                     {isSaving
@@ -239,53 +262,11 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
                         </>
                     )}
 
-                    {/* Questions builder — only in questions mode */}
+                    {/* Questions mode hint */}
                     {evalMode === "questions" && (
-                        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2 flex items-center justify-between">
-                                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Preguntas</span>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={addQuestion}
-                                    className="h-7 text-xs gap-1 text-accent-blue hover:text-accent-blue"
-                                >
-                                    <Plus className="size-3" />
-                                    Añadir
-                                </Button>
-                            </div>
-                            <div className="p-5 space-y-3">
-                                {questions.length === 0 && (
-                                    <p className="text-xs text-text-muted/70 text-center py-4">
-                                        Sin preguntas todavía. Añade la primera.
-                                    </p>
-                                )}
-                                {questions.map((q, idx) => (
-                                    <div key={q.id} className="p-3 bg-surface border border-border/40 rounded-lg space-y-2">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-black text-text-muted uppercase tracking-widest shrink-0">P{idx + 1}</span>
-                                            <Input
-                                                value={q.text}
-                                                onChange={(e) => updateQuestion(q.id, { text: e.target.value })}
-                                                placeholder="¿Qué has aprendido con este proyecto?"
-                                                className="flex-1 h-8 text-sm bg-transparent border-border/40"
-                                            />
-                                            <button
-                                                onClick={() => removeQuestion(q.id)}
-                                                className="text-text-muted/50 hover:text-red-400 transition-colors shrink-0"
-                                            >
-                                                <Trash2 className="size-3.5" />
-                                            </button>
-                                        </div>
-                                        <Input
-                                            value={q.description ?? ""}
-                                            onChange={(e) => updateQuestion(q.id, { description: e.target.value })}
-                                            placeholder="Pista o contexto (opcional)"
-                                            className="h-7 text-xs text-text-muted bg-transparent border-border/30"
-                                        />
-                                    </div>
-                                ))}
-                            </div>
+                        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface-dark border border-white/5 text-xs text-text-muted">
+                            <MessageSquare className="size-3.5 text-accent-blue shrink-0" />
+                            Configura las preguntas en la pestaña <span className="font-semibold text-foreground ml-0.5">Preguntas</span>.
                         </div>
                     )}
 
@@ -293,11 +274,11 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
                     {deliverableSteps.length > 0 && (
                         <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
                             <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Entregable de Referencia</span>
+                                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Entregable Vinculado</span>
                             </div>
                             <div className="p-5 space-y-2">
                                 <p className="text-xs text-text-muted">
-                                    Muestra la entrega del alumno como contexto mientras se autoevalúa (opcional).
+                                    Vincula esta autoevaluación a un entregable para aplicar el peso en la nota final.
                                 </p>
                                 <select
                                     value={content.referenceStepId ?? ""}
@@ -321,15 +302,31 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
                             </div>
                             <div className="p-5 space-y-4">
                                 {/* Require justification */}
-                                <div className="flex items-center justify-between gap-4">
-                                    <div>
-                                        <p className="text-sm text-foreground font-medium">Justificación obligatoria</p>
-                                        <p className="text-xs text-text-muted mt-0.5">El alumno debe escribir un texto por criterio.</p>
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-sm text-foreground font-medium">Justificación obligatoria</p>
+                                            <p className="text-xs text-text-muted mt-0.5">El alumno debe escribir un texto por criterio.</p>
+                                        </div>
+                                        <Toggle
+                                            value={content.requireJustification}
+                                            onChange={(v) => save({ ...content, requireJustification: v })}
+                                        />
                                     </div>
-                                    <Toggle
-                                        value={content.requireJustification}
-                                        onChange={(v) => save({ ...content, requireJustification: v })}
-                                    />
+                                    {content.requireJustification && (
+                                        <div className="flex items-center justify-between gap-4 pl-4 border-l-2 border-border/30">
+                                            <div>
+                                                <p className="text-sm text-foreground font-medium">Mínimo de caracteres</p>
+                                                <p className="text-xs text-text-muted mt-0.5">Por justificación de criterio.</p>
+                                            </div>
+                                            <input
+                                                type="number" min={0} max={500}
+                                                value={content.minJustificationLength ?? 0}
+                                                onChange={(e) => save({ ...content, minJustificationLength: Number(e.target.value) || undefined })}
+                                                className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Counts toward grade */}
@@ -370,9 +367,201 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
                     )}
                 </div>
             </TabsContent>
+
+            {/* Preguntas tab — only visible in questions mode */}
+            <TabsContent value="preguntas" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <div className="max-w-4xl mx-auto p-8 space-y-4 pb-32">
+                    <div className="mb-2">
+                        <h3 className="text-lg font-bold text-foreground">Preguntas de reflexión</h3>
+                        <p className="text-sm text-text-muted mt-1">Añade preguntas de texto libre o escalas Likert.</p>
+                    </div>
+
+                    {questions.length === 0 ? (
+                        <div className="text-center p-12 border border-dashed border-border/50 rounded-xl bg-surface/20">
+                            <p className="text-text-muted mb-4">No hay preguntas todavía.</p>
+                            <Button onClick={addQuestion} variant="outline" className="text-accent-blue border-accent-blue/30 hover:bg-accent-blue/10">
+                                <Plus className="size-4 mr-2" /> Añadir la primera pregunta
+                            </Button>
+                        </div>
+                    ) : (
+                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                            <SortableContext items={(questions as QuizQuestion[]).map(q => q.id)} strategy={verticalListSortingStrategy}>
+                                <div className="space-y-4">
+                                    {(questions as QuizQuestion[]).map((q, idx) => (
+                                        <SortableEvalQuestion
+                                            key={q.id}
+                                            q={q}
+                                            idx={idx}
+                                            onUpdate={updateQuestion}
+                                            onRemove={removeQuestion}
+                                        />
+                                    ))}
+                                </div>
+                            </SortableContext>
+                        </DndContext>
+                    )}
+
+                    {questions.length > 0 && (
+                        <div className="flex justify-center pt-4">
+                            <Button onClick={addQuestion} className="bg-surface hover:bg-surface-dark text-foreground border border-border/50">
+                                <Plus className="size-4 mr-2" /> Nueva Pregunta
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            </TabsContent>
         </Tabs>
     );
 }
+
+// ---------------------------------------------------------------------------
+// SortableEvalQuestion
+// ---------------------------------------------------------------------------
+
+type SortableEvalQuestionProps = {
+    q: QuizQuestion;
+    idx: number;
+    onUpdate: (id: string, patch: Partial<QuizQuestion>) => void;
+    onRemove: (id: string) => void;
+};
+
+function SortableEvalQuestion({ q, idx, onUpdate, onRemove }: SortableEvalQuestionProps) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: q.id });
+    const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+
+    const TYPES: { value: 'short_answer' | 'likert'; label: string }[] = [
+        { value: 'short_answer', label: 'Respuesta libre' },
+        { value: 'likert', label: 'Escala Likert' },
+    ];
+
+    return (
+        <div ref={setNodeRef} style={style} className="p-6 bg-surface-dark border border-white/5 rounded-xl space-y-4 shadow-sm relative group">
+            {/* Header row */}
+            <div className="flex items-start gap-3">
+                {/* Drag handle */}
+                <button
+                    {...attributes}
+                    {...listeners}
+                    className="mt-1 cursor-grab active:cursor-grabbing text-text-muted/40 hover:text-text-muted transition-colors shrink-0"
+                >
+                    <GripVertical className="size-4" />
+                </button>
+
+                {/* Q badge */}
+               <span className="bg-surface text-text-muted font-bold px-3 py-1 rounded-md text-sm mt-1 shrink-0">
+                    Q{idx + 1}
+                </span>
+
+                {/* Question text */}
+                <Input
+                    value={q.text}
+                    onChange={(e) => onUpdate(q.id, { text: e.target.value })}
+                    placeholder="Escribe la pregunta aquí..."
+                    className="flex-1 bg-surface border-border font-medium text-sm"
+                />
+
+                {/* Delete */}
+                <button
+                    onClick={() => onRemove(q.id)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-text-muted/50 hover:text-red-400 shrink-0 mt-1"
+                >
+                    <Trash2 className="size-4" />
+                </button>
+            </div>
+
+            {/* Type pills + content */}
+            <div className="pl-14 space-y-4">
+                {/* Type pill selector */}
+                <div className="flex gap-1 p-0.5 bg-surface rounded-lg border border-border/30 w-fit">
+                    {TYPES.map(t => (
+                        <button
+                            key={t.value}
+                            onClick={() => onUpdate(q.id, { type: t.value })}
+                            className={cn(
+                                "px-3 py-1 rounded-md text-xs font-medium transition-colors",
+                                q.type === t.value
+                                    ? "bg-accent-blue/15 text-accent-blue"
+                                    : "text-text-muted hover:text-foreground"
+                            )}
+                        >
+                            {t.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* short_answer options */}
+                {q.type === 'short_answer' && (
+                    <div className="flex items-center justify-between gap-4">
+                        <div>
+                            <p className="text-sm text-foreground font-medium">Mínimo de caracteres</p>
+                            <p className="text-xs text-text-muted mt-0.5">0 = sin mínimo.</p>
+                        </div>
+                        <input
+                            type="number" min={0} max={2000}
+                            value={q.minLength ?? 0}
+                            onChange={(e) => onUpdate(q.id, { minLength: Number(e.target.value) || undefined })}
+                            className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                        />
+                    </div>
+                )}
+
+                {/* likert options */}
+                {q.type === 'likert' && (
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <p className="text-sm text-foreground font-medium">Niveles de la escala</p>
+                                <p className="text-xs text-text-muted mt-0.5">Número de opciones.</p>
+                            </div>
+                            <div className="flex gap-1 p-0.5 bg-surface rounded-lg border border-border/30">
+                                {[3, 5, 7].map(n => (
+                                    <button
+                                        key={n}
+                                        onClick={() => onUpdate(q.id, { likertScale: n })}
+                                        className={cn(
+                                            "px-3 py-1 rounded-md text-xs font-medium transition-colors",
+                                            (q.likertScale ?? 5) === n
+                                                ? "bg-accent-blue/15 text-accent-blue"
+                                                : "text-text-muted hover:text-foreground"
+                                        )}
+                                    >
+                                        {n}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <p className="text-sm text-foreground font-medium">Exigir justificación</p>
+                                <p className="text-xs text-text-muted mt-0.5">El alumno debe explicar su elección.</p>
+                            </div>
+                            <Toggle
+                                value={q.requireJustification ?? false}
+                                onChange={(v) => onUpdate(q.id, { requireJustification: v })}
+                            />
+                        </div>
+                        {q.requireJustification && (
+                            <div className="flex items-center justify-between gap-4 pl-4 border-l-2 border-border/30">
+                                <div>
+                                    <p className="text-sm text-foreground font-medium">Mínimo de caracteres</p>
+                                    <p className="text-xs text-text-muted mt-0.5">Por justificación.</p>
+                                </div>
+                                <input
+                                    type="number" min={0} max={2000}
+                                    value={q.minLength ?? 0}
+                                    onChange={(e) => onUpdate(q.id, { minLength: Number(e.target.value) || undefined })}
+                                    className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
 
 function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
     return (

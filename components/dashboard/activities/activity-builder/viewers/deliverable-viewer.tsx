@@ -52,20 +52,31 @@ const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.Eleme
     },
 };
 
-function RubricDisplay({ rubric, selectedScores, isPublished }: { rubric: RubricCriteria[]; selectedScores?: Record<string, number> | null; isPublished?: boolean }) {
+function RubricDisplay({ rubric, selectedScores, isPublished, publishedScore }: { rubric: RubricCriteria[]; selectedScores?: Record<string, number> | null; isPublished?: boolean; publishedScore?: number | null }) {
     if (!rubric?.length) return null;
     const rubricTotal = Object.values(selectedScores ?? {}).reduce((sum, points) => sum + points, 0);
     const rubricMax = rubric.reduce((sum, criterion) => sum + criteriaMaxPoints(criterion), 0);
     const normalized = rubricMax > 0 ? Math.round(((rubricTotal / rubricMax) * 10) * 100) / 100 : 0;
+    const hasWeightedScore = isPublished && publishedScore != null && publishedScore !== normalized;
     return (
         <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-4">
             <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
                 <ClipboardList className="size-4" /> Criterios de evaluación
             </h3>
             {isPublished && (
-                <div className="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
-                    <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">Nota total</span>
-                    <span className="text-lg font-black font-mono text-emerald-400">{normalized} / 10</span>
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
+                        <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">
+                            {hasWeightedScore ? "Nota de la rúbrica" : "Nota total"}
+                        </span>
+                        <span className="text-lg font-black font-mono text-emerald-400">{normalized} / 10</span>
+                    </div>
+                    {hasWeightedScore && (
+                        <div className="flex items-center justify-between rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-4 py-3">
+                            <span className="text-xs font-bold uppercase tracking-widest text-indigo-400">Nota final ponderada</span>
+                            <span className="text-lg font-black font-mono text-indigo-400">{publishedScore} / 10</span>
+                        </div>
+                    )}
                 </div>
             )}
             <div className="space-y-5">
@@ -178,7 +189,12 @@ export function DeliverableViewer({ content, stepId, activityId, initialSubmissi
 
             {/* Rubric */}
             {content?.rubric && content.rubric.length > 0 && (
-                <RubricDisplay rubric={content.rubric} selectedScores={submission?.rubric_scores} isPublished={submission?.status === 'published'} />
+                <RubricDisplay
+                    rubric={content.rubric}
+                    selectedScores={submission?.rubric_scores}
+                    isPublished={submission?.status === 'published'}
+                    publishedScore={submission?.status === 'published' ? (submission?.score ?? null) : null}
+                />
             )}
 
             {/* TEACHER COPY mode */}

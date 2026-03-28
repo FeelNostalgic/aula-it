@@ -443,6 +443,17 @@ export type StepSubmissionRow = {
     is_group_submission?: boolean;
     synthetic?: boolean; // true = no real submission, injected for display
     step_is_locked?: boolean;
+    // self-evaluation fields (only populated for self_evaluation steps)
+    self_eval_rubric_scores: Record<string, number> | null;
+    self_eval_justifications: Record<string, string> | null;
+    step_eval_mode: import('@/types/activity').EvalMode | null;
+    step_eval_rubric: import('@/types/activity').RubricCriteria[] | null;
+    step_eval_questions: import('@/types/activity').QuizQuestion[] | null;
+    step_eval_counts_toward_grade: boolean | null;
+    step_eval_weight: number | null;
+    // For deliverable/file_upload rows: populated when a linked self-eval with countsTowardGrade exists
+    linked_self_eval_score?: number | null;   // student's self-eval normalised score (0–10)
+    linked_self_eval_weight?: number | null;  // selfEvalWeight % from the self-eval step content
 };
 
 export async function getUnitStepSubmissions(
@@ -492,7 +503,7 @@ export async function getUnitStepSubmissions(
     const activityTitles: Record<string, string> = {};
     activities?.forEach(a => activityTitles[a.id] = a.title);
 
-    const stepMeta: Record<string, { title: string; stepType: string; activityId: string; activityTitle: string; deliveryMode: any; rubric: any; quizContent: any; isLocked: boolean; isGroupSubmission: boolean }> = {};
+    const stepMeta: Record<string, { title: string; stepType: string; activityId: string; activityTitle: string; deliveryMode: any; rubric: any; quizContent: any; isLocked: boolean; isGroupSubmission: boolean; evalMode: any; evalQuestions: any; countsTowardGrade: boolean; selfEvalWeight: number | null }> = {};
     for (const s of steps) {
         const activityId = phaseActivityMap[s.phase_id] ?? "";
         stepMeta[s.id] = {
@@ -505,6 +516,10 @@ export async function getUnitStepSubmissions(
             quizContent: s.type === 'quiz' ? (s.content as any) : null,
             isLocked: (s as any).is_locked ?? false,
             isGroupSubmission: (s.content as any)?.is_group_submission === true,
+            evalMode: (s.type === 'self_evaluation' || s.type === 'peer_evaluation') ? ((s.content as any)?.evalMode ?? 'rubric') : null,
+            evalQuestions: (s.type === 'self_evaluation' || s.type === 'peer_evaluation') ? ((s.content as any)?.questions ?? []) : null,
+            countsTowardGrade: s.type === 'self_evaluation' ? (((s.content as any)?.countsTowardGrade) === true) : false,
+            selfEvalWeight: s.type === 'self_evaluation' ? ((s.content as any)?.selfEvalWeight ?? null) : null,
         };
     }
 
@@ -583,6 +598,13 @@ export async function getUnitStepSubmissions(
                 quiz_attempts: [],
                 group_id: sub.group_id,
                 step_is_locked: meta?.isLocked,
+                self_eval_rubric_scores: null,
+                self_eval_justifications: null,
+                step_eval_mode: null,
+                step_eval_rubric: null,
+                step_eval_questions: null,
+                step_eval_counts_toward_grade: null,
+                step_eval_weight: null,
             };
         });
     }
@@ -651,6 +673,13 @@ export async function getUnitStepSubmissions(
                     group_members: groupMembersMap[sub.group_id] ?? [],
                     is_group_submission: true,
                     step_is_locked: meta?.isLocked,
+                    self_eval_rubric_scores: null,
+                    self_eval_justifications: null,
+                    step_eval_mode: null,
+                    step_eval_rubric: null,
+                    step_eval_questions: null,
+                    step_eval_counts_toward_grade: null,
+                    step_eval_weight: null,
                 };
             });
         }
@@ -692,6 +721,13 @@ export async function getUnitStepSubmissions(
                 is_group_submission: true,
                 synthetic: true,
                 step_is_locked: meta.isLocked,
+                self_eval_rubric_scores: null,
+                self_eval_justifications: null,
+                step_eval_mode: null,
+                step_eval_rubric: null,
+                step_eval_questions: null,
+                step_eval_counts_toward_grade: null,
+                step_eval_weight: null,
             });
         }
     }
@@ -747,14 +783,23 @@ export async function getUnitStepSubmissions(
             quiz_attempt: lastAttempt,
             quiz_attempts: attempts,
             group_id: sub.group_id ?? null,
-            step_is_locked: meta?.isLocked
+            step_is_locked: meta?.isLocked,
+            self_eval_rubric_scores: null,
+            self_eval_justifications: null,
+            step_eval_mode: null,
+            step_eval_rubric: null,
+            step_eval_questions: null,
+            step_eval_counts_toward_grade: null,
+            step_eval_weight: null,
         };
     });
 
-    // Add virtual rows for students who haven't submitted yet
+    // Add virtual rows for students who haven't submitted yet (non-eval, non-group steps only)
     if (students && students.length > 0) {
         const submittedKeys = new Set(results.map(r => `${r.student_id}:${r.step_id}`));
         for (const step of steps) {
+            if (evalOnlyTypes.has(step.type)) continue; // handled separately below
+            if ((step.content as any)?.is_group_submission === true) continue; // group steps handled separately
             const meta = stepMeta[step.id];
             if (!meta) continue;
             for (const student of students) {
@@ -788,17 +833,167 @@ export async function getUnitStepSubmissions(
                     quiz_attempts: [],
                     step_is_locked: meta.isLocked,
                     synthetic: true,
+                    self_eval_rubric_scores: null,
+                    self_eval_justifications: null,
+                    step_eval_mode: null,
+                    step_eval_rubric: null,
+                    step_eval_questions: null,
+                    step_eval_counts_toward_grade: null,
+                    step_eval_weight: null,
                 });
             }
         }
     }
 
-    // Virtual placeholder rows for self_evaluation / peer_evaluation steps.
-    // These steps are rendered by specialized teacher views (SelfEvaluationTeacherView,
-    // PeerEvaluationTeacherView) that handle their own data fetching. We only need
-    // a sentinel row so the step appears in the sidebar.
+    // Step 5a: Real rows for self_evaluation steps — each student's submission with self-eval data
+    const selfEvalStepIds = steps.filter(s => s.type === 'self_evaluation').map(s => s.id);
+    let selfEvalResults: StepSubmissionRow[] = [];
+    if (selfEvalStepIds.length > 0) {
+        let selfQuery = supabase
+            .from("activity_submissions")
+            .select(`*, student:profiles!inner(full_name)`)
+            .in("step_id", selfEvalStepIds)
+            .or("self_eval_rubric_scores.not.is.null,self_eval_justifications.not.is.null");
+
+        if (students && students.length > 0) {
+            selfQuery = selfQuery.in("student_id", students.map(s => s.student_id));
+        }
+
+        const { data: selfSubs } = await selfQuery;
+        selfEvalResults = (selfSubs ?? []).map((sub: any) => {
+            const meta = stepMeta[sub.step_id];
+            return {
+                id: sub.id,
+                step_id: sub.step_id,
+                step_title: meta?.title ?? "",
+                step_type: meta?.stepType as any,
+                activity_id: meta?.activityId ?? "",
+                activity_title: meta?.activityTitle ?? "",
+                student_id: sub.student_id,
+                student_name: (sub.student as any)?.full_name ?? null,
+                student_email: "",
+                drive_file_url: null,
+                drive_file_id: null,
+                files: null,
+                status: sub.status,
+                submitted_at: sub.submitted_at,
+                delivery_mode: undefined,
+                score: sub.score,
+                feedback: sub.feedback,
+                graded_at: sub.graded_at,
+                published_at: sub.published_at,
+                rubric_scores: sub.rubric_scores,
+                grading_mode: sub.grading_mode,
+                step_rubric: meta?.rubric ?? [],
+                quiz_content: null,
+                quiz_attempt: null,
+                quiz_attempts: [],
+                group_id: null,
+                step_is_locked: meta?.isLocked,
+                self_eval_rubric_scores: sub.self_eval_rubric_scores,
+                self_eval_justifications: sub.self_eval_justifications,
+                step_eval_mode: meta?.evalMode ?? null,
+                step_eval_rubric: meta?.rubric ?? null,
+                step_eval_questions: meta?.evalQuestions ?? null,
+                step_eval_counts_toward_grade: meta?.countsTowardGrade ?? null,
+                step_eval_weight: meta?.selfEvalWeight ?? null,
+            };
+        });
+
+        // Add virtual rows for students who haven't submitted their self-eval yet
+        if (students && students.length > 0) {
+            const submittedSelfKeys = new Set(selfEvalResults.map(r => `${r.student_id}:${r.step_id}`));
+            for (const stepId of selfEvalStepIds) {
+                const meta = stepMeta[stepId];
+                if (!meta) continue;
+                for (const student of students) {
+                    const key = `${student.student_id}:${stepId}`;
+                    if (submittedSelfKeys.has(key)) continue;
+                    selfEvalResults.push({
+                        id: `virtual:self:${key}`,
+                        step_id: stepId,
+                        step_title: meta.title,
+                        step_type: meta.stepType as any,
+                        activity_id: meta.activityId,
+                        activity_title: meta.activityTitle,
+                        student_id: student.student_id,
+                        student_name: student.name,
+                        student_email: "",
+                        drive_file_url: null,
+                        drive_file_id: null,
+                        files: null,
+                        status: "not_submitted",
+                        submitted_at: null,
+                        delivery_mode: undefined,
+                        score: null,
+                        feedback: null,
+                        graded_at: null,
+                        published_at: null,
+                        rubric_scores: null,
+                        grading_mode: null,
+                        step_rubric: meta.rubric ?? [],
+                        quiz_content: null,
+                        quiz_attempt: null,
+                        quiz_attempts: [],
+                        step_is_locked: meta.isLocked,
+                        synthetic: true,
+                        self_eval_rubric_scores: null,
+                        self_eval_justifications: null,
+                        step_eval_mode: meta.evalMode ?? null,
+                        step_eval_rubric: meta.rubric ?? null,
+                        step_eval_questions: meta.evalQuestions ?? null,
+                        step_eval_counts_toward_grade: meta.countsTowardGrade ?? null,
+                        step_eval_weight: meta.selfEvalWeight ?? null,
+                    });
+                }
+            }
+        }
+    }
+
+    // Post-process: enrich deliverable/file_upload rows with the student's linked self-eval score.
+    // This lets GradingModal preview the weighted formula before the teacher publishes.
+    {
+        // selfEvalByDeliverable: deliverableStepId → { selfEvalStepId, weight, rubric }
+        const selfEvalByDeliverable: Record<string, { stepId: string; weight: number; rubric: any[] }> = {};
+        for (const step of steps) {
+            if (step.type !== 'self_evaluation') continue;
+            const c = step.content as any;
+            if (!c?.countsTowardGrade || !c?.referenceStepId) continue;
+            selfEvalByDeliverable[c.referenceStepId] = {
+                stepId: step.id,
+                weight: c.selfEvalWeight ?? 20,
+                rubric: c.rubric ?? [],
+            };
+        }
+        if (Object.keys(selfEvalByDeliverable).length > 0) {
+            // selfScoresMap: "studentId:selfEvalStepId" → rubric scores
+            const selfScoresMap: Record<string, Record<string, number>> = {};
+            for (const row of selfEvalResults) {
+                if (row.self_eval_rubric_scores) {
+                    selfScoresMap[`${row.student_id}:${row.step_id}`] = row.self_eval_rubric_scores;
+                }
+            }
+            for (const row of results) {
+                if (row.step_type !== 'deliverable' && row.step_type !== 'file_upload') continue;
+                if (!row.student_id) continue;
+                const seInfo = selfEvalByDeliverable[row.step_id];
+                if (!seInfo) continue;
+                const rubricScores = selfScoresMap[`${row.student_id}:${seInfo.stepId}`];
+                if (!rubricScores) continue;
+                const rubricMax = seInfo.rubric.reduce((sum: number, c: any) =>
+                    sum + Math.max(0, ...(c.levels ?? []).map((l: any) => l.points ?? 0)), 0);
+                if (rubricMax === 0) continue;
+                const selfTotal = Object.values(rubricScores).reduce((a: number, b: number) => a + b, 0);
+                row.linked_self_eval_score = Math.round((selfTotal / rubricMax) * 1000) / 100;
+                row.linked_self_eval_weight = seInfo.weight;
+            }
+        }
+    }
+
+    // Step 5b: Virtual placeholder rows for peer_evaluation steps only (still uses specialized teacher view)
+    const peerEvalStepIds = steps.filter(s => s.type === 'peer_evaluation').map(s => s.id);
     const evalPlaceholders: StepSubmissionRow[] = [];
-    for (const stepId of evalOnlyStepIds) {
+    for (const stepId of peerEvalStepIds) {
         const meta = stepMeta[stepId];
         if (!meta) continue;
         evalPlaceholders.push({
@@ -829,10 +1024,17 @@ export async function getUnitStepSubmissions(
             quiz_attempts: [],
             step_is_locked: meta.isLocked,
             synthetic: true,
+            self_eval_rubric_scores: null,
+            self_eval_justifications: null,
+            step_eval_mode: null,
+            step_eval_rubric: null,
+            step_eval_questions: null,
+            step_eval_counts_toward_grade: null,
+            step_eval_weight: null,
         });
     }
 
-    return { data: [...results, ...groupResults, ...propagatedResults, ...evalPlaceholders] };
+    return { data: [...results, ...groupResults, ...propagatedResults, ...selfEvalResults, ...evalPlaceholders] };
 }
 
 export async function gradeSubmission(
@@ -842,6 +1044,7 @@ export async function gradeSubmission(
         score?: number | null;
         feedback?: string | null;
         rubricScores?: Record<string, number>;
+        selfEvalRubricScores?: Record<string, number>; // teacher-adjusted self-eval scores
     }
 ) {
     const auth = await requireTeacher();
@@ -895,6 +1098,11 @@ export async function gradeSubmission(
         updates.rubric_scores = null;
     }
 
+    // If teacher adjusted self-eval rubric scores, persist them
+    if (data.selfEvalRubricScores && Object.keys(data.selfEvalRubricScores).length > 0) {
+        updates.self_eval_rubric_scores = data.selfEvalRubricScores;
+    }
+
     const { error } = await admin
         .from("activity_submissions")
         .update(updates)
@@ -944,6 +1152,98 @@ export async function publishSubmissionGrade(submissionId: string) {
         .eq("id", submissionId);
 
     if (error) return { error: error.message };
+
+    // Apply weighted formula if this involves a self-evaluation with countsTowardGrade.
+    // Two triggers:
+    //   A) Publishing the self-eval → update the linked deliverable's score
+    //   B) Publishing the deliverable → update its own score using existing self-eval scores
+    try {
+        const { data: sub } = await auth.admin
+            .from("activity_submissions")
+            .select("student_id, step_id, self_eval_rubric_scores, score")
+            .eq("id", submissionId)
+            .single();
+
+        if (!sub?.student_id || !sub?.step_id) throw new Error("no sub");
+
+        const { data: step } = await auth.admin
+            .from("activity_steps")
+            .select("content, type")
+            .eq("id", sub.step_id)
+            .single();
+
+        if (step?.type === 'self_evaluation' && sub.self_eval_rubric_scores) {
+            // ── A: Publishing self-eval → update linked deliverable ──────────
+            const content = step.content as any;
+            if (content?.countsTowardGrade && content?.referenceStepId) {
+                const rubricMax = (content.rubric as any[] ?? []).reduce((sum: number, c: any) =>
+                    sum + Math.max(0, ...(c.levels ?? []).map((l: any) => l.points ?? 0)), 0);
+                if (rubricMax > 0) {
+                    const selfTotal = Object.values(sub.self_eval_rubric_scores as Record<string, number>).reduce((a, b) => a + b, 0);
+                    const selfScore = Math.round((selfTotal / rubricMax) * 1000) / 100;
+                    const selfWeight = content.selfEvalWeight ?? 50;
+
+                    const { data: delivSub } = await auth.admin
+                        .from("activity_submissions")
+                        .select("id, score")
+                        .eq("student_id", sub.student_id)
+                        .eq("step_id", content.referenceStepId)
+                        .maybeSingle();
+
+                    if (delivSub?.score != null) {
+                        const finalScore = Math.round(
+                            ((selfWeight / 100) * selfScore + ((100 - selfWeight) / 100) * delivSub.score) * 100
+                        ) / 100;
+                        await auth.admin
+                            .from("activity_submissions")
+                            .update({ score: finalScore })
+                            .eq("id", delivSub.id);
+                    }
+                }
+            }
+        } else if (step?.type === 'deliverable' || step?.type === 'file_upload') {
+            // ── B: Publishing deliverable → look for a linked self-eval ──────
+            // Find self_evaluation step that references this deliverable step
+            const { data: selfEvalStep } = await auth.admin
+                .from("activity_steps")
+                .select("id, content")
+                .eq("type", "self_evaluation")
+                .contains("content", { referenceStepId: sub.step_id })
+                .maybeSingle();
+
+            const seContent = selfEvalStep?.content as any;
+            if (selfEvalStep && seContent?.countsTowardGrade) {
+                // Find this student's self-eval submission
+                const { data: selfSub } = await auth.admin
+                    .from("activity_submissions")
+                    .select("self_eval_rubric_scores")
+                    .eq("student_id", sub.student_id)
+                    .eq("step_id", selfEvalStep.id)
+                    .not("self_eval_rubric_scores", "is", null)
+                    .maybeSingle();
+
+                if (selfSub?.self_eval_rubric_scores && sub.score != null) {
+                    const rubricMax = (seContent.rubric as any[] ?? []).reduce((sum: number, c: any) =>
+                        sum + Math.max(0, ...(c.levels ?? []).map((l: any) => l.points ?? 0)), 0);
+                    if (rubricMax > 0) {
+                        const selfTotal = Object.values(selfSub.self_eval_rubric_scores as Record<string, number>).reduce((a, b) => a + b, 0);
+                        const selfScore = Math.round((selfTotal / rubricMax) * 1000) / 100;
+                        const selfWeight = seContent.selfEvalWeight ?? 50;
+                        const finalScore = Math.round(
+                            ((selfWeight / 100) * selfScore + ((100 - selfWeight) / 100) * sub.score) * 100
+                        ) / 100;
+                        await auth.admin
+                            .from("activity_submissions")
+                            .update({ score: finalScore })
+                            .eq("id", submissionId);
+                    }
+                }
+            }
+        }
+    } catch {
+        // Non-fatal: weighted grade update failed silently
+    }
+
     revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true };
 }
@@ -1689,7 +1989,8 @@ export async function getSelfEvaluationResults(stepId: string): Promise<{
             student:profiles!student_id(full_name)
         `)
         .eq("step_id", stepId)
-        .not("self_eval_rubric_scores", "is", null);
+        // rubric mode: rubric_scores IS NOT NULL; questions mode: justifications IS NOT NULL
+        .or("self_eval_rubric_scores.not.is.null,self_eval_justifications.not.is.null");
 
     if (error) return { error: error.message };
 

@@ -173,6 +173,11 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
     const accessibleSteps = useMemo(() => {
         return allSteps.filter((step) => !step.is_locked);
     }, [allSteps]);
+    const stepTitleMap = useMemo(() => {
+        const map: Record<string, string> = {};
+        for (const s of allSteps) map[s.id] = s.title;
+        return map;
+    }, [allSteps]);
 
     const [selectedStepId, setSelectedStepId] = useState<string | null>(() => {
         try {
@@ -525,6 +530,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                         activityId={activity.id}
                                         submission={submissionsMap?.[selectedStep.id]}
                                         submissionsMap={submissionsMap}
+                                        stepTitleMap={stepTitleMap}
                                         googleEmail={googleEmail}
                                         userId={user?.id}
                                         studentName={profile?.full_name}
@@ -592,6 +598,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                     activityId={activity.id}
                                     submission={submissionsMap?.[selectedStep.id]}
                                     submissionsMap={submissionsMap}
+                                    stepTitleMap={stepTitleMap}
                                     googleEmail={googleEmail}
                                     userId={user?.id}
                                     studentName={profile?.full_name}

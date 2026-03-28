@@ -102,7 +102,7 @@ export type QuizOption = {
 export type QuizQuestionType =
     | 'multiple_choice'
     | 'true_false'
-    | 'short_answer'
+    | 'short_answer' | 'likert'
     | 'fill_in_the_blank_dropdown'
     | 'table_drag_drop'
     | 'matching_pairs'
@@ -219,6 +219,12 @@ export type QuizQuestion = {
     points: number;           // default: 1
     explanation?: string;     // shown after submission if showCorrectAnswers
     poolId?: string;          // if set, question belongs to a pool; undefined = always shown
+    // short_answer / likert specific
+    minLength?: number;           // minimum character count for valid answer
+    requireJustification?: boolean; // likert: requires a text justification alongside scale selection
+    // likert specific
+    likertScale?: number;         // number of levels: 3, 5 (default), or 7
+    likertLabels?: string[];      // labels per level, length must match likertScale
 };
 
 export type QuizMode = 'builtin' | 'google_form';
@@ -323,9 +329,11 @@ export type EvalMode = 'rubric' | 'questions';
 export type SelfEvaluationContent = {
     evalMode?: EvalMode;            // 'rubric' (default) | 'questions'
     rubric: RubricCriteria[];       // usado cuando evalMode = 'rubric'
-    questions?: EvalQuestion[];     // usado cuando evalMode = 'questions'
-    referenceStepId?: string;       // paso del que mostrar la entrega propia como contexto
+    questions?: QuizQuestion[];     // usado cuando evalMode = 'questions' (tipos: short_answer | likert)
+    bankSelections?: QuizBankSelection[]; // cargar preguntas desde bancos (sólo short_answer)
+    referenceStepId?: string;       // ID del deliverable vinculado (para countsTowardGrade + badge UI)
     requireJustification: boolean;  // en modo rúbrica: exige texto de justificación por criterio
+    minJustificationLength?: number; // mínimo de caracteres por justificación (modo rúbrica)
     countsTowardGrade: boolean;     // sólo relevante en modo rúbrica
     selfEvalWeight?: number;        // % de la nota final (0–100), sólo si countsTowardGrade
     instructionsMarkdown?: string;
@@ -338,7 +346,7 @@ export type NonEvaluatorPolicy = 'none' | 'fallback_teacher' | 'grade_penalty';
 
 export type PeerEvaluationContent = {
     evalMode?: EvalMode;            // 'rubric' (default) | 'questions'
-    questions?: EvalQuestion[];     // usado cuando evalMode = 'questions'
+    questions?: QuizQuestion[];     // usado cuando evalMode = 'questions' (tipos: short_answer | likert)
     mode: PeerEvaluationMode;
     sourceStepId: string;               // deliverable/file_upload cuyas submissions se evalúan
     rubric: RubricCriteria[];

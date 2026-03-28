@@ -37,7 +37,6 @@ import { exportGradesAsCSV } from "@/lib/export-grades";
 import { toast } from "sonner";
 import { GradingModal } from "@/components/dashboard/shared/grading-modal";
 import { PeerEvaluationTeacherView } from "@/components/dashboard/units/peer-evaluation-teacher-view";
-import { SelfEvaluationTeacherView } from "@/components/dashboard/units/self-evaluation-teacher-view";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -690,10 +689,6 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
         return <PeerEvaluationTeacherView stepId={stepId} moduleId={moduleId} stepTitle={stepData.stepTitle} />;
     }
 
-    if (stepData.stepType === 'self_evaluation') {
-        return <SelfEvaluationTeacherView stepId={stepId} stepTitle={stepData.stepTitle} />;
-    }
-
     const noGroupSubmissionsYet = stepData.isGroupSubmission && tableRows.every((r: StepSubmissionRow) => r.synthetic);
 
     const selectedRows = table.getSelectedRowModel().rows.map(r => r.original);
@@ -1231,14 +1226,19 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
         if (row.status === 'submitted') return { grade: null, status: 'submitted' };
         if (row.status !== 'graded' && row.status !== 'published') return { grade: null, status: 'none' };
         if (row.grading_mode === 'complete') return { grade: 10, status: 'graded' };
+        // Always prefer row.score: it's kept in sync by gradeSubmission and overwritten by
+        // publishSubmissionGrade when the self-eval weighted formula runs.
+        if (row.score !== null && row.score !== undefined) {
+            return { grade: row.score, status: 'graded' };
+        }
+        // Fallback: rubric mode without score computed yet (edge case)
         if (row.grading_mode === 'rubric' && row.rubric_scores) {
             const total = Object.values(row.rubric_scores).reduce((a, b) => a + b, 0);
             const max = row.step_rubric.reduce((a, c) => a + criteriaMaxPoints(c), 0);
             if (max === 0) return { grade: null, status: 'graded' };
             return { grade: Math.round((total / max) * 100) / 10, status: 'graded' };
         }
-        const score = row.score !== null && row.score !== undefined ? row.score : null;
-        return { grade: score, status: score !== null ? 'graded' : 'none' };
+        return { grade: null, status: 'none' };
     };
 
     const computeRetoGrade = (studentId: string, activity: typeof activitiesWithSteps[number]): number | null => {
@@ -1536,13 +1536,24 @@ function SubmissionStatusBadge({ status, publishedAt }: { status: string; publis
 
 function ScoreDisplay({ row }: { row: StepSubmissionRow }) {
     if (row.grading_mode === "complete") return <div className="size-6 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold">✓</div>;
-    if (row.grading_mode === "rubric" && row.rubric_scores) {
-        const total = Object.values(row.rubric_scores).reduce((a, b) => a + b, 0);
-        const max = row.step_rubric.reduce((a, c) => a + criteriaMaxPoints(c), 0);
-        return <div className="px-2 py-1 rounded-lg bg-accent-blue/5 border border-accent-blue/10 text-accent-blue font-mono text-[10px] font-black">{total}/{max}</div>;
-    }
     if (row.score !== null && row.score !== undefined) {
-        return <div className="px-2 py-1 rounded-lg bg-accent-blue/5 border border-accent-blue/10 text-accent-blue font-mono text-[10px] font-black">{row.score}/10</div>;
+        // Detect weighted score: rubric mode where score differs from raw rubric normalised value
+        const isWeighted = row.grading_mode === "rubric" && row.rubric_scores && (() => {
+            const total = Object.values(row.rubric_scores!).reduce((a, b) => a + b, 0);
+            const max = row.step_rubric.reduce((a, c) => a + criteriaMaxPoints(c), 0);
+            const rawNorm = max > 0 ? Math.round((total / max) * 100) / 10 : 0;
+            return Math.abs(rawNorm - row.score!) > 0.01;
+        })();
+        return (
+            <div className={cn(
+                "px-2 py-1 rounded-lg border font-mono text-[10px] font-black",
+                isWeighted
+                    ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
+                    : "bg-accent-blue/5 border-accent-blue/10 text-accent-blue"
+            )}>
+                {row.score}/10
+            </div>
+        );
     }
     return <span className="text-text-muted/20 font-mono text-[10px]">--</span>;
 }

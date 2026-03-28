@@ -9,9 +9,9 @@ import { Label } from "@/components/ui/label";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { gradeSubmission, saveQuizShortAnswerScores, StepSubmissionRow, SubmissionFile } from "@/app/dashboard/units/[id]/actions";
 import { urlToPreviewUrl } from "@/lib/google-drive-urls";
-import { RubricCriteria, criteriaMaxPoints, QuizContent } from "@/types/activity";
+import { RubricCriteria, criteriaMaxPoints, QuizContent, QuizQuestion } from "@/types/activity";
 import { toast } from "sonner";
-import { ExternalLink, FileText, File, Image, Video, User, Calendar, CheckCircle2, XCircle, Circle, AlertTriangle, ChevronLeft, ChevronRight, AlignLeft } from "lucide-react";
+import { ExternalLink, FileText, File, Image, Video, User, Calendar, CheckCircle2, XCircle, Circle, AlertTriangle, ChevronLeft, ChevronRight, AlignLeft, UserCheck, MessageSquare } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { buildQuestionReview, getQuestionType, QUIZ_QUESTION_TYPE } from "@/lib/quiz-core";
@@ -40,6 +40,7 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
     const [gradingMode, setGradingMode] = useState<GradingMode>('score');
     const [score, setScore] = useState<string>("");
     const [rubricScores, setRubricScores] = useState<Record<string, number>>({});
+    const [selfEvalRubricScores, setSelfEvalRubricScores] = useState<Record<string, number>>({});
     const [feedback, setFeedback] = useState<string>("");
     const [shortAnswerScores, setShortAnswerScores] = useState<Record<string, number>>({});
     const [shortAnswerFeedback, setShortAnswerFeedback] = useState<Record<string, string>>({});
@@ -47,6 +48,8 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
     const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
 
     const isQuiz = submission?.step_type === "quiz";
+    const isSelfEval = submission?.step_type === "self_evaluation";
+    const isSelfEvalRubric = isSelfEval && submission?.step_eval_mode === 'rubric';
     const quizContent = submission?.quiz_content ?? null;
     
     // We try to get the attempt for evaluation.
@@ -78,10 +81,13 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
             setScore(baseScore);
             setFeedback(submission.feedback ?? "");
             setRubricScores(submission.rubric_scores ?? {});
+            setSelfEvalRubricScores(submission.self_eval_rubric_scores ?? {});
             setShortAnswerScores(submission.quiz_attempt?.short_answer_scores ?? {});
             setShortAnswerFeedback(submission.quiz_attempt?.short_answer_feedback ?? {});
             if (submission.grading_mode) {
                 setGradingMode(submission.grading_mode);
+            } else if (submission.step_type === 'self_evaluation') {
+                setGradingMode('complete');
             } else {
                 setGradingMode(rubric?.length ? 'rubric' : 'score');
             }
@@ -165,11 +171,14 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                 const result = await gradeSubmission(submission.id, {
                     gradingMode: 'complete',
                     feedback: feedback.trim() || null,
+                    ...(isSelfEvalRubric && Object.keys(selfEvalRubricScores).length > 0
+                        ? { selfEvalRubricScores }
+                        : {}),
                 });
                 if (result.error) {
                     toast.error(result.error);
                 } else {
-                    toast.success("Entrega marcada como completada.");
+                    toast.success(isSelfEval ? "Autoevaluación revisada." : "Entrega marcada como completada.");
                     onGraded(submission.id, null, feedback.trim() || null, true, 'complete');
                     onClose();
                 }
@@ -242,7 +251,9 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                     {/* Left: Quiz attempt, Drive iframe, or file list */}
                     <ResizablePanel defaultSize={70} minSize={40}>
                         <div className="h-full flex flex-col bg-surface-dark">
-                            {isQuiz ? (
+                            {isSelfEval ? (
+                                <SelfEvalAnswersPanel submission={submission!} />
+                            ) : isQuiz ? (
                                 quizAttempt ? (
                                     <QuizAttemptPanel
                                         submission={submission!}
@@ -291,40 +302,95 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
 
                                 <div className="border-t border-border-strong" />
 
-                                {/* Mode selector */}
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-text-muted uppercase tracking-widest">Modo de evaluación</Label>
-                                    <div className="flex gap-1.5">
-                                        {(["score", "rubric", "complete"] as GradingMode[]).map((mode) => {
-                                            const labels: Record<GradingMode, string> = {
-                                                score: "Nota",
-                                                rubric: "Rúbrica",
-                                                complete: "Completado",
-                                            };
-                                            const isDisabled = mode === 'rubric' && !hasRubric;
-                                            return (
-                                                <button
-                                                    key={mode}
-                                                    onClick={() => !isDisabled && setGradingMode(mode)}
-                                                    title={isDisabled ? "Define una rúbrica en el editor del paso" : undefined}
-                                                    disabled={isDisabled}
-                                                    className={cn(
-                                                        "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors",
-                                                        gradingMode === mode
-                                                            ? "bg-accent-blue/10 border-accent-blue/40 text-accent-blue"
-                                                            : "bg-surface-dark border-border-strong text-text-muted hover:text-foreground hover:border-border-subtle",
-                                                        isDisabled && "opacity-40 cursor-not-allowed hover:text-text-muted hover:border-border-strong"
-                                                    )}
-                                                >
-                                                    {labels[mode]}
-                                                </button>
-                                            );
-                                        })}
+                                {/* Mode selector — hidden for self-eval */}
+                                {!isSelfEval && (
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold text-text-muted uppercase tracking-widest">Modo de evaluación</Label>
+                                        <div className="flex gap-1.5">
+                                            {(["score", "rubric", "complete"] as GradingMode[]).map((mode) => {
+                                                const labels: Record<GradingMode, string> = {
+                                                    score: "Nota",
+                                                    rubric: "Rúbrica",
+                                                    complete: "Completado",
+                                                };
+                                                const isDisabled = mode === 'rubric' && !hasRubric;
+                                                return (
+                                                    <button
+                                                        key={mode}
+                                                        onClick={() => !isDisabled && setGradingMode(mode)}
+                                                        title={isDisabled ? "Define una rúbrica en el editor del paso" : undefined}
+                                                        disabled={isDisabled}
+                                                        className={cn(
+                                                            "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors",
+                                                            gradingMode === mode
+                                                                ? "bg-accent-blue/10 border-accent-blue/40 text-accent-blue"
+                                                                : "bg-surface-dark border-border-strong text-text-muted hover:text-foreground hover:border-border-subtle",
+                                                            isDisabled && "opacity-40 cursor-not-allowed hover:text-text-muted hover:border-border-strong"
+                                                        )}
+                                                    >
+                                                        {labels[mode]}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
+
+                                {/* Self-eval info banner */}
+                                {isSelfEval && (
+                                    <div className="flex items-start gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                                        <UserCheck className="size-4 text-indigo-400 shrink-0 mt-0.5" />
+                                        <div className="space-y-1">
+                                            <p className="text-sm font-semibold text-indigo-300">Autoevaluación del alumno</p>
+                                            {submission?.step_eval_counts_toward_grade ? (
+                                                <p className="text-xs text-indigo-200/80">
+                                                    Contribuye a la nota del entregable vinculado:
+                                                    <span className="font-bold"> {submission.step_eval_weight ?? 20}% autoevaluación</span> + {100 - (submission.step_eval_weight ?? 20)}% nota del profesor.
+                                                    Marca como revisado cuando hayas comprobado las respuestas.
+                                                </p>
+                                            ) : (
+                                                <p className="text-xs text-indigo-200/80">
+                                                    Marca como revisado cuando hayas comprobado las respuestas del alumno.
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Self-eval rubric adjustment */}
+                                {isSelfEvalRubric && (submission?.step_eval_rubric ?? []).length > 0 && (
+                                    <div className="space-y-3">
+                                        <Label className="text-xs font-bold text-text-muted uppercase tracking-widest">
+                                            Ajustar niveles (opcional)
+                                        </Label>
+                                        <p className="text-xs text-text-muted -mt-1">
+                                            Si la justificación del alumno no corresponde con el nivel seleccionado, ajústalo.
+                                        </p>
+                                        {(submission!.step_eval_rubric!).map((criterion) => (
+                                            <CriterionRow
+                                                key={criterion.id}
+                                                criterion={criterion}
+                                                score={selfEvalRubricScores[criterion.id]}
+                                                onScore={(pts) => setSelfEvalRubricScores(prev => ({ ...prev, [criterion.id]: pts }))}
+                                            />
+                                        ))}
+                                        {(() => {
+                                            const evalRubric = submission!.step_eval_rubric!;
+                                            const rubricMax = evalRubric.reduce((sum, c) => sum + criteriaMaxPoints(c), 0);
+                                            const selfTotal = Object.values(selfEvalRubricScores).reduce((a, b) => a + b, 0);
+                                            const selfNorm = rubricMax > 0 ? Math.round((selfTotal / rubricMax) * 1000) / 100 : 0;
+                                            return (
+                                                <div className="flex items-center justify-between px-3 py-2 bg-indigo-500/5 border border-indigo-500/20 rounded-xl">
+                                                    <span className="text-xs font-bold text-foreground">Nota ajustada</span>
+                                                    <span className="text-sm font-bold font-mono text-indigo-400">{selfNorm} / 10</span>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
 
                                 {/* Mode content */}
-                                {gradingMode === 'score' && (
+                                {gradingMode === 'score' && !isSelfEval && (
                                     <div className="space-y-2">
                                         <Label className="text-sm font-semibold text-foreground">
                                             Nota (0–10)
@@ -340,10 +406,29 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                                             className="bg-surface-dark border-border-strong w-32 font-mono text-lg text-center"
                                         />
                                         <p className="text-xs text-text-muted">Déjalo vacío para no asignar nota numérica.</p>
+                                        {/* Weighted formula preview — shown when a linked self-eval with countsTowardGrade exists */}
+                                        {submission?.linked_self_eval_score != null && score !== "" && (() => {
+                                            const selfW = submission!.linked_self_eval_weight ?? 20;
+                                            const selfS = submission!.linked_self_eval_score!;
+                                            const teacherS = parseFloat(score);
+                                            if (isNaN(teacherS)) return null;
+                                            const final = Math.round(((selfW / 100) * selfS + ((100 - selfW) / 100) * teacherS) * 100) / 100;
+                                            return (
+                                                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-200">
+                                                    <UserCheck className="size-3.5 shrink-0 text-indigo-400 mt-0.5" />
+                                                    <div>
+                                                        <p className="font-semibold text-indigo-300 mb-0.5">Nota ponderada con autoevaluación</p>
+                                                        <p className="font-mono">
+                                                            {selfW}% × {selfS} + {100 - selfW}% × {teacherS} = <span className="font-bold text-white">{final}</span> / 10
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 )}
 
-                                {gradingMode === 'rubric' && (
+                                {gradingMode === 'rubric' && !isSelfEval && (
                                     <div className="space-y-3">
                                         {hasRubric ? (
                                             <>
@@ -359,8 +444,30 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                                                 </div>
                                                 <div className="flex items-center justify-between px-3 py-2 bg-accent-blue/5 border border-accent-blue/20 rounded-xl">
                                                     <span className="text-sm font-bold text-foreground">Total</span>
-                                                    <span className="text-sm font-bold font-mono text-accent-blue">{rubricTotal} / {rubricMax} pts</span>
+                                                    <span className="text-sm font-bold font-mono text-accent-blue">
+                                                        {rubricTotal} / {rubricMax} pts
+                                                        {rubricMax > 0 && (
+                                                            <span className="ml-2 text-text-muted font-normal">
+                                                                ({Math.round((rubricTotal / rubricMax) * 10 * 100) / 100} / 10)
+                                                            </span>
+                                                        )}
+                                                    </span>
                                                 </div>
+                                                {submission?.linked_self_eval_score != null && rubricMax > 0 && (() => {
+                                                    const selfW = submission!.linked_self_eval_weight ?? 20;
+                                                    const selfS = submission!.linked_self_eval_score!;
+                                                    const teacherS = Math.round((rubricTotal / rubricMax) * 10 * 100) / 100;
+                                                    const final = Math.round(((selfW / 100) * selfS + ((100 - selfW) / 100) * teacherS) * 100) / 100;
+                                                    return (
+                                                        <div className="flex items-start gap-2.5 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-200">
+                                                            <UserCheck className="size-3.5 shrink-0 text-indigo-400 mt-0.5" />
+                                                            <div>
+                                                                <p className="font-semibold text-indigo-300 mb-0.5">Nota ponderada con autoevaluación</p>
+                                                                <p className="font-mono">{selfW}% × {selfS} + {100 - selfW}% × {teacherS} = <span className="font-bold text-white">{final}</span> / 10</p>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </>
                                         ) : (
                                             <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
@@ -373,7 +480,7 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                                     </div>
                                 )}
 
-                                {gradingMode === 'complete' && (
+                                {gradingMode === 'complete' && !isSelfEval && (
                                     <div className="flex items-start gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                                         <CheckCircle2 className="size-4 text-emerald-400 shrink-0 mt-0.5" />
                                         <p className="text-sm text-emerald-200">
@@ -411,7 +518,7 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                                         onClick={handleSave}
                                         disabled={isPending}
                                     >
-                                        {isPending ? "Guardando..." : "Guardar evaluación"}
+                                        {isPending ? "Guardando..." : isSelfEval ? "Marcar como revisado" : "Guardar evaluación"}
                                     </Button>
                                 </div>
                             </div>
@@ -420,6 +527,95 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                 </ResizablePanelGroup>
             </DialogContent>
         </Dialog>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Left panel: self-evaluation answers
+// ---------------------------------------------------------------------------
+
+function SelfEvalAnswersPanel({ submission }: { submission: StepSubmissionRow }) {
+    const evalMode = submission.step_eval_mode ?? 'rubric';
+    const rubric = submission.step_eval_rubric ?? [];
+    const questions = (submission.step_eval_questions ?? []) as QuizQuestion[];
+    const rubricScores = submission.self_eval_rubric_scores ?? {};
+    const justifications = submission.self_eval_justifications ?? {};
+
+    const hasData = evalMode === 'questions'
+        ? Object.keys(justifications).length > 0
+        : Object.keys(rubricScores).length > 0;
+
+    if (!hasData) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 space-y-4">
+                <div className="size-16 rounded-full bg-surface-dark flex items-center justify-center border border-border-strong">
+                    <UserCheck className="size-8 text-text-muted" />
+                </div>
+                <div className="space-y-1">
+                    <h3 className="text-lg font-semibold text-foreground">Sin autoevaluación</h3>
+                    <p className="text-sm text-text-muted max-w-[220px]">El alumno aún no ha enviado su autoevaluación.</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="h-full overflow-y-auto p-5 space-y-5">
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-400">
+                {evalMode === 'questions' ? <MessageSquare className="size-3.5" /> : <UserCheck className="size-3.5" />}
+                Autoevaluación — {evalMode === 'questions' ? 'Preguntas abiertas' : 'Rúbrica'}
+            </div>
+
+            {evalMode === 'rubric' ? (
+                rubric.map(criterion => {
+                    const selectedPts = rubricScores[criterion.id];
+                    const selectedLevel = criterion.levels.find(l => l.points === selectedPts);
+                    const justification = justifications[criterion.id];
+                    return (
+                        <div key={criterion.id} className="space-y-2">
+                            <p className="text-xs font-semibold text-foreground">{criterion.name}</p>
+                            {criterion.description && <p className="text-[11px] text-text-muted">{criterion.description}</p>}
+                            {selectedLevel ? (
+                                <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-indigo-400">{selectedLevel.label}</span>
+                                        <span className="text-[10px] font-mono text-indigo-400">{selectedLevel.points} pts</span>
+                                    </div>
+                                    {selectedLevel.description && (
+                                        <p className="text-[10px] text-text-muted mt-1">{selectedLevel.description}</p>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-text-muted/50 italic">Sin selección</p>
+                            )}
+                            {justification && (
+                                <div className="px-3 py-2 rounded-lg bg-surface border border-border/50">
+                                    <p className="text-[11px] text-text-muted leading-relaxed whitespace-pre-wrap">{justification}</p>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })
+            ) : (
+                questions.map((q, idx) => {
+                    const answer = justifications[q.id] ?? "";
+                    return (
+                        <div key={q.id} className="space-y-1.5">
+                            <p className="text-xs font-semibold text-foreground">
+                                <span className="text-text-muted font-normal mr-1">{idx + 1}.</span>{q.text}
+                            </p>
+                            {answer.trim() ? (
+                                <div className="px-3 py-2 rounded-lg bg-surface border border-border/50">
+                                    <p className="text-[11px] text-text-muted leading-relaxed whitespace-pre-wrap">{answer}</p>
+                                </div>
+                            ) : (
+                                <p className="text-xs text-text-muted/50 italic">Sin respuesta</p>
+                            )}
+                        </div>
+                    );
+                })
+            )}
+        </div>
     );
 }
 

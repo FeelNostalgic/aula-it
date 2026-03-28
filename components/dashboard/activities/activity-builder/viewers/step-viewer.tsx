@@ -38,6 +38,7 @@ interface StepViewerProps {
     activityId?: string;
     submission?: ActivitySubmission;
     submissionsMap?: Record<string, ActivitySubmission>;
+    stepTitleMap?: Record<string, string>; // stepId → title, used for referenceStepId resolution
     googleEmail?: string | null;
     userId?: string | null;
     studentName?: string | null;
@@ -46,7 +47,7 @@ interface StepViewerProps {
     groupColor?: string | null;
 }
 
-export function StepViewer({ step, activityId, submission, submissionsMap, googleEmail, userId, studentName, isPreview, groupName, groupColor }: StepViewerProps) {
+export function StepViewer({ step, activityId, submission, submissionsMap, stepTitleMap, googleEmail, userId, studentName, isPreview, groupName, groupColor }: StepViewerProps) {
     if (!step) return null;
     if (step.is_locked) {
         return (
@@ -109,16 +110,22 @@ export function StepViewer({ step, activityId, submission, submissionsMap, googl
         case 'self_evaluation': {
             if (activityId) {
                 const selfContent = step.content as SelfEvaluationContent;
-                const refSub = selfContent.referenceStepId && submissionsMap
-                    ? submissionsMap[selfContent.referenceStepId]
-                    : undefined;
+                const refTitle = selfContent.referenceStepId
+                    ? (stepTitleMap?.[selfContent.referenceStepId] ?? null)
+                    : null;
+                // Pass the deliverable's published score so the viewer can show the weighted result
+                const refSub = selfContent.referenceStepId
+                    ? submissionsMap?.[selfContent.referenceStepId]
+                    : null;
+                const refScore = refSub?.status === 'published' ? (refSub.score ?? null) : null;
                 return (
                     <SelfEvaluationViewer
                         content={selfContent}
                         stepId={step.id}
                         activityId={activityId}
                         initialSubmission={submission}
-                        referenceSubmission={refSub}
+                        referenceStepTitle={refTitle}
+                        referenceScore={refScore}
                         isPreview={isPreview}
                         isClosed={step.is_activity_closed ?? false}
                     />
