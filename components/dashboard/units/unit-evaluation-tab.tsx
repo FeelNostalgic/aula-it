@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect, useState, useTransition, useRef } from "react";
+import { useMemo, useEffect, useState, useTransition, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
@@ -147,21 +147,29 @@ export function UnitEvaluationTab({ unitId, moduleId, students, activities, subm
     const [stepSubmissions, setStepSubmissions] = useState<StepSubmissionRow[]>([]);
     const [loadingStepSubs, setLoadingStepSubs] = useState(false);
 
+    const fetchSubmissions = useCallback(async (ids: string[], students: { student_id: string; name: string }[]) => {
+        setLoadingStepSubs(true);
+        try {
+            const result = await getUnitStepSubmissions(ids, students);
+            if (result.error) console.error("[StepSubmissions]", result.error);
+            if (result.data) setStepSubmissions(result.data);
+        } catch (err) {
+            console.error("[StepSubmissions] unexpected error:", err);
+        } finally {
+            setLoadingStepSubs(false);
+        }
+    }, []);
+
     useEffect(() => {
         const ids = activityIds ?? activities.map(a => a.id);
         if (ids.length === 0) return;
-        setLoadingStepSubs(true);
-        getUnitStepSubmissions(ids, enrolledStudents)
-            .then(result => {
-                if (result.error) console.error("[StepSubmissions]", result.error);
-                if (result.data) setStepSubmissions(result.data);
-                setLoadingStepSubs(false);
-            })
-            .catch(err => {
-                console.error("[StepSubmissions] unexpected error:", err);
-                setLoadingStepSubs(false);
-            });
-    }, [activityIds, activities, enrolledStudents]);
+        fetchSubmissions(ids, enrolledStudents);
+    }, [activityIds, activities, enrolledStudents, fetchSubmissions]);
+
+    const refetchSubmissions = useCallback(() => {
+        const ids = activityIds ?? activities.map(a => a.id);
+        if (ids.length > 0) fetchSubmissions(ids, enrolledStudents);
+    }, [activityIds, activities, enrolledStudents, fetchSubmissions]);
 
     const grouped = useMemo(() => {
         const map: Record<string, {
@@ -173,6 +181,7 @@ export function UnitEvaluationTab({ unitId, moduleId, students, activities, subm
                 stepType: ActivityStepType;
                 deliveryMode: "manual" | "teacher_copy" | undefined;
                 isLocked: boolean;
+                isGroupSubmission: boolean;
                 rows: StepSubmissionRow[];
             }>;
         }> = {};
@@ -192,8 +201,13 @@ export function UnitEvaluationTab({ unitId, moduleId, students, activities, subm
                     stepType: row.step_type,
                     deliveryMode: row.delivery_mode,
                     isLocked: row.step_is_locked ?? false,
+                    isGroupSubmission: row.is_group_submission ?? false,
                     rows: [],
                 };
+            }
+            // A canonical group row may arrive after virtual rows set isGroupSubmission=false — fix it.
+            if (row.is_group_submission) {
+                map[row.activity_id].byStep[row.step_id].isGroupSubmission = true;
             }
             map[row.activity_id].byStep[row.step_id].rows.push(row);
         }
@@ -343,6 +357,7 @@ export function UnitEvaluationTab({ unitId, moduleId, students, activities, subm
                                         stepData={grouped[selectedActivityId].byStep[selectedStepId]}
                                         onSubmissionsChange={setStepSubmissions}
                                         allSubmissions={stepSubmissions}
+                                        onRefetchSubmissions={refetchSubmissions}
                                     />
                                 ) : (
                                     <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
@@ -503,8 +518,8 @@ function SortableHeader({ column, label }: { column: Column<StepSubmissionRow, u
     );
 }
 
-function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmissionsChange, allSubmissions }: {
-    stepId: string, activityId: string, moduleId: string, stepData: any, onSubmissionsChange: (rows: StepSubmissionRow[]) => void, allSubmissions: StepSubmissionRow[]
+function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmissionsChange, allSubmissions, onRefetchSubmissions }: {
+    stepId: string, activityId: string, moduleId: string, stepData: any, onSubmissionsChange: (rows: StepSubmissionRow[]) => void, allSubmissions: StepSubmissionRow[], onRefetchSubmissions?: () => void
 }) {
     const [gradingState, setGradingState] = useState<{ rows: StepSubmissionRow[]; index: number } | null>(null);
     const gradingSubmission = gradingState ? gradingState.rows[gradingState.index] : null;
@@ -514,7 +529,9 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
 
     const stats = useMemo(() => {
         if (!stepData?.rows) return { total: 0, pending: 0, graded: 0, published: 0 };
-        const rows = stepData.rows;
+        const rows = stepData.isGroupSubmission
+            ? stepData.rows.filter((r: any) => r.is_group_submission === true)
+            : stepData.rows;
         const total = rows.length;
         const pending = rows.filter((r: any) => r.status === 'submitted' && !r.synthetic).length;
         const graded = rows.filter((r: any) => (r.status === 'graded' || r.status === 'published') && !r.synthetic).length;
@@ -546,9 +563,35 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
         },
         {
             accessorKey: "student_name",
-            header: ({ column }) => <SortableHeader column={column} label="Alumno" />,
+            header: ({ column }) => <SortableHeader column={column} label={stepData?.isGroupSubmission ? "Grupo" : "Alumno"} />,
             cell: ({ row }) => {
                 const r = row.original;
+                if (r.is_group_submission) {
+                    return (
+                        <div className="flex items-center gap-3">
+                            <div
+                                className="size-8 rounded-xl border flex items-center justify-center shrink-0 shadow-inner"
+                                style={r.group_color ? {
+                                    backgroundColor: `${r.group_color}18`,
+                                    borderColor: `${r.group_color}40`,
+                                    color: r.group_color,
+                                } : { backgroundColor: "rgb(99 102 241 / 0.1)", borderColor: "rgb(99 102 241 / 0.2)", color: "rgb(129 140 248)" }}
+                            >
+                                <Users className="size-3.5" />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                                <span className="text-[14px] font-bold text-foreground truncate uppercase tracking-tight font-mono">
+                                    {r.group_name || r.student_name || "Grupo"}
+                                </span>
+                                {r.group_members && r.group_members.length > 0 && (
+                                    <span className="text-[9px] text-text-muted/50 font-mono truncate">
+                                        {r.group_members.map(m => m.full_name || "?").join(" · ")}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    );
+                }
                 return (
                     <div className="flex items-center gap-3">
                         <div className="size-8 rounded-xl bg-surface-dark border border-border-strong flex items-center justify-center text-[10px] font-black text-text-muted group-hover:text-accent-blue group-hover:border-accent-blue/30 transition-all shadow-inner shrink-0">
@@ -556,7 +599,6 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
                         </div>
                         <div className="flex flex-col min-w-0">
                             <span className="text-[14px] font-bold text-foreground truncate uppercase tracking-tight font-mono">{r.student_name || "Sin nombre"}</span>
-                           {/* <span className="text-[9px] text-text-muted/50 font-mono tracking-tighter truncate">{r.student_email}</span> */}
                         </div>
                     </div>
                 );
@@ -615,13 +657,23 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
                 onSubmissionsChange(allSubmissions.map(s =>
                     s.id === row.original.id ? { ...s, status: "published", published_at: publishedAt } : s
                 ));
-            }} />,
+            }} onPropagate={onRefetchSubmissions} />,
             enableSorting: false,
         },
-    ], [allSubmissions, onSubmissionsChange]);
+    ], [allSubmissions, onSubmissionsChange, stepData, onRefetchSubmissions]);
+
+    // For group steps: only show canonical group rows (is_group_submission === true).
+    // Virtual student rows and propagated member rows are excluded from the correction table.
+    const tableRows = useMemo(() => {
+        const rows = (stepData?.rows ?? []) as StepSubmissionRow[];
+        if (stepData?.isGroupSubmission) {
+            return rows.filter(r => r.is_group_submission === true);
+        }
+        return rows;
+    }, [stepData]);
 
     const table = useReactTable({
-        data: (stepData?.rows ?? []) as StepSubmissionRow[],
+        data: tableRows,
         columns,
         state: { sorting, rowSelection },
         onSortingChange: setSorting,
@@ -641,6 +693,8 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
     if (stepData.stepType === 'self_evaluation') {
         return <SelfEvaluationTeacherView stepId={stepId} stepTitle={stepData.stepTitle} />;
     }
+
+    const noGroupSubmissionsYet = stepData.isGroupSubmission && tableRows.every((r: StepSubmissionRow) => r.synthetic);
 
     const selectedRows = table.getSelectedRowModel().rows.map(r => r.original);
     const selectedIdSet = new Set(selectedRows.map(r => r.id));
@@ -718,8 +772,17 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
                 />
             )}
 
+            {/* Group step — no submissions yet */}
+            {noGroupSubmissionsYet && (
+                <div className="flex flex-col items-center justify-center py-16 gap-3 text-center bg-surface border border-border-strong rounded-[2rem]">
+                    <Users className="size-10 text-text-muted/20" />
+                    <p className="text-sm font-bold text-foreground">Ningún grupo ha entregado todavía</p>
+                    <p className="text-xs text-text-muted max-w-xs">Cuando un grupo suba su entrega aparecerá aquí para poder evaluarla.</p>
+                </div>
+            )}
+
             {/* Submissions Table */}
-            <div className="flex-1 min-h-0 bg-surface border border-border-strong rounded-[2rem] overflow-hidden flex flex-col shadow-xl shadow-black/5">
+            {!noGroupSubmissionsYet && <div className="flex-1 min-h-0 bg-surface border border-border-strong rounded-[2rem] overflow-hidden flex flex-col shadow-xl shadow-black/5">
                 <div className="overflow-auto custom-scrollbar flex-1 rounded-[2rem]">
                     <Table className="table-fixed">
                         <TableHeader className="sticky top-0 z-10">
@@ -750,7 +813,7 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
                         </TableBody>
                     </Table>
                 </div>
-            </div>
+            </div>}
 
             <GradingModal
                 submission={gradingSubmission}
@@ -851,8 +914,8 @@ function BulkActionBar({ selectedIds, rows, onClear, onSubmissionsChange, allSub
     );
 }
 
-function SubmissionActions({ row, table, onGrade, onReopen, onExtendDeadline, onPublish }: {
-    row: StepSubmissionRow; table: any; onGrade: () => void; onReopen: () => void; onExtendDeadline: () => void; onPublish: (publishedAt: string) => void;
+function SubmissionActions({ row, table, onGrade, onReopen, onExtendDeadline, onPublish, onPropagate }: {
+    row: StepSubmissionRow; table: any; onGrade: () => void; onReopen: () => void; onExtendDeadline: () => void; onPublish: (publishedAt: string) => void; onPropagate?: () => void;
 }) {
     const [isPendingReopen, startReopen] = useTransition();
     const [isPendingPublish, startPublish] = useTransition();
@@ -912,7 +975,7 @@ function SubmissionActions({ row, table, onGrade, onReopen, onExtendDeadline, on
                     <Undo2 className="size-3.5" />
                 </Button>
             )}
-            {!row.synthetic && (
+            {!row.synthetic && !row.is_group_submission && (
                 <Button
                     size="icon"
                     variant="outline"
@@ -946,7 +1009,10 @@ function SubmissionActions({ row, table, onGrade, onReopen, onExtendDeadline, on
                         startPropagate(async () => {
                             const res = await publishGroupGrade(row.id);
                             if ((res as any).error) toast.error((res as any).error);
-                            else toast.success("Nota propagada a todos los miembros del grupo.");
+                            else {
+                                toast.success("Nota propagada a todos los miembros del grupo.");
+                                onPropagate?.();
+                            }
                         });
                     }}
                 >

@@ -169,20 +169,28 @@ export async function POST(request: NextRequest) {
                     await shareFile(driveClient, newFileId, email, "writer");
                 }
 
-                await admin
+                const { data: existingGroupSub } = await admin
                     .from("activity_submissions")
-                    .upsert(
-                        {
-                            group_id: group.id,
-                            student_id: null,
-                            step_id: stepId,
-                            drive_file_url: webViewLink,
-                            drive_file_id: newFileId,
-                            status: "submitted",
-                            submitted_at: new Date().toISOString(),
-                        },
-                        { onConflict: "group_id,step_id" }
-                    );
+                    .select("id")
+                    .eq("group_id", group.id)
+                    .eq("step_id", stepId)
+                    .maybeSingle();
+
+                const groupSubPayload = {
+                    group_id: group.id,
+                    student_id: null,
+                    step_id: stepId,
+                    drive_file_url: webViewLink,
+                    drive_file_id: newFileId,
+                    status: "submitted",
+                    submitted_at: new Date().toISOString(),
+                };
+
+                if (existingGroupSub?.id) {
+                    await admin.from("activity_submissions").update(groupSubPayload).eq("id", existingGroupSub.id);
+                } else {
+                    await admin.from("activity_submissions").insert(groupSubPayload);
+                }
 
                 copied++;
             } catch (err: any) {
@@ -232,19 +240,28 @@ export async function POST(request: NextRequest) {
 
                 await shareFile(driveClient, newFileId, googleEmail, "writer");
 
-                await admin
+                const { data: existingDriveSub } = await admin
                     .from("activity_submissions")
-                    .upsert(
-                        {
-                            student_id: enrollment.student_id,
-                            step_id: stepId,
-                            drive_file_url: webViewLink,
-                            drive_file_id: newFileId,
-                            status: "submitted",
-                            submitted_at: new Date().toISOString(),
-                        },
-                        { onConflict: "student_id,step_id" }
-                    );
+                    .select("id")
+                    .eq("student_id", enrollment.student_id)
+                    .eq("step_id", stepId)
+                    .is("group_id", null)
+                    .maybeSingle();
+
+                const driveSubPayload = {
+                    student_id: enrollment.student_id,
+                    step_id: stepId,
+                    drive_file_url: webViewLink,
+                    drive_file_id: newFileId,
+                    status: "submitted",
+                    submitted_at: new Date().toISOString(),
+                };
+
+                if (existingDriveSub?.id) {
+                    await admin.from("activity_submissions").update(driveSubPayload).eq("id", existingDriveSub.id);
+                } else {
+                    await admin.from("activity_submissions").insert(driveSubPayload);
+                }
 
                 copied++;
             } catch (err: any) {

@@ -320,6 +320,9 @@ export async function studentJoinGroup(
         .eq("id", group.module_id)
         .single();
 
+    if (module?.groups_enrollment_mode === "locked") {
+        return { error: "Los grupos están cerrados. No puedes unirte a ningún grupo ahora." };
+    }
     if (module?.groups_enrollment_mode !== "self_enrollment") {
         return { error: "La inscripción libre no está habilitada en este módulo." };
     }
@@ -363,7 +366,8 @@ export async function studentJoinGroup(
             .neq("group_id", groupId);
     }
 
-    const { error: insertError } = await supabase
+    // Use admin client to avoid RLS infinite recursion on module_group_members
+    const { error: insertError } = await admin
         .from("module_group_members")
         .insert({ group_id: groupId, student_id: user.id });
 
@@ -379,7 +383,22 @@ export async function getMyGroupForModule(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
 
-    const { data, error } = await supabase
+    const admin = createAdminClient();
+
+    // Get active group IDs for this module first, then filter membership by them.
+    // This avoids the .filter() on embedded relations which returns rows with group=null
+    // instead of excluding them — causing maybeSingle() to fail when the student belongs
+    // to groups in other modules.
+    const { data: moduleGroups } = await admin
+        .from("module_groups")
+        .select("id")
+        .eq("module_id", moduleId)
+        .eq("status", "active");
+
+    const groupIds = (moduleGroups ?? []).map((g: { id: string }) => g.id);
+    if (groupIds.length === 0) return { group: null };
+
+    const { data, error } = await admin
         .from("module_group_members")
         .select(`
             group:module_groups(
@@ -391,11 +410,47 @@ export async function getMyGroupForModule(
             )
         `)
         .eq("student_id", user.id)
-        .filter("group.module_id", "eq", moduleId)
+        .in("group_id", groupIds)
         .maybeSingle();
 
     if (error) return { error: error.message };
     return { group: (data as any)?.group ?? null };
+}
+
+export async function generateEmptyGroups(
+    moduleId: string,
+    count: number,
+    maxMembers?: number,
+): Promise<{ error?: string }> {
+    if (count < 1 || count > 50) return { error: "El número de grupos debe estar entre 1 y 50." };
+
+    const { error: authError, user } = await requireManageStudents(moduleId);
+    if (authError || !user) return { error: authError ?? "Sin permisos." };
+
+    const admin = createAdminClient();
+
+    const { data: existing } = await admin
+        .from("module_groups")
+        .select("id")
+        .eq("module_id", moduleId)
+        .eq("status", "active");
+
+    const baseIndex = (existing ?? []).length;
+    const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
+
+    const newGroups = Array.from({ length: count }, (_, i) => ({
+        module_id: moduleId,
+        name: `Grupo ${baseIndex + i + 1}`,
+        color: colors[(baseIndex + i) % colors.length],
+        max_members: maxMembers ?? null,
+        created_by: user.id,
+    }));
+
+    const { error } = await admin.from("module_groups").insert(newGroups);
+    if (error) return { error: error.message };
+
+    revalidatePath(`/dashboard/modules/${moduleId}`);
+    return {};
 }
 
 /**
@@ -422,11 +477,16 @@ export async function studentLeaveGroup(
         .eq("id", group.module_id)
         .single();
 
+    if (module?.groups_enrollment_mode === "locked") {
+        return { error: "Los grupos están cerrados. No puedes salir del grupo ahora." };
+    }
     if (module?.groups_enrollment_mode !== "self_enrollment") {
         return { error: "No puedes salir del grupo manualmente en este módulo." };
     }
 
-    const { error: deleteError } = await supabase
+    // Use admin client to avoid RLS infinite recursion on module_group_members
+    const admin = createAdminClient();
+    const { error: deleteError } = await admin
         .from("module_group_members")
         .delete()
         .eq("group_id", groupId)

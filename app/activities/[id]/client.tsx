@@ -17,6 +17,7 @@ interface StudentActivityClientProps {
     earnedBadgeIds?: string[];
     readOnly?: boolean;
     groupName?: string | null;
+    groupColor?: string | null;
 }
 
 function BreadcrumbSetter({ activity }: { activity: any }) {
@@ -47,7 +48,7 @@ function BreadcrumbSetter({ activity }: { activity: any }) {
     return null;
 }
 
-export function StudentActivityClient({ activity, phases, user, profile, submissionsMap, viewsMap, classBadges, earnedBadgeIds, readOnly = false, groupName }: StudentActivityClientProps) {
+export function StudentActivityClient({ activity, phases, user, profile, submissionsMap, viewsMap, classBadges, earnedBadgeIds, readOnly = false, groupName, groupColor }: StudentActivityClientProps) {
     const router = useRouter();
 
     const handleExit = () => {
@@ -75,6 +76,7 @@ export function StudentActivityClient({ activity, phases, user, profile, submiss
                     earnedBadgeIds={earnedBadgeIds}
                     isPreview={readOnly}
                     groupName={groupName}
+                    groupColor={groupColor}
                 />
             </main>
         </BreadcrumbProvider>

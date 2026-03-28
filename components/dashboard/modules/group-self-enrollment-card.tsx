@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { Users2, UserPlus, CheckCircle2, UserMinus } from "lucide-react";
+import { Users2, UserPlus, UserMinus, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,7 @@ import {
     studentJoinGroup,
     studentLeaveGroup,
 } from "@/app/dashboard/modules/[id]/groups-actions";
-import type { ModuleGroupWithMembers } from "@/types/groups";
+import type { ModuleGroupWithMembers, GroupsEnrollmentMode } from "@/types/groups";
 import { toast } from "sonner";
 
 interface GroupSelfEnrollmentCardProps {
@@ -23,7 +23,7 @@ interface GroupSelfEnrollmentCardProps {
 export function GroupSelfEnrollmentCard({ moduleId }: GroupSelfEnrollmentCardProps) {
     const [myGroup, setMyGroup] = useState<ModuleGroupWithMembers | null>(null);
     const [allGroups, setAllGroups] = useState<ModuleGroupWithMembers[]>([]);
-    const [isSelfEnrollment, setIsSelfEnrollment] = useState(false);
+    const [mode, setMode] = useState<GroupsEnrollmentMode>("teacher_assigned");
     const [loading, setLoading] = useState(true);
     const [isPending, startTransition] = useTransition();
 
@@ -33,8 +33,7 @@ export function GroupSelfEnrollmentCard({ moduleId }: GroupSelfEnrollmentCardPro
             getMyGroupForModule(moduleId),
             getModuleGroups(moduleId),
         ]);
-        const mode = modeRes.mode ?? "teacher_assigned";
-        setIsSelfEnrollment(mode === "self_enrollment");
+        setMode(modeRes.mode ?? "teacher_assigned");
         setMyGroup(myGroupRes.group ?? null);
         setAllGroups(groupsRes.groups ?? []);
         setLoading(false);
@@ -42,9 +41,7 @@ export function GroupSelfEnrollmentCard({ moduleId }: GroupSelfEnrollmentCardPro
 
     useEffect(() => { load(); }, [moduleId]);
 
-    // Don't render anything if teacher_assigned mode and no group yet
     if (loading) return null;
-    if (!isSelfEnrollment && !myGroup) return null;
 
     function handleJoin(groupId: string) {
         startTransition(async () => {
@@ -64,57 +61,103 @@ export function GroupSelfEnrollmentCard({ moduleId }: GroupSelfEnrollmentCardPro
         });
     }
 
+    // ── Grupos cerrados (locked) ──────────────────────────────────────────────
+    if (mode === "locked" && !myGroup) {
+        return (
+            <div className="p-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 flex items-center gap-3">
+                <div className="size-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+                    <Lock className="size-5 text-amber-400" />
+                </div>
+                <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-400/70">Grupos cerrados</p>
+                    <p className="text-sm text-text-muted">El profesor ha cerrado los grupos. Contacta con él si necesitas ser asignado.</p>
+                </div>
+            </div>
+        );
+    }
+
+    // ── Sin grupo, modo teacher_assigned ─────────────────────────────────────
+    if (mode === "teacher_assigned" && !myGroup) {
+        return (
+            <div className="p-4 rounded-2xl border border-border/30 bg-surface-dark flex items-center gap-3">
+                <div className="size-9 rounded-xl bg-surface border border-border-subtle flex items-center justify-center shrink-0">
+                    <Users2 className="size-5 text-text-muted" />
+                </div>
+                <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-text-muted">Mi grupo</p>
+                    <p className="text-sm text-text-muted">El profesor te asignará a un grupo próximamente.</p>
+                </div>
+            </div>
+        );
+    }
+
     // ── Tengo grupo ──────────────────────────────────────────────────────────
     if (myGroup) {
-        const colorStyle = myGroup.color ? { background: `${myGroup.color}20`, borderColor: `${myGroup.color}40` } : undefined;
+        const accent = myGroup.color ?? "#6b7280";
         return (
             <div
-                className="p-4 rounded-2xl border flex items-center justify-between gap-4 mb-6"
-                style={colorStyle ?? undefined}
+                className="rounded-2xl border overflow-hidden mb-6"
+                style={{ borderColor: `${accent}40` }}
             >
-                <div className="flex items-center gap-3">
-                    <div
-                        className="size-9 rounded-xl flex items-center justify-center shrink-0"
-                        style={myGroup.color ? { background: `${myGroup.color}30` } : undefined}
-                    >
-                        <Users2 className="size-5" style={myGroup.color ? { color: myGroup.color } : undefined} />
+                {/* Cabecera */}
+                <div
+                    className="flex items-center justify-between gap-3 px-4 py-3"
+                    style={{ background: `${accent}18` }}
+                >
+                    <div className="flex items-center gap-3">
+                        <div
+                            className="size-8 rounded-lg flex items-center justify-center shrink-0"
+                            style={{ background: `${accent}30` }}
+                        >
+                            <Users2 className="size-4" style={{ color: accent }} />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-text-muted">Mi grupo</p>
+                            <p className="text-sm font-bold text-foreground leading-tight">{myGroup.name}</p>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-text-muted">Mi grupo</p>
-                        <p className="text-sm font-bold text-foreground">{myGroup.name}</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="flex -space-x-2">
-                        {myGroup.members.slice(0, 5).map(m => (
-                            <Avatar key={m.id} className="size-7 border-2 border-background">
-                                <AvatarImage src={(m.profile as any)?.avatar_url ?? undefined} />
-                                <AvatarFallback className="text-[10px] font-bold">
-                                    {((m.profile as any)?.full_name ?? "?")[0]}
-                                </AvatarFallback>
-                            </Avatar>
-                        ))}
-                        {myGroup.members.length > 5 && (
-                            <div className="size-7 rounded-full border-2 border-background bg-surface flex items-center justify-center text-[10px] font-bold text-text-muted">
-                                +{myGroup.members.length - 5}
-                            </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="outline" className="text-[10px] font-mono border-border-subtle text-text-muted">
+                            {myGroup.members.length}{myGroup.max_members ? `/${myGroup.max_members}` : ""} miembros
+                        </Badge>
+                        {mode === "locked" && (
+                            <Badge variant="outline" className="text-[10px] border-amber-500/20 text-amber-400 bg-amber-500/5 gap-1">
+                                <Lock className="size-2.5" /> Cerrado
+                            </Badge>
+                        )}
+                        {mode === "self_enrollment" && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={isPending}
+                                onClick={() => handleLeave(myGroup.id)}
+                                className="text-text-muted hover:text-red-400 gap-1.5 text-xs h-7"
+                            >
+                                <UserMinus className="size-3.5" />
+                                Salir
+                            </Button>
                         )}
                     </div>
-                    <Badge variant="outline" className="text-[10px] font-mono">
-                        {myGroup.members.length}{myGroup.max_members ? `/${myGroup.max_members}` : ""} miembros
-                    </Badge>
-                    {isSelfEnrollment && (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={isPending}
-                            onClick={() => handleLeave(myGroup.id)}
-                            className="text-text-muted hover:text-red-400 gap-1.5 text-xs"
-                        >
-                            <UserMinus className="size-3.5" />
-                            Salir
-                        </Button>
-                    )}
+                </div>
+
+                {/* Lista de miembros */}
+                <div className="divide-y divide-border-subtle">
+                    {myGroup.members.map((m) => {
+                        const profile = m.profile as any;
+                        const name = profile?.full_name ?? "Alumno";
+                        const initials = name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+                        return (
+                            <div key={m.student_id} className="flex items-center gap-3 px-4 py-2.5 bg-surface-dark/40">
+                                <Avatar className="size-7 shrink-0">
+                                    <AvatarImage src={profile?.avatar_url ?? undefined} />
+                                    <AvatarFallback className="text-[10px] font-bold bg-surface">
+                                        {initials}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <span className="text-sm font-medium text-foreground truncate">{name}</span>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         );

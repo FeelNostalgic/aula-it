@@ -7,7 +7,7 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
-import { UserCheck, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, ClipboardList } from "lucide-react";
+import { UserCheck, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, ClipboardList, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { SelfEvaluationContent, ActivitySubmission, RubricCriteria, criteriaMaxPoints } from "@/types/activity";
@@ -20,7 +20,7 @@ interface SelfEvaluationViewerProps {
     stepId: string;
     activityId: string;
     initialSubmission?: ActivitySubmission | null;
-    referenceSubmission?: ActivitySubmission | null; // the deliverable submission to show as context
+    referenceSubmission?: ActivitySubmission | null;
     isPreview?: boolean;
     isClosed?: boolean;
 }
@@ -34,27 +34,37 @@ export function SelfEvaluationViewer({
     isPreview,
     isClosed,
 }: SelfEvaluationViewerProps) {
+    const evalMode = content.evalMode ?? "rubric";
     const rubric = content.rubric ?? [];
-    const hasSubmitted = !!(initialSubmission?.self_eval_rubric_scores);
+    const questions = content.questions ?? [];
+
+    const hasSubmitted = !!(
+        evalMode === "questions"
+            ? initialSubmission?.self_eval_justifications
+            : initialSubmission?.self_eval_rubric_scores
+    );
     const isPublished = initialSubmission?.status === "published";
 
     const [scores, setScores] = useState<Record<string, number>>(
         initialSubmission?.self_eval_rubric_scores ?? {}
     );
-    const [justifications, setJustifications] = useState<Record<string, string>>(
+    const [answers, setAnswers] = useState<Record<string, string>>(
         initialSubmission?.self_eval_justifications ?? {}
     );
     const [referenceExpanded, setReferenceExpanded] = useState(false);
     const [isPending, startTransition] = useTransition();
 
-    const allScored = rubric.every(c => scores[c.id] !== undefined);
-    const allJustified = !content.requireJustification || rubric.every(c => (justifications[c.id] ?? "").trim().length > 0);
-    const canSubmit = allScored && allJustified && !isPreview && !isClosed;
+    // Validation
+    const allScored = evalMode === "questions" || rubric.every(c => scores[c.id] !== undefined);
+    const allAnswered = evalMode !== "questions" || questions.every(q => (answers[q.id] ?? "").trim().length > 0);
+    const allJustified = evalMode !== "rubric" || !content.requireJustification || rubric.every(c => (answers[c.id] ?? "").trim().length > 0);
+    const canSubmit = allScored && allAnswered && allJustified && !isPreview && !isClosed && !hasSubmitted;
 
     function handleSubmit() {
         if (!canSubmit) return;
         startTransition(async () => {
-            const result = await submitSelfEvaluation(stepId, activityId, scores, justifications);
+            const rubricScores = evalMode === "questions" ? {} : scores;
+            const result = await submitSelfEvaluation(stepId, activityId, rubricScores, answers);
             if (result.error) {
                 toast.error(result.error);
             } else {
@@ -63,9 +73,9 @@ export function SelfEvaluationViewer({
         });
     }
 
-    // Compute self-eval total for display
-    const selfTotal = Object.values(scores).reduce((a, b) => a + b, 0);
+    // Numeric comparison (rubric mode only)
     const rubricMax = rubric.reduce((sum, c) => sum + criteriaMaxPoints(c), 0);
+    const selfTotal = Object.values(scores).reduce((a, b) => a + b, 0);
     const selfNormalized = rubricMax > 0 ? Math.round((selfTotal / rubricMax) * 1000) / 100 : 0;
     const teacherScore = isPublished ? initialSubmission?.score : null;
 
@@ -104,19 +114,15 @@ export function SelfEvaluationViewer({
                     {referenceExpanded && (
                         <div className="px-6 pb-6">
                             <div className="aspect-4/3 w-full rounded-xl overflow-hidden border border-border bg-white shadow">
-                                <iframe
-                                    src={referenceSubmission.drive_file_url}
-                                    className="w-full h-full"
-                                    title="Entrega de referencia"
-                                />
+                                <iframe src={referenceSubmission.drive_file_url} className="w-full h-full" title="Entrega de referencia" />
                             </div>
                         </div>
                     )}
                 </div>
             )}
 
-            {/* Published comparison banner */}
-            {isPublished && teacherScore !== null && (
+            {/* Published comparison banner — rubric mode only */}
+            {evalMode === "rubric" && isPublished && teacherScore !== null && (
                 <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
                         <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-1">Tu autoevaluación</span>
@@ -129,33 +135,73 @@ export function SelfEvaluationViewer({
                 </div>
             )}
 
-            {/* Rubric */}
-            {rubric.length > 0 ? (
-                <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-6">
-                    <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
-                        <ClipboardList className="size-4" /> Rúbrica de autoevaluación
-                    </h3>
-                    {rubric.map(criterion => (
-                        <CriterionBlock
-                            key={criterion.id}
-                            criterion={criterion}
-                            selected={scores[criterion.id]}
-                            justification={justifications[criterion.id] ?? ""}
-                            requireJustification={content.requireJustification}
-                            readOnly={hasSubmitted || !!isPreview || !!isClosed}
-                            onSelect={(pts) => setScores(prev => ({ ...prev, [criterion.id]: pts }))}
-                            onJustify={(text) => setJustifications(prev => ({ ...prev, [criterion.id]: text }))}
-                        />
-                    ))}
-                </div>
-            ) : (
-                <div className="p-8 text-center text-text-muted text-sm">
-                    El profesor aún no ha configurado la rúbrica para esta autoevaluación.
-                </div>
+            {/* ── RUBRIC MODE ── */}
+            {evalMode === "rubric" && (
+                rubric.length > 0 ? (
+                    <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-6">
+                        <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
+                            <ClipboardList className="size-4" /> Rúbrica de autoevaluación
+                        </h3>
+                        {rubric.map(criterion => (
+                            <CriterionBlock
+                                key={criterion.id}
+                                criterion={criterion}
+                                selected={scores[criterion.id]}
+                                justification={answers[criterion.id] ?? ""}
+                                requireJustification={content.requireJustification}
+                                readOnly={hasSubmitted || !!isPreview || !!isClosed}
+                                onSelect={(pts) => setScores(prev => ({ ...prev, [criterion.id]: pts }))}
+                                onJustify={(text) => setAnswers(prev => ({ ...prev, [criterion.id]: text }))}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="p-8 text-center text-text-muted text-sm">
+                        El profesor aún no ha configurado la rúbrica para esta autoevaluación.
+                    </div>
+                )
+            )}
+
+            {/* ── QUESTIONS MODE ── */}
+            {evalMode === "questions" && (
+                questions.length > 0 ? (
+                    <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-6">
+                        <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
+                            <MessageSquare className="size-4" /> Reflexión
+                        </h3>
+                        {questions.map((q, idx) => (
+                            <div key={q.id} className="space-y-2">
+                                <div>
+                                    <p className="text-sm font-semibold text-foreground">
+                                        <span className="text-text-muted font-normal mr-1">{idx + 1}.</span>
+                                        {q.text}
+                                    </p>
+                                    {q.description && (
+                                        <p className="text-xs text-text-muted mt-0.5">{q.description}</p>
+                                    )}
+                                </div>
+                                <Textarea
+                                    value={answers[q.id] ?? ""}
+                                    onChange={(e) => !hasSubmitted && !isPreview && !isClosed && setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                                    readOnly={hasSubmitted || !!isPreview || !!isClosed}
+                                    placeholder="Escribe tu respuesta..."
+                                    className={cn(
+                                        "resize-none text-sm min-h-[96px] bg-surface border-border/50",
+                                        (hasSubmitted || isPreview || isClosed) && "cursor-default opacity-80"
+                                    )}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="p-8 text-center text-text-muted text-sm">
+                        El profesor aún no ha configurado las preguntas para esta autoevaluación.
+                    </div>
+                )
             )}
 
             {/* Submit button */}
-            {!hasSubmitted && rubric.length > 0 && (
+            {!hasSubmitted && (evalMode === "rubric" ? rubric.length > 0 : questions.length > 0) && (
                 <div className="flex justify-end">
                     <Button
                         onClick={handleSubmit}
@@ -171,14 +217,17 @@ export function SelfEvaluationViewer({
             {hasSubmitted && (
                 <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium">
                     <CheckCircle2 className="size-4 shrink-0" />
-                    Autoevaluación enviada. {isPublished ? "Ya puedes ver tu nota comparativa arriba." : "El profesor la revisará pronto."}
+                    Autoevaluación enviada.{" "}
+                    {evalMode === "rubric" && isPublished
+                        ? "Ya puedes ver tu nota comparativa arriba."
+                        : "El profesor la revisará pronto."}
                 </div>
             )}
         </div>
     );
 }
 
-// ─── Sub-component ────────────────────────────────────────────────────────────
+// ─── Sub-component: criterion block (rubric mode) ─────────────────────────────
 
 function CriterionBlock({
     criterion,

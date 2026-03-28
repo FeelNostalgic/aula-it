@@ -1,7 +1,7 @@
 // Tipos para el sistema de grupos de alumnos por módulo
 
 export type GroupStatus = 'active' | 'archived';
-export type GroupsEnrollmentMode = 'teacher_assigned' | 'self_enrollment';
+export type GroupsEnrollmentMode = 'teacher_assigned' | 'self_enrollment' | 'locked';
 
 export type ModuleGroup = {
     id: string;

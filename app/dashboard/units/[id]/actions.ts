@@ -437,6 +437,10 @@ export type StepSubmissionRow = {
         completed_at: string;
     }[];
     group_id?: string | null;
+    group_name?: string | null;
+    group_color?: string | null;
+    group_members?: { student_id: string; full_name: string | null }[];
+    is_group_submission?: boolean;
     synthetic?: boolean; // true = no real submission, injected for display
     step_is_locked?: boolean;
 };
@@ -467,11 +471,11 @@ export async function getUnitStepSubmissions(
     const phaseActivityMap: Record<string, string> = {};
     for (const p of phases) phaseActivityMap[p.id] = p.activity_id;
 
-    // Step 2: get deliverable, file_upload, and quiz steps in those phases
+    // Step 2: get gradeable + eval steps in those phases
     const { data: steps, error: stepsError } = await supabase
         .from("activity_steps")
         .select("id, type, title, phase_id, content, is_locked, is_activity_closed, order_index")
-        .in("type", ["deliverable", "file_upload", "quiz"])
+        .in("type", ["deliverable", "file_upload", "quiz", "self_evaluation", "peer_evaluation"])
         .in("phase_id", phaseIds)
         .order("order_index", { ascending: true });
 
@@ -488,7 +492,7 @@ export async function getUnitStepSubmissions(
     const activityTitles: Record<string, string> = {};
     activities?.forEach(a => activityTitles[a.id] = a.title);
 
-    const stepMeta: Record<string, { title: string; stepType: string; activityId: string; activityTitle: string; deliveryMode: any; rubric: any; quizContent: any; isLocked: boolean }> = {};
+    const stepMeta: Record<string, { title: string; stepType: string; activityId: string; activityTitle: string; deliveryMode: any; rubric: any; quizContent: any; isLocked: boolean; isGroupSubmission: boolean }> = {};
     for (const s of steps) {
         const activityId = phaseActivityMap[s.phase_id] ?? "";
         stepMeta[s.id] = {
@@ -499,25 +503,198 @@ export async function getUnitStepSubmissions(
             deliveryMode: (s.content as any)?.deliveryMode,
             rubric: (s.content as any)?.rubric ?? [],
             quizContent: s.type === 'quiz' ? (s.content as any) : null,
-            isLocked: (s as any).is_locked ?? false
+            isLocked: (s as any).is_locked ?? false,
+            isGroupSubmission: (s.content as any)?.is_group_submission === true,
         };
     }
 
-    // Step 3: get submissions for these steps
-    let query = supabase
-        .from("activity_submissions")
-        .select(`
-            *,
-            student:profiles!inner(full_name)
-        `)
-        .in("step_id", stepIds);
+    // Separate step categories:
+    // - eval-only: self_evaluation / peer_evaluation — rendered by specialized teacher views, need virtual placeholder rows
+    // - group: deliverable/file_upload with is_group_submission
+    // - individual: everything else
+    const evalOnlyTypes = new Set(["self_evaluation", "peer_evaluation"]);
+    const evalOnlyStepIds = steps.filter(s => evalOnlyTypes.has(s.type)).map(s => s.id);
+    const groupStepIds = steps.filter(s => !evalOnlyTypes.has(s.type) && (s.content as any)?.is_group_submission === true).map(s => s.id);
+    const individualStepIds = steps.filter(s => !evalOnlyTypes.has(s.type) && !(s.content as any)?.is_group_submission).map(s => s.id);
 
-    if (students && students.length > 0) {
-        query = query.in("student_id", students.map(s => s.student_id));
+    // Step 3a: get individual submissions (non-group steps only)
+    let submissions: any[] = [];
+    if (individualStepIds.length > 0) {
+        let query = supabase
+            .from("activity_submissions")
+            .select(`
+                *,
+                student:profiles!inner(full_name)
+            `)
+            .in("step_id", individualStepIds);
+
+        if (students && students.length > 0) {
+            query = query.in("student_id", students.map(s => s.student_id));
+        }
+
+        const { data: indivSubs, error: subError } = await query;
+        if (subError) return { error: subError.message };
+        submissions = indivSubs ?? [];
     }
 
-    const { data: submissions, error: subError } = await query;
-    if (subError) return { error: subError.message };
+    // Step 3c: get propagated individual rows for group steps (for gradebook)
+    // publishGroupGrade creates these with group_id = NULL (individual grade copies).
+    // The canonical group submission (group_id IS NOT NULL) is already in groupResults.
+    let propagatedResults: StepSubmissionRow[] = [];
+    if (groupStepIds.length > 0) {
+        let propQuery = supabase
+            .from("activity_submissions")
+            .select(`*, student:profiles!inner(full_name)`)
+            .in("step_id", groupStepIds)
+            .is("group_id", null);
+
+        if (students && students.length > 0) {
+            propQuery = propQuery.in("student_id", students.map(s => s.student_id));
+        }
+
+        const { data: propSubs } = await propQuery;
+        propagatedResults = (propSubs ?? []).map((sub: any) => {
+            const meta = stepMeta[sub.step_id];
+            return {
+                id: sub.id,
+                step_id: sub.step_id,
+                step_title: meta?.title ?? "",
+                step_type: meta?.stepType as any,
+                activity_id: meta?.activityId ?? "",
+                activity_title: meta?.activityTitle ?? "",
+                student_id: sub.student_id,
+                student_name: (sub.student as any)?.full_name ?? null,
+                student_email: "",
+                drive_file_url: sub.drive_file_url,
+                drive_file_id: sub.drive_file_id,
+                files: sub.files,
+                status: sub.status,
+                submitted_at: sub.submitted_at,
+                delivery_mode: meta?.deliveryMode,
+                score: sub.score,
+                feedback: sub.feedback,
+                graded_at: sub.graded_at,
+                published_at: sub.published_at,
+                rubric_scores: sub.rubric_scores,
+                grading_mode: sub.grading_mode,
+                step_rubric: meta?.rubric ?? [],
+                quiz_content: null,
+                quiz_attempt: null,
+                quiz_attempts: [],
+                group_id: sub.group_id,
+                step_is_locked: meta?.isLocked,
+            };
+        });
+    }
+
+    // Step 3b: get canonical group submissions (group_id IS NOT NULL)
+    // One row per group per step due to idx_submission_group unique index.
+    // Used in the teacher correction table.
+    let groupResults: StepSubmissionRow[] = [];
+    if (groupStepIds.length > 0) {
+        const { data: groupSubs } = await supabase
+            .from("activity_submissions")
+            .select(`*, group:module_groups(id, name, color)`)
+            .in("step_id", groupStepIds)
+            .not("group_id", "is", null);
+
+        if (groupSubs && groupSubs.length > 0) {
+            const uniqueGroupIds = [...new Set(groupSubs.map((s: any) => s.group_id).filter(Boolean))] as string[];
+            const groupMembersMap: Record<string, { student_id: string; full_name: string | null }[]> = {};
+
+            if (uniqueGroupIds.length > 0) {
+                const { data: members } = await supabase
+                    .from("module_group_members")
+                    .select("group_id, student_id, student:profiles(full_name)")
+                    .in("group_id", uniqueGroupIds);
+                for (const m of members ?? []) {
+                    if (!groupMembersMap[m.group_id]) groupMembersMap[m.group_id] = [];
+                    groupMembersMap[m.group_id].push({
+                        student_id: m.student_id,
+                        full_name: (m.student as any)?.full_name ?? null,
+                    });
+                }
+            }
+
+            groupResults = (groupSubs ?? []).map((sub: any) => {
+                const meta = stepMeta[sub.step_id];
+                const group = sub.group as any;
+                return {
+                    id: sub.id,
+                    step_id: sub.step_id,
+                    step_title: meta?.title ?? "",
+                    step_type: meta?.stepType as any,
+                    activity_id: meta?.activityId ?? "",
+                    activity_title: meta?.activityTitle ?? "",
+                    student_id: "",
+                    student_name: group?.name ?? "Grupo",
+                    student_email: "",
+                    drive_file_url: sub.drive_file_url,
+                    drive_file_id: sub.drive_file_id,
+                    files: sub.files,
+                    status: sub.status,
+                    submitted_at: sub.submitted_at,
+                    delivery_mode: meta?.deliveryMode,
+                    score: sub.score,
+                    feedback: sub.feedback,
+                    graded_at: sub.graded_at,
+                    published_at: sub.published_at,
+                    rubric_scores: sub.rubric_scores,
+                    grading_mode: sub.grading_mode,
+                    step_rubric: meta?.rubric ?? [],
+                    quiz_content: null,
+                    quiz_attempt: null,
+                    quiz_attempts: [],
+                    group_id: sub.group_id,
+                    group_name: group?.name ?? null,
+                    group_color: group?.color ?? null,
+                    group_members: groupMembersMap[sub.group_id] ?? [],
+                    is_group_submission: true,
+                    step_is_locked: meta?.isLocked,
+                };
+            });
+        }
+
+        // For group steps with no submissions yet, add a placeholder so the component
+        // knows it's a group step (isGroupSubmission=true) and shows the correct empty state.
+        const stepsWithGroupSub = new Set(groupResults.map(r => r.step_id));
+        for (const stepId of groupStepIds) {
+            if (stepsWithGroupSub.has(stepId)) continue;
+            const meta = stepMeta[stepId];
+            if (!meta) continue;
+            groupResults.push({
+                id: `virtual:group:${stepId}`,
+                step_id: stepId,
+                step_title: meta.title,
+                step_type: meta.stepType as any,
+                activity_id: meta.activityId,
+                activity_title: meta.activityTitle,
+                student_id: "",
+                student_name: "",
+                student_email: "",
+                drive_file_url: null,
+                drive_file_id: null,
+                files: null,
+                status: "not_submitted",
+                submitted_at: null,
+                delivery_mode: meta.deliveryMode,
+                score: null,
+                feedback: null,
+                graded_at: null,
+                published_at: null,
+                rubric_scores: null,
+                grading_mode: null,
+                step_rubric: meta.rubric ?? [],
+                quiz_content: null,
+                quiz_attempt: null,
+                quiz_attempts: [],
+                group_id: null,
+                is_group_submission: true,
+                synthetic: true,
+                step_is_locked: meta.isLocked,
+            });
+        }
+    }
 
     // Step 4: fetch quiz_attempts separately — no FK between activity_submissions and quiz_attempts,
     // so PostgREST cannot embed them. Join on (student_id, step_id) instead.
@@ -616,7 +793,46 @@ export async function getUnitStepSubmissions(
         }
     }
 
-    return { data: results };
+    // Virtual placeholder rows for self_evaluation / peer_evaluation steps.
+    // These steps are rendered by specialized teacher views (SelfEvaluationTeacherView,
+    // PeerEvaluationTeacherView) that handle their own data fetching. We only need
+    // a sentinel row so the step appears in the sidebar.
+    const evalPlaceholders: StepSubmissionRow[] = [];
+    for (const stepId of evalOnlyStepIds) {
+        const meta = stepMeta[stepId];
+        if (!meta) continue;
+        evalPlaceholders.push({
+            id: `virtual:eval:${stepId}`,
+            step_id: stepId,
+            step_title: meta.title,
+            step_type: meta.stepType as any,
+            activity_id: meta.activityId,
+            activity_title: meta.activityTitle,
+            student_id: "",
+            student_name: "",
+            student_email: "",
+            drive_file_url: null,
+            drive_file_id: null,
+            files: null,
+            status: "not_submitted",
+            submitted_at: null,
+            delivery_mode: undefined,
+            score: null,
+            feedback: null,
+            graded_at: null,
+            published_at: null,
+            rubric_scores: null,
+            grading_mode: null,
+            step_rubric: meta.rubric ?? [],
+            quiz_content: null,
+            quiz_attempt: null,
+            quiz_attempts: [],
+            step_is_locked: meta.isLocked,
+            synthetic: true,
+        });
+    }
+
+    return { data: [...results, ...groupResults, ...propagatedResults, ...evalPlaceholders] };
 }
 
 export async function gradeSubmission(
@@ -955,11 +1171,11 @@ export async function publishGroupGrade(submissionId: string) {
         .update({ status: "published", published_at: now })
         .eq("id", submissionId);
 
-    // Upsert individual rows for each member
-    const rows = members.map((m: { student_id: string }) => ({
-        student_id: m.student_id,
-        step_id: sub.step_id,
-        group_id: sub.group_id,
+    // Upsert individual rows for each member.
+    // group_id is intentionally omitted so these rows use idx_submission_individual
+    // (UNIQUE student_id+step_id WHERE group_id IS NULL) — not idx_submission_group
+    // which is already occupied by the canonical group submission.
+    const propagatedPayload = {
         drive_file_url: sub.drive_file_url,
         drive_file_id: sub.drive_file_id,
         score: sub.score,
@@ -970,13 +1186,26 @@ export async function publishGroupGrade(submissionId: string) {
         submitted_at: now,
         graded_at: now,
         published_at: now,
-    }));
+    };
 
-    const { error } = await admin
-        .from("activity_submissions")
-        .upsert(rows, { onConflict: "student_id,step_id" });
+    for (const m of members) {
+        const { data: existing } = await admin
+            .from("activity_submissions")
+            .select("id")
+            .eq("student_id", m.student_id)
+            .eq("step_id", sub.step_id)
+            .is("group_id", null)
+            .maybeSingle();
 
-    if (error) return { error: error.message };
+        if (existing?.id) {
+            await admin.from("activity_submissions")
+                .update(propagatedPayload)
+                .eq("id", existing.id);
+        } else {
+            await admin.from("activity_submissions")
+                .insert({ student_id: m.student_id, step_id: sub.step_id, ...propagatedPayload });
+        }
+    }
 
     revalidatePath("/dashboard/units/[id]", "layout");
     return { success: true, propagated: members.length };
@@ -1433,6 +1662,8 @@ export async function getSelfEvaluationResults(stepId: string): Promise<{
         status: string;
     }[];
     rubric?: import('@/types/activity').RubricCriteria[];
+    evalMode?: import('@/types/activity').EvalMode;
+    questions?: import('@/types/activity').EvalQuestion[];
     error?: string;
 }> {
     const auth = await requireTeacher();
@@ -1445,7 +1676,10 @@ export async function getSelfEvaluationResults(stepId: string): Promise<{
         .single();
 
     if (!step) return { error: "Paso no encontrado." };
-    const rubric = (step.content as any)?.rubric ?? [];
+    const stepContent = step.content as any;
+    const rubric = stepContent?.rubric ?? [];
+    const evalMode: import('@/types/activity').EvalMode = stepContent?.evalMode ?? 'rubric';
+    const questions: import('@/types/activity').EvalQuestion[] = stepContent?.questions ?? [];
 
     const { data, error } = await auth.admin
         .from("activity_submissions")
@@ -1468,7 +1702,7 @@ export async function getSelfEvaluationResults(stepId: string): Promise<{
         status: d.status,
     }));
 
-    return { rows, rubric };
+    return { rows, rubric, evalMode, questions };
 }
 
 /**

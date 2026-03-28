@@ -9,6 +9,78 @@ import { scoreQuizAttempt } from "@/lib/quiz-core";
 
 const DRIVE_URL_REGEX = /^https:\/\/(docs|drive|sheets|slides|forms)\.google\.com\//;
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Resolves the group_id for a step submission when the step is configured as
+ * is_group_submission. Returns null for individual steps.
+ * Uses admin client to avoid RLS recursion on module_group_members.
+ */
+async function resolveGroupId(
+    userId: string,
+    stepId: string,
+): Promise<{ groupId: string | null; isGroupSubmission: boolean }> {
+    const admin = createAdminClient();
+
+    const { data: stepRow } = await admin
+        .from("activity_steps")
+        .select("content, phase:activity_phases(activity:activities(unit:units(module_id)))")
+        .eq("id", stepId)
+        .single();
+
+    const isGroupSubmission = (stepRow?.content as any)?.is_group_submission === true;
+    if (!isGroupSubmission) return { groupId: null, isGroupSubmission: false };
+
+    const moduleId = (stepRow?.phase as any)?.activity?.unit?.module_id as string | undefined;
+    if (!moduleId) return { groupId: null, isGroupSubmission: true };
+
+    const { data: moduleGroups } = await admin
+        .from("module_groups")
+        .select("id")
+        .eq("module_id", moduleId)
+        .eq("status", "active");
+
+    const moduleGroupIds = (moduleGroups ?? []).map((g: any) => g.id);
+    if (!moduleGroupIds.length) return { groupId: null, isGroupSubmission: true };
+
+    const { data: memberRow } = await admin
+        .from("module_group_members")
+        .select("group_id")
+        .eq("student_id", userId)
+        .in("group_id", moduleGroupIds)
+        .maybeSingle();
+
+    return { groupId: memberRow?.group_id ?? null, isGroupSubmission: true };
+}
+
+/**
+ * Manual upsert for activity_submissions that works with partial unique indexes.
+ * Partial indexes cannot be referenced by column name in onConflict — we do
+ * SELECT + UPDATE or INSERT instead.
+ */
+async function upsertSubmission(
+    payload: Record<string, unknown>,
+    groupId: string | null,
+    userId: string,
+    stepId: string,
+): Promise<{ data?: ActivitySubmission; error?: string }> {
+    const admin = createAdminClient();
+
+    const query = groupId
+        ? admin.from("activity_submissions").select("id").eq("group_id", groupId).eq("step_id", stepId)
+        : admin.from("activity_submissions").select("id").eq("student_id", userId).eq("step_id", stepId).is("group_id", null);
+
+    const { data: existing } = await query.maybeSingle();
+
+    const op = existing?.id
+        ? admin.from("activity_submissions").update(payload).eq("id", existing.id)
+        : admin.from("activity_submissions").insert(payload);
+
+    const { data, error } = await op.select().single();
+    if (error) return { error: error.message };
+    return { data: data as ActivitySubmission };
+}
+
 export async function submitDeliverable(stepId: string, driveFileUrl: string, activityId: string) {
     if (!driveFileUrl || !DRIVE_URL_REGEX.test(driveFileUrl)) {
         return { error: "La URL debe ser un enlace de Google Drive o Google Docs válido." };
@@ -35,25 +107,25 @@ export async function submitDeliverable(stepId: string, driveFileUrl: string, ac
         }
     }
 
-    const { data, error } = await supabase
-        .from("activity_submissions")
-        .upsert(
-            {
-                student_id: user.id,
-                step_id: stepId,
-                drive_file_url: driveFileUrl,
-                status: "submitted",
-                submitted_at: new Date().toISOString(),
-            },
-            { onConflict: "student_id,step_id" }
-        )
-        .select()
-        .single();
+    const { groupId } = await resolveGroupId(user.id, stepId);
 
-    if (error) return { error: error.message };
+    const result = await upsertSubmission(
+        {
+            student_id: user.id,
+            group_id: groupId ?? null,
+            step_id: stepId,
+            drive_file_url: driveFileUrl,
+            status: "submitted",
+            submitted_at: new Date().toISOString(),
+        },
+        groupId,
+        user.id,
+        stepId,
+    );
 
+    if (result.error) return { error: result.error };
     revalidatePath(`/activities/${activityId}`);
-    return { data: data as ActivitySubmission };
+    return { data: result.data };
 }
 
 export async function submitFileUpload(
@@ -85,28 +157,28 @@ export async function submitFileUpload(
         }
     }
 
-    const { data, error } = await supabase
-        .from("activity_submissions")
-        .upsert(
-            {
-                student_id: user.id,
-                step_id: stepId,
-                drive_file_url: driveFileUrl,
-                drive_file_id: driveFileId,
-                drive_file_name: driveFileName,
-                drive_mime_type: driveMimeType,
-                status: "submitted",
-                submitted_at: new Date().toISOString(),
-            },
-            { onConflict: "student_id,step_id" }
-        )
-        .select()
-        .single();
+    const { groupId } = await resolveGroupId(user.id, stepId);
 
-    if (error) return { error: error.message };
+    const result = await upsertSubmission(
+        {
+            student_id: user.id,
+            group_id: groupId ?? null,
+            step_id: stepId,
+            drive_file_url: driveFileUrl,
+            drive_file_id: driveFileId,
+            drive_file_name: driveFileName,
+            drive_mime_type: driveMimeType,
+            status: "submitted",
+            submitted_at: new Date().toISOString(),
+        },
+        groupId,
+        user.id,
+        stepId,
+    );
 
+    if (result.error) return { error: result.error };
     revalidatePath(`/activities/${activityId}`);
-    return { data: data as ActivitySubmission };
+    return { data: result.data };
 }
 
 export async function submitFileUploadMulti(
@@ -136,30 +208,30 @@ export async function submitFileUploadMulti(
         }
     }
 
+    const { groupId } = await resolveGroupId(user.id, stepId);
+
     const first = files[0];
-    const { data, error } = await supabase
-        .from("activity_submissions")
-        .upsert(
-            {
-                student_id: user.id,
-                step_id: stepId,
-                drive_file_url: first.driveFileUrl,
-                drive_file_id: first.driveFileId,
-                drive_file_name: first.driveFileName,
-                drive_mime_type: first.driveMimeType,
-                files: files,
-                status: "submitted",
-                submitted_at: new Date().toISOString(),
-            },
-            { onConflict: "student_id,step_id" }
-        )
-        .select()
-        .single();
+    const result = await upsertSubmission(
+        {
+            student_id: user.id,
+            group_id: groupId ?? null,
+            step_id: stepId,
+            drive_file_url: first.driveFileUrl,
+            drive_file_id: first.driveFileId,
+            drive_file_name: first.driveFileName,
+            drive_mime_type: first.driveMimeType,
+            files: files,
+            status: "submitted",
+            submitted_at: new Date().toISOString(),
+        },
+        groupId,
+        user.id,
+        stepId,
+    );
 
-    if (error) return { error: error.message };
-
+    if (result.error) return { error: result.error };
     revalidatePath(`/activities/${activityId}`);
-    return { data: data as ActivitySubmission };
+    return { data: result.data };
 }
 
 export async function getStudentSubmissionsForActivity(activityId: string): Promise<Record<string, ActivitySubmission>> {
@@ -201,14 +273,24 @@ export async function getStudentSubmissionsForActivity(activityId: string): Prom
 
     // Group submissions — only if the student belongs to a group in this module
     if (moduleId) {
-        const { data: memberRow } = await supabase
-            .from("module_group_members")
-            .select("group_id, group:module_groups(module_id)")
-            .eq("student_id", user.id)
-            .filter("group.module_id", "eq", moduleId)
-            .maybeSingle();
+        const admin = createAdminClient();
+        const { data: moduleGroups } = await admin
+            .from("module_groups")
+            .select("id")
+            .eq("module_id", moduleId)
+            .eq("status", "active");
+        const moduleGroupIds = (moduleGroups ?? []).map((g: any) => g.id);
 
-        const groupId = memberRow?.group_id as string | undefined;
+        let groupId: string | undefined;
+        if (moduleGroupIds.length > 0) {
+            const { data: memberRow } = await admin
+                .from("module_group_members")
+                .select("group_id")
+                .eq("student_id", user.id)
+                .in("group_id", moduleGroupIds)
+                .maybeSingle();
+            groupId = memberRow?.group_id ?? undefined;
+        }
         if (groupId) {
             const { data: groupSubs } = await supabase
                 .from("activity_submissions")
@@ -359,22 +441,22 @@ export async function submitQuizAttempt(
     const shouldUpdateScore = !existing || existing.score === null || scoreOutOf10 >= (existing.score ?? 0);
 
     if (shouldUpdateScore) {
-        await supabase
-            .from("activity_submissions")
-            .upsert(
-                {
-                    student_id: user.id,
-                    step_id: stepId,
-                    status: needsReview ? "submitted" : "graded",
-                    submitted_at: new Date().toISOString(),
-                    ...(needsReview ? {} : {
-                        score: scoreOutOf10,
-                        grading_mode: "score",
-                        graded_at: new Date().toISOString(),
-                    }),
-                },
-                { onConflict: "student_id,step_id" }
-            );
+        const quizPayload = {
+            student_id: user.id,
+            step_id: stepId,
+            status: needsReview ? "submitted" : "graded",
+            submitted_at: new Date().toISOString(),
+            ...(needsReview ? {} : {
+                score: scoreOutOf10,
+                grading_mode: "score",
+                graded_at: new Date().toISOString(),
+            }),
+        };
+        if (existing?.id) {
+            await supabase.from("activity_submissions").update(quizPayload).eq("id", existing.id);
+        } else {
+            await supabase.from("activity_submissions").insert(quizPayload);
+        }
     } else if (!existing) {
         await supabase
             .from("activity_submissions")
@@ -425,19 +507,29 @@ export async function submitSelfEvaluation(
         .single();
     if (step?.is_activity_closed) return { error: "Las entregas están cerradas para este paso." };
 
-    const { error } = await supabase
+    const admin = createAdminClient();
+    const { data: existingSelf } = await admin
         .from("activity_submissions")
-        .upsert(
-            {
-                student_id: user.id,
-                step_id: stepId,
-                self_eval_rubric_scores: rubricScores,
-                self_eval_justifications: justifications,
-                status: "submitted",
-                submitted_at: new Date().toISOString(),
-            },
-            { onConflict: "student_id,step_id" }
-        );
+        .select("id")
+        .eq("student_id", user.id)
+        .eq("step_id", stepId)
+        .is("group_id", null)
+        .maybeSingle();
+
+    const selfPayload = {
+        student_id: user.id,
+        step_id: stepId,
+        self_eval_rubric_scores: rubricScores,
+        self_eval_justifications: justifications,
+        status: "submitted",
+        submitted_at: new Date().toISOString(),
+    };
+
+    const selfOp = existingSelf?.id
+        ? admin.from("activity_submissions").update(selfPayload).eq("id", existingSelf.id)
+        : admin.from("activity_submissions").insert(selfPayload);
+
+    const { error } = await selfOp.select().single();
 
     if (error) return { error: error.message };
     revalidatePath(`/activities/${activityId}`);
@@ -480,13 +572,22 @@ export async function getMyPeerAssignments(
 
     let groupId: string | null = null;
     if (moduleId) {
-        const { data: memberRow } = await supabase
-            .from("module_group_members")
-            .select("group_id, group:module_groups(module_id)")
-            .eq("student_id", user.id)
-            .filter("group.module_id", "eq", moduleId)
-            .maybeSingle();
-        groupId = memberRow?.group_id ?? null;
+        const admin = createAdminClient();
+        const { data: moduleGroups } = await admin
+            .from("module_groups")
+            .select("id")
+            .eq("module_id", moduleId)
+            .eq("status", "active");
+        const moduleGroupIds = (moduleGroups ?? []).map((g: any) => g.id);
+        if (moduleGroupIds.length > 0) {
+            const { data: memberRow } = await admin
+                .from("module_group_members")
+                .select("group_id")
+                .eq("student_id", user.id)
+                .in("group_id", moduleGroupIds)
+                .maybeSingle();
+            groupId = memberRow?.group_id ?? null;
+        }
     }
 
     // Fetch individual + group assignments

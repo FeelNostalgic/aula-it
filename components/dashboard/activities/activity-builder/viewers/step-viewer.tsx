@@ -43,9 +43,10 @@ interface StepViewerProps {
     studentName?: string | null;
     isPreview?: boolean;
     groupName?: string | null;
+    groupColor?: string | null;
 }
 
-export function StepViewer({ step, activityId, submission, submissionsMap, googleEmail, userId, studentName, isPreview, groupName }: StepViewerProps) {
+export function StepViewer({ step, activityId, submission, submissionsMap, googleEmail, userId, studentName, isPreview, groupName, groupColor }: StepViewerProps) {
     if (!step) return null;
     if (step.is_locked) {
         return (
@@ -81,6 +82,7 @@ export function StepViewer({ step, activityId, submission, submissionsMap, googl
                         isPreview={isPreview}
                         isClosed={step.is_activity_closed ?? false}
                         groupName={groupName}
+                        groupColor={groupColor}
                     />
                 );
             }
@@ -97,6 +99,7 @@ export function StepViewer({ step, activityId, submission, submissionsMap, googl
                         isPreview={isPreview}
                         isClosed={step.is_activity_closed ?? false}
                         groupName={groupName}
+                        groupColor={groupColor}
                     />
                 );
             }

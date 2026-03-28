@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
                     title,
                     unit:units(
                         name,
-                        module:modules(name, teacher_id)
+                        module:modules(id, name, teacher_id)
                     )
                 )
             )
@@ -181,6 +181,62 @@ export async function POST(request: NextRequest) {
     const driveFileUrl = uploaded.data.webViewLink!;
     const driveFileName = uploaded.data.name!;
     const driveMimeType = uploaded.data.mimeType!;
+
+    // Make file accessible to anyone with the link (student can open via URL)
+    try {
+        await driveClient.permissions.create({
+            fileId: driveFileId,
+            requestBody: { type: "anyone", role: "reader" },
+            fields: "id",
+            sendNotificationEmail: false,
+        });
+    } catch (err) {
+        console.warn("Could not set public permission on uploaded file:", err);
+    }
+
+    // For group submissions: also share with each group member's google_email
+    const isGroupSubmission = stepContent?.is_group_submission === true;
+    const moduleId = (module as any)?.id as string | undefined;
+    if (isGroupSubmission && moduleId) {
+        try {
+            const { data: moduleGroups } = await admin
+                .from("module_groups")
+                .select("id")
+                .eq("module_id", moduleId)
+                .eq("status", "active");
+            const groupIds = (moduleGroups ?? []).map((g: any) => g.id);
+            if (groupIds.length > 0) {
+                const { data: memberRow } = await admin
+                    .from("module_group_members")
+                    .select("group_id")
+                    .eq("student_id", user.id)
+                    .in("group_id", groupIds)
+                    .maybeSingle();
+                if (memberRow?.group_id) {
+                    const { data: members } = await admin
+                        .from("module_group_members")
+                        .select("student:profiles(google_email)")
+                        .eq("group_id", memberRow.group_id);
+                    for (const m of members ?? []) {
+                        const email = (m.student as any)?.google_email;
+                        if (!email) continue;
+                        try {
+                            await driveClient.permissions.create({
+                                fileId: driveFileId,
+                                requestBody: { type: "user", role: "reader", emailAddress: email },
+                                fields: "id",
+                                sendNotificationEmail: false,
+                            });
+                        } catch {
+                            // ignore per-member errors (e.g. invalid email)
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn("Could not share file with group members:", err);
+        }
+    }
 
     return NextResponse.json({ driveFileUrl, driveFileId, driveFileName, driveMimeType });
 }

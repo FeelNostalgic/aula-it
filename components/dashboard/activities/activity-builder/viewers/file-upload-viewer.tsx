@@ -34,6 +34,7 @@ interface FileUploadViewerProps {
     isPreview?: boolean;
     isClosed?: boolean;
     groupName?: string | null;
+    groupColor?: string | null;
 }
 
 const STATUS_CONFIG: Record<SubmissionStatus, { label: string; icon: React.ElementType; className: string }> = {
@@ -140,7 +141,7 @@ function getMimeIcon(mimeType: string | null): LucideIcon {
     return File;
 }
 
-export function FileUploadViewer({ content, stepId, activityId, initialSubmission, dueDate, isPreview, isClosed, groupName }: FileUploadViewerProps) {
+export function FileUploadViewer({ content, stepId, activityId, initialSubmission, dueDate, isPreview, isClosed, groupName, groupColor }: FileUploadViewerProps) {
     const [submission, setSubmission] = useState<ActivitySubmission | null>(initialSubmission ?? null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
@@ -343,7 +344,14 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
 
             {/* Group badge */}
             {groupName && (
-                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-sm font-medium">
+                <div
+                    className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium border"
+                    style={groupColor ? {
+                        backgroundColor: `${groupColor}18`,
+                        borderColor: `${groupColor}40`,
+                        color: groupColor,
+                    } : { backgroundColor: "rgb(99 102 241 / 0.1)", borderColor: "rgb(99 102 241 / 0.2)", color: "rgb(129 140 248)" }}
+                >
                     <Users className="size-4 shrink-0" />
                     Entrega grupal — <span className="font-bold">{groupName}</span>
                 </div>

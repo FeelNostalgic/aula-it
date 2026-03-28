@@ -3,7 +3,7 @@
 import { useState, useTransition, useCallback, useEffect } from "react";
 import {
     Users2, Plus, Shuffle, Settings2, Trash2, UserMinus,
-    GripVertical, ChevronDown, UsersRound, Pencil, Check, X,
+    GripVertical, EllipsisVertical, UsersRound, Pencil, Check, X, Hash, Palette, Lock,
 } from "lucide-react";
 import {
     DndContext,
@@ -56,6 +56,7 @@ import {
     addStudentToGroup,
     removeStudentFromGroup,
     autoAssignGroups,
+    generateEmptyGroups,
     setModuleGroupsMode,
 } from "@/app/dashboard/modules/[id]/groups-actions";
 import type { ModuleGroupWithMembers, GroupsEnrollmentMode } from "@/types/groups";
@@ -122,6 +123,8 @@ function DroppableGroup({
     onRename,
     onDelete,
     onRemoveMember,
+    onUpdateMaxMembers,
+    onUpdateColor,
 }: {
     group: ModuleGroupWithMembers;
     enrolledStudents: StudentBasic[];
@@ -129,16 +132,33 @@ function DroppableGroup({
     onRename: (groupId: string, name: string) => void;
     onDelete: (groupId: string) => void;
     onRemoveMember: (groupId: string, studentId: string) => void;
+    onUpdateMaxMembers: (groupId: string, maxMembers: number | null) => void;
+    onUpdateColor: (groupId: string, color: string) => void;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: group.id });
     const [editing, setEditing] = useState(false);
     const [editName, setEditName] = useState(group.name);
+    const [editingMax, setEditingMax] = useState(false);
+    const [editMaxValue, setEditMaxValue] = useState(group.max_members?.toString() ?? "");
+    const [editingColor, setEditingColor] = useState(false);
 
     const handleSaveName = () => {
         if (editName.trim() && editName !== group.name) {
             onRename(group.id, editName.trim());
         }
         setEditing(false);
+    };
+
+    const handleSaveMax = () => {
+        const val = editMaxValue.trim();
+        const parsed = val ? parseInt(val) : null;
+        if (parsed !== null && (isNaN(parsed) || parsed < 1)) {
+            setEditMaxValue(group.max_members?.toString() ?? "");
+            setEditingMax(false);
+            return;
+        }
+        onUpdateMaxMembers(group.id, parsed);
+        setEditingMax(false);
     };
 
     return (
@@ -177,19 +197,49 @@ function DroppableGroup({
                 ) : (
                     <span className="font-semibold text-sm flex-1 truncate">{group.name}</span>
                 )}
-                <Badge variant="outline" className="font-mono text-[10px] border-border-subtle text-text-muted ml-auto shrink-0">
-                    {group.members.length}{group.max_members ? `/${group.max_members}` : ""}
-                </Badge>
+                {editingMax ? (
+                    <div className="flex items-center gap-1 ml-auto">
+                        <Input
+                            type="number"
+                            min={1}
+                            value={editMaxValue}
+                            onChange={(e) => setEditMaxValue(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") handleSaveMax();
+                                if (e.key === "Escape") { setEditingMax(false); setEditMaxValue(group.max_members?.toString() ?? ""); }
+                            }}
+                            placeholder="∞"
+                            className="h-6 w-14 text-xs bg-background border-accent-blue/50 focus-visible:ring-accent-blue text-center px-1"
+                            autoFocus
+                        />
+                        <Button size="icon" variant="ghost" className="size-5 shrink-0" onClick={handleSaveMax}>
+                            <Check className="size-3 text-accent-green" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="size-5 shrink-0" onClick={() => { setEditingMax(false); setEditMaxValue(group.max_members?.toString() ?? ""); }}>
+                            <X className="size-3 text-red-400" />
+                        </Button>
+                    </div>
+                ) : (
+                    <Badge variant="outline" className="font-mono text-[10px] border-border-subtle text-text-muted ml-auto shrink-0">
+                        {group.members.length}{group.max_members ? `/${group.max_members}` : ""}
+                    </Badge>
+                )}
                 {canManage && (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="size-6 shrink-0">
-                                <ChevronDown className="size-3.5 text-text-muted" />
+                                <EllipsisVertical className="size-3.5 text-text-muted" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="bg-surface border-border-subtle">
                             <DropdownMenuItem onClick={() => setEditing(true)}>
                                 <Pencil className="mr-2 size-3.5" /> Renombrar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { setEditMaxValue(group.max_members?.toString() ?? ""); setEditingMax(true); }}>
+                                <Hash className="mr-2 size-3.5" /> Límite de miembros
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setEditingColor(true)}>
+                                <Palette className="mr-2 size-3.5" /> Cambiar color
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -202,6 +252,24 @@ function DroppableGroup({
                     </DropdownMenu>
                 )}
             </div>
+
+            {/* Color picker */}
+            {editingColor && (
+                <div className="px-4 py-2.5 border-b border-border-subtle flex items-center gap-2 flex-wrap">
+                    <Palette className="size-3.5 text-text-muted shrink-0" />
+                    {GROUP_COLORS.map((c) => (
+                        <button
+                            key={c}
+                            onClick={() => { onUpdateColor(group.id, c); setEditingColor(false); }}
+                            className={`size-5 rounded-full border-2 transition-all hover:scale-110 ${group.color === c ? "border-foreground scale-110" : "border-transparent"}`}
+                            style={{ backgroundColor: c }}
+                        />
+                    ))}
+                    <Button size="icon" variant="ghost" className="size-5 ml-auto shrink-0" onClick={() => setEditingColor(false)}>
+                        <X className="size-3 text-text-muted" />
+                    </Button>
+                </div>
+            )}
 
             {/* Miembros */}
             <div className="p-3 min-h-[80px] flex flex-col gap-1.5">
@@ -410,6 +478,94 @@ function AutoAssignDialog({
     );
 }
 
+// ─── Diálogo generar grupos vacíos ───────────────────────────────────────────
+
+function GenerateGroupsDialog({
+    open,
+    onOpenChange,
+    onConfirm,
+    existingGroupCount,
+}: {
+    open: boolean;
+    onOpenChange: (v: boolean) => void;
+    onConfirm: (count: number, maxMembers?: number) => void;
+    existingGroupCount: number;
+}) {
+    const [count, setCount] = useState("4");
+    const [maxMembers, setMaxMembers] = useState("");
+    const n = parseInt(count) || 0;
+    const preview = n > 0
+        ? Array.from({ length: Math.min(n, 5) }, (_, i) => `Grupo ${existingGroupCount + i + 1}`)
+        : [];
+
+    const handleConfirm = () => {
+        if (n < 1) return;
+        onConfirm(n, maxMembers ? parseInt(maxMembers) : undefined);
+        setCount("4");
+        setMaxMembers("");
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="bg-surface border-border-subtle sm:max-w-sm">
+                <DialogHeader>
+                    <DialogTitle className="font-mono text-sm font-bold tracking-widest uppercase">
+                        Generar grupos vacíos
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-text-muted uppercase tracking-widest">
+                            Número de grupos
+                        </label>
+                        <Input
+                            type="number"
+                            min={1}
+                            max={50}
+                            value={count}
+                            onChange={(e) => setCount(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
+                            className="bg-background border-border-subtle"
+                            autoFocus
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-text-muted uppercase tracking-widest">
+                            Máximo de miembros <span className="normal-case font-normal">(opcional)</span>
+                        </label>
+                        <Input
+                            type="number"
+                            min={1}
+                            value={maxMembers}
+                            onChange={(e) => setMaxMembers(e.target.value)}
+                            placeholder="Sin límite"
+                            className="bg-background border-border-subtle"
+                        />
+                    </div>
+                    {n > 0 && (
+                        <div className="rounded-lg bg-accent-blue/10 border border-accent-blue/20 px-4 py-3 text-sm text-accent-blue">
+                            Se crearán <span className="font-semibold">{n} grupos vacíos</span>:{" "}
+                            <span className="font-medium">{preview.join(", ")}{n > 5 ? "…" : ""}</span>
+                        </div>
+                    )}
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                    <Button
+                        onClick={handleConfirm}
+                        disabled={n < 1}
+                        className="bg-accent-blue hover:bg-accent-blue/90 text-white"
+                    >
+                        <Plus className="mr-2 size-4" />
+                        Generar grupos
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function ModuleGroupsTab({
@@ -422,6 +578,7 @@ export function ModuleGroupsTab({
     const [loading, setLoading] = useState(true);
     const [createOpen, setCreateOpen] = useState(false);
     const [autoOpen, setAutoOpen] = useState(false);
+    const [generateOpen, setGenerateOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
     const [activeStudent, setActiveStudent] = useState<StudentBasic | null>(null);
     const [isPending, startTransition] = useTransition();
@@ -438,6 +595,11 @@ export function ModuleGroupsTab({
             setLoading(false);
         });
         return () => { cancelled = true; };
+    }, [moduleId]);
+
+    const refreshGroups = useCallback(async () => {
+        const res = await getModuleGroups(moduleId);
+        if (res.groups) setGroups(res.groups);
     }, [moduleId]);
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -506,7 +668,7 @@ export function ModuleGroupsTab({
                 toast.error(result.error);
             } else {
                 toast.success(`Grupo "${name}" creado.`);
-                // La revalidación del servidor recargará los grupos en la siguiente carga
+                await refreshGroups();
             }
         });
     };
@@ -518,7 +680,36 @@ export function ModuleGroupsTab({
                 toast.error(result.error);
             } else {
                 toast.success(`${result.assigned} alumnos asignados automáticamente.`);
+                await refreshGroups();
             }
+        });
+    };
+
+    const handleGenerateGroups = (count: number, maxMembers?: number) => {
+        startTransition(async () => {
+            const result = await generateEmptyGroups(moduleId, count, maxMembers);
+            if (result.error) {
+                toast.error(result.error);
+            } else {
+                toast.success(`${count} grupos vacíos creados.`);
+                await refreshGroups();
+            }
+        });
+    };
+
+    const handleUpdateMaxMembers = (groupId: string, maxMembers: number | null) => {
+        setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, max_members: maxMembers } : g));
+        startTransition(async () => {
+            const result = await updateGroup(moduleId, groupId, { max_members: maxMembers });
+            if (result.error) toast.error(result.error);
+        });
+    };
+
+    const handleUpdateColor = (groupId: string, color: string) => {
+        setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, color } : g));
+        startTransition(async () => {
+            const result = await updateGroup(moduleId, groupId, { color });
+            if (result.error) toast.error(result.error);
         });
     };
 
@@ -555,11 +746,18 @@ export function ModuleGroupsTab({
         });
     };
 
+    const MODE_LABELS: Record<GroupsEnrollmentMode, string> = {
+        teacher_assigned: "Asignación por profesor",
+        self_enrollment: "Inscripción libre",
+        locked: "Grupos cerrados",
+    };
+
     const handleEnrollmentModeChange = (mode: GroupsEnrollmentMode) => {
         setEnrollmentMode(mode);
-        startTransition(async () => {
-            const result = await setModuleGroupsMode(moduleId, mode);
-            if (result.error) toast.error(result.error);
+        toast.promise(setModuleGroupsMode(moduleId, mode), {
+            loading: "Actualizando modo...",
+            success: () => `Modo cambiado a "${MODE_LABELS[mode]}"`,
+            error: (err) => err?.message ?? "Error al cambiar el modo.",
         });
     };
 
@@ -608,8 +806,22 @@ export function ModuleGroupsTab({
                                 <SelectItem value="self_enrollment">
                                     <span className="text-xs">Inscripción libre</span>
                                 </SelectItem>
+                                <SelectItem value="locked">
+                                    <span className="text-xs flex items-center gap-1.5">
+                                        <Lock className="size-3 text-amber-400" /> Grupos cerrados
+                                    </span>
+                                </SelectItem>
                             </SelectContent>
                         </Select>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setGenerateOpen(true)}
+                            disabled={isPending}
+                            className="h-8 text-xs bg-surface border-border-subtle"
+                        >
+                            <Plus className="mr-1.5 size-3.5" /> Generar grupos
+                        </Button>
                         <Button
                             variant="outline"
                             size="sm"
@@ -644,7 +856,10 @@ export function ModuleGroupsTab({
                         </p>
                     </div>
                     {canManageStudents && (
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap justify-center">
+                            <Button variant="outline" size="sm" onClick={() => setGenerateOpen(true)} className="bg-surface border-border-subtle text-xs">
+                                <Plus className="mr-1.5 size-3.5" /> Generar grupos
+                            </Button>
                             <Button variant="outline" size="sm" onClick={() => setAutoOpen(true)} className="bg-surface border-border-subtle text-xs">
                                 <Shuffle className="mr-1.5 size-3.5" /> Auto-asignar
                             </Button>
@@ -696,6 +911,8 @@ export function ModuleGroupsTab({
                                     onRename={handleRenameGroup}
                                     onDelete={(id) => setDeleteTarget(id)}
                                     onRemoveMember={handleRemoveMember}
+                                    onUpdateMaxMembers={handleUpdateMaxMembers}
+                                    onUpdateColor={handleUpdateColor}
                                 />
                             ))}
                         </div>
@@ -716,6 +933,12 @@ export function ModuleGroupsTab({
                 onOpenChange={setCreateOpen}
                 onConfirm={handleCreateGroup}
                 enrollmentMode={enrollmentMode}
+            />
+            <GenerateGroupsDialog
+                open={generateOpen}
+                onOpenChange={setGenerateOpen}
+                onConfirm={handleGenerateGroups}
+                existingGroupCount={groups.length}
             />
             <AutoAssignDialog
                 open={autoOpen}

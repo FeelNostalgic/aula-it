@@ -4,12 +4,13 @@ import { useState, useEffect, useRef } from "react";
 import {
     ActivityStepWithClientState, ActivityPhaseWithSteps,
     PeerEvaluationContent, PeerEvaluationMode,
-    OutlierSensitivity, NonEvaluatorPolicy, RubricCriteria,
+    OutlierSensitivity, NonEvaluatorPolicy, RubricCriteria, EvalQuestion,
 } from "@/types/activity";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { ListChecks, Users, User } from "lucide-react";
+import { ListChecks, Users, User, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StepConfigSection } from "./step-config-section";
@@ -73,6 +74,20 @@ export function PeerEvaluationEditor({ step, onUpdate, phases }: PeerEvaluationE
             setIsSaving(false);
         }, 800);
     };
+
+    const evalMode = content.evalMode ?? "rubric";
+    const questions = content.questions ?? [];
+
+    function generateId() { return Math.random().toString(36).slice(2, 10); }
+    function addQuestion() {
+        save({ ...content, questions: [...questions, { id: generateId(), text: "", description: "" }] });
+    }
+    function updateQuestion(id: string, patch: Partial<EvalQuestion>) {
+        save({ ...content, questions: questions.map(q => q.id === id ? { ...q, ...patch } : q) });
+    }
+    function removeQuestion(id: string) {
+        save({ ...content, questions: questions.filter(q => q.id !== id) });
+    }
 
     // Deliverable/file_upload steps as source candidates
     const sourceSteps = (phases ?? []).flatMap(p =>
@@ -163,31 +178,125 @@ export function PeerEvaluationEditor({ step, onUpdate, phases }: PeerEvaluationE
                         </div>
                     </div>
 
-                    {/* Rubric */}
+                    {/* Eval mode selector */}
                     <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
                         <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Rúbrica</span>
+                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Modo de Evaluación</span>
                         </div>
-                        <div className="p-5">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setRubricModalOpen(true)}
-                                className="h-8 text-xs gap-1.5 border-border/50 text-text-muted hover:text-foreground"
-                            >
-                                <ListChecks className="size-3.5" />
-                                {(content.rubric?.length ?? 0) > 0
-                                    ? `Editar rúbrica (${content.rubric!.length} ${content.rubric!.length === 1 ? "criterio" : "criterios"})`
-                                    : "Configurar rúbrica"}
-                            </Button>
+                        <div className="p-5 space-y-3">
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => save({ ...content, evalMode: "rubric" })}
+                                    className={cn(
+                                        "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
+                                        evalMode === "rubric"
+                                            ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
+                                            : "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark"
+                                    )}
+                                >
+                                    <ListChecks className="size-3.5" />
+                                    Rúbrica
+                                </button>
+                                <button
+                                    onClick={() => save({ ...content, evalMode: "questions" })}
+                                    className={cn(
+                                        "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
+                                        evalMode === "questions"
+                                            ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
+                                            : "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark"
+                                    )}
+                                >
+                                    <MessageSquare className="size-3.5" />
+                                    Preguntas abiertas
+                                </button>
+                            </div>
+                            <p className="text-xs text-text-muted">
+                                {evalMode === "rubric"
+                                    ? "Los evaluadores puntúan niveles por criterio con justificación opcional."
+                                    : "Los evaluadores responden preguntas abiertas. Sin puntuación numérica — mide reflexión y feedback cualitativo."}
+                            </p>
                         </div>
                     </div>
-                    <RubricBuilderModal
-                        rubric={content.rubric ?? []}
-                        open={rubricModalOpen}
-                        onClose={() => setRubricModalOpen(false)}
-                        onChange={(rubric: RubricCriteria[]) => save({ ...content, rubric })}
-                    />
+
+                    {/* Rubric — only in rubric mode */}
+                    {evalMode === "rubric" && (
+                        <>
+                            <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                                <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
+                                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Rúbrica</span>
+                                </div>
+                                <div className="p-5">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setRubricModalOpen(true)}
+                                        className="h-8 text-xs gap-1.5 border-border/50 text-text-muted hover:text-foreground"
+                                    >
+                                        <ListChecks className="size-3.5" />
+                                        {(content.rubric?.length ?? 0) > 0
+                                            ? `Editar rúbrica (${content.rubric!.length} ${content.rubric!.length === 1 ? "criterio" : "criterios"})`
+                                            : "Configurar rúbrica"}
+                                    </Button>
+                                </div>
+                            </div>
+                            <RubricBuilderModal
+                                rubric={content.rubric ?? []}
+                                open={rubricModalOpen}
+                                onClose={() => setRubricModalOpen(false)}
+                                onChange={(rubric: RubricCriteria[]) => save({ ...content, rubric })}
+                            />
+                        </>
+                    )}
+
+                    {/* Questions builder — only in questions mode */}
+                    {evalMode === "questions" && (
+                        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2 flex items-center justify-between">
+                                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Preguntas</span>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={addQuestion}
+                                    className="h-7 text-xs gap-1 text-accent-blue hover:text-accent-blue"
+                                >
+                                    <Plus className="size-3" />
+                                    Añadir
+                                </Button>
+                            </div>
+                            <div className="p-5 space-y-3">
+                                {questions.length === 0 && (
+                                    <p className="text-xs text-text-muted/70 text-center py-4">
+                                        Sin preguntas todavía. Añade la primera.
+                                    </p>
+                                )}
+                                {questions.map((q, idx) => (
+                                    <div key={q.id} className="p-3 bg-surface border border-border/40 rounded-lg space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black text-text-muted uppercase tracking-widest shrink-0">P{idx + 1}</span>
+                                            <Input
+                                                value={q.text}
+                                                onChange={(e) => updateQuestion(q.id, { text: e.target.value })}
+                                                placeholder="¿Qué destacarías del trabajo evaluado?"
+                                                className="flex-1 h-8 text-sm bg-transparent border-border/40"
+                                            />
+                                            <button
+                                                onClick={() => removeQuestion(q.id)}
+                                                className="text-text-muted/50 hover:text-red-400 transition-colors shrink-0"
+                                            >
+                                                <Trash2 className="size-3.5" />
+                                            </button>
+                                        </div>
+                                        <Input
+                                            value={q.description ?? ""}
+                                            onChange={(e) => updateQuestion(q.id, { description: e.target.value })}
+                                            placeholder="Pista o contexto (opcional)"
+                                            className="h-7 text-xs text-text-muted bg-transparent border-border/30"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Mode-specific settings */}
                     {content.mode === "individual" && (
@@ -210,22 +319,24 @@ export function PeerEvaluationEditor({ step, onUpdate, phases }: PeerEvaluationE
                                     />
                                 </div>
 
-                                {/* Peer weight */}
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-sm text-foreground font-medium">Peso de los pares</p>
-                                        <span className="text-sm font-mono font-bold text-accent-blue">{content.peerWeight ?? 30}%</span>
+                                {/* Peer weight — only relevant in rubric mode */}
+                                {evalMode === "rubric" && (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-sm text-foreground font-medium">Peso de los pares</p>
+                                            <span className="text-sm font-mono font-bold text-accent-blue">{content.peerWeight ?? 30}%</span>
+                                        </div>
+                                        <input
+                                            type="range" min={0} max={100} step={5}
+                                            value={content.peerWeight ?? 30}
+                                            onChange={(e) => save({ ...content, peerWeight: Number(e.target.value) })}
+                                            className="w-full accent-accent-blue"
+                                        />
+                                        <p className="text-xs text-text-muted">
+                                            Nota final = {content.peerWeight ?? 30}% promedio de pares + {100 - (content.peerWeight ?? 30)}% nota del profesor.
+                                        </p>
                                     </div>
-                                    <input
-                                        type="range" min={0} max={100} step={5}
-                                        value={content.peerWeight ?? 30}
-                                        onChange={(e) => save({ ...content, peerWeight: Number(e.target.value) })}
-                                        className="w-full accent-accent-blue"
-                                    />
-                                    <p className="text-xs text-text-muted">
-                                        Nota final = {content.peerWeight ?? 30}% promedio de pares + {100 - (content.peerWeight ?? 30)}% nota del profesor.
-                                    </p>
-                                </div>
+                                )}
 
                                 {/* Anonymous */}
                                 <Toggle

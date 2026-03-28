@@ -770,14 +770,28 @@ export async function importGoogleFormResults(
             ? Math.round((row.pointsEarned / row.pointsTotal) * 1000) / 100
             : 0;
 
-        await admin.from('activity_submissions').upsert({
+        const { data: existingCsv } = await admin
+            .from('activity_submissions')
+            .select('id')
+            .eq('student_id', row.studentId)
+            .eq('step_id', stepId)
+            .is('group_id', null)
+            .maybeSingle();
+
+        const csvPayload = {
             student_id: row.studentId,
             step_id: stepId,
             activity_id: activityId,
             status: 'graded',
             score: scoreOutOf10,
             submitted_at: new Date().toISOString(),
-        }, { onConflict: 'student_id,step_id' });
+        };
+
+        if (existingCsv?.id) {
+            await admin.from('activity_submissions').update(csvPayload).eq('id', existingCsv.id);
+        } else {
+            await admin.from('activity_submissions').insert(csvPayload);
+        }
 
         imported++;
     }

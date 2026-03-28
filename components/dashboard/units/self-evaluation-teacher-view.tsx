@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { UserCheck, CheckCircle2, Minus, TrendingUp, TrendingDown } from "lucide-react";
+import { UserCheck, CheckCircle2, Minus, TrendingUp, TrendingDown, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { criteriaMaxPoints, type RubricCriteria } from "@/types/activity";
+import { criteriaMaxPoints, type RubricCriteria, type EvalQuestion, type EvalMode } from "@/types/activity";
 import { getSelfEvaluationResults } from "@/app/dashboard/units/[id]/actions";
 
 interface SelfEvaluationTeacherViewProps {
@@ -23,12 +23,16 @@ type Row = {
 export function SelfEvaluationTeacherView({ stepId, stepTitle }: SelfEvaluationTeacherViewProps) {
     const [rows, setRows] = useState<Row[]>([]);
     const [rubric, setRubric] = useState<RubricCriteria[]>([]);
+    const [evalMode, setEvalMode] = useState<EvalMode>("rubric");
+    const [questions, setQuestions] = useState<EvalQuestion[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         getSelfEvaluationResults(stepId).then(res => {
             if (res.rows) setRows(res.rows);
             if (res.rubric) setRubric(res.rubric);
+            if (res.evalMode) setEvalMode(res.evalMode);
+            if (res.questions) setQuestions(res.questions);
             setLoading(false);
         });
     }, [stepId]);
@@ -50,21 +54,32 @@ export function SelfEvaluationTeacherView({ stepId, stepTitle }: SelfEvaluationT
         );
     }
 
+    const submittedRows = rows.filter(r =>
+        evalMode === "questions"
+            ? !!r.self_eval_justifications
+            : !!r.self_eval_rubric_scores
+    );
+
     return (
         <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center gap-3 p-5 bg-surface border border-border-strong rounded-2xl shadow-xl shadow-black/5">
                 <div className="size-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
-                    <UserCheck className="size-5 text-indigo-400" />
+                    {evalMode === "questions"
+                        ? <MessageSquare className="size-5 text-indigo-400" />
+                        : <UserCheck className="size-5 text-indigo-400" />
+                    }
                 </div>
                 <div>
-                    <p className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em]">Autoevaluación</p>
+                    <p className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em]">
+                        Autoevaluación — {evalMode === "questions" ? "Preguntas abiertas" : "Rúbrica"}
+                    </p>
                     <h2 className="text-base font-black text-foreground uppercase tracking-tighter">{stepTitle}</h2>
-                    <p className="text-xs text-text-muted mt-0.5">{rows.length} autoevaluaciones recibidas</p>
+                    <p className="text-xs text-text-muted mt-0.5">{submittedRows.length} autoevaluaciones recibidas</p>
                 </div>
             </div>
 
-            {rows.length === 0 ? (
+            {submittedRows.length === 0 ? (
                 <div className="p-12 bg-surface-dark border border-white/5 rounded-2xl flex flex-col items-center text-center gap-4">
                     <UserCheck className="size-12 text-text-muted/20" />
                     <p className="text-sm font-medium text-foreground">Sin autoevaluaciones todavía</p>
@@ -72,7 +87,19 @@ export function SelfEvaluationTeacherView({ stepId, stepTitle }: SelfEvaluationT
                         Los alumnos aún no han enviado su autoevaluación para este paso.
                     </p>
                 </div>
+            ) : evalMode === "questions" ? (
+                /* ── Questions mode: one card per student with their answers ── */
+                <div className="space-y-3">
+                    {submittedRows.map(row => (
+                        <QuestionsCard
+                            key={row.student_id}
+                            row={row}
+                            questions={questions}
+                        />
+                    ))}
+                </div>
             ) : (
+                /* ── Rubric mode: comparison table ── */
                 <div className="bg-surface-dark border border-white/5 rounded-2xl overflow-hidden">
                     <table className="w-full text-sm">
                         <thead>
@@ -85,7 +112,7 @@ export function SelfEvaluationTeacherView({ stepId, stepTitle }: SelfEvaluationT
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
-                            {rows.map(row => {
+                            {submittedRows.map(row => {
                                 const selfVal = selfScore(row);
                                 const teacherVal = row.teacher_score;
                                 const diff = selfVal !== null && teacherVal !== null
@@ -126,6 +153,51 @@ export function SelfEvaluationTeacherView({ stepId, stepTitle }: SelfEvaluationT
         </div>
     );
 }
+
+// ── Questions mode card ────────────────────────────────────────────────────────
+
+function QuestionsCard({ row, questions }: { row: Row; questions: EvalQuestion[] }) {
+    const [expanded, setExpanded] = useState(false);
+    const answers = row.self_eval_justifications ?? {};
+    const answeredCount = questions.filter(q => (answers[q.id] ?? "").trim().length > 0).length;
+
+    return (
+        <div className="bg-surface-dark border border-white/5 rounded-2xl overflow-hidden">
+            <button
+                className="w-full px-5 py-4 flex items-center justify-between hover:bg-white/2 transition-colors"
+                onClick={() => setExpanded(v => !v)}
+            >
+                <div className="flex items-center gap-3">
+                    <p className="text-sm font-semibold text-foreground">{row.student_name ?? "Alumno"}</p>
+                    <span className="text-xs text-text-muted">{answeredCount}/{questions.length} respondidas</span>
+                    <StatusBadge status={row.status} />
+                </div>
+                {expanded ? <ChevronUp className="size-4 text-text-muted" /> : <ChevronDown className="size-4 text-text-muted" />}
+            </button>
+            {expanded && questions.length > 0 && (
+                <div className="px-5 pb-5 space-y-4 border-t border-white/5 pt-4">
+                    {questions.map((q, idx) => {
+                        const answer = answers[q.id] ?? "";
+                        return (
+                            <div key={q.id} className="space-y-1.5">
+                                <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+                                    {idx + 1}. {q.text}
+                                </p>
+                                {answer.trim() ? (
+                                    <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{answer}</p>
+                                ) : (
+                                    <p className="text-xs text-text-muted/50 italic">Sin respuesta</p>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Shared sub-components ─────────────────────────────────────────────────────
 
 function DeltaBadge({ diff }: { diff: number | null }) {
     if (diff === null) return <span className="text-text-muted">—</span>;

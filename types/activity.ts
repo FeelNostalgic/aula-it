@@ -310,12 +310,23 @@ export type ResourceContent = {
     markdownHeader?: string;
 };
 
-// 8. Self-Evaluation (autoevaluación del alumno mediante rúbrica)
+// Pregunta abierta para evalMode = 'questions'
+export type EvalQuestion = {
+    id: string;
+    text: string;           // enunciado de la pregunta
+    description?: string;   // contexto/pista opcional
+};
+
+export type EvalMode = 'rubric' | 'questions';
+
+// 8. Self-Evaluation (autoevaluación del alumno mediante rúbrica o preguntas abiertas)
 export type SelfEvaluationContent = {
-    rubric: RubricCriteria[];
+    evalMode?: EvalMode;            // 'rubric' (default) | 'questions'
+    rubric: RubricCriteria[];       // usado cuando evalMode = 'rubric'
+    questions?: EvalQuestion[];     // usado cuando evalMode = 'questions'
     referenceStepId?: string;       // paso del que mostrar la entrega propia como contexto
-    requireJustification: boolean;  // exige texto de justificación por criterio
-    countsTowardGrade: boolean;     // si true, la autoevaluación contribuye a la nota final
+    requireJustification: boolean;  // en modo rúbrica: exige texto de justificación por criterio
+    countsTowardGrade: boolean;     // sólo relevante en modo rúbrica
     selfEvalWeight?: number;        // % de la nota final (0–100), sólo si countsTowardGrade
     instructionsMarkdown?: string;
 };
@@ -326,6 +337,8 @@ export type OutlierSensitivity = 'strict' | 'normal' | 'lenient';
 export type NonEvaluatorPolicy = 'none' | 'fallback_teacher' | 'grade_penalty';
 
 export type PeerEvaluationContent = {
+    evalMode?: EvalMode;            // 'rubric' (default) | 'questions'
+    questions?: EvalQuestion[];     // usado cuando evalMode = 'questions'
     mode: PeerEvaluationMode;
     sourceStepId: string;               // deliverable/file_upload cuyas submissions se evalúan
     rubric: RubricCriteria[];

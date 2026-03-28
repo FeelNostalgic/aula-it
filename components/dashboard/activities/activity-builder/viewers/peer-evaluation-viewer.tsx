@@ -124,8 +124,8 @@ export function PeerEvaluationViewer({
                 onNext={() => setCurrentIndex(i => Math.min(assignments.length - 1, i + 1))}
             />
 
-            {/* Received feedback section */}
-            {feedbackVisible && receivedFeedback.length > 0 && (
+            {/* Received feedback section — rubric mode only */}
+            {feedbackVisible && receivedFeedback.length > 0 && (content.evalMode ?? "rubric") === "rubric" && (
                 <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-4">
                     <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
                         <MessageCircle className="size-4 text-indigo-400" /> Feedback recibido
@@ -185,11 +185,13 @@ function AssignmentPanel({
     onPrev: () => void;
     onNext: () => void;
 }) {
+    const evalMode = content.evalMode ?? "rubric";
     const rubric = content.rubric ?? [];
+    const questions = content.questions ?? [];
     const isCompleted = !!assignment.eval_submission_id;
 
     const [scores, setScores] = useState<Record<string, number>>({});
-    const [justifications, setJustifications] = useState<Record<string, string>>({});
+    const [answers, setAnswers] = useState<Record<string, string>>({});
     const [qaNotes, setQaNotes] = useState("");
     const [isPending, startTransition] = useTransition();
 
@@ -197,22 +199,24 @@ function AssignmentPanel({
         ?? (assignment.target_submission?.group as any)?.name
         ?? "Alumno";
 
-    const allScored = rubric.every(c => scores[c.id] !== undefined);
-    const allJustified = !content.requireJustification
+    const allScored = evalMode === "questions" || rubric.every(c => scores[c.id] !== undefined);
+    const allAnswered = evalMode !== "questions" || questions.every(q => (answers[q.id] ?? "").trim().length > 0);
+    const allJustified = evalMode !== "rubric" || !content.requireJustification
         || rubric.every(c => {
-            const text = justifications[c.id] ?? "";
+            const text = answers[c.id] ?? "";
             const minLen = content.minJustificationLength ?? 0;
             return text.trim().length >= (minLen > 0 ? minLen : 1);
         });
-    const canSubmit = allScored && allJustified && !isCompleted && !isClosed;
+    const canSubmit = allScored && allAnswered && allJustified && !isCompleted && !isClosed;
 
     function handleSubmit() {
         startTransition(async () => {
+            const rubricScores = evalMode === "questions" ? {} : scores;
             const res = await submitPeerEvaluation(
                 assignment.id,
                 activityId,
-                scores,
-                justifications,
+                rubricScores,
+                answers,
                 content.livePresentationMode ? qaNotes : undefined,
             );
             if (res.error) {
@@ -268,23 +272,54 @@ function AssignmentPanel({
                 </div>
             ) : (
                 <>
-                    <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-6">
-                        <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
-                            <ClipboardList className="size-4" /> Rúbrica de evaluación
-                        </h3>
-                        {rubric.map(criterion => (
-                            <CriterionBlock
-                                key={criterion.id}
-                                criterion={criterion}
-                                selected={scores[criterion.id]}
-                                justification={justifications[criterion.id] ?? ""}
-                                requireJustification={content.requireJustification}
-                                minLength={content.minJustificationLength ?? 0}
-                                onSelect={pts => setScores(p => ({ ...p, [criterion.id]: pts }))}
-                                onJustify={text => setJustifications(p => ({ ...p, [criterion.id]: text }))}
-                            />
-                        ))}
-                    </div>
+                    {/* Rubric mode */}
+                    {evalMode === "rubric" && (
+                        <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-6">
+                            <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
+                                <ClipboardList className="size-4" /> Rúbrica de evaluación
+                            </h3>
+                            {rubric.map(criterion => (
+                                <CriterionBlock
+                                    key={criterion.id}
+                                    criterion={criterion}
+                                    selected={scores[criterion.id]}
+                                    justification={answers[criterion.id] ?? ""}
+                                    requireJustification={content.requireJustification}
+                                    minLength={content.minJustificationLength ?? 0}
+                                    onSelect={pts => setScores(p => ({ ...p, [criterion.id]: pts }))}
+                                    onJustify={text => setAnswers(p => ({ ...p, [criterion.id]: text }))}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Questions mode */}
+                    {evalMode === "questions" && (
+                        <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-6">
+                            <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
+                                <MessageSquare className="size-4" /> Preguntas de evaluación
+                            </h3>
+                            {questions.map((q, idx) => (
+                                <div key={q.id} className="space-y-2">
+                                    <div>
+                                        <p className="text-sm font-semibold text-foreground">
+                                            <span className="text-text-muted font-normal mr-1">{idx + 1}.</span>
+                                            {q.text}
+                                        </p>
+                                        {q.description && (
+                                            <p className="text-xs text-text-muted mt-0.5">{q.description}</p>
+                                        )}
+                                    </div>
+                                    <Textarea
+                                        value={answers[q.id] ?? ""}
+                                        onChange={(e) => setAnswers(p => ({ ...p, [q.id]: e.target.value }))}
+                                        placeholder="Escribe tu respuesta..."
+                                        className="resize-none text-sm min-h-[96px] bg-surface border-border/50"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    )}
 
                     {/* Q&A section (live presentation mode) */}
                     {content.livePresentationMode && (
