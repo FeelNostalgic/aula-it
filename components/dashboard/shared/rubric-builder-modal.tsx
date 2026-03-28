@@ -1,13 +1,33 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useEffect, useState } from "react";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { Badge } from "@/components/ui/badge";
 import { RubricCriteria, RubricLevel } from "@/types/activity";
-import { Plus, Trash2, Library, CloudUpload, RefreshCw } from "lucide-react";
+import {
+    Plus,
+    Trash2,
+    Library,
+    CloudUpload,
+    RefreshCw,
+    Layers,
+    X,
+    Sparkles,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
     DropdownMenu,
@@ -17,11 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import {
-    createRubricCriterionLibraryEntry,
-    getRubricCriteriaLibrary,
-    updateRubricCriterionLibraryEntry,
-} from "@/app/activities/[id]/edit/actions";
+import { createClient as createSupabaseClient } from "@/utils/supabase/client";
 
 interface RubricBuilderModalProps {
     rubric: RubricCriteria[];
@@ -30,23 +46,39 @@ interface RubricBuilderModalProps {
     onChange: (rubric: RubricCriteria[]) => void;
 }
 
+type RubricVisibility = "private" | "public";
+
 type RubricCriterionLibraryItem = {
     id: string;
     name: string;
     description: string | null;
     levels: RubricLevel[];
-    visibility: "private" | "public";
+    visibility: RubricVisibility;
     version: number;
     created_by: string;
     updated_at: string;
     is_owner: boolean;
 };
 
+type RubricLibraryItem = {
+    id: string;
+    name: string;
+    description: string | null;
+    criteria: RubricCriteria[];
+    visibility: RubricVisibility;
+    version: number;
+    created_by: string;
+    updated_at: string;
+    is_owner: boolean;
+};
+
+type OverlayMode = "criterion-library" | "criterion-save" | "rubric-save" | null;
+
 const DEFAULT_LEVELS: Omit<RubricLevel, "id">[] = [
-    { label: "Excelente", points: 4, description: "" },
-    { label: "Notable", points: 3, description: "" },
-    { label: "Aprobado", points: 2, description: "" },
-    { label: "Insuficiente", points: 1, description: "" },
+    { label: "Insuficiente", points: 0, description: "" },
+    { label: "En progreso", points: 1, description: "" },
+    { label: "Competente", points: 2, description: "" },
+    { label: "Excelente", points: 3, description: "" },
 ];
 
 function buildBlankCriterion(): RubricCriteria {
@@ -58,42 +90,203 @@ function buildBlankCriterion(): RubricCriteria {
     };
 }
 
-function buildSnapshotCriterion(criterion: RubricCriterionLibraryItem): RubricCriteria {
+function cloneLevels(levels: RubricLevel[]) {
+    return levels.map((level) => ({
+        id: crypto.randomUUID(),
+        label: level.label,
+        points: level.points,
+        description: level.description ?? "",
+    }));
+}
+
+function buildCriterionSnapshot(
+    criterion: Pick<RubricCriteria, "name" | "description" | "levels" | "source_criterion_id" | "source_version" | "source_visibility">,
+    rubricSource?: { id: string; version: number; visibility: RubricVisibility }
+): RubricCriteria {
     return {
         id: crypto.randomUUID(),
         name: criterion.name,
         description: criterion.description ?? "",
-        levels: criterion.levels.map((level) => ({
-            id: crypto.randomUUID(),
-            label: level.label,
-            points: level.points,
-            description: level.description ?? "",
-        })),
+        levels: cloneLevels(criterion.levels ?? []),
+        source_criterion_id: criterion.source_criterion_id,
+        source_version: criterion.source_version,
+        source_visibility: criterion.source_visibility,
+        source_rubric_id: rubricSource?.id,
+        source_rubric_version: rubricSource?.version,
+        source_rubric_visibility: rubricSource?.visibility,
+    };
+}
+
+function buildSnapshotCriterion(criterion: RubricCriterionLibraryItem): RubricCriteria {
+    return buildCriterionSnapshot({
+        name: criterion.name,
+        description: criterion.description ?? "",
+        levels: criterion.levels,
         source_criterion_id: criterion.id,
         source_version: criterion.version,
         source_visibility: criterion.visibility,
+    });
+}
+
+function buildSnapshotRubric(rubric: RubricLibraryItem): RubricCriteria[] {
+    return rubric.criteria.map((criterion) =>
+        buildCriterionSnapshot(
+            {
+                name: criterion.name,
+                description: criterion.description ?? "",
+                levels: criterion.levels ?? [],
+                source_criterion_id: criterion.source_criterion_id,
+                source_version: criterion.source_version,
+                source_visibility: criterion.source_visibility,
+            },
+            {
+                id: rubric.id,
+                version: rubric.version,
+                visibility: rubric.visibility,
+            }
+        )
+    );
+}
+
+function deriveRubricSource(rubric: RubricCriteria[]) {
+    const rubricIds = Array.from(new Set(rubric.map((criterion) => criterion.source_rubric_id).filter(Boolean)));
+    if (rubricIds.length !== 1) return null;
+
+    const rubricId = rubricIds[0] as string;
+    const linkedCriteria = rubric.filter((criterion) => criterion.source_rubric_id === rubricId);
+    if (linkedCriteria.length !== rubric.length) return null;
+
+    const versions = Array.from(new Set(linkedCriteria.map((criterion) => criterion.source_rubric_version).filter((value) => value !== undefined)));
+    if (versions.length !== 1) return null;
+
+    const visibilities = Array.from(new Set(linkedCriteria.map((criterion) => criterion.source_rubric_visibility).filter(Boolean)));
+    if (visibilities.length !== 1) return null;
+
+    return {
+        id: rubricId,
+        version: versions[0] as number,
+        visibility: visibilities[0] as RubricVisibility,
     };
+}
+
+function getRubricValidationError(rubric: RubricCriteria[]) {
+    if (!rubric.length) return "Añade al menos un criterio antes de guardar la rúbrica.";
+
+    for (const criterion of rubric) {
+        if (!criterion.name.trim()) return "Todos los criterios deben tener nombre antes de guardarse.";
+        if (!criterion.levels?.length) return `El criterio "${criterion.name}" debe tener al menos un nivel.`;
+        for (const level of criterion.levels) {
+            if (!level.label.trim()) return `Todos los niveles del criterio "${criterion.name}" deben tener etiqueta.`;
+        }
+    }
+
+    return null;
+}
+
+function buildRubricDraftName(rubric: RubricCriteria[]) {
+    if (rubric.length === 1 && rubric[0]?.name.trim()) return rubric[0].name.trim();
+    return `Rúbrica (${rubric.length} criterios)`;
+}
+
+function formatUpdatedAt(value: string) {
+    return new Intl.DateTimeFormat("es-ES", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+    }).format(new Date(value));
+}
+
+function libraryCardClass(isActive: boolean) {
+    return cn(
+        "w-full rounded-xl border p-4 text-left transition-all duration-200",
+        isActive
+            ? "border-accent-blue/40 bg-accent-blue/8 shadow-[0_12px_30px_-22px_rgba(0,112,243,0.65)]"
+            : "border-border/50 bg-surface-dark/40 hover:border-border-strong hover:bg-surface-dark/70"
+    );
+}
+
+function getSavedActionClass(isSaved: boolean) {
+    return isSaved
+        ? "border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+        : "border-accent-blue/30 bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/16";
+}
+
+function normalizeRubricLevels(levels: RubricLevel[]) {
+    return levels.map((level) => ({
+        id: level.id,
+        label: level.label,
+        points: level.points,
+        description: level.description ?? "",
+    }));
+}
+
+function normalizeRubricCriteria(criteria: RubricCriteria[]) {
+    return criteria.map((criterion) => ({
+        id: criterion.id,
+        name: criterion.name,
+        description: criterion.description ?? "",
+        levels: normalizeRubricLevels(criterion.levels ?? []),
+        source_criterion_id: criterion.source_criterion_id ?? null,
+        source_version: criterion.source_version ?? null,
+        source_visibility: criterion.source_visibility ?? null,
+        source_rubric_id: criterion.source_rubric_id ?? null,
+        source_rubric_version: criterion.source_rubric_version ?? null,
+        source_rubric_visibility: criterion.source_rubric_visibility ?? null,
+    }));
+}
+
+function hydrateRubricCriteria(criteria: RubricCriteria[]) {
+    return criteria.map((criterion) => ({
+        id: criterion.id,
+        name: criterion.name,
+        description: criterion.description ?? "",
+        levels: normalizeRubricLevels(criterion.levels ?? []),
+        source_criterion_id: criterion.source_criterion_id ?? undefined,
+        source_version: criterion.source_version ?? undefined,
+        source_visibility: criterion.source_visibility ?? undefined,
+        source_rubric_id: criterion.source_rubric_id ?? undefined,
+        source_rubric_version: criterion.source_rubric_version ?? undefined,
+        source_rubric_visibility: criterion.source_rubric_visibility ?? undefined,
+    }));
 }
 
 export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBuilderModalProps) {
     const [selectedId, setSelectedId] = useState<string | null>(() => rubric[0]?.id ?? null);
     const [libraryCriteria, setLibraryCriteria] = useState<RubricCriterionLibraryItem[]>([]);
-    const [isLibraryDialogOpen, setIsLibraryDialogOpen] = useState(false);
-    const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
-    const [saveVisibility, setSaveVisibility] = useState<"private" | "public">("private");
+    const [libraryRubrics, setLibraryRubrics] = useState<RubricLibraryItem[]>([]);
+    const [overlayMode, setOverlayMode] = useState<OverlayMode>(null);
+    const [saveCriterionVisibility, setSaveCriterionVisibility] = useState<RubricVisibility>("private");
+    const [saveRubricVisibility, setSaveRubricVisibility] = useState<RubricVisibility>("private");
+    const [rubricSaveName, setRubricSaveName] = useState("");
+    const [rubricSaveDescription, setRubricSaveDescription] = useState("");
     const [isLibraryLoading, setIsLibraryLoading] = useState(false);
-    const [isPending, startTransition] = useTransition();
+    const [isSavingCriterion, setIsSavingCriterion] = useState(false);
+    const [isSavingRubric, setIsSavingRubric] = useState(false);
+    const [isDeletingCriterion, setIsDeletingCriterion] = useState(false);
+    const [isDeletingRubric, setIsDeletingRubric] = useState(false);
+    const [criterionDeleteTarget, setCriterionDeleteTarget] = useState<RubricCriterionLibraryItem | null>(null);
+    const [criterionRemoveTarget, setCriterionRemoveTarget] = useState<RubricCriteria | null>(null);
+    const [rubricDeleteTarget, setRubricDeleteTarget] = useState<RubricLibraryItem | null>(null);
+    const [pendingRubricSelection, setPendingRubricSelection] = useState<RubricLibraryItem | null>(null);
+    const [isRemovingFromActivity, setIsRemovingFromActivity] = useState(false);
 
     const selected = rubric.find((criterion) => criterion.id === selectedId) ?? null;
-    const linkedLibraryCriterion = useMemo(() => {
-        if (!selected?.source_criterion_id) return null;
-        return libraryCriteria.find((criterion) => criterion.id === selected.source_criterion_id) ?? null;
-    }, [libraryCriteria, selected]);
-
-    const hasUpdateAvailable = !!(
+    const linkedLibraryCriterion = selected?.source_criterion_id
+        ? libraryCriteria.find((criterion) => criterion.id === selected.source_criterion_id) ?? null
+        : null;
+    const rubricSource = deriveRubricSource(rubric);
+    const linkedLibraryRubric = rubricSource
+        ? libraryRubrics.find((savedRubric) => savedRubric.id === rubricSource.id) ?? null
+        : null;
+    const hasCriterionUpdateAvailable = Boolean(
         selected &&
         linkedLibraryCriterion &&
         (selected.source_version ?? 0) < linkedLibraryCriterion.version
+    );
+    const hasRubricUpdateAvailable = Boolean(
+        rubricSource &&
+        linkedLibraryRubric &&
+        rubricSource.version < linkedLibraryRubric.version
     );
 
     useEffect(() => {
@@ -106,45 +299,124 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
 
     useEffect(() => {
         if (!open) return;
+
+        let isMounted = true;
         setIsLibraryLoading(true);
-        startTransition(async () => {
-            const result = await getRubricCriteriaLibrary();
-            if (result.error) {
-                toast.error("Error al cargar criterios guardados");
-                setLibraryCriteria([]);
-            } else {
-                setLibraryCriteria(result.criteria);
+
+        async function loadLibraries() {
+            try {
+                const supabase = createSupabaseClient();
+                const { data: authResult, error: authError } = await supabase.auth.getUser();
+                const user = authResult.user;
+
+                if (authError || !user) {
+                    throw new Error(authError?.message ?? "No autenticado.");
+                }
+
+                const [criteriaResult, rubricResult] = await Promise.allSettled([
+                    supabase
+                        .from("rubric_criteria_library")
+                        .select("*")
+                        .or(`created_by.eq.${user.id},visibility.eq.public`)
+                        .order("updated_at", { ascending: false }),
+                    supabase
+                        .from("rubric_library")
+                        .select("*")
+                        .or(`created_by.eq.${user.id},visibility.eq.public`)
+                        .order("updated_at", { ascending: false }),
+                ]);
+
+                if (!isMounted) return;
+
+                if (criteriaResult.status === "fulfilled") {
+                    if (criteriaResult.value.error) {
+                        toast.error(`Error al cargar criterios guardados: ${criteriaResult.value.error.message}`);
+                        setLibraryCriteria([]);
+                    } else {
+                        setLibraryCriteria((criteriaResult.value.data ?? []).map((criterion: any) => ({
+                            ...criterion,
+                            levels: normalizeRubricLevels((criterion.levels ?? []) as RubricLevel[]),
+                            is_owner: criterion.created_by === user.id,
+                        })));
+                    }
+                } else {
+                    toast.error("Error inesperado al cargar criterios guardados");
+                    setLibraryCriteria([]);
+                    console.error("Rubric criteria library load failed:", criteriaResult.reason);
+                }
+
+                if (rubricResult.status === "fulfilled") {
+                    if (rubricResult.value.error) {
+                        toast.error(`Error al cargar rúbricas guardadas: ${rubricResult.value.error.message}`);
+                        setLibraryRubrics([]);
+                    } else {
+                        setLibraryRubrics((rubricResult.value.data ?? []).map((savedRubric: any) => ({
+                            ...savedRubric,
+                            criteria: hydrateRubricCriteria((savedRubric.criteria ?? []) as RubricCriteria[]),
+                            is_owner: savedRubric.created_by === user.id,
+                        })));
+                    }
+                } else {
+                    toast.error("Error inesperado al cargar rúbricas guardadas");
+                    setLibraryRubrics([]);
+                    console.error("Rubric library load failed:", rubricResult.reason);
+                }
+            } finally {
+                if (isMounted) {
+                    setIsLibraryLoading(false);
+                }
             }
-            setIsLibraryLoading(false);
-        });
+        }
+
+        void loadLibraries();
+
+        return () => {
+            isMounted = false;
+        };
     }, [open]);
 
     useEffect(() => {
         if (!selected) return;
-        setSaveVisibility(selected.source_visibility ?? linkedLibraryCriterion?.visibility ?? "private");
+        setSaveCriterionVisibility(selected.source_visibility ?? linkedLibraryCriterion?.visibility ?? "private");
     }, [selected, linkedLibraryCriterion]);
 
     function addNewCriterion() {
         const newCriterion = buildBlankCriterion();
-        const updated = [...rubric, newCriterion];
-        onChange(updated);
+        const nextRubric = [...rubric, newCriterion];
+        onChange(nextRubric);
         setSelectedId(newCriterion.id);
     }
 
     function insertSavedCriterion(criterion: RubricCriterionLibraryItem) {
         const snapshot = buildSnapshotCriterion(criterion);
-        const updated = [...rubric, snapshot];
-        onChange(updated);
+        const nextRubric = [...rubric, snapshot];
+        onChange(nextRubric);
         setSelectedId(snapshot.id);
-        setIsLibraryDialogOpen(false);
+        setOverlayMode(null);
         toast.success(`Criterio "${criterion.name}" insertado`);
     }
 
+    function applySavedRubric(savedRubric: RubricLibraryItem) {
+        const nextRubric = buildSnapshotRubric(savedRubric);
+        onChange(nextRubric);
+        setSelectedId(nextRubric[0]?.id ?? null);
+        toast.success(`Rúbrica "${savedRubric.name}" aplicada`);
+    }
+
+    function handleLibraryRubricSelection(savedRubric: RubricLibraryItem) {
+        if (rubric.length > 0) {
+            setPendingRubricSelection(savedRubric);
+            return;
+        }
+
+        applySavedRubric(savedRubric);
+    }
+
     function removeCriterion(id: string) {
-        const updated = rubric.filter((criterion) => criterion.id !== id);
-        onChange(updated);
+        const nextRubric = rubric.filter((criterion) => criterion.id !== id);
+        onChange(nextRubric);
         if (selectedId === id) {
-            setSelectedId(updated[0]?.id ?? null);
+            setSelectedId(nextRubric[0]?.id ?? null);
         }
     }
 
@@ -155,7 +427,8 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
     function addLevel(criterionId: string) {
         const criterion = rubric.find((item) => item.id === criterionId);
         if (!criterion) return;
-        const newLevel: RubricLevel = { id: crypto.randomUUID(), label: "", points: 0, description: "" };
+        const nextPoints = Math.max(-1, ...(criterion.levels ?? []).map((level) => level.points ?? 0)) + 1;
+        const newLevel: RubricLevel = { id: crypto.randomUUID(), label: "", points: nextPoints, description: "" };
         updateCriterion(criterionId, { levels: [...(criterion.levels ?? []), newLevel] });
     }
 
@@ -173,85 +446,240 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
         });
     }
 
-    function openSaveDialog() {
+    function openSaveCriterionPanel() {
         if (!selected) return;
-        if (!selected.name.trim()) {
-            toast.error("Ponle nombre al criterio antes de guardarlo.");
+
+        const validationError = getRubricValidationError([selected]);
+        if (validationError) {
+            toast.error(validationError);
             return;
         }
-        if (!selected.levels?.length) {
-            toast.error("El criterio debe tener al menos un nivel.");
-            return;
-        }
-        setSaveVisibility(selected.source_visibility ?? linkedLibraryCriterion?.visibility ?? "private");
-        setIsSaveDialogOpen(true);
+
+        setSaveCriterionVisibility(selected.source_visibility ?? linkedLibraryCriterion?.visibility ?? "private");
+        setOverlayMode("criterion-save");
     }
 
-    function handleSaveCriterion() {
+    function openSaveRubricPanel() {
+        const validationError = getRubricValidationError(rubric);
+        if (validationError) {
+            toast.error(validationError);
+            return;
+        }
+
+        setSaveRubricVisibility(rubricSource?.visibility ?? linkedLibraryRubric?.visibility ?? "private");
+        setRubricSaveName(linkedLibraryRubric?.name ?? buildRubricDraftName(rubric));
+        setRubricSaveDescription(linkedLibraryRubric?.description ?? "");
+        setOverlayMode("rubric-save");
+    }
+
+    async function handleSaveCriterion() {
         if (!selected) return;
 
-        startTransition(async () => {
-            const promise = (async () => {
-                const payload = {
-                    name: selected.name,
-                    description: selected.description ?? "",
-                    levels: selected.levels ?? [],
+        setIsSavingCriterion(true);
+        try {
+            const supabase = createSupabaseClient();
+            const { data: authResult, error: authError } = await supabase.auth.getUser();
+            const user = authResult.user;
+            if (authError || !user) throw new Error(authError?.message ?? "No autenticado.");
+
+            const payload = {
+                name: selected.name,
+                description: selected.description ?? "",
+                levels: selected.levels ?? [],
+            };
+
+            const isUpdate = Boolean(
+                linkedLibraryCriterion?.is_owner &&
+                selected.source_criterion_id === linkedLibraryCriterion.id
+            );
+
+            let criterionResult: RubricCriterionLibraryItem | null = null;
+
+            if (isUpdate) {
+                const { data: existing, error: existingError } = await supabase
+                    .from("rubric_criteria_library")
+                    .select("id, created_by, version")
+                    .eq("id", linkedLibraryCriterion!.id)
+                    .single();
+
+                if (existingError || !existing) throw new Error(existingError?.message ?? "No se encontró el criterio guardado.");
+                if (existing.created_by !== user.id) throw new Error("Sin permisos.");
+
+                const { data, error } = await supabase
+                    .from("rubric_criteria_library")
+                    .update({
+                        name: payload.name.trim(),
+                        description: payload.description.trim() || null,
+                        levels: normalizeRubricLevels(payload.levels),
+                        visibility: saveCriterionVisibility,
+                        version: (existing.version ?? 1) + 1,
+                    })
+                    .eq("id", linkedLibraryCriterion!.id)
+                    .select("*")
+                    .single();
+
+                if (error || !data) throw new Error(error?.message ?? "No se pudo actualizar el criterio guardado.");
+                criterionResult = {
+                    ...data,
+                    levels: normalizeRubricLevels((data.levels ?? []) as RubricLevel[]),
+                    is_owner: true,
                 };
+            } else {
+                const { data, error } = await supabase
+                    .from("rubric_criteria_library")
+                    .insert({
+                        name: payload.name.trim(),
+                        description: payload.description.trim() || null,
+                        levels: normalizeRubricLevels(payload.levels),
+                        visibility: saveCriterionVisibility,
+                        created_by: user.id,
+                    })
+                    .select("*")
+                    .single();
 
-                if (linkedLibraryCriterion?.is_owner && selected.source_criterion_id === linkedLibraryCriterion.id) {
-                    const result = await updateRubricCriterionLibraryEntry(linkedLibraryCriterion.id, payload, saveVisibility);
-                    if (result.error || !result.criterion) throw new Error(result.error ?? "No se pudo actualizar el criterio guardado.");
+                if (error || !data) throw new Error(error?.message ?? "No se pudo guardar el criterio.");
+                criterionResult = {
+                    ...data,
+                    levels: normalizeRubricLevels((data.levels ?? []) as RubricLevel[]),
+                    is_owner: true,
+                };
+            }
 
-                    setLibraryCriteria((current) => [
-                        result.criterion,
-                        ...current.filter((criterion) => criterion.id !== result.criterion.id),
-                    ]);
+            if (!criterionResult) throw new Error("No se pudo guardar el criterio.");
 
-                    updateCriterion(selected.id, {
-                        source_criterion_id: result.criterion.id,
-                        source_version: result.criterion.version,
-                        source_visibility: result.criterion.visibility,
-                    });
-                    return "actualizado";
-                }
+            setLibraryCriteria((current) => [
+                criterionResult,
+                ...current.filter((criterion) => criterion.id !== criterionResult.id),
+            ]);
 
-                const result = await createRubricCriterionLibraryEntry(payload, saveVisibility);
-                if (result.error || !result.criterion) throw new Error(result.error ?? "No se pudo guardar el criterio.");
-
-                setLibraryCriteria((current) => [result.criterion, ...current]);
-                updateCriterion(selected.id, {
-                    source_criterion_id: result.criterion.id,
-                    source_version: result.criterion.version,
-                    source_visibility: result.criterion.visibility,
-                });
-                return "guardado";
-            })();
-
-            await toast.promise(promise, {
-                loading: linkedLibraryCriterion?.is_owner && selected.source_criterion_id === linkedLibraryCriterion.id
-                    ? "Actualizando criterio guardado..."
-                    : "Guardando criterio...",
-                success: (status) => status === "actualizado"
-                    ? "Criterio guardado actualizado"
-                    : "Criterio guardado correctamente",
-                error: (error) => error.message,
+            updateCriterion(selected.id, {
+                source_criterion_id: criterionResult.id,
+                source_version: criterionResult.version,
+                source_visibility: criterionResult.visibility,
             });
 
-            setIsSaveDialogOpen(false);
-        });
+            toast.success(isUpdate ? "Criterio guardado actualizado" : "Criterio guardado correctamente");
+            setOverlayMode(null);
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "No se pudo guardar el criterio.");
+        } finally {
+            setIsSavingCriterion(false);
+        }
     }
 
-    function applyLibraryUpdate() {
+    async function handleSaveRubric() {
+        const validationError = getRubricValidationError(rubric);
+        if (validationError) {
+            toast.error(validationError);
+            return;
+        }
+
+        if (!rubricSaveName.trim()) {
+            toast.error("Ponle nombre a la rúbrica antes de guardarla.");
+            return;
+        }
+
+        setIsSavingRubric(true);
+        try {
+            const supabase = createSupabaseClient();
+            const { data: authResult, error: authError } = await supabase.auth.getUser();
+            const user = authResult.user;
+            if (authError || !user) throw new Error(authError?.message ?? "No autenticado.");
+
+            const payload = {
+                name: rubricSaveName.trim(),
+                description: rubricSaveDescription.trim(),
+                criteria: normalizeRubricCriteria(rubric),
+            };
+
+            const isUpdate = Boolean(
+                linkedLibraryRubric?.is_owner &&
+                rubricSource &&
+                linkedLibraryRubric.id === rubricSource.id
+            );
+
+            let rubricResult: RubricLibraryItem | null = null;
+
+            if (isUpdate) {
+                const { data: existing, error: existingError } = await supabase
+                    .from("rubric_library")
+                    .select("id, created_by, version")
+                    .eq("id", linkedLibraryRubric!.id)
+                    .single();
+
+                if (existingError || !existing) throw new Error(existingError?.message ?? "No se encontró la rúbrica guardada.");
+                if (existing.created_by !== user.id) throw new Error("Sin permisos.");
+
+                const { data, error } = await supabase
+                    .from("rubric_library")
+                    .update({
+                        name: payload.name,
+                        description: payload.description || null,
+                        criteria: payload.criteria,
+                        visibility: saveRubricVisibility,
+                        version: (existing.version ?? 1) + 1,
+                    })
+                    .eq("id", linkedLibraryRubric!.id)
+                    .select("*")
+                    .single();
+
+                if (error || !data) throw new Error(error?.message ?? "No se pudo actualizar la rúbrica guardada.");
+                rubricResult = {
+                    ...data,
+                    criteria: hydrateRubricCriteria((data.criteria ?? []) as RubricCriteria[]),
+                    is_owner: true,
+                };
+            } else {
+                const { data, error } = await supabase
+                    .from("rubric_library")
+                    .insert({
+                        name: payload.name,
+                        description: payload.description || null,
+                        criteria: payload.criteria,
+                        visibility: saveRubricVisibility,
+                        created_by: user.id,
+                    })
+                    .select("*")
+                    .single();
+
+                if (error || !data) throw new Error(error?.message ?? "No se pudo guardar la rúbrica.");
+                rubricResult = {
+                    ...data,
+                    criteria: hydrateRubricCriteria((data.criteria ?? []) as RubricCriteria[]),
+                    is_owner: true,
+                };
+            }
+
+            if (!rubricResult) throw new Error("No se pudo guardar la rúbrica.");
+
+            setLibraryRubrics((current) => [
+                rubricResult,
+                ...current.filter((savedRubric) => savedRubric.id !== rubricResult.id),
+            ]);
+
+            const nextRubric = rubric.map((criterion) => ({
+                ...criterion,
+                source_rubric_id: rubricResult.id,
+                source_rubric_version: rubricResult.version,
+                source_rubric_visibility: rubricResult.visibility,
+            }));
+            onChange(nextRubric);
+
+            toast.success(isUpdate ? "Rúbrica guardada actualizada" : "Rúbrica guardada correctamente");
+            setOverlayMode(null);
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "No se pudo guardar la rúbrica.");
+        } finally {
+            setIsSavingRubric(false);
+        }
+    }
+
+    function applyCriterionLibraryUpdate() {
         if (!selected || !linkedLibraryCriterion) return;
         updateCriterion(selected.id, {
             name: linkedLibraryCriterion.name,
             description: linkedLibraryCriterion.description ?? "",
-            levels: linkedLibraryCriterion.levels.map((level) => ({
-                id: crypto.randomUUID(),
-                label: level.label,
-                points: level.points,
-                description: level.description ?? "",
-            })),
+            levels: cloneLevels(linkedLibraryCriterion.levels),
             source_criterion_id: linkedLibraryCriterion.id,
             source_version: linkedLibraryCriterion.version,
             source_visibility: linkedLibraryCriterion.visibility,
@@ -259,86 +687,421 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
         toast.success("Criterio actualizado desde la biblioteca");
     }
 
+    function applyRubricLibraryUpdate() {
+        if (!linkedLibraryRubric) return;
+        const nextRubric = buildSnapshotRubric(linkedLibraryRubric);
+        onChange(nextRubric);
+        setSelectedId(nextRubric[0]?.id ?? null);
+        toast.success("Rúbrica actualizada desde la biblioteca");
+    }
+
+    async function handleDeleteCriterionLibrary() {
+        if (!criterionDeleteTarget) return;
+
+        setIsDeletingCriterion(true);
+        try {
+            const supabase = createSupabaseClient();
+            const { error } = await supabase
+                .from("rubric_criteria_library")
+                .delete()
+                .eq("id", criterionDeleteTarget.id);
+
+            if (error) throw new Error(error.message);
+
+            setLibraryCriteria((current) => current.filter((criterion) => criterion.id !== criterionDeleteTarget.id));
+            onChange(rubric.map((criterion) => (
+                criterion.source_criterion_id === criterionDeleteTarget.id
+                    ? {
+                        ...criterion,
+                        source_criterion_id: undefined,
+                        source_version: undefined,
+                        source_visibility: undefined,
+                    }
+                    : criterion
+            )));
+            toast.success("Criterio guardado eliminado");
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "No se pudo eliminar el criterio guardado.");
+        } finally {
+            setIsDeletingCriterion(false);
+            setCriterionDeleteTarget(null);
+        }
+    }
+
+    async function handleDeleteRubricLibrary() {
+        if (!rubricDeleteTarget) return;
+
+        setIsDeletingRubric(true);
+        try {
+            const supabase = createSupabaseClient();
+            const { error } = await supabase
+                .from("rubric_library")
+                .delete()
+                .eq("id", rubricDeleteTarget.id);
+
+            if (error) throw new Error(error.message);
+
+            setLibraryRubrics((current) => current.filter((savedRubric) => savedRubric.id !== rubricDeleteTarget.id));
+            onChange(rubric.map((criterion) => (
+                criterion.source_rubric_id === rubricDeleteTarget.id
+                    ? {
+                        ...criterion,
+                        source_rubric_id: undefined,
+                        source_rubric_version: undefined,
+                        source_rubric_visibility: undefined,
+                    }
+                    : criterion
+            )));
+            toast.success("Rúbrica guardada eliminada");
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "No se pudo eliminar la rúbrica guardada.");
+        } finally {
+            setIsDeletingRubric(false);
+            setRubricDeleteTarget(null);
+        }
+    }
+
+    function confirmRemoveRubricFromActivity() {
+        onChange([]);
+        setSelectedId(null);
+        setIsRemovingFromActivity(false);
+        toast.success("Rúbrica desvinculada de la actividad");
+    }
+
+    function confirmRemoveCriterionFromConstructor() {
+        if (!criterionRemoveTarget) return;
+        removeCriterion(criterionRemoveTarget.id);
+        setCriterionRemoveTarget(null);
+        toast.success("Criterio quitado del constructor");
+    }
+
     const ownCriteria = libraryCriteria.filter((criterion) => criterion.is_owner);
     const publicCriteria = libraryCriteria.filter((criterion) => !criterion.is_owner && criterion.visibility === "public");
+    const ownRubrics = libraryRubrics.filter((savedRubric) => savedRubric.is_owner);
+    const publicRubrics = libraryRubrics.filter((savedRubric) => !savedRubric.is_owner && savedRubric.visibility === "public");
 
     return (
         <>
-            <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
-                <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
-                    <DialogHeader className="shrink-0 px-6 py-4 border-b border-border-strong">
-                        <DialogTitle className="text-base font-bold">Configurar rúbrica</DialogTitle>
-                    </DialogHeader>
+        <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+            <DialogContent className="max-w-[96vw] w-[96vw] h-[92vh] p-0 flex flex-col gap-0 overflow-hidden border-border-strong bg-surface [&>button:last-child]:hidden">
+                <DialogHeader className="relative shrink-0 border-b border-border/50 p-6 pb-4">
+                    <div className="flex items-start gap-4 pr-12">
+                        <div className="min-w-0 flex-1 space-y-2">
+                            <DialogTitle className="text-base font-bold">Configurar rúbrica</DialogTitle>
+                            <DialogDescription>
+                                Define criterios, niveles y reutiliza elementos guardados desde la biblioteca.
+                            </DialogDescription>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Badge className="border-accent-blue/20 bg-accent-blue/8 text-accent-blue">
+                                    <Sparkles className="size-3.5" />
+                                    {rubric.length} criterio{rubric.length === 1 ? "" : "s"}
+                                </Badge>
+                                <Badge variant="outline" className="border-border/50 bg-surface-dark/50 text-text-muted">
+                                    {(rubric.reduce((count, criterion) => count + (criterion.levels?.length ?? 0), 0))} niveles
+                                </Badge>
+                                {linkedLibraryRubric ? (
+                                    <Badge className="border-accent-blue/20 bg-accent-blue/8 text-accent-blue">
+                                        Rúbrica guardada v{rubricSource?.version ?? linkedLibraryRubric.version}
+                                    </Badge>
+                                ) : (
+                                    <Badge variant="outline" className="border-border/50 bg-surface-dark/50 text-text-muted">
+                                        Rúbrica no guardada
+                                    </Badge>
+                                )}
+                            </div>
+                        </div>
 
-                    <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
-                        <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
-                            <div className="h-full flex flex-col bg-surface-dark">
-                                <div className="shrink-0 h-9 flex items-center px-4 border-b border-border-strong">
-                                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Criterios</span>
+                        <div className="ml-auto flex flex-wrap items-center justify-end gap-2 self-start">
+                            {hasRubricUpdateAvailable && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={applyRubricLibraryUpdate}
+                                    className="h-8 gap-1.5 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                                >
+                                    <RefreshCw className="size-3.5" />
+                                    Actualizar rúbrica
+                                </Button>
+                            )}
+                            {rubric.length > 0 && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setIsRemovingFromActivity(true)}
+                                    className="h-8 border-border-strong bg-background text-text-muted hover:bg-surface-dark hover:text-foreground"
+                                >
+                                    <X className="size-3.5" />
+                                    {linkedLibraryRubric ? "Desvincular de la actividad" : "Quitar rúbrica"}
+                                </Button>
+                            )}
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={openSaveRubricPanel}
+                                className={cn(
+                                    "h-8",
+                                    linkedLibraryRubric?.is_owner && rubricSource?.id === linkedLibraryRubric.id
+                                        ? getSavedActionClass(true)
+                                        : "border-border/50 bg-surface-dark/40 text-accent-blue hover:border-accent-blue/30 hover:bg-accent-blue/10"
+                                )}
+                            >
+                                <CloudUpload className="size-3.5" />
+                                {linkedLibraryRubric?.is_owner && rubricSource?.id === linkedLibraryRubric.id
+                                    ? "Actualizar rúbrica guardada"
+                                    : "Guardar rúbrica"}
+                            </Button>
+                        </div>
+                    </div>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={onClose}
+                        className="absolute right-6 top-6 size-8 text-text-muted hover:bg-surface-dark hover:text-foreground"
+                    >
+                        <X className="size-4" />
+                    </Button>
+                </DialogHeader>
+
+                <div className="relative flex-1 min-h-0">
+                    <ResizablePanelGroup direction="horizontal" className="h-full">
+                        <ResizablePanel defaultSize={14} minSize={14} maxSize={30}>
+                            <div className="h-full flex flex-col bg-surface-dark/30 border-r border-border/50">
+                                <div className="shrink-0 px-4 py-4 border-b border-border/50">
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex size-8 items-center justify-center rounded-xl bg-accent-blue/8 text-accent-blue">
+                                            <Layers className="size-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Biblioteca</p>
+                                            <p className="text-sm font-semibold text-foreground">Rúbricas guardadas</p>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="flex-1 overflow-y-auto p-3 space-y-1">
-                                    {rubric.length === 0 && (
-                                        <p className="text-xs text-text-muted italic px-2 py-4 text-center">
-                                            Sin criterios. Pulsa "＋ Criterio" para añadir.
-                                        </p>
+
+                                <div className="flex-1 overflow-y-auto p-3 space-y-5">
+                                    {isLibraryLoading ? (
+                                        <p className="text-sm text-text-muted">Cargando biblioteca...</p>
+                                    ) : ownRubrics.length === 0 && publicRubrics.length === 0 ? (
+                                        <div className="rounded-xl border border-dashed border-border/50 bg-surface-dark/40 p-4 text-sm text-text-muted">
+                                            Todavía no hay rúbricas guardadas. Guarda la actual para reutilizarla.
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="space-y-3">
+                                                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-text-muted">Mis rúbricas</p>
+                                                {ownRubrics.length === 0 ? (
+                                                    <p className="text-sm text-text-muted">No has guardado ninguna todavía.</p>
+                                                ) : (
+                                                    ownRubrics.map((savedRubric) => (
+                                                        <div key={savedRubric.id} className={libraryCardClass(rubricSource?.id === savedRubric.id)}>
+                                                            <div className="flex items-start justify-between gap-3">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleLibraryRubricSelection(savedRubric)}
+                                                                    className="min-w-0 flex-1 text-left"
+                                                                >
+                                                                    <div className="flex items-start justify-between gap-3">
+                                                                        <div className="min-w-0">
+                                                                            <p className="truncate text-sm font-semibold text-foreground">{savedRubric.name}</p>
+                                                                            {savedRubric.description && (
+                                                                                <p className="mt-1 text-xs leading-relaxed text-text-muted">{savedRubric.description}</p>
+                                                                            )}
+                                                                        </div>
+                                                                        <Badge className="shrink-0 border-accent-blue/25 bg-accent-blue/10 text-accent-blue">
+                                                                            v{savedRubric.version}
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                                        <Badge variant="outline" className="border-border-strong bg-surface-dark/70 text-text-muted">
+                                                                            {savedRubric.criteria.length} criterio{savedRubric.criteria.length === 1 ? "" : "s"}
+                                                                        </Badge>
+                                                                        <Badge className={cn(
+                                                                            "border-transparent",
+                                                                            savedRubric.visibility === "public"
+                                                                                ? "bg-accent-blue/16 text-accent-blue"
+                                                                                : "bg-slate-500/16 text-slate-300"
+                                                                        )}>
+                                                                            {savedRubric.visibility === "public" ? "Pública" : "Privada"}
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-text-muted/70">
+                                                                        Actualizada {formatUpdatedAt(savedRubric.updated_at)}
+                                                                    </p>
+                                                                </button>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={() => setRubricDeleteTarget(savedRubric)}
+                                                                    disabled={isDeletingRubric}
+                                                                    className="size-7 shrink-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                                                                >
+                                                                    <Trash2 className="size-3.5" />
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-text-muted">Públicas</p>
+                                                {publicRubrics.length === 0 ? (
+                                                    <p className="text-sm text-text-muted">No hay rúbricas públicas disponibles.</p>
+                                                ) : (
+                                                    publicRubrics.map((savedRubric) => (
+                                                        <button
+                                                            key={savedRubric.id}
+                                                            type="button"
+                                                            onClick={() => handleLibraryRubricSelection(savedRubric)}
+                                                            className={libraryCardClass(rubricSource?.id === savedRubric.id)}
+                                                        >
+                                                            <div className="flex items-start justify-between gap-3">
+                                                                <div className="min-w-0">
+                                                                    <p className="truncate text-sm font-semibold text-foreground">{savedRubric.name}</p>
+                                                                    {savedRubric.description && (
+                                                                        <p className="mt-1 text-xs leading-relaxed text-text-muted">{savedRubric.description}</p>
+                                                                    )}
+                                                                </div>
+                                                                <Badge className="shrink-0 border-accent-blue/25 bg-accent-blue/10 text-accent-blue">
+                                                                    v{savedRubric.version}
+                                                                </Badge>
+                                                            </div>
+                                                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                                <Badge variant="outline" className="border-border-strong bg-surface-dark/70 text-text-muted">
+                                                                    {savedRubric.criteria.length} criterio{savedRubric.criteria.length === 1 ? "" : "s"}
+                                                                </Badge>
+                                                                <Badge className="border-accent-blue/30 bg-accent-blue/16 text-accent-blue">
+                                                                    Pública
+                                                                </Badge>
+                                                            </div>
+                                                            <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-text-muted/70">
+                                                                Actualizada {formatUpdatedAt(savedRubric.updated_at)}
+                                                            </p>
+                                                        </button>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </>
                                     )}
+                                </div>
+                            </div>
+                        </ResizablePanel>
+
+                        <ResizableHandle withHandle className="bg-border-subtle hover:bg-accent-blue transition-colors duration-200 w-1.5" />
+
+                        <ResizablePanel defaultSize={16} minSize={16} maxSize={30}>
+                            <div className="h-full flex flex-col bg-surface-dark/20">
+                                <div className="shrink-0 px-4 py-4 border-b border-border/50">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-bold text-text-muted uppercase tracking-widest">Constructor</p>
+                                            <p className="text-sm font-semibold text-foreground">Criterios</p>
+                                        </div>
+                                        <Badge variant="outline" className="border-border/50 bg-surface-dark/50 text-text-muted">
+                                            {rubric.length}
+                                        </Badge>
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                                    {rubric.length === 0 && (
+                                        <div className="rounded-xl border border-dashed border-border/50 bg-surface-dark/40 p-4 text-center text-sm text-text-muted">
+                                            Sin criterios. Usa <span className="font-semibold text-accent-blue">+ Criterio</span> o carga una rúbrica guardada.
+                                        </div>
+                                    )}
+
                                     {rubric.map((criterion) => {
                                         const criterionSource = criterion.source_criterion_id
                                             ? libraryCriteria.find((item) => item.id === criterion.source_criterion_id)
                                             : null;
-                                        const criterionHasUpdate = !!(criterionSource && (criterion.source_version ?? 0) < criterionSource.version);
+                                        const criterionHasUpdate = Boolean(
+                                            criterionSource &&
+                                            (criterion.source_version ?? 0) < criterionSource.version
+                                        );
+
                                         return (
-                                            <button
+                                            <div
                                                 key={criterion.id}
-                                                onClick={() => setSelectedId(criterion.id)}
                                                 className={cn(
-                                                    "w-full text-left px-3 py-2.5 rounded-lg border transition-colors",
+                                                    "w-full rounded-xl border p-3 text-left transition-all duration-200",
                                                     selectedId === criterion.id
-                                                        ? "bg-accent-blue/10 border-accent-blue/40 text-foreground"
-                                                        : "bg-surface border-border-strong text-text-muted hover:text-foreground hover:bg-surface"
+                                                        ? "border-accent-blue/40 bg-accent-blue/8 shadow-[0_10px_26px_-20px_rgba(0,112,243,0.75)]"
+                                                        : "border-border/50 bg-surface-dark/40 hover:border-border-strong hover:bg-surface-dark/70"
                                                 )}
                                             >
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span className="text-sm font-semibold truncate">
-                                                        {criterion.name || <span className="italic text-text-muted/60">Sin nombre</span>}
-                                                    </span>
-                                                    <span className="text-[10px] font-mono shrink-0 px-1.5 py-0.5 rounded-full bg-surface-dark border border-border-strong text-text-muted">
-                                                        {criterion.levels?.length ?? 0} niv.
-                                                    </span>
-                                                </div>
-                                                {criterion.source_criterion_id && (
-                                                    <div className="mt-2 flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold">
-                                                        <span className="rounded-full border border-border-strong px-1.5 py-0.5 text-text-muted">
-                                                            Guardado
-                                                        </span>
-                                                        {criterionHasUpdate && (
-                                                            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-amber-400">
-                                                                Actualización disponible
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedId(criterion.id)}
+                                                        className="min-w-0 flex-1 text-left"
+                                                    >
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <span className="truncate text-sm font-semibold text-foreground">
+                                                                {criterion.name || <span className="italic text-text-muted/60">Sin nombre</span>}
                                                             </span>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </button>
+                                                            <Badge variant="outline" className="border-border/50 bg-surface-dark/50 text-text-muted">
+                                                                {criterion.levels?.length ?? 0} niv.
+                                                            </Badge>
+                                                        </div>
+
+                                                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                            {criterion.source_criterion_id && (
+                                                                <Badge className="border-accent-blue/30 bg-accent-blue/10 text-accent-blue">
+                                                                    Guardado
+                                                                </Badge>
+                                                            )}
+                                                            {criterion.source_rubric_id && (
+                                                                <Badge variant="outline" className="border-border-strong bg-surface-dark/80 text-text-muted">
+                                                                    Enlazado a rúbrica
+                                                                </Badge>
+                                                            )}
+                                                            {criterionHasUpdate && (
+                                                                <Badge className="border-amber-500/30 bg-amber-500/12 text-amber-300">
+                                                                    Actualización disponible
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                    </button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => setCriterionRemoveTarget(criterion)}
+                                                        className="size-7 shrink-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                                                    >
+                                                        <Trash2 className="size-3.5" />
+                                                    </Button>
+                                                </div>
+                                            </div>
                                         );
                                     })}
                                 </div>
+
                                 <div className="shrink-0 p-3 border-t border-border-strong">
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
                                             <Button
                                                 variant="outline"
                                                 size="sm"
-                                                className="w-full h-8 text-xs gap-1.5 border-border-strong text-text-muted hover:text-foreground"
+                                                className="w-full h-9 gap-1.5 border-accent-blue/30 bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/16 hover:text-accent-blue"
                                             >
-                                                <Plus className="size-3" /> Criterio
+                                                <Plus className="size-3.5" />
+                                                Criterio
                                             </Button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="w-48">
-                                            <DropdownMenuItem onClick={addNewCriterion} className="cursor-pointer text-xs gap-2">
-                                                <Plus className="size-3.5" /> Nuevo criterio
+                                        <DropdownMenuContent
+                                            align="end"
+                                            className="z-[90] w-56 border-border-strong bg-popover/95 backdrop-blur-xl"
+                                        >
+                                            <DropdownMenuItem onClick={addNewCriterion} className="cursor-pointer gap-2 text-xs">
+                                                <Plus className="size-3.5 text-accent-blue" />
+                                                Nuevo criterio
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => setIsLibraryDialogOpen(true)} className="cursor-pointer text-xs gap-2">
-                                                <Library className="size-3.5" /> Usar criterio guardado
+                                            <DropdownMenuItem onClick={() => setOverlayMode("criterion-library")} className="cursor-pointer gap-2 text-xs">
+                                                <Library className="size-3.5 text-accent-blue" />
+                                                Usar criterio guardado
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
@@ -348,111 +1111,167 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
 
                         <ResizableHandle withHandle className="bg-border-subtle hover:bg-accent-blue transition-colors duration-200 w-1.5" />
 
-                        <ResizablePanel defaultSize={65} minSize={50}>
+                        <ResizablePanel defaultSize={52} minSize={34}>
                             <div className="h-full flex flex-col bg-surface overflow-y-auto">
                                 {selected === null ? (
-                                    <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center p-12">
-                                        <p className="text-sm text-text-muted">Selecciona o añade un criterio para editarlo.</p>
+                                    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center p-12">
+                                        <div className="flex size-14 items-center justify-center rounded-3xl bg-surface-dark border border-border/50 text-accent-blue">
+                                            <Sparkles className="size-6" />
+                                        </div>
+                                        <div>
+                                            <p className="text-base font-semibold text-foreground">Selecciona o añade un criterio</p>
+                                            <p className="mt-1 text-sm text-text-muted">Aquí editarás nombres, descripciones y niveles.</p>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="p-6 space-y-5 flex-1">
-                                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-strong bg-surface-dark/60 p-3">
-                                            <div className="space-y-1">
-                                                <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Biblioteca</p>
-                                                {selected.source_criterion_id ? (
-                                                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                                                        <span className="rounded-full border border-border-strong px-2 py-1 text-text-muted">
-                                                            v{selected.source_version ?? 1}
-                                                        </span>
-                                                        <span className="rounded-full border border-border-strong px-2 py-1 text-text-muted">
-                                                            {selected.source_visibility === "public" ? "Público" : "Privado"}
-                                                        </span>
-                                                        {hasUpdateAvailable && (
-                                                            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-amber-400">
+                                        <div className="rounded-xl border border-border/50 bg-surface-dark/40 p-4">
+                                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                                <div className="space-y-2">
+                                                    <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Estado</p>
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        {selected.source_criterion_id ? (
+                                                            <>
+                                                                <Badge className="border-accent-blue/20 bg-accent-blue/8 text-accent-blue">
+                                                                    Guardado v{selected.source_version ?? 1}
+                                                                </Badge>
+                                                                <Badge className={cn(
+                                                                    "border-transparent",
+                                                                    selected.source_visibility === "public"
+                                                                        ? "bg-accent-blue/16 text-accent-blue"
+                                                                        : "bg-slate-500/16 text-slate-300"
+                                                                )}>
+                                                                    {selected.source_visibility === "public" ? "Público" : "Privado"}
+                                                                </Badge>
+                                                            </>
+                                                        ) : (
+                                                            <Badge variant="outline" className="border-border/50 bg-surface-dark/50 text-text-muted">
+                                                                No guardado
+                                                            </Badge>
+                                                        )}
+                                                        {hasCriterionUpdateAvailable && (
+                                                            <Badge className="border-amber-500/30 bg-amber-500/12 text-amber-300">
                                                                 Actualización disponible
-                                                            </span>
+                                                            </Badge>
                                                         )}
                                                     </div>
-                                                ) : (
-                                                    <p className="text-sm text-text-muted">Este criterio todavía no está guardado.</p>
-                                                )}
-                                            </div>
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                {hasUpdateAvailable && (
+                                                    <p className="text-sm text-text-muted">
+                                                        {selected.source_rubric_id
+                                                            ? "Este criterio pertenece a una rúbrica guardada."
+                                                            : "Puedes guardarlo como criterio reutilizable o mantenerlo solo en esta actividad."}
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    {hasCriterionUpdateAvailable && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={applyCriterionLibraryUpdate}
+                                                            className="h-8 gap-1.5 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                                                        >
+                                                            <RefreshCw className="size-3.5" />
+                                                            Actualizar criterio
+                                                        </Button>
+                                                    )}
+                                                    {linkedLibraryCriterion?.is_owner && selected.source_criterion_id === linkedLibraryCriterion.id && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setCriterionDeleteTarget(linkedLibraryCriterion)}
+                                                            disabled={isDeletingCriterion}
+                                                            className="h-8 gap-1.5 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                                                        >
+                                                            <Trash2 className="size-3.5" />
+                                                            {isDeletingCriterion ? "Eliminando..." : "Eliminar de biblioteca"}
+                                                        </Button>
+                                                    )}
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
-                                                        onClick={applyLibraryUpdate}
-                                                        className="h-8 text-xs gap-1.5 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                                                        onClick={openSaveCriterionPanel}
+                                                        className={cn(
+                                                            "h-8",
+                                                            linkedLibraryCriterion?.is_owner && selected.source_criterion_id === linkedLibraryCriterion.id
+                                                                ? getSavedActionClass(true)
+                                                                : "border-accent-blue/30 bg-background text-accent-blue hover:bg-accent-blue/16"
+                                                        )}
                                                     >
-                                                        <RefreshCw className="size-3.5" /> Actualizar
+                                                        <CloudUpload className="size-3.5" />
+                                                        {linkedLibraryCriterion?.is_owner && selected.source_criterion_id === linkedLibraryCriterion.id
+                                                            ? "Actualizar criterio guardado"
+                                                            : "Guardar criterio"}
                                                     </Button>
-                                                )}
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={openSaveDialog}
-                                                    className="h-8 text-xs gap-1.5 border-border-strong text-text-muted hover:text-foreground"
-                                                >
-                                                    <CloudUpload className="size-3.5" />
-                                                    {linkedLibraryCriterion?.is_owner && selected.source_criterion_id === linkedLibraryCriterion.id
-                                                        ? "Actualizar criterio guardado"
-                                                        : "Guardar criterio"}
-                                                </Button>
+                                                </div>
                                             </div>
                                         </div>
+
                                         <div className="space-y-1.5">
                                             <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Nombre del criterio</label>
                                             <Input
                                                 value={selected.name}
                                                 onChange={(event) => updateCriterion(selected.id, { name: event.target.value })}
                                                 placeholder="Ej: Claridad de la explicación"
-                                                className="bg-surface-dark border-border-strong"
+                                                className="border-border-strong bg-surface-dark/80 focus-visible:ring-accent-blue/30"
                                             />
                                         </div>
 
                                         <div className="space-y-1.5">
-                                            <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Descripción (opcional)</label>
+                                            <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Descripción</label>
                                             <Textarea
                                                 value={selected.description ?? ""}
                                                 onChange={(event) => updateCriterion(selected.id, { description: event.target.value })}
                                                 placeholder="Contexto general del criterio"
                                                 rows={2}
-                                                className="bg-surface-dark border-border-strong resize-none text-sm"
+                                                className="border-border-strong bg-surface-dark/80 resize-none text-sm focus-visible:ring-accent-blue/30"
                                             />
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <div className="flex items-center justify-between mb-4">
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
                                                 <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Niveles</label>
-                                                <span className="text-xs text-text-muted">
-                                                    {selected.levels?.length ?? 0} nivel{(selected.levels?.length ?? 0) !== 1 ? "es" : ""}
-                                                </span>
+                                                <Badge variant="outline" className="border-border/50 bg-surface-dark/50 text-text-muted">
+                                                    {selected.levels?.length ?? 0} nivel{(selected.levels?.length ?? 0) === 1 ? "" : "es"}
+                                                </Badge>
+                                            </div>
+
+                                            <div className="rounded-xl border border-border/50 bg-surface-dark/40 p-3 text-sm text-text-muted">
+                                                La calificación usa los <span className="font-semibold text-foreground">puntos</span>, no el número visual del nivel.
+                                                Recomendado: <span className="font-semibold text-foreground">Nivel 1 = 0 puntos</span> y subir de forma progresiva.
                                             </div>
 
                                             <div className="space-y-3">
-                                                {(selected.levels ?? []).map((level) => (
-                                                    <div key={level.id} className="bg-surface/30 border border-border-strong rounded-xl p-4 relative group transition-colors hover:border-border-subtle">
+                                                {(selected.levels ?? []).map((level, index) => (
+                                                    <div
+                                                        key={level.id}
+                                                        className="group relative rounded-xl border border-border/50 bg-surface-dark/40 p-4 transition-colors hover:border-border-strong"
+                                                    >
                                                         <button
                                                             onClick={() => removeLevel(selected.id, level.id)}
-                                                            className="absolute top-3 right-3 flex items-center justify-center size-7 rounded-md text-text-muted opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                                            className="absolute right-3 top-3 flex size-7 items-center justify-center rounded-md text-text-muted opacity-0 transition-all hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100 focus:opacity-100"
                                                             title="Eliminar nivel"
                                                         >
                                                             <Trash2 className="size-3.5" />
                                                         </button>
 
-                                                        <div className="flex gap-4 mb-3 pr-8">
+                                                        <div className="mb-3 flex items-center gap-2">
+                                                            <Badge className="border-accent-blue/20 bg-accent-blue/8 text-accent-blue">
+                                                                Nivel {index + 1}
+                                                            </Badge>
+                                                        </div>
+
+                                                        <div className="mb-3 flex gap-4 pr-8">
                                                             <div className="flex-1 space-y-1.5">
                                                                 <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Etiqueta</label>
                                                                 <Input
                                                                     value={level.label}
                                                                     onChange={(event) => updateLevel(selected.id, level.id, { label: event.target.value })}
                                                                     placeholder="Ej: Excelente"
-                                                                    className="bg-surface-dark border-border-strong h-8 text-sm"
+                                                                    className="h-8 border-border/50 bg-surface-dark focus-visible:ring-accent-blue/30"
                                                                 />
                                                             </div>
-                                                            <div className="w-20 space-y-1.5">
-                                                                <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest text-center block">Puntos</label>
+                                                            <div className="w-24 space-y-1.5">
+                                                                <label className="block text-center text-[10px] font-bold text-text-muted uppercase tracking-widest">Puntos</label>
                                                                 <Input
                                                                     type="number"
                                                                     min={0}
@@ -463,9 +1282,11 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
                                                                     onChange={(event) => {
                                                                         const raw = event.target.value;
                                                                         const parsed = parseFloat(raw);
-                                                                        updateLevel(selected.id, level.id, { points: Number.isNaN(parsed) ? 0 : parsed });
+                                                                        updateLevel(selected.id, level.id, {
+                                                                            points: Number.isNaN(parsed) ? 0 : parsed,
+                                                                        });
                                                                     }}
-                                                                    className="bg-surface-dark border-border-strong h-8 text-sm text-center font-mono"
+                                                                    className="h-8 border-border/50 bg-surface-dark text-center font-mono focus-visible:ring-accent-blue/30"
                                                                 />
                                                             </div>
                                                         </div>
@@ -477,7 +1298,7 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
                                                                 onChange={(event) => updateLevel(selected.id, level.id, { description: event.target.value })}
                                                                 placeholder="Describe qué se requiere para alcanzar este nivel"
                                                                 rows={2}
-                                                                className="bg-surface-dark border-border-strong resize-none text-sm"
+                                                                className="border-border/50 bg-surface-dark resize-none text-sm focus-visible:ring-accent-blue/30"
                                                             />
                                                         </div>
                                                     </div>
@@ -488,155 +1309,388 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() => addLevel(selected.id)}
-                                                className="h-7 text-xs gap-1.5 border-border-strong text-text-muted hover:text-foreground"
+                                                className="h-8 gap-1.5 border-accent-blue/30 bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/16 hover:text-accent-blue"
                                             >
-                                                <Plus className="size-3" /> Añadir nivel
+                                                <Plus className="size-3.5" />
+                                                Añadir nivel
                                             </Button>
                                         </div>
 
-                                        <div className="pt-4 border-t border-border-strong flex justify-end">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => removeCriterion(selected.id)}
-                                                className="h-7 text-xs gap-1.5 border-red-500/30 text-red-400 hover:bg-red-500/10"
-                                            >
-                                                <Trash2 className="size-3" /> Eliminar criterio
-                                            </Button>
-                                        </div>
                                     </div>
                                 )}
                             </div>
                         </ResizablePanel>
                     </ResizablePanelGroup>
-                </DialogContent>
-            </Dialog>
-            <Dialog open={isLibraryDialogOpen} onOpenChange={setIsLibraryDialogOpen}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>Usar criterio guardado</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-5">
-                        {isLibraryLoading ? (
-                            <p className="text-sm text-text-muted">Cargando criterios guardados...</p>
-                        ) : ownCriteria.length === 0 && publicCriteria.length === 0 ? (
-                            <p className="text-sm text-text-muted">No hay criterios guardados disponibles.</p>
-                        ) : (
-                            <>
-                                <div className="space-y-3">
-                                    <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Mis criterios</p>
-                                    {ownCriteria.length === 0 ? (
-                                        <p className="text-sm text-text-muted">Todavía no has guardado criterios.</p>
-                                    ) : (
-                                        ownCriteria.map((criterion) => (
-                                            <button
-                                                key={criterion.id}
-                                                type="button"
-                                                onClick={() => insertSavedCriterion(criterion)}
-                                                className="w-full rounded-xl border border-border-strong bg-surface text-left p-4 hover:border-accent-blue/40 hover:bg-surface-dark transition-colors"
-                                            >
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <div>
-                                                        <p className="font-semibold text-foreground">{criterion.name}</p>
-                                                        {criterion.description && <p className="text-sm text-text-muted mt-1">{criterion.description}</p>}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-wider">
-                                                        <span className="rounded-full border border-border-strong px-2 py-1 text-text-muted">v{criterion.version}</span>
-                                                        <span className="rounded-full border border-border-strong px-2 py-1 text-text-muted">
-                                                            {criterion.visibility === "public" ? "Público" : "Privado"}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </button>
-                                        ))
-                                    )}
+
+                    {overlayMode !== null && (
+                        <div className="absolute inset-0 z-85 flex items-center justify-center bg-black/60 p-6">
+                            <div className="w-full max-w-3xl rounded-2xl border border-border-strong bg-surface shadow-lg">
+                                <div className="flex items-center justify-between border-b border-border/50 px-6 py-5">
+                                    <div>
+                                        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">
+                                            {overlayMode === "criterion-library" ? "Biblioteca" : "Guardar"}
+                                        </p>
+                                        <h3 className="text-base font-semibold text-foreground">
+                                            {overlayMode === "criterion-library" && "Usar criterio guardado"}
+                                            {overlayMode === "criterion-save" && (linkedLibraryCriterion?.is_owner && selected?.source_criterion_id === linkedLibraryCriterion.id
+                                                ? "Actualizar criterio guardado"
+                                                : "Guardar criterio")}
+                                            {overlayMode === "rubric-save" && (linkedLibraryRubric?.is_owner && rubricSource?.id === linkedLibraryRubric.id
+                                                ? "Actualizar rúbrica guardada"
+                                                : "Guardar rúbrica")}
+                                        </h3>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => setOverlayMode(null)}
+                                        className="size-8 text-text-muted hover:bg-surface-dark hover:text-foreground"
+                                    >
+                                        <X className="size-4" />
+                                    </Button>
                                 </div>
 
-                                <div className="space-y-3">
-                                    <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Públicos</p>
-                                    {publicCriteria.length === 0 ? (
-                                        <p className="text-sm text-text-muted">No hay criterios públicos disponibles.</p>
-                                    ) : (
-                                        publicCriteria.map((criterion) => (
-                                            <button
-                                                key={criterion.id}
-                                                type="button"
-                                                onClick={() => insertSavedCriterion(criterion)}
-                                                className="w-full rounded-xl border border-border-strong bg-surface text-left p-4 hover:border-accent-blue/40 hover:bg-surface-dark transition-colors"
-                                            >
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <div>
-                                                        <p className="font-semibold text-foreground">{criterion.name}</p>
-                                                        {criterion.description && <p className="text-sm text-text-muted mt-1">{criterion.description}</p>}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-wider">
-                                                        <span className="rounded-full border border-border-strong px-2 py-1 text-text-muted">v{criterion.version}</span>
-                                                        <span className="rounded-full border border-border-strong px-2 py-1 text-text-muted">Público</span>
-                                                    </div>
+                                {overlayMode === "criterion-library" && (
+                                    <div className="max-h-[70vh] overflow-y-auto p-6 space-y-6">
+                                        {isLibraryLoading ? (
+                                            <p className="text-sm text-text-muted">Cargando criterios guardados...</p>
+                                        ) : ownCriteria.length === 0 && publicCriteria.length === 0 ? (
+                                            <p className="text-sm text-text-muted">No hay criterios guardados disponibles.</p>
+                                        ) : (
+                                            <>
+                                                <div className="space-y-3">
+                                                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-text-muted">Mis criterios</p>
+                                                    {ownCriteria.length === 0 ? (
+                                                        <p className="text-sm text-text-muted">Todavía no has guardado criterios.</p>
+                                                    ) : (
+                                                        ownCriteria.map((criterion) => (
+                                                            <button
+                                                                key={criterion.id}
+                                                                type="button"
+                                                                onClick={() => insertSavedCriterion(criterion)}
+                                                                className={libraryCardClass(false)}
+                                                            >
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <div className="min-w-0">
+                                                                        <p className="truncate text-sm font-semibold text-foreground">{criterion.name}</p>
+                                                                        {criterion.description && (
+                                                                            <p className="mt-1 text-xs leading-relaxed text-text-muted">{criterion.description}</p>
+                                                                        )}
+                                                                    </div>
+                                                                    <Badge className="border-accent-blue/25 bg-accent-blue/10 text-accent-blue">
+                                                                        v{criterion.version}
+                                                                    </Badge>
+                                                                </div>
+                                                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                                    <Badge variant="outline" className="border-border-strong bg-surface-dark/70 text-text-muted">
+                                                                        {criterion.levels.length} nivel{criterion.levels.length === 1 ? "" : "es"}
+                                                                    </Badge>
+                                                                    <Badge className={cn(
+                                                                        "border-transparent",
+                                                                        criterion.visibility === "public"
+                                                                            ? "bg-accent-blue/16 text-accent-blue"
+                                                                            : "bg-slate-500/16 text-slate-300"
+                                                                    )}>
+                                                                        {criterion.visibility === "public" ? "Público" : "Privado"}
+                                                                    </Badge>
+                                                                </div>
+                                                            </button>
+                                                        ))
+                                                    )}
                                                 </div>
-                                            </button>
-                                        ))
-                                    )}
-                                </div>
-                            </>
-                        )}
-                    </div>
-                </DialogContent>
-            </Dialog>
+                                                <div className="space-y-3">
+                                                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-text-muted">Públicos</p>
+                                                    {publicCriteria.length === 0 ? (
+                                                        <p className="text-sm text-text-muted">No hay criterios públicos disponibles.</p>
+                                                    ) : (
+                                                        publicCriteria.map((criterion) => (
+                                                            <button
+                                                                key={criterion.id}
+                                                                type="button"
+                                                                onClick={() => insertSavedCriterion(criterion)}
+                                                                className={libraryCardClass(false)}
+                                                            >
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <div className="min-w-0">
+                                                                        <p className="truncate text-sm font-semibold text-foreground">{criterion.name}</p>
+                                                                        {criterion.description && (
+                                                                            <p className="mt-1 text-xs leading-relaxed text-text-muted">{criterion.description}</p>
+                                                                        )}
+                                                                    </div>
+                                                                    <Badge className="border-accent-blue/25 bg-accent-blue/10 text-accent-blue">
+                                                                        v{criterion.version}
+                                                                    </Badge>
+                                                                </div>
+                                                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                                    <Badge variant="outline" className="border-border-strong bg-surface-dark/70 text-text-muted">
+                                                                        {criterion.levels.length} nivel{criterion.levels.length === 1 ? "" : "es"}
+                                                                    </Badge>
+                                                                    <Badge className="border-accent-blue/30 bg-accent-blue/16 text-accent-blue">
+                                                                        Público
+                                                                    </Badge>
+                                                                </div>
+                                                            </button>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
 
-            <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {linkedLibraryCriterion?.is_owner && selected?.source_criterion_id === linkedLibraryCriterion.id
-                                ? "Actualizar criterio guardado"
-                                : "Guardar criterio"}
-                        </DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <Label>Nombre</Label>
-                            <Input value={selected?.name ?? ""} readOnly className="bg-surface-dark border-border-strong" />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Visibilidad</Label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setSaveVisibility("private")}
-                                    className={cn(
-                                        "justify-start",
-                                        saveVisibility === "private" && "border-accent-blue/40 text-accent-blue bg-accent-blue/10"
-                                    )}
-                                >
-                                    Privado
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setSaveVisibility("public")}
-                                    className={cn(
-                                        "justify-start",
-                                        saveVisibility === "public" && "border-accent-blue/40 text-accent-blue bg-accent-blue/10"
-                                    )}
-                                >
-                                    Público
-                                </Button>
+                                {overlayMode === "criterion-save" && (
+                                    <div className="p-6 space-y-4">
+                                        <div className="space-y-2">
+                                            <Label>Nombre</Label>
+                                            <Input value={selected?.name ?? ""} readOnly className="border-border-strong bg-surface-dark/80" />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Visibilidad</Label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => setSaveCriterionVisibility("private")}
+                                                    className={cn(
+                                                        "justify-start border-border-strong",
+                                                        saveCriterionVisibility === "private" && "border-accent-blue/40 bg-accent-blue/10 text-accent-blue"
+                                                    )}
+                                                >
+                                                    Privado
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => setSaveCriterionVisibility("public")}
+                                                    className={cn(
+                                                        "justify-start border-border-strong",
+                                                        saveCriterionVisibility === "public" && "border-accent-blue/40 bg-accent-blue/10 text-accent-blue"
+                                                    )}
+                                                >
+                                                    Público
+                                                </Button>
+                                            </div>
+                                            <p className="text-xs text-text-muted">
+                                                Privado: solo tú. Público: cualquier profesor puede reutilizarlo.
+                                            </p>
+                                        </div>
+
+                                        <Button
+                                            onClick={handleSaveCriterion}
+                                            disabled={isSavingCriterion}
+                                            className={cn(
+                                                "w-full gap-2",
+                                                linkedLibraryCriterion?.is_owner && selected?.source_criterion_id === linkedLibraryCriterion.id
+                                                    ? "border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                                                    : "bg-accent-blue text-white hover:bg-accent-blue/90"
+                                            )}
+                                        >
+                                            <CloudUpload className="size-4" />
+                                            {isSavingCriterion ? "Guardando..." : linkedLibraryCriterion?.is_owner && selected?.source_criterion_id === linkedLibraryCriterion.id
+                                                ? "Actualizar criterio guardado"
+                                                : "Guardar criterio"}
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {overlayMode === "rubric-save" && (
+                                    <div className="p-6 space-y-4">
+                                        <div className="space-y-2">
+                                            <Label>Nombre</Label>
+                                            <Input
+                                                value={rubricSaveName}
+                                                onChange={(event) => setRubricSaveName(event.target.value)}
+                                                placeholder="Ej: Rúbrica de proyecto final"
+                                                className="border-border-strong bg-surface-dark/80"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Descripción</Label>
+                                            <Textarea
+                                                value={rubricSaveDescription}
+                                                onChange={(event) => setRubricSaveDescription(event.target.value)}
+                                                placeholder="Contexto y uso recomendado de esta rúbrica"
+                                                rows={3}
+                                                className="border-border-strong bg-surface-dark/80 resize-none"
+                                            />
+                                        </div>
+
+                                        <div className="rounded-2xl border border-accent-blue/20 bg-accent-blue/8 p-4">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <Badge className="border-accent-blue/30 bg-accent-blue/10 text-accent-blue">
+                                                    {rubric.length} criterio{rubric.length === 1 ? "" : "s"}
+                                                </Badge>
+                                                <Badge variant="outline" className="border-border-strong bg-surface-dark/80 text-text-muted">
+                                                    {rubric.reduce((count, criterion) => count + (criterion.levels?.length ?? 0), 0)} niveles
+                                                </Badge>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Visibilidad</Label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => setSaveRubricVisibility("private")}
+                                                    className={cn(
+                                                        "justify-start border-border-strong",
+                                                        saveRubricVisibility === "private" && "border-accent-blue/40 bg-accent-blue/10 text-accent-blue"
+                                                    )}
+                                                >
+                                                    Privada
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => setSaveRubricVisibility("public")}
+                                                    className={cn(
+                                                        "justify-start border-border-strong",
+                                                        saveRubricVisibility === "public" && "border-accent-blue/40 bg-accent-blue/10 text-accent-blue"
+                                                    )}
+                                                >
+                                                    Pública
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        <Button
+                                            onClick={handleSaveRubric}
+                                            disabled={isSavingRubric}
+                                            className={cn(
+                                                "w-full gap-2",
+                                                linkedLibraryRubric?.is_owner && rubricSource?.id === linkedLibraryRubric.id
+                                                    ? "border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                                                    : "bg-accent-blue text-white hover:bg-accent-blue/90"
+                                            )}
+                                        >
+                                            <CloudUpload className="size-4" />
+                                            {isSavingRubric ? "Guardando..." : linkedLibraryRubric?.is_owner && rubricSource?.id === linkedLibraryRubric.id
+                                                ? "Actualizar rúbrica guardada"
+                                                : "Guardar rúbrica"}
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
-                            <p className="text-xs text-text-muted">
-                                Privado: solo tú. Público: cualquier profesor puede reutilizarlo.
-                            </p>
                         </div>
-                        <Button onClick={handleSaveCriterion} disabled={isPending} className="w-full gap-2">
-                            <CloudUpload className="size-4" />
-                            {linkedLibraryCriterion?.is_owner && selected?.source_criterion_id === linkedLibraryCriterion.id
-                                ? "Actualizar criterio guardado"
-                                : "Guardar criterio"}
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
+        <AlertDialog open={!!criterionDeleteTarget} onOpenChange={(nextOpen) => !nextOpen && setCriterionDeleteTarget(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>¿Eliminar criterio guardado?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {criterionDeleteTarget
+                            ? `Se eliminará "${criterionDeleteTarget.name}" de tu biblioteca. Los criterios ya insertados en actividades se mantendrán, pero perderán el enlace con la versión guardada.`
+                            : ""}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeletingCriterion}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={handleDeleteCriterionLibrary}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                        {isDeletingCriterion ? "Eliminando..." : "Eliminar criterio"}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+        <AlertDialog open={!!criterionRemoveTarget} onOpenChange={(nextOpen) => !nextOpen && setCriterionRemoveTarget(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>¿Quitar criterio del constructor?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {criterionRemoveTarget
+                            ? `Se quitará "${criterionRemoveTarget.name || "este criterio"}" de la rúbrica actual. Si estaba guardado en biblioteca, seguirá existiendo allí.`
+                            : ""}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={confirmRemoveCriterionFromConstructor}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                        Quitar del constructor
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+        <AlertDialog open={!!rubricDeleteTarget} onOpenChange={(nextOpen) => !nextOpen && setRubricDeleteTarget(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>¿Eliminar rúbrica guardada?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {rubricDeleteTarget
+                            ? `Se eliminará "${rubricDeleteTarget.name}" de tu biblioteca. Las actividades que la estaban usando conservarán sus criterios, pero perderán el enlace con la rúbrica guardada.`
+                            : ""}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeletingRubric}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={handleDeleteRubricLibrary}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                        {isDeletingRubric ? "Eliminando..." : "Eliminar rúbrica"}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+        <AlertDialog open={!!pendingRubricSelection} onOpenChange={(nextOpen) => !nextOpen && setPendingRubricSelection(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>¿Cargar otra rúbrica?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {pendingRubricSelection
+                            ? `Vas a reemplazar la rúbrica actual por "${pendingRubricSelection.name}". Los cambios que tengas ahora en la actividad se sobrescribirán.`
+                            : ""}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={() => {
+                            if (!pendingRubricSelection) return;
+                            applySavedRubric(pendingRubricSelection);
+                            setPendingRubricSelection(null);
+                        }}
+                        className="bg-accent-blue text-white hover:bg-accent-blue/90"
+                    >
+                        Reemplazar rúbrica
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+        <AlertDialog open={isRemovingFromActivity} onOpenChange={setIsRemovingFromActivity}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>
+                        {linkedLibraryRubric ? "¿Desvincular rúbrica de la actividad?" : "¿Quitar rúbrica de la actividad?"}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {linkedLibraryRubric
+                            ? "La rúbrica se quitará de esta actividad, pero seguirá existiendo en tu biblioteca para reutilizarla cuando quieras."
+                            : "La rúbrica actual no está guardada en biblioteca. Si la quitas de la actividad, se eliminarán todos sus criterios."}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={confirmRemoveRubricFromActivity}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                        {linkedLibraryRubric ? "Desvincular" : "Quitar rúbrica"}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
         </>
     );
 }

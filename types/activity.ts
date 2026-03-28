@@ -58,6 +58,9 @@ export type RubricCriteria = {
     source_criterion_id?: string;
     source_version?: number;
     source_visibility?: "private" | "public";
+    source_rubric_id?: string;
+    source_rubric_version?: number;
+    source_rubric_visibility?: "private" | "public";
 };
 
 export function criteriaMaxPoints(c: RubricCriteria): number {

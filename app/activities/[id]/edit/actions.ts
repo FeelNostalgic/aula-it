@@ -23,6 +23,18 @@ type RubricCriterionLibraryRecord = {
     updated_at: string;
 };
 
+type RubricLibraryRecord = {
+    id: string;
+    name: string;
+    description: string | null;
+    criteria: RubricCriteria[];
+    visibility: RubricCriterionLibraryVisibility;
+    version: number;
+    created_by: string;
+    created_at: string;
+    updated_at: string;
+};
+
 export async function getActivityPhases(activityId: string) {
     const supabase = await createClient();
 
@@ -818,6 +830,36 @@ function normalizeRubricLevels(levels: RubricLevel[]) {
     }));
 }
 
+function normalizeRubricCriteria(criteria: RubricCriteria[]) {
+    return criteria.map((criterion) => ({
+        id: criterion.id,
+        name: criterion.name,
+        description: criterion.description ?? "",
+        levels: normalizeRubricLevels(criterion.levels ?? []),
+        source_criterion_id: criterion.source_criterion_id ?? null,
+        source_version: criterion.source_version ?? null,
+        source_visibility: criterion.source_visibility ?? null,
+        source_rubric_id: criterion.source_rubric_id ?? null,
+        source_rubric_version: criterion.source_rubric_version ?? null,
+        source_rubric_visibility: criterion.source_rubric_visibility ?? null,
+    }));
+}
+
+function hydrateRubricCriteria(criteria: RubricCriteria[]) {
+    return criteria.map((criterion) => ({
+        id: criterion.id,
+        name: criterion.name,
+        description: criterion.description ?? "",
+        levels: normalizeRubricLevels(criterion.levels ?? []),
+        source_criterion_id: criterion.source_criterion_id ?? undefined,
+        source_version: criterion.source_version ?? undefined,
+        source_visibility: criterion.source_visibility ?? undefined,
+        source_rubric_id: criterion.source_rubric_id ?? undefined,
+        source_rubric_version: criterion.source_rubric_version ?? undefined,
+        source_rubric_visibility: criterion.source_rubric_visibility ?? undefined,
+    }));
+}
+
 export async function getRubricCriteriaLibrary() {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -838,6 +880,28 @@ export async function getRubricCriteriaLibrary() {
     }));
 
     return { criteria };
+}
+
+export async function getRubricLibrary() {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado.", rubrics: [] as Array<RubricLibraryRecord & { is_owner: boolean }> };
+
+    const { data, error } = await supabase
+        .from("rubric_library")
+        .select("*")
+        .or(`created_by.eq.${user.id},visibility.eq.public`)
+        .order("updated_at", { ascending: false });
+
+    if (error) return { error: error.message, rubrics: [] as Array<RubricLibraryRecord & { is_owner: boolean }> };
+
+    const rubrics = (data ?? []).map((rubric: any) => ({
+        ...rubric,
+        criteria: hydrateRubricCriteria((rubric.criteria ?? []) as RubricCriteria[]),
+        is_owner: rubric.created_by === user.id,
+    }));
+
+    return { rubrics };
 }
 
 export async function createRubricCriterionLibraryEntry(
@@ -866,6 +930,37 @@ export async function createRubricCriterionLibraryEntry(
         criterion: {
             ...data,
             levels: normalizeRubricLevels((data.levels ?? []) as RubricLevel[]),
+            is_owner: true,
+        },
+    };
+}
+
+export async function createRubricLibraryEntry(
+    rubric: Pick<RubricLibraryRecord, "name" | "description" | "criteria">,
+    visibility: RubricCriterionLibraryVisibility
+) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+        .from("rubric_library")
+        .insert({
+            name: rubric.name.trim(),
+            description: rubric.description?.trim() || null,
+            criteria: normalizeRubricCriteria(rubric.criteria ?? []),
+            visibility,
+            created_by: user.id,
+        })
+        .select("*")
+        .single();
+
+    if (error) return { error: error.message };
+    return {
+        rubric: {
+            ...data,
+            criteria: hydrateRubricCriteria((data.criteria ?? []) as RubricCriteria[]),
             is_owner: true,
         },
     };
@@ -908,6 +1003,48 @@ export async function updateRubricCriterionLibraryEntry(
         criterion: {
             ...data,
             levels: normalizeRubricLevels((data.levels ?? []) as RubricLevel[]),
+            is_owner: true,
+        },
+    };
+}
+
+export async function updateRubricLibraryEntry(
+    rubricId: string,
+    rubric: Pick<RubricLibraryRecord, "name" | "description" | "criteria">,
+    visibility: RubricCriterionLibraryVisibility
+) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+
+    const { data: existing, error: existingError } = await supabase
+        .from("rubric_library")
+        .select("id, created_by, version")
+        .eq("id", rubricId)
+        .single();
+
+    if (existingError || !existing) return { error: existingError?.message ?? "No se encontró la rúbrica guardada." };
+    if (existing.created_by !== user.id) return { error: "Sin permisos." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+        .from("rubric_library")
+        .update({
+            name: rubric.name.trim(),
+            description: rubric.description?.trim() || null,
+            criteria: normalizeRubricCriteria(rubric.criteria ?? []),
+            visibility,
+            version: (existing.version ?? 1) + 1,
+        })
+        .eq("id", rubricId)
+        .select("*")
+        .single();
+
+    if (error) return { error: error.message };
+    return {
+        rubric: {
+            ...data,
+            criteria: hydrateRubricCriteria((data.criteria ?? []) as RubricCriteria[]),
             is_owner: true,
         },
     };
