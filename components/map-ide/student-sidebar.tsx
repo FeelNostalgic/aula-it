@@ -22,8 +22,8 @@ interface StudentSidebarProps {
     selectedActivity: any | null;
     moduleId: string;
     onStartMission?: (id: string) => void;
-    activeView: 'map' | 'resources';
-    onViewChange: (view: 'map' | 'resources') => void;
+    activeView?: 'map' | 'resources';
+    onViewChange?: (view: 'map' | 'resources') => void;
     milestones?: any[];
     classBadges?: any[];
     studentBadges?: any[];
@@ -31,6 +31,7 @@ interface StudentSidebarProps {
     showBadgesOverlay?: boolean;
     onToggleMilestone?: () => void;
     onToggleBadges?: () => void;
+    hideNavigation?: boolean;
 }
 
 const getDifficultyConfig = (difficulty?: string | null) => {
@@ -49,7 +50,7 @@ const getDifficultyConfig = (difficulty?: string | null) => {
     }
 };
 
-export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMission, activeView, onViewChange, milestones = [], classBadges = [], studentBadges = [], showMilestoneOverlay, showBadgesOverlay, onToggleMilestone, onToggleBadges }: StudentSidebarProps) {
+export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMission, activeView = 'map', onViewChange, milestones = [], classBadges = [], studentBadges = [], showMilestoneOverlay, showBadgesOverlay, onToggleMilestone, onToggleBadges, hideNavigation = false }: StudentSidebarProps) {
     const isBlocked = selectedActivity?.status === 'blocked';
     const isDraft = selectedActivity?.status === 'draft';
     const isDisabled = isBlocked || isDraft;
@@ -59,13 +60,13 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
 
     return (
         <aside className="h-full flex shrink-0 z-20 overflow-hidden">
-            {/* Narrow Vertical Icon Bar */}
+            {!hideNavigation && (
             <div className="w-[60px] h-full bg-background border-r border-border/50 flex flex-col items-center py-6 gap-6 relative z-30 shrink-0">
                 <div className="flex flex-col gap-3">
                     <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => onViewChange('map')}
+                        onClick={() => onViewChange?.('map')}
                         className={cn(
                             "size-10 rounded-xl transition-all duration-300 relative group",
                             activeView === 'map'
@@ -83,7 +84,7 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                     <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => onViewChange('resources')}
+                        onClick={() => onViewChange?.('resources')}
                         className={cn(
                             "size-10 rounded-xl transition-all duration-300 relative group",
                             activeView === 'resources'
@@ -142,6 +143,7 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                     </div>
                 )}
             </div>
+            )}
 
             {/* Node Detail Panel — only visible when map view active and a node is selected */}
             <AnimatePresence>

@@ -15,7 +15,6 @@ import {
     Link as LinkIcon,
     Network,
     Zap,
-    ArrowLeft,
     List,
     ChevronRight,
     Search,
@@ -34,7 +33,6 @@ import { UnitActivitiesTab } from "@/components/dashboard/activities/unit-activi
 import { UnitEvaluationTab } from "./unit-evaluation-tab";
 import { UnitResourcesTab } from "./unit-resources-tab";
 import Link from "next/link";
-import { StudentUnitView } from "./student-unit-view";
 import { ResourceIcon } from "@/components/dashboard/shared/resource-icon";
 import { cn } from "@/lib/utils";
 import { toDriveDownloadUrl } from "@/lib/google-drive-urls";
@@ -51,14 +49,8 @@ import {
     type ModulePermissions,
 } from "@/lib/module-collaborator-defs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-import { 
-    Select, 
-    SelectContent, 
-    SelectItem, 
-    SelectTrigger, 
-    SelectValue 
-} from "@/components/ui/select";
+import { getStudentUnitNavigationItems } from "./unit-navigation-items";
+import { UnitNavigationRail } from "./unit-navigation-rail";
 
 type Unit = {
     id: string;
@@ -235,6 +227,141 @@ export function UnitDetailView({
     }, [module, unit.name, setSegments]);
 
     // Note: Special student-only entry removed to maintain consistency with teacher UI as requested.
+
+    if (!isTeacher) {
+        const studentItems = getStudentUnitNavigationItems({ unitId: unit.id, viewType: unit.view_type });
+
+        return (
+            <div className="-mx-24 -my-8 flex min-h-[calc(100vh-68px)] bg-background">
+                <UnitNavigationRail items={studentItems} />
+                <div className="min-w-0 flex-1 overflow-y-auto px-8 py-8 sm:px-10">
+                    <div className="flex flex-col gap-8">
+                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+                            <div className="flex items-start gap-5">
+                                <div className="size-14 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center text-accent-blue shrink-0">
+                                    <Map className="size-7" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <div className="flex items-center gap-3">
+                                        <h1 className="text-2xl font-bold tracking-tight text-foreground">{unit.name}</h1>
+                                        {statusConfig && (
+                                            <Badge variant="outline" className={`${statusConfig.border} ${statusConfig.bg} ${statusConfig.color} gap-1.5 py-1 px-3 shadow-sm`}>
+                                                <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
+                                                {statusConfig.label}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-text-muted max-w-xl">
+                                        {unit.description || "Sin descripción proporcionada para esta unidad."}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {isReady && (activeMilestone || milestones.some(m => m.status === 'completed')) && (
+                            <div className="relative">
+                                <AnimatePresence mode="wait" initial={false}>
+                                    {isMilestoneExpanded ? (
+                                        <motion.div
+                                            key="milestone-expanded"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.15, ease: "easeInOut" }}
+                                        >
+                                            <ClassMilestoneWidget
+                                                milestones={milestones}
+                                                activeMilestone={activeMilestone}
+                                                label="Objetivos de la unidad"
+                                                onToggle={() => handleToggleMilestone(false)}
+                                            />
+                                        </motion.div>
+                                    ) : (
+                                        <motion.div
+                                            key="milestone-collapsed"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.15, ease: "easeInOut" }}
+                                            className="relative overflow-hidden bg-linear-to-br from-indigo-500/20 via-purple-500/15 to-pink-500/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 flex items-center gap-4 cursor-pointer hover:border-accent-blue/40 transition-all shadow-xl group ring-1 ring-white/5"
+                                            onClick={() => handleToggleMilestone(true)}
+                                        >
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
+                                            <div className="relative z-10 size-10 rounded-xl bg-accent-blue/20 flex items-center justify-center text-accent-blue border border-accent-blue/30 shadow-[0_0_15px_rgba(34,211,238,0.2)]">
+                                                <Target className="size-5" />
+                                            </div>
+                                            <div className="flex-1 relative z-10">
+                                                <h3 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                                    {activeMilestone ? "Objetivo Actual" : "Objetivos de Unidad"}
+                                                    <span className="size-1 rounded-full bg-accent-blue animate-pulse" />
+                                                </h3>
+                                                <p className="text-[10px] text-text-muted font-bold uppercase tracking-tight opacity-70">Pulsa para ver el progreso del camino</p>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        )}
+
+                        {isReady && globalBadges.length > 0 && (
+                            <div className="relative">
+                                <AnimatePresence mode="wait" initial={false}>
+                                    {isBadgesExpanded ? (
+                                        <motion.div
+                                            key="badges-expanded"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.15, ease: "easeInOut" }}
+                                        >
+                                            <ClassBadgesWidget
+                                                badges={globalBadges}
+                                                studentBadges={studentBadges}
+                                                isTeacher={false}
+                                                onToggle={() => handleToggleBadges(false)}
+                                            />
+                                        </motion.div>
+                                    ) : (
+                                        <motion.div
+                                            key="badges-collapsed"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.15, ease: "easeInOut" }}
+                                            className="bg-surface border border-border-subtle rounded-2xl p-4 flex items-center gap-4 cursor-pointer hover:border-accent-amber/30 transition-colors shadow-sm"
+                                            onClick={() => handleToggleBadges(true)}
+                                        >
+                                            <div className="size-10 rounded-xl bg-accent-amber/10 flex items-center justify-center text-accent-amber">
+                                                <Award className="size-5" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <h3 className="text-sm font-bold text-foreground uppercase tracking-tight">Insignias Globales</h3>
+                                                <p className="text-xs text-text-muted">Pulsa sobre el icono para expandir</p>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        )}
+
+                        <UnitActivitiesTab
+                            unitId={unit.id}
+                            initialActivities={activities}
+                            isTeacher={false}
+                            canEditActivities={false}
+                            moduleRole={moduleRole}
+                            submissions={submissions}
+                            studentBadges={studentBadges}
+                            gridCols={gridCols}
+                            setGridCols={setGridCols}
+                            viewModeExternal={viewMode}
+                            setViewModeExternal={handleViewModeChange}
+                        />
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col gap-8">

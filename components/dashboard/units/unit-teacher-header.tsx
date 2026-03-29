@@ -1,33 +1,23 @@
 "use client";
 
-import { useEffect } from "react";
 import { Map, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useBreadcrumb } from "@/components/dashboard/layout/breadcrumb-context";
-import { UnitTeacherNav } from "./unit-teacher-nav";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
     getModuleRoleLabel,
     getModuleRoleTooltip,
     type ModuleCollaboratorRole,
-    type ModulePermissions,
 } from "@/lib/module-collaborator-defs";
 
 interface UnitTeacherHeaderProps {
     unit: any;
-    module: any;
     moduleRole: ModuleCollaboratorRole | null;
-    modulePermissions: ModulePermissions | null;
 }
 
 export function UnitTeacherHeader({
     unit,
-    module,
     moduleRole,
-    modulePermissions,
 }: UnitTeacherHeaderProps) {
-    const { setSegments } = useBreadcrumb();
-
     const rawStatus = unit.status?.toLowerCase() || 'draft';
     const normalizedStatus = (rawStatus === 'active' || rawStatus === 'activo') ? 'published' :
         (rawStatus === 'bloqueado' ? 'blocked' :
@@ -67,17 +57,9 @@ export function UnitTeacherHeader({
         dotAnim: ""
     };
 
-    useEffect(() => {
-        setSegments([
-            { label: module.name, href: `/dashboard/modules/${module.id}` },
-            { label: unit.name }
-        ]);
-        return () => setSegments([]);
-    }, [module, unit.name, setSegments]);
-
     return (
         <div className="flex flex-col gap-6 pt-2">
-            <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 px-12">
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
                 <div className="flex items-start gap-5">
                     <div className="size-14 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center text-accent-blue shrink-0">
                         <Map className="size-7" />
@@ -112,10 +94,6 @@ export function UnitTeacherHeader({
                         </p>
                     </div>
                 </div>
-            </div>
-
-            <div>
-                <UnitTeacherNav unitId={unit.id} modulePermissions={modulePermissions} />
             </div>
         </div>
     );
