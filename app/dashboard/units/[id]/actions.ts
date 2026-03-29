@@ -1661,7 +1661,7 @@ export async function generatePeerAssignments(
     // Fetch step content to get submissionsPerEvaluator and mode
     const { data: step } = await admin
         .from("activity_steps")
-        .select("content")
+        .select("content, parent_step_id")
         .eq("id", stepId)
         .single();
     if (!step) return { error: "Paso no encontrado." };
@@ -1670,16 +1670,8 @@ export async function generatePeerAssignments(
     const mode = content?.mode ?? "individual";
     const submissionsPerEvaluator = content?.submissionsPerEvaluator ?? 2;
 
-    // Resolve source step: prefer structural parent_step_id, fall back to legacy sourceStepId
-    let sourceStepId = content?.sourceStepId as string | undefined;
-    if (!sourceStepId) {
-        const { data: stepRow } = await admin
-            .from("activity_steps")
-            .select("parent_step_id")
-            .eq("id", stepId)
-            .single();
-        sourceStepId = stepRow?.parent_step_id ?? undefined;
-    }
+    // parent_step_id (structural relationship) takes priority over legacy content.sourceStepId
+    const sourceStepId = ((step as any).parent_step_id ?? content?.sourceStepId) as string | undefined;
 
     // intra_group: evaluate members within each group — no source submission needed
     if (mode === "intra_group") {
@@ -2000,7 +1992,7 @@ export async function publishPeerFinalGrades(
 
     const { data: step } = await admin
         .from("activity_steps")
-        .select("content, phase:activity_phases(activity:activities(unit:units(module_id)))")
+        .select("content, parent_step_id, phase:activity_phases(activity:activities(unit:units(module_id)))")
         .eq("id", stepId)
         .single();
     if (!step) return { error: "Paso no encontrado." };
@@ -2009,7 +2001,7 @@ export async function publishPeerFinalGrades(
     const peerWeight = (content?.peerWeight ?? 30) / 100;
     const nonEvaluatorPolicy = content?.nonEvaluatorPolicy ?? "fallback_teacher";
     const penaltyPoints = content?.nonEvaluatorPenaltyPoints ?? 0;
-    const sourceStepId = content?.sourceStepId as string | undefined;
+    const sourceStepId = ((step as any).parent_step_id ?? content?.sourceStepId) as string | undefined;
     if (!sourceStepId) return { error: "No hay paso fuente configurado." };
 
     const moduleId = ((step.phase as any)?.activity?.unit?.module_id) as string | undefined;

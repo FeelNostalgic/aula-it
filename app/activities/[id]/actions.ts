@@ -742,14 +742,14 @@ export async function getMyReceivedPeerFeedback(stepId: string): Promise<{
     // Check step content visibility flag
     const { data: step } = await supabase
         .from("activity_steps")
-        .select("content")
+        .select("content, parent_step_id")
         .eq("id", stepId)
         .single();
 
     const content = step?.content as any;
     if (!content?.peerFeedbackVisibleToStudents) return { visible: false, items: [] };
 
-    const sourceStepId = content?.sourceStepId as string | undefined;
+    const sourceStepId = ((step as any)?.parent_step_id ?? content?.sourceStepId) as string | undefined;
     if (!sourceStepId) return { visible: false, items: [] };
 
     // Find student's submission on the source step
