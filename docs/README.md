@@ -240,7 +240,7 @@ Student opens activity (reads phases/steps)
   ↓
 Student submits deliverable (inserts activity_submissions)
   ↓ (if teacher copy mode)
-Teacher copies template to student Drive (POST /api/drive/copy)
+Teacher copies template into `Aula-it Entregas` in teacher Drive and shares it with student (POST /api/drive/copy)
   ↓
 Teacher locks submissions (POST /api/drive/lock)
 ```

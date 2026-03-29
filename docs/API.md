@@ -193,7 +193,7 @@ curl -X GET http://localhost:3000/api/drive/status
 
 ### Copy Template to Students
 
-Copies a Google Drive template to all enrolled students' accounts (teacher copy mode).
+Copies a Google Drive template for all enrolled students using the teacher's connected Google Drive account (teacher copy mode).
 
 **Endpoint:** `POST /api/drive/copy`
 
@@ -255,9 +255,10 @@ For each successfully copied file:
    - `status`: 'submitted'
    - `submitted_at`: current timestamp
 
-2. Copies Google Doc with name: `[Student Name] Step Title`
-
-3. Shares file with student's Google email as "writer"
+2. Creates a Google Doc copy with name: `[Student Name] Step Title`
+3. Moves that copy into the teacher Drive folder structure:
+   `Aula-it Entregas / {module} / {unit} / {activity} / {step}`
+4. Shares the file with the student's Google email as `writer`
 
 **Error Responses:**
 
@@ -296,10 +297,11 @@ curl -X POST http://localhost:3000/api/drive/copy \
 3. Clicks "Sync to Google Drive" button
 4. App calls `POST /api/drive/copy`
 5. For each enrolled student:
-   - Copies template to their Drive
+   - Creates a copy in the teacher's connected Drive
+   - Moves it under `Aula-it Entregas / {module} / {unit} / {activity} / {step}`
    - Shares with their google_email as writer
    - Creates submission record
-6. Students see the shared doc in their Drive
+6. Students see the shared doc in "Shared with me" and can access it from the stored Drive link
 7. Students work in the shared doc (same as traditional Google Classroom)
 
 ---
@@ -627,7 +629,7 @@ const res = await submitDeliverable(stepId, googleDocUrl);
 
 // Teacher copy mode:
 // 1. Teacher clicks "Sync to Google Drive" → POST /api/drive/copy
-// 2. App creates shared document in student's Drive
+// 2. App creates the copy in the teacher's Drive and shares it with the student
 // 3. Student works in the document
 // 4. Teacher clicks "Lock Submissions" → POST /api/drive/lock
 // 5. Students can view but not edit

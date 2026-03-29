@@ -58,7 +58,7 @@ aula-it/
 │   │       ├── authorize/         # Start OAuth flow (GET)
 │   │       ├── callback/          # OAuth callback (GET)
 │   │       ├── status/            # Check auth status (GET)
-│   │       ├── copy/              # Copy template to student Drive (POST)
+│   │       ├── copy/              # Copy template into teacher Drive and share with students (POST)
 │   │       └── lock/              # Lock/unlock student doc (POST)
 │   │
 │   ├── dashboard/                 # Protected dashboard (auth required)
@@ -482,9 +482,9 @@ StudentActivityClient (app/activities/[id]/client.tsx)
 ### Submission Flow (Teacher Copy Mode)
 
 ```
-1. Teacher copies template to each student's Drive
+1. Teacher creates one copy per student from the teacher's connected Drive
    - POST /api/drive/copy
-   - Creates copy of template in student's Drive
+   - Creates copy of template in teacher Drive under `Aula-it Entregas / {module} / {unit} / {activity} / {step}`
    - Stores drive_file_id in activity_submissions
 2. Student sees deliverable step
 3. Clicks "Open in Drive"
@@ -500,7 +500,7 @@ StudentActivityClient (app/activities/[id]/client.tsx)
 Teachers can distribute Google Drive templates to students. Two modes:
 
 1. **Manual Mode** (default): Student submits URL to their copy
-2. **Teacher Copy Mode**: Teacher creates copy in student's Drive
+2. **Teacher Copy Mode**: Teacher creates and owns the copy in teacher Drive, then shares it with the student
 
 ### Setup
 
@@ -526,7 +526,7 @@ Google redirects to GET /api/drive/callback?code=...
   - Stores in teacher_drive_tokens table
   - Redirects to dashboard
   ↓
-Teacher can now copy templates to student Drives
+Teacher can now copy templates from their Drive account, store them in `Aula-it Entregas`, and share them with students
 ```
 
 ### Copy Template Flow
