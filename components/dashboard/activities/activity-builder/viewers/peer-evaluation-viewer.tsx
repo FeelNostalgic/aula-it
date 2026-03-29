@@ -65,7 +65,9 @@ export function PeerEvaluationViewer({
                     <p className="text-xs text-text-muted max-w-sm">
                         {isPreview
                             ? "Las asignaciones se generan cuando el profesor abre la coevaluación."
-                            : "El profesor todavía no ha generado las asignaciones de coevaluación o ya las has completado todas."}
+                            : content.mode === "intra_group"
+                                ? "El profesor todavía no ha generado las asignaciones o ya evaluaste a todos tus compañeros."
+                                : "El profesor todavía no ha generado las asignaciones de coevaluación o ya las has completado todas."}
                     </p>
                 </div>
             </div>
@@ -82,7 +84,9 @@ export function PeerEvaluationViewer({
                 <div className="flex items-center gap-3">
                     <Users2 className="size-5 text-indigo-400 shrink-0" />
                     <div>
-                        <p className="text-sm font-semibold text-foreground">Coevaluación</p>
+                        <p className="text-sm font-semibold text-foreground">
+                            {content.mode === "intra_group" ? "Evalúa a tus compañeros de grupo" : "Coevaluación"}
+                        </p>
                         <p className="text-xs text-text-muted">{completedCount} de {assignments.length} completadas</p>
                     </div>
                 </div>
@@ -195,7 +199,8 @@ function AssignmentPanel({
     const [qaNotes, setQaNotes] = useState("");
     const [isPending, startTransition] = useTransition();
 
-    const targetName = (assignment.target_submission?.student as any)?.full_name
+    const targetName = (assignment as any).target_student?.full_name
+        ?? (assignment.target_submission?.student as any)?.full_name
         ?? (assignment.target_submission?.group as any)?.name
         ?? "Alumno";
 
@@ -244,12 +249,14 @@ function AssignmentPanel({
             <div className="rounded-2xl border border-white/5 bg-surface-dark overflow-hidden">
                 <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
                     <div>
-                        <p className="text-xs text-text-muted uppercase tracking-widest font-bold">Entrega a evaluar</p>
+                        <p className="text-xs text-text-muted uppercase tracking-widest font-bold">
+                            {content.mode === "intra_group" ? "Compañero a evaluar" : "Entrega a evaluar"}
+                        </p>
                         <p className="text-sm font-semibold text-foreground mt-0.5">
                             {content.anonymousEvaluation ? `Entrega ${assignmentIndex + 1}` : targetName}
                         </p>
                     </div>
-                    {assignment.target_submission?.drive_file_url && (
+                    {content.mode !== "intra_group" && assignment.target_submission?.drive_file_url && (
                         <a
                             href={assignment.target_submission.drive_file_url}
                             target="_blank"
@@ -260,7 +267,7 @@ function AssignmentPanel({
                         </a>
                     )}
                 </div>
-                {assignment.target_submission?.drive_file_url && (
+                {content.mode !== "intra_group" && assignment.target_submission?.drive_file_url && (
                     <div className="aspect-4/3 bg-white">
                         <iframe
                             src={assignment.target_submission.drive_file_url}

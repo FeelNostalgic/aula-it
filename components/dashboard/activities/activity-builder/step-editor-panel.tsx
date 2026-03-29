@@ -53,9 +53,10 @@ interface StepEditorPanelProps {
     onUpdateStep: (updatedStep: ActivityStepWithClientState) => void;
     activityId?: string;
     phases?: ActivityPhaseWithSteps[];
+    moduleId?: string;
 }
 
-export function StepEditorPanel({ step, onUpdateStep, activityId, phases }: StepEditorPanelProps) {
+export function StepEditorPanel({ step, onUpdateStep, activityId, phases, moduleId }: StepEditorPanelProps) {
     if (!step) {
         return (
             <div className="flex flex-col items-center justify-center p-8 text-center h-full text-text-muted">
@@ -119,7 +120,7 @@ export function StepEditorPanel({ step, onUpdateStep, activityId, phases }: Step
                 {step.type === "presentation" && <PresentationEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === "resource" && <ResourceEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === "self_evaluation" && <SelfEvaluationEditor step={step} onUpdate={onUpdateStep} phases={phases} />}
-                {step.type === "peer_evaluation" && <PeerEvaluationEditor step={step} onUpdate={onUpdateStep} phases={phases} />}
+                {step.type === "peer_evaluation" && <PeerEvaluationEditor step={step} onUpdate={onUpdateStep} phases={phases} moduleId={moduleId} />}
             </div>
         </div>
     );

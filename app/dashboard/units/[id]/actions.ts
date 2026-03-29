@@ -1202,40 +1202,162 @@ export async function publishSubmissionGrade(submissionId: string) {
                 }
             }
         } else if (step?.type === 'deliverable' || step?.type === 'file_upload') {
-            // ── B: Publishing deliverable → look for a linked self-eval ──────
-            // Find self_evaluation step that references this deliverable step
-            const { data: selfEvalStep } = await auth.admin
-                .from("activity_steps")
-                .select("id, content")
-                .eq("type", "self_evaluation")
-                .contains("content", { referenceStepId: sub.step_id })
-                .maybeSingle();
+            const delivContent = step.content as any;
+            const gradeComp = delivContent?.gradeComposition as { selfEvalWeight: number; peerEvalWeight: number; intraGroupWeight: number } | undefined;
+            const teacherScore = sub.score ?? 0;
 
-            const seContent = selfEvalStep?.content as any;
-            if (selfEvalStep && seContent?.countsTowardGrade) {
-                // Find this student's self-eval submission
-                const { data: selfSub } = await auth.admin
+            if (gradeComp && (gradeComp.selfEvalWeight > 0 || gradeComp.peerEvalWeight > 0 || gradeComp.intraGroupWeight > 0)) {
+                // ── B-NEW: 360° formula using gradeComposition from children ──
+                const selfW = gradeComp.selfEvalWeight / 100;
+                const peerW = gradeComp.peerEvalWeight / 100;
+                const intraW = gradeComp.intraGroupWeight / 100;
+                const teacherW = 1 - selfW - peerW - intraW;
+
+                // Fetch all child steps of this deliverable
+                const { data: children } = await auth.admin
+                    .from("activity_steps")
+                    .select("id, type, content")
+                    .eq("parent_step_id", sub.step_id);
+
+                const selfEvalChild = (children ?? []).find((c: any) => c.type === "self_evaluation");
+                const peerEvalChild = (children ?? []).find((c: any) => c.type === "peer_evaluation" && (c.content as any)?.mode !== "intra_group");
+                const intraGroupChild = (children ?? []).find((c: any) => c.type === "peer_evaluation" && (c.content as any)?.mode === "intra_group");
+
+                // Helper: compute normalized rubric score for a submission's self_eval_rubric_scores
+                function computeNormalizedScore(rubricScores: Record<string, number>, rubric: any[]): number | null {
+                    const rubricMax = rubric.reduce((sum: number, c: any) =>
+                        sum + Math.max(0, ...(c.levels ?? []).map((l: any) => l.points ?? 0)), 0);
+                    if (rubricMax <= 0) return null;
+                    const total = Object.values(rubricScores).reduce((a, b) => a + b, 0);
+                    return Math.round((total / rubricMax) * 1000) / 100; // normalize to /10
+                }
+
+                let selfScore: number | null = null;
+                if (selfEvalChild && selfW > 0) {
+                    const { data: selfSub } = await auth.admin
+                        .from("activity_submissions")
+                        .select("self_eval_rubric_scores")
+                        .eq("student_id", sub.student_id)
+                        .eq("step_id", selfEvalChild.id)
+                        .not("self_eval_rubric_scores", "is", null)
+                        .maybeSingle();
+                    if (selfSub?.self_eval_rubric_scores) {
+                        selfScore = computeNormalizedScore(
+                            selfSub.self_eval_rubric_scores as Record<string, number>,
+                            (selfEvalChild.content as any)?.rubric ?? []
+                        );
+                    }
+                }
+
+                let peerScore: number | null = null;
+                if (peerEvalChild && peerW > 0) {
+                    // Find this student's submission to use as target
+                    const { data: peerAssignments } = await auth.admin
+                        .from("peer_evaluation_assignments")
+                        .select("eval_submission_id")
+                        .eq("step_id", peerEvalChild.id)
+                        .eq("target_submission_id", submissionId)
+                        .not("eval_submission_id", "is", null);
+
+                    const evalSubIds = (peerAssignments ?? []).map((a: any) => a.eval_submission_id).filter(Boolean);
+                    if (evalSubIds.length > 0) {
+                        const { data: evalSubs } = await auth.admin
+                            .from("activity_submissions")
+                            .select("self_eval_rubric_scores")
+                            .in("id", evalSubIds);
+                        const rubric = (peerEvalChild.content as any)?.rubric ?? [];
+                        const scores = (evalSubs ?? [])
+                            .map((es: any) => es.self_eval_rubric_scores
+                                ? computeNormalizedScore(es.self_eval_rubric_scores as Record<string, number>, rubric)
+                                : null)
+                            .filter((s): s is number => s !== null);
+                        if (scores.length > 0) {
+                            peerScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 100) / 100;
+                        }
+                    }
+                }
+
+                let intraScore: number | null = null;
+                if (intraGroupChild && intraW > 0) {
+                    // Find evaluations received by this student as target_student_id
+                    const { data: intraAssignments } = await auth.admin
+                        .from("peer_evaluation_assignments")
+                        .select("eval_submission_id")
+                        .eq("step_id", intraGroupChild.id)
+                        .eq("target_student_id", sub.student_id)
+                        .not("eval_submission_id", "is", null);
+
+                    const evalSubIds = (intraAssignments ?? []).map((a: any) => a.eval_submission_id).filter(Boolean);
+                    if (evalSubIds.length > 0) {
+                        const { data: evalSubs } = await auth.admin
+                            .from("activity_submissions")
+                            .select("self_eval_rubric_scores")
+                            .in("id", evalSubIds);
+                        const rubric = (intraGroupChild.content as any)?.rubric ?? [];
+                        const scores = (evalSubs ?? [])
+                            .map((es: any) => es.self_eval_rubric_scores
+                                ? computeNormalizedScore(es.self_eval_rubric_scores as Record<string, number>, rubric)
+                                : null)
+                            .filter((s): s is number => s !== null);
+                        if (scores.length > 0) {
+                            intraScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 100) / 100;
+                        }
+                    }
+                }
+
+                // Compute weighted final score. If a child score is missing, redistribute its weight to teacher.
+                let effectiveSelfW = selfScore !== null ? selfW : 0;
+                let effectivePeerW = peerScore !== null ? peerW : 0;
+                let effectiveIntraW = intraScore !== null ? intraW : 0;
+                const effectiveTeacherW = 1 - effectiveSelfW - effectivePeerW - effectiveIntraW;
+
+                const finalScore = Math.round(
+                    (effectiveTeacherW * teacherScore
+                     + effectiveSelfW * (selfScore ?? 0)
+                     + effectivePeerW * (peerScore ?? 0)
+                     + effectiveIntraW * (intraScore ?? 0)
+                    ) * 100
+                ) / 100;
+
+                await auth.admin
                     .from("activity_submissions")
-                    .select("self_eval_rubric_scores")
-                    .eq("student_id", sub.student_id)
-                    .eq("step_id", selfEvalStep.id)
-                    .not("self_eval_rubric_scores", "is", null)
+                    .update({ score: finalScore })
+                    .eq("id", submissionId);
+
+            } else {
+                // ── B-LEGACY: look for a linked self-eval via referenceStepId ──
+                const { data: selfEvalStep } = await auth.admin
+                    .from("activity_steps")
+                    .select("id, content")
+                    .eq("type", "self_evaluation")
+                    .contains("content", { referenceStepId: sub.step_id })
                     .maybeSingle();
 
-                if (selfSub?.self_eval_rubric_scores && sub.score != null) {
-                    const rubricMax = (seContent.rubric as any[] ?? []).reduce((sum: number, c: any) =>
-                        sum + Math.max(0, ...(c.levels ?? []).map((l: any) => l.points ?? 0)), 0);
-                    if (rubricMax > 0) {
-                        const selfTotal = Object.values(selfSub.self_eval_rubric_scores as Record<string, number>).reduce((a, b) => a + b, 0);
-                        const selfScore = Math.round((selfTotal / rubricMax) * 1000) / 100;
-                        const selfWeight = seContent.selfEvalWeight ?? 50;
-                        const finalScore = Math.round(
-                            ((selfWeight / 100) * selfScore + ((100 - selfWeight) / 100) * sub.score) * 100
-                        ) / 100;
-                        await auth.admin
-                            .from("activity_submissions")
-                            .update({ score: finalScore })
-                            .eq("id", submissionId);
+                const seContent = selfEvalStep?.content as any;
+                if (selfEvalStep && seContent?.countsTowardGrade) {
+                    const { data: selfSub } = await auth.admin
+                        .from("activity_submissions")
+                        .select("self_eval_rubric_scores")
+                        .eq("student_id", sub.student_id)
+                        .eq("step_id", selfEvalStep.id)
+                        .not("self_eval_rubric_scores", "is", null)
+                        .maybeSingle();
+
+                    if (selfSub?.self_eval_rubric_scores && sub.score != null) {
+                        const rubricMax = (seContent.rubric as any[] ?? []).reduce((sum: number, c: any) =>
+                            sum + Math.max(0, ...(c.levels ?? []).map((l: any) => l.points ?? 0)), 0);
+                        if (rubricMax > 0) {
+                            const selfTotal = Object.values(selfSub.self_eval_rubric_scores as Record<string, number>).reduce((a, b) => a + b, 0);
+                            const selfScore = Math.round((selfTotal / rubricMax) * 1000) / 100;
+                            const selfWeight = seContent.selfEvalWeight ?? 50;
+                            const finalScore = Math.round(
+                                ((selfWeight / 100) * selfScore + ((100 - selfWeight) / 100) * sub.score) * 100
+                            ) / 100;
+                            await auth.admin
+                                .from("activity_submissions")
+                                .update({ score: finalScore })
+                                .eq("id", submissionId);
+                        }
                     }
                 }
             }
@@ -1546,10 +1668,84 @@ export async function generatePeerAssignments(
 
     const content = step.content as any;
     const mode = content?.mode ?? "individual";
-    const sourceStepId = content?.sourceStepId as string | undefined;
-    if (!sourceStepId) return { error: "El paso de coevaluación no tiene un entregable fuente configurado." };
-
     const submissionsPerEvaluator = content?.submissionsPerEvaluator ?? 2;
+
+    // Resolve source step: prefer structural parent_step_id, fall back to legacy sourceStepId
+    let sourceStepId = content?.sourceStepId as string | undefined;
+    if (!sourceStepId) {
+        const { data: stepRow } = await admin
+            .from("activity_steps")
+            .select("parent_step_id")
+            .eq("id", stepId)
+            .single();
+        sourceStepId = stepRow?.parent_step_id ?? undefined;
+    }
+
+    // intra_group: evaluate members within each group — no source submission needed
+    if (mode === "intra_group") {
+        const { data: groups } = await admin
+            .from("module_groups")
+            .select("id, name")
+            .eq("module_id", moduleId)
+            .eq("status", "active");
+
+        if (!groups || groups.length === 0) {
+            return { error: "No hay grupos activos en este módulo." };
+        }
+
+        // Fetch group submissions (optional reference — used as target_submission_id)
+        let subByGroup: Map<string, string> = new Map();
+        if (sourceStepId) {
+            const { data: subs } = await admin
+                .from("activity_submissions")
+                .select("id, group_id")
+                .eq("step_id", sourceStepId)
+                .not("group_id", "is", null);
+            subByGroup = new Map((subs ?? []).map((s: any) => [s.group_id, s.id]));
+        }
+
+        const rows: {
+            step_id: string;
+            evaluator_id: string;
+            target_submission_id: string | null;
+            target_student_id: string;
+        }[] = [];
+
+        for (const group of groups) {
+            const { data: members } = await admin
+                .from("module_group_members")
+                .select("student_id")
+                .eq("group_id", group.id);
+
+            const memberIds = (members ?? []).map((m: any) => m.student_id as string);
+            if (memberIds.length < 2) continue;
+
+            const groupSubId = subByGroup.get(group.id) ?? null;
+
+            // All-vs-all within group (excluding self)
+            for (const evaluatorId of memberIds) {
+                for (const targetStudentId of memberIds) {
+                    if (evaluatorId === targetStudentId) continue;
+                    rows.push({
+                        step_id: stepId,
+                        evaluator_id: evaluatorId,
+                        target_submission_id: groupSubId as any,
+                        target_student_id: targetStudentId,
+                    });
+                }
+            }
+        }
+
+        if (rows.length === 0) return { error: "No fue posible generar asignaciones intra-grupo." };
+
+        const { error } = await admin.from("peer_evaluation_assignments").insert(rows);
+        if (error) return { error: error.message };
+
+        revalidatePath("/dashboard/units/[id]", "layout");
+        return { generated: rows.length };
+    }
+
+    if (!sourceStepId) return { error: "El paso de coevaluación no tiene un entregable fuente configurado." };
 
     if (mode === "individual") {
         // Fetch all submissions for the source step (individual + group)
@@ -1666,6 +1862,7 @@ export async function getPeerEvaluationResults(stepId: string): Promise<{
     assignments?: any[];
     peerFeedbackVisibleToStudents?: boolean;
     anonymousEvaluation?: boolean;
+    mode?: string;
     error?: string;
 }> {
     const auth = await requireTeacher();
@@ -1703,6 +1900,7 @@ export async function getPeerEvaluationResults(stepId: string): Promise<{
         assignments: data ?? [],
         peerFeedbackVisibleToStudents: content?.peerFeedbackVisibleToStudents ?? false,
         anonymousEvaluation: content?.anonymousEvaluation ?? false,
+        mode: content?.mode ?? "individual",
     };
 }
 

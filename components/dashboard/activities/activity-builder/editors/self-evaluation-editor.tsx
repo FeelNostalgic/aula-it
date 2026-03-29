@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { ListChecks, MessageSquare, Plus, Trash2, PanelRightClose, PanelRightOpen, AlignLeft, GripVertical } from "lucide-react";
+import { ListChecks, MessageSquare, Plus, Trash2, PanelRightClose, PanelRightOpen, AlignLeft, GripVertical, Link2 } from "lucide-react";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StepConfigSection } from "./step-config-section";
@@ -66,10 +66,6 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
             setIsSaving(false);
         }, 800);
     };
-
-    const deliverableSteps = (phases ?? []).flatMap(p =>
-        p.steps.filter(s => s.type === "deliverable" || s.type === "file_upload")
-    );
 
     const evalMode = content.evalMode ?? "rubric";
     const questions = content.questions ?? [];
@@ -270,29 +266,31 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
                         </div>
                     )}
 
-                    {/* Reference step selector */}
-                    {deliverableSteps.length > 0 && (
-                        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Entregable Vinculado</span>
+                    {/* Parent step chip (replaces reference step selector) */}
+                    {(() => {
+                        const parentStep = step.parent_step_id
+                            ? (phases ?? []).flatMap(p => p.steps).find(s => s.id === step.parent_step_id) ?? null
+                            : null;
+                        return (
+                            <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                                <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
+                                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Entregable Vinculado</span>
+                                </div>
+                                <div className="p-5">
+                                    {parentStep ? (
+                                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-blue/10 border border-accent-blue/20 text-accent-blue text-sm">
+                                            <Link2 className="size-3.5 shrink-0" />
+                                            <span className="font-medium truncate">{parentStep.title}</span>
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-text-muted">
+                                            Arrastra este paso bajo un <span className="font-semibold text-foreground">Entregable</span> o <span className="font-semibold text-foreground">Subida de Archivos</span> en el constructor de actividad para vincularlo.
+                                        </p>
+                                    )}
+                                </div>
                             </div>
-                            <div className="p-5 space-y-2">
-                                <p className="text-xs text-text-muted">
-                                    Vincula esta autoevaluación a un entregable para aplicar el peso en la nota final.
-                                </p>
-                                <select
-                                    value={content.referenceStepId ?? ""}
-                                    onChange={(e) => save({ ...content, referenceStepId: e.target.value || undefined })}
-                                    className="h-9 w-full rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent-blue"
-                                >
-                                    <option value="">Sin referencia</option>
-                                    {deliverableSteps.map(s => (
-                                        <option key={s.id} value={s.id}>{s.title}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                    )}
+                        );
+                    })()}
 
                     {/* Options — only relevant in rubric mode */}
                     {evalMode === "rubric" && (
@@ -329,39 +327,6 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
                                     )}
                                 </div>
 
-                                {/* Counts toward grade */}
-                                <div className="flex items-center justify-between gap-4">
-                                    <div>
-                                        <p className="text-sm text-foreground font-medium">Contribuye a la nota</p>
-                                        <p className="text-xs text-text-muted mt-0.5">La autoevaluación pondera en la nota final.</p>
-                                    </div>
-                                    <Toggle
-                                        value={content.countsTowardGrade}
-                                        onChange={(v) => save({ ...content, countsTowardGrade: v })}
-                                    />
-                                </div>
-
-                                {/* Weight slider */}
-                                {content.countsTowardGrade && (
-                                    <div className="space-y-2 pt-1">
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-sm text-foreground font-medium">Peso de la autoevaluación</p>
-                                            <span className="text-sm font-mono font-bold text-accent-blue">{content.selfEvalWeight ?? 20}%</span>
-                                        </div>
-                                        <input
-                                            type="range"
-                                            min={5}
-                                            max={50}
-                                            step={5}
-                                            value={content.selfEvalWeight ?? 20}
-                                            onChange={(e) => save({ ...content, selfEvalWeight: Number(e.target.value) })}
-                                            className="w-full accent-accent-blue"
-                                        />
-                                        <p className="text-xs text-text-muted">
-                                            Nota final = {content.selfEvalWeight ?? 20}% autoevaluación + {100 - (content.selfEvalWeight ?? 20)}% nota del profesor.
-                                        </p>
-                                    </div>
-                                )}
                             </div>
                         </div>
                     )}

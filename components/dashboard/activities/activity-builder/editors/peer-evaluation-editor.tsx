@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import {
     ActivityStepWithClientState, ActivityPhaseWithSteps,
     PeerEvaluationContent, PeerEvaluationMode,
@@ -8,9 +8,10 @@ import {
 } from "@/types/activity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { ListChecks, Users, User, MessageSquare, Plus, Trash2, GripVertical } from "lucide-react";
+import { ListChecks, Users, User, MessageSquare, Plus, Trash2, GripVertical, PanelRightClose, PanelRightOpen, Link2 } from "lucide-react";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StepConfigSection } from "./step-config-section";
@@ -18,20 +19,27 @@ import { cn } from "@/lib/utils";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeRaw from "rehype-raw";
+import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { generatePeerAssignments } from "@/app/dashboard/units/[id]/actions";
 
 interface PeerEvaluationEditorProps {
     step: ActivityStepWithClientState;
     onUpdate: (updated: ActivityStepWithClientState) => void;
     phases?: ActivityPhaseWithSteps[];
+    moduleId?: string;
 }
 
 const defaultContent: PeerEvaluationContent = {
     mode: "individual",
-    sourceStepId: "",
     rubric: [],
     requireJustification: false,
     submissionsPerEvaluator: 2,
-    peerWeight: 30,
     anonymousEvaluation: true,
     peerFeedbackVisibleToStudents: false,
     outlierSensitivity: "normal",
@@ -53,13 +61,15 @@ const NON_EVALUATOR_OPTIONS: { value: NonEvaluatorPolicy; label: string; desc: s
     { value: "grade_penalty", label: "Penalización", desc: "Se descuenta una cantidad de puntos de su nota final." },
 ];
 
-export function PeerEvaluationEditor({ step, onUpdate, phases }: PeerEvaluationEditorProps) {
+export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerEvaluationEditorProps) {
     const [content, setContent] = useState<PeerEvaluationContent>(
         (step.content as PeerEvaluationContent) || defaultContent
     );
     const [isSaving, setIsSaving] = useState(false);
     const [rubricModalOpen, setRubricModalOpen] = useState(false);
     const [antiGamingOpen, setAntiGamingOpen] = useState(false);
+    const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
+    const [isPending, startTransition] = useTransition();
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
@@ -107,12 +117,10 @@ export function PeerEvaluationEditor({ step, onUpdate, phases }: PeerEvaluationE
         save({ ...content, questions: arrayMove(qs, oldIdx, newIdx) });
     }
 
-    // Deliverable/file_upload steps as source candidates
-    const sourceSteps = (phases ?? []).flatMap(p =>
-        p.steps.filter(s =>
-            (s.type === "deliverable" || s.type === "file_upload") && s.id !== step.id
-        )
-    );
+    // Find the parent step for this eval step
+    const parentStep = step.parent_step_id
+        ? (phases ?? []).flatMap(p => p.steps).find(s => s.id === step.parent_step_id) ?? null
+        : null;
 
     const tabTriggerClass = "h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none";
 
@@ -120,6 +128,7 @@ export function PeerEvaluationEditor({ step, onUpdate, phases }: PeerEvaluationE
         <Tabs defaultValue="configuracion" className="flex flex-col h-full w-full bg-background">
             <div className="shrink-0 border-b border-border/50 bg-surface-dark/10 px-4 flex items-center gap-2">
                 <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">
+                    <TabsTrigger value="instrucciones" className={tabTriggerClass}>Instrucciones</TabsTrigger>
                     <TabsTrigger value="configuracion" className={tabTriggerClass}>Configuración</TabsTrigger>
                     {evalMode === "questions" && (
                         <TabsTrigger value="preguntas" className={tabTriggerClass}>
@@ -134,6 +143,65 @@ export function PeerEvaluationEditor({ step, onUpdate, phases }: PeerEvaluationE
                     }
                 </div>
             </div>
+
+            {/* Instrucciones tab — split markdown preview */}
+            <TabsContent value="instrucciones" className="mt-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
+                <div className="flex h-full overflow-hidden min-h-0">
+                    <ResizablePanelGroup direction="horizontal">
+                        <ResizablePanel defaultSize={50} minSize={30}>
+                            <div className="flex flex-col h-full bg-surface-dark/20 relative min-h-0">
+                                <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50 justify-between">
+                                    <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Instrucciones (Markdown)</span>
+                                    <button
+                                        onClick={() => setIsPreviewCollapsed(!isPreviewCollapsed)}
+                                        className="text-text-muted hover:text-foreground transition-colors flex items-center gap-1 bg-surface border border-border-subtle rounded-md px-2 py-1 shadow-sm h-7"
+                                        title={isPreviewCollapsed ? "Expandir Vista Previa" : "Ocultar Vista Previa"}
+                                    >
+                                        {isPreviewCollapsed ? <PanelRightOpen className="size-3.5" /> : <PanelRightClose className="size-3.5" />}
+                                    </button>
+                                </div>
+                                <div className="flex-1 p-0 overflow-hidden">
+                                    <Textarea
+                                        value={content.instructionsMarkdown || ""}
+                                        onChange={(e) => save({ ...content, instructionsMarkdown: e.target.value })}
+                                        className="h-full w-full resize-none border-none focus-visible:ring-0 rounded-none bg-transparent p-6 text-foreground font-mono text-sm leading-relaxed"
+                                        placeholder="# Instrucciones de coevaluación..."
+                                    />
+                                </div>
+                            </div>
+                        </ResizablePanel>
+
+                        <ResizableHandle withHandle className="bg-border-subtle hover:bg-accent-blue transition-colors duration-300 w-1.5 flex flex-col items-center justify-center" />
+
+                        <ResizablePanel
+                            defaultSize={50}
+                            minSize={25}
+                            maxSize={75}
+                            className={isPreviewCollapsed ? "hidden" : ""}
+                        >
+                            <div className="flex flex-col h-full bg-background relative border-l border-border-subtle">
+                                <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50">
+                                    <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Vista Previa</span>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-6">
+                                    {content.instructionsMarkdown ? (
+                                        <div className="prose dark:prose-invert prose-sm max-w-none text-text-muted prose-pre:p-0 prose-code:bg-surface-dark prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none font-sans">
+                                            <ReactMarkdown
+                                                remarkPlugins={[remarkGfm, remarkMath]}
+                                                rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
+                                            >
+                                                {content.instructionsMarkdown}
+                                            </ReactMarkdown>
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-text-muted/50 italic">Instrucciones vacías.</p>
+                                    )}
+                                </div>
+                            </div>
+                        </ResizablePanel>
+                    </ResizablePanelGroup>
+                </div>
+            </TabsContent>
 
             <TabsContent value="configuracion" className="mt-0 flex-1 min-h-0 overflow-y-auto">
                 <div className="max-w-2xl mx-auto p-8 space-y-4">
@@ -151,7 +219,7 @@ export function PeerEvaluationEditor({ step, onUpdate, phases }: PeerEvaluationE
                         </div>
                         <div className="p-5 space-y-3">
                             <div className="flex gap-2">
-                                {(["individual", "group"] as PeerEvaluationMode[]).map(m => (
+                                {(["individual", "group", "intra_group"] as PeerEvaluationMode[]).map(m => (
                                     <button
                                         key={m}
                                         onClick={() => save({ ...content, mode: m })}
@@ -163,43 +231,46 @@ export function PeerEvaluationEditor({ step, onUpdate, phases }: PeerEvaluationE
                                         )}
                                     >
                                         {m === "individual" ? <User className="size-3.5" /> : <Users className="size-3.5" />}
-                                        {m === "individual" ? "Individual" : "Grupos"}
+                                        {m === "individual" ? "Individual" : m === "group" ? "Grupos" : "Entre miembros"}
                                     </button>
                                 ))}
                             </div>
                             <p className="text-xs text-text-muted">
                                 {content.mode === "individual"
                                     ? "Cada alumno evalúa trabajos de N compañeros asignados aleatoriamente."
-                                    : "Los grupos se evalúan entre sí."}
+                                    : content.mode === "group"
+                                        ? "Los grupos se evalúan entre sí."
+                                        : "Los miembros de cada grupo se evalúan entre sí — mide contribución individual."}
                             </p>
                         </div>
                     </div>
 
-                    {/* Source step */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Paso a Evaluar</span>
+                    {/* Parent step indicator */}
+                    {content.mode !== 'intra_group' && (
+                        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
+                                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Entregable Vinculado</span>
+                            </div>
+                            <div className="p-5">
+                                {parentStep ? (
+                                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-blue/10 border border-accent-blue/20 text-accent-blue text-sm">
+                                        <Link2 className="size-3.5 shrink-0" />
+                                        <span className="font-medium truncate">{parentStep.title}</span>
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-text-muted">
+                                        Arrastra este paso bajo un <span className="font-semibold text-foreground">Entregable</span> o <span className="font-semibold text-foreground">Subida de Archivos</span> en el constructor de actividad para vincularlo.
+                                    </p>
+                                )}
+                            </div>
                         </div>
-                        <div className="p-5 space-y-2">
-                            <p className="text-xs text-text-muted">Selecciona qué entregable se va a coevaluar.</p>
-                            {sourceSteps.length > 0 ? (
-                                <select
-                                    value={content.sourceStepId ?? ""}
-                                    onChange={(e) => save({ ...content, sourceStepId: e.target.value })}
-                                    className="h-9 w-full rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent-blue"
-                                >
-                                    <option value="">Seleccionar paso...</option>
-                                    {sourceSteps.map(s => (
-                                        <option key={s.id} value={s.id}>{s.title}</option>
-                                    ))}
-                                </select>
-                            ) : (
-                                <p className="text-xs text-amber-400/80">
-                                    No hay pasos de tipo Entregable o Subida de Archivos en esta actividad todavía.
-                                </p>
-                            )}
+                    )}
+                    {content.mode === 'intra_group' && (
+                        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface-dark border border-white/5 text-xs text-text-muted">
+                            <Users className="size-3.5 text-accent-blue shrink-0" />
+                            Evalúa la contribución individual de los miembros del grupo. No requiere un entregable vinculado.
                         </div>
-                    </div>
+                    )}
 
                     {/* Eval mode selector */}
                     <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
@@ -392,6 +463,50 @@ export function PeerEvaluationEditor({ step, onUpdate, phases }: PeerEvaluationE
                                     value={!!content.requireJustification}
                                     onChange={(v) => save({ ...content, requireJustification: v })}
                                 />
+                                {content.requireJustification && (
+                                    <div className="flex items-center justify-between gap-4 pl-4 border-l-2 border-border/30">
+                                        <div>
+                                            <p className="text-sm text-foreground font-medium">Mínimo de caracteres</p>
+                                            <p className="text-xs text-text-muted mt-0.5">Por justificación de criterio.</p>
+                                        </div>
+                                        <input
+                                            type="number" min={0} max={500}
+                                            value={content.minJustificationLength ?? 0}
+                                            onChange={(e) => save({ ...content, minJustificationLength: Number(e.target.value) })}
+                                            className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {content.mode === "intra_group" && (
+                        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
+                                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Distribución (Entre miembros)</span>
+                            </div>
+                            <div className="p-5 space-y-4">
+                                <Toggle
+                                    label="Justificación obligatoria"
+                                    description="El evaluador debe escribir un texto por criterio."
+                                    value={!!content.requireJustification}
+                                    onChange={(v) => save({ ...content, requireJustification: v })}
+                                />
+                                {content.requireJustification && (
+                                    <div className="flex items-center justify-between gap-4 pl-4 border-l-2 border-border/30">
+                                        <div>
+                                            <p className="text-sm text-foreground font-medium">Mínimo de caracteres</p>
+                                            <p className="text-xs text-text-muted mt-0.5">Por justificación de criterio.</p>
+                                        </div>
+                                        <input
+                                            type="number" min={0} max={500}
+                                            value={content.minJustificationLength ?? 0}
+                                            onChange={(e) => save({ ...content, minJustificationLength: Number(e.target.value) })}
+                                            className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -470,6 +585,35 @@ export function PeerEvaluationEditor({ step, onUpdate, phases }: PeerEvaluationE
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {/* Gestión — generate assignments */}
+                    {moduleId && (
+                        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
+                                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Gestión</span>
+                            </div>
+                            <div className="p-5 flex items-center justify-between gap-4">
+                                <div>
+                                    <p className="text-sm text-foreground font-medium">Asignaciones de evaluación</p>
+                                    <p className="text-xs text-text-muted mt-0.5">Genera o regenera las asignaciones de quién evalúa a quién.</p>
+                                </div>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={isPending}
+                                    onClick={() => startTransition(async () => {
+                                        const res = await generatePeerAssignments(step.id, moduleId);
+                                        if (res.error) toast.error(res.error);
+                                        else toast.success("Asignaciones generadas correctamente.");
+                                    })}
+                                    className="shrink-0 h-8 text-xs gap-1.5 border-border/50 text-text-muted hover:text-foreground"
+                                >
+                                    {isPending ? <span className="size-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Users className="size-3.5" />}
+                                    Generar asignaciones
+                                </Button>
+                            </div>
                         </div>
                     )}
                 </div>

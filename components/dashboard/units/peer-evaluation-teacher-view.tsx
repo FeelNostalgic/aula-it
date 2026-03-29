@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useMemo, useCallback } from "react";
-import { Users2, AlertTriangle, CheckCircle2, Clock, RefreshCw, PlayCircle, Send, ShieldAlert, Star, Eye, EyeOff } from "lucide-react";
+import { Users2, AlertTriangle, CheckCircle2, Clock, RefreshCw, PlayCircle, Send, ShieldAlert, Star, Eye, EyeOff, UserCheck, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -58,6 +58,7 @@ type EvaluatorRow = {
 export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle }: PeerEvaluationTeacherViewProps) {
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [feedbackVisible, setFeedbackVisible] = useState(false);
+    const [mode, setMode] = useState<string>("individual");
     const [loading, setLoading] = useState(true);
     const [isPending, startTransition] = useTransition();
 
@@ -66,6 +67,7 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle }: PeerE
         getPeerEvaluationResults(stepId).then(res => {
             if (res.assignments) setAssignments(res.assignments as Assignment[]);
             setFeedbackVisible(res.peerFeedbackVisibleToStudents ?? false);
+            setMode(res.mode ?? "individual");
             setLoading(false);
         });
     };
@@ -186,7 +188,17 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle }: PeerE
                         <Users2 className="size-5 text-indigo-400" />
                     </div>
                     <div>
-                        <p className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em]">Coevaluación</p>
+                        <div className="flex items-center gap-2">
+                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em]">Coevaluación</p>
+                            <span className={cn(
+                                "text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border",
+                                mode === "individual" ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
+                                : mode === "group" ? "bg-accent-green/10 border-accent-green/30 text-accent-green"
+                                : "bg-indigo-500/10 border-indigo-500/30 text-indigo-400"
+                            )}>
+                                {mode === "individual" ? "Individual" : mode === "group" ? "Grupos" : "Entre miembros"}
+                            </span>
+                        </div>
                         <h2 className="text-base font-black text-foreground uppercase tracking-tighter">{stepTitle}</h2>
                         {hasAssignments && (
                             <p className="text-xs text-text-muted mt-0.5">
@@ -244,11 +256,12 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle }: PeerE
             ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     {/* Evaluators table */}
-                    <EvaluatorsTable rows={evaluatorRows} />
+                    <EvaluatorsTable rows={evaluatorRows} mode={mode} />
                     {/* Targets summary */}
                     <TargetsSummary
                         rows={targetRows}
                         totalAssignments={assignments.length}
+                        mode={mode}
                         onOverrideChange={(submissionId, score) => {
                             setAssignments(prev => prev.map(a =>
                                 a.target_submission_id === submissionId && a.target_submission
@@ -281,12 +294,13 @@ function EmptyState() {
 
 // ─── Evaluators table ─────────────────────────────────────────────────────────
 
-function EvaluatorsTable({ rows }: { rows: EvaluatorRow[] }) {
+function EvaluatorsTable({ rows, mode }: { rows: EvaluatorRow[]; mode: string }) {
+    const evaluatorLabel = mode === "group" ? "Grupos evaluadores" : mode === "intra_group" ? "Miembros evaluadores" : "Evaluadores";
     return (
         <div className="bg-surface-dark border border-white/5 rounded-2xl overflow-hidden">
             <div className="px-5 py-3 border-b border-white/5 flex items-center gap-2">
-                <Users2 className="size-4 text-indigo-400" />
-                <h3 className="text-xs font-bold text-foreground uppercase tracking-widest">Evaluadores</h3>
+                {mode === "intra_group" ? <UserCheck className="size-4 text-indigo-400" /> : <Users2 className="size-4 text-indigo-400" />}
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-widest">{evaluatorLabel}</h3>
             </div>
             <div className="divide-y divide-white/5">
                 {rows.map(row => (
@@ -364,17 +378,20 @@ type TargetRow = {
     overrideScore: number | null;
 };
 
-function TargetsSummary({ rows, totalAssignments, onOverrideChange }: {
+function TargetsSummary({ rows, totalAssignments, mode, onOverrideChange }: {
     rows: TargetRow[];
     totalAssignments: number;
+    mode: string;
     onOverrideChange: (submissionId: string, score: number | null) => void;
 }) {
+    const targetLabel = mode === "group" ? "Grupos evaluados" : mode === "intra_group" ? "Miembros evaluados" : "Entregas evaluadas";
+    const countLabel = mode === "intra_group" ? "miembros" : mode === "group" ? "grupos" : "entregas";
     return (
         <div className="bg-surface-dark border border-white/5 rounded-2xl overflow-hidden">
             <div className="px-5 py-3 border-b border-white/5 flex items-center gap-2">
-                <CheckCircle2 className="size-4 text-emerald-400" />
-                <h3 className="text-xs font-bold text-foreground uppercase tracking-widest">Entregas evaluadas</h3>
-                <span className="ml-auto text-[10px] font-mono text-text-muted">{rows.length} entregas</span>
+                {mode === "intra_group" ? <Users className="size-4 text-emerald-400" /> : <CheckCircle2 className="size-4 text-emerald-400" />}
+                <h3 className="text-xs font-bold text-foreground uppercase tracking-widest">{targetLabel}</h3>
+                <span className="ml-auto text-[10px] font-mono text-text-muted">{rows.length} {countLabel}</span>
             </div>
             <div className="divide-y divide-white/5">
                 {rows.map((row) => (

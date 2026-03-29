@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ActivityStepWithClientState, FileUploadContent, AllowedFileType, RubricCriteria } from "@/types/activity";
+import { ActivityStepWithClientState, FileUploadContent, AllowedFileType, GradeComposition, PeerEvaluationContent, RubricCriteria } from "@/types/activity";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { updateStepContent, updateStepDueDate } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { ListChecks, PanelRightClose, PanelRightOpen, Users } from "lucide-react";
+import { ListChecks, PanelRightClose, PanelRightOpen, Scale, Users } from "lucide-react";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -330,6 +330,104 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                         </div>
                     </div>
                     <RubricBuilderModal rubric={content.rubric ?? []} open={rubricModalOpen} onClose={() => setRubricModalOpen(false)} onChange={handleRubricChange} />
+
+                    {/* Ponderación 360° — solo si hay hijos de evaluación */}
+                    {(() => {
+                        const children = step.children ?? [];
+                        const selfEvalChild = children.find(c => c.type === "self_evaluation");
+                        const peerEvalChild = children.find(c => c.type === "peer_evaluation" && (c.content as PeerEvaluationContent)?.mode !== "intra_group");
+                        const intraGroupChild = children.find(c => c.type === "peer_evaluation" && (c.content as PeerEvaluationContent)?.mode === "intra_group");
+                        const showIntraGroup = !!content.is_group_submission && !!intraGroupChild;
+
+                        if (!selfEvalChild && !peerEvalChild && !showIntraGroup) return null;
+
+                        const comp: GradeComposition = content.gradeComposition ?? { selfEvalWeight: 0, peerEvalWeight: 0, intraGroupWeight: 0 };
+                        const totalAssigned = comp.selfEvalWeight + comp.peerEvalWeight + (showIntraGroup ? comp.intraGroupWeight : 0);
+                        const teacherWeight = Math.max(0, 100 - totalAssigned);
+
+                        const updateComp = (field: keyof GradeComposition, value: number) => {
+                            const newComp = { ...comp, [field]: value };
+                            const newTotal = newComp.selfEvalWeight + newComp.peerEvalWeight + (showIntraGroup ? newComp.intraGroupWeight : 0);
+                            if (newTotal > 100) return;
+                            saveContent({ ...content, gradeComposition: newComp });
+                        };
+
+                        return (
+                            <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                                <div className="px-5 py-2.5 border-b border-white/5 bg-white/2 flex items-center justify-between">
+                                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest flex items-center gap-1.5">
+                                        <Scale className="size-3" /> Ponderación (360°)
+                                    </span>
+                                    <span className={cn("text-xs font-mono", totalAssigned > 100 ? "text-red-400" : "text-text-muted")}>
+                                        Profesor: {teacherWeight}%
+                                    </span>
+                                </div>
+                                <div className="p-5 space-y-3">
+                                    <p className="text-xs text-text-muted">Cuánto pesa cada evaluación en la nota final. El porcentaje del profesor es el residuo.</p>
+
+                                    {/* Profesor — read-only residual */}
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm text-text-muted w-36 shrink-0">Profesor</span>
+                                        <div className="flex-1 h-1.5 rounded-full bg-surface overflow-hidden">
+                                            <div
+                                                className="h-full rounded-full bg-accent-blue/40 transition-all"
+                                                style={{ width: `${teacherWeight}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-sm font-mono text-text-muted w-10 text-right">{teacherWeight}%</span>
+                                    </div>
+
+                                    {/* Autoevaluación */}
+                                    {selfEvalChild && (
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm text-foreground w-36 shrink-0">Autoevaluación</span>
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={100 - comp.peerEvalWeight - (showIntraGroup ? comp.intraGroupWeight : 0)}
+                                                value={comp.selfEvalWeight}
+                                                onChange={e => updateComp("selfEvalWeight", Number(e.target.value))}
+                                                className="flex-1 accent-accent-blue"
+                                            />
+                                            <span className="text-sm font-mono text-foreground w-10 text-right">{comp.selfEvalWeight}%</span>
+                                        </div>
+                                    )}
+
+                                    {/* Coevaluación */}
+                                    {peerEvalChild && (
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm text-foreground w-36 shrink-0">Coevaluación</span>
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={100 - comp.selfEvalWeight - (showIntraGroup ? comp.intraGroupWeight : 0)}
+                                                value={comp.peerEvalWeight}
+                                                onChange={e => updateComp("peerEvalWeight", Number(e.target.value))}
+                                                className="flex-1 accent-accent-blue"
+                                            />
+                                            <span className="text-sm font-mono text-foreground w-10 text-right">{comp.peerEvalWeight}%</span>
+                                        </div>
+                                    )}
+
+                                    {/* Contribución grupal — solo si is_group_submission + intra_group child */}
+                                    {showIntraGroup && (
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm text-foreground w-36 shrink-0">Contrib. grupal</span>
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={100 - comp.selfEvalWeight - comp.peerEvalWeight}
+                                                value={comp.intraGroupWeight}
+                                                onChange={e => updateComp("intraGroupWeight", Number(e.target.value))}
+                                                className="flex-1 accent-accent-blue"
+                                            />
+                                            <span className="text-sm font-mono text-foreground w-10 text-right">{comp.intraGroupWeight}%</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {/* Fecha límite */}
                     <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
