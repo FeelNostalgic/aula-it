@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { StudentActivityClient } from "./client";
 import { getStudentSubmissionsForActivity } from "./actions";
 import { getActivityAccess } from "@/lib/module-access";
+import { normalizeNestedActivityPhases } from "@/lib/activity-step-tree";
 
 export default async function ActivityPage({
     params,
@@ -68,10 +69,7 @@ export default async function ActivityPage({
 
     let initialPhases = phases || [];
     if (!phasesError) {
-        initialPhases = initialPhases.map((phase) => ({
-            ...phase,
-            steps: (phase.steps || []).sort((a: any, b: any) => a.order_index - b.order_index),
-        }));
+        initialPhases = normalizeNestedActivityPhases(initialPhases as any);
     }
 
     const submissionsMap = isTeacher ? {} : await getStudentSubmissionsForActivity(id);
@@ -94,7 +92,7 @@ export default async function ActivityPage({
     }
 
     const allStepIds = initialPhases.flatMap((phase: any) =>
-        (phase.steps || []).map((step: any) => step.id),
+        (phase.steps || []).flatMap((step: any) => [step.id, ...((step.children ?? []).map((child: any) => child.id))]),
     );
 
     if (!isTeacher && allStepIds.length > 0) {
@@ -109,16 +107,23 @@ export default async function ActivityPage({
             initialPhases = initialPhases.map((phase: any) => ({
                 ...phase,
                 steps: (phase.steps || []).map((step: any) => {
-                    const extension = extMap[step.id];
-                    if (!extension) return step;
+                    const applyExtension = (targetStep: any) => {
+                        const extension = extMap[targetStep.id];
+                        if (!extension) return targetStep;
 
-                    const extDate = new Date(extension);
-                    const dueDate = step.due_date ? new Date(step.due_date) : null;
-                    if (!dueDate || extDate > dueDate) {
-                        return { ...step, due_date: extension };
-                    }
+                        const extDate = new Date(extension);
+                        const dueDate = targetStep.due_date ? new Date(targetStep.due_date) : null;
+                        if (!dueDate || extDate > dueDate) {
+                            return { ...targetStep, due_date: extension };
+                        }
 
-                    return step;
+                        return targetStep;
+                    };
+
+                    return {
+                        ...applyExtension(step),
+                        children: (step.children ?? []).map(applyExtension),
+                    };
                 }),
             }));
         }

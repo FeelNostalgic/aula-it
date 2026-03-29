@@ -168,7 +168,10 @@ function SortableTab({
 
 export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, viewsMap, googleEmail, isPreview = false, classBadges, earnedBadgeIds, groupName, groupColor }: StudentPreviewProps) {
     const allSteps = useMemo(() => {
-        return phases.flatMap(p => p.steps.filter(s => s.is_visible !== false));
+        return phases.flatMap(p => p.steps
+            .filter(s => s.is_visible !== false)
+            .flatMap((s: any) => [s, ...(s.children ?? []).filter((c: any) => c.is_visible !== false)])
+        );
     }, [phases]);
     const accessibleSteps = useMemo(() => {
         return allSteps.filter((step) => !step.is_locked);
@@ -182,13 +185,21 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
     const [selectedStepId, setSelectedStepId] = useState<string | null>(() => {
         try {
             const saved = localStorage.getItem(`aula-it:activity-view:${activity.id}:selected-tab`);
-            return saved && phases.flatMap((phase) => phase.steps.filter((step) => step.is_visible !== false && !step.is_locked)).some((step) => step.id === saved) ? saved : null;
+            const allIds = phases.flatMap((p) => p.steps
+                .filter((s: any) => s.is_visible !== false && !s.is_locked)
+                .flatMap((s: any) => [s.id, ...(s.children ?? []).filter((c: any) => c.is_visible !== false && !c.is_locked).map((c: any) => c.id)])
+            );
+            return saved && allIds.includes(saved) ? saved : null;
         } catch { return null; }
     });
     const [openStepIds, setOpenStepIds] = useState<string[]>(() => {
         try {
             const saved = JSON.parse(localStorage.getItem(`aula-it:activity-view:${activity.id}:open-tabs`) ?? '[]');
-            return (saved as string[]).filter((id) => phases.flatMap((phase) => phase.steps.filter((step) => step.is_visible !== false && !step.is_locked)).some((step) => step.id === id));
+            const allIds = phases.flatMap((p) => p.steps
+                .filter((s: any) => s.is_visible !== false && !s.is_locked)
+                .flatMap((s: any) => [s.id, ...(s.children ?? []).filter((c: any) => c.is_visible !== false && !c.is_locked).map((c: any) => c.id)])
+            );
+            return (saved as string[]).filter((id) => allIds.includes(id));
         } catch { return []; }
     });
     const [collapsedPhases, setCollapsedPhases] = useState<string[]>([]);
@@ -351,9 +362,9 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
 
             <ResizablePanelGroup id="student-preview-panel-group" direction="horizontal" className="flex-1 overflow-hidden">
                 {/* === SIDEBAR (identical to teacher: mission-builder-sidebar.tsx line 604-753) === */}
-                <ResizablePanel id="sidebar-panel" defaultSize={12} minSize={10} maxSize={40} className="bg-background h-full flex flex-col print:hidden">
+                <ResizablePanel id="sidebar-panel" defaultSize={14} minSize={14} maxSize={30} className="bg-background h-full flex flex-col print:hidden">
                     <div className="p-4 border-b border-border/50 flex items-center justify-between shrink-0">
-                        <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">Estructura de Misión</h2>
+                        <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">Fases</h2>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-3 space-y-4">
@@ -388,53 +399,88 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                             {visibleSteps.length === 0 ? (
                                                 <div className="text-xs text-text-muted italic pl-8 py-2 border-l-2 border-transparent">Sin actividades visibles.</div>
                                             ) : (
-                                                visibleSteps.map(step => {
+                                                visibleSteps.map((step: any) => {
                                                     const isActive = selectedStepId === step.id;
                                                     const isLocked = step.is_locked;
+                                                    const visibleChildren = (step.children ?? []).filter((c: any) => c.is_visible !== false);
                                                     return (
-                                                        <div
-                                                            key={step.id}
-                                                            data-step-title={step.title}
-                                                            onClick={() => !isLocked && handleStepSelect(step.id)}
-                                                            className={cn(
-                                                                "group flex items-center gap-2.5 py-2.5 px-3 pl-8 text-[13px] cursor-pointer transition-all border-l-2",
-                                                                isActive
-                                                                    ? "bg-surface/50 border-accent-blue text-foreground shadow-sm"
-                                                                    : isLocked
-                                                                        ? "border-transparent text-text-muted/60 opacity-80 cursor-not-allowed"
-                                                                        : "border-transparent hover:bg-surface-dark/50 text-text-muted hover:text-foreground",
-                                                            )}
-                                                        >
-                                                            {isLocked ? (
-                                                                <CalendarClock className="size-3.5 text-muted-foreground shrink-0" />
-                                                            ) : step.is_activity_closed ? (
-                                                                <Lock className="size-3.5 text-amber-500 shrink-0" />
-                                                            ) : (
-                                                                <div className={cn("shrink-0", isActive ? "text-accent-blue" : "text-text-muted group-hover:text-foreground")}>
-                                                                    {getStepIcon(step.type)}
+                                                        <div key={step.id}>
+                                                            <div
+                                                                data-step-title={step.title}
+                                                                onClick={() => !isLocked && handleStepSelect(step.id)}
+                                                                className={cn(
+                                                                    "group flex items-center gap-2.5 py-2.5 px-3 pl-8 text-[13px] cursor-pointer transition-all border-l-2",
+                                                                    isActive
+                                                                        ? "bg-surface/50 border-accent-blue text-foreground shadow-sm"
+                                                                        : isLocked
+                                                                            ? "border-transparent text-text-muted/60 opacity-80 cursor-not-allowed"
+                                                                            : "border-transparent hover:bg-surface-dark/50 text-text-muted hover:text-foreground",
+                                                                )}
+                                                            >
+                                                                {isLocked ? (
+                                                                    <CalendarClock className="size-3.5 text-muted-foreground shrink-0" />
+                                                                ) : step.is_activity_closed ? (
+                                                                    <Lock className="size-3.5 text-amber-500 shrink-0" />
+                                                                ) : (
+                                                                    <div className={cn("shrink-0", isActive ? "text-accent-blue" : "text-text-muted group-hover:text-foreground")}>
+                                                                        {getStepIcon(step.type)}
+                                                                    </div>
+                                                                )}
+                                                                <span className="flex-1 truncate font-medium">{step.title}</span>
+                                                                <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                                                                    {classBadges
+                                                                        ?.filter((b: any) => b.step_id === step.id && (!b.is_hidden || earnedBadgeIds?.includes(b.id)))
+                                                                        .map((b: any) => (
+                                                                            <BadgeDisplay
+                                                                                key={b.id}
+                                                                                badge={b}
+                                                                                isEarned={earnedBadgeIds?.includes(b.id) ?? false}
+                                                                                variant="icon"
+                                                                            />
+                                                                        ))
+                                                                    }
+                                                                    <StepStatusBadge
+                                                                        status={submissionsMap?.[step.id]?.status}
+                                                                        type={step.type}
+                                                                        isViewed={localViews[step.id]}
+                                                                        completionMode={step.completion_mode}
+                                                                    />
+                                                                    <StepXpBadge xp={step.xp || 0} />
                                                                 </div>
-                                                            )}
-                                                            <span className="flex-1 truncate font-medium">{step.title}</span>
-                                                            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                                                                {classBadges
-                                                                    ?.filter(b => b.step_id === step.id && (!b.is_hidden || earnedBadgeIds?.includes(b.id)))
-                                                                    .map(b => (
-                                                                        <BadgeDisplay
-                                                                            key={b.id}
-                                                                            badge={b}
-                                                                            isEarned={earnedBadgeIds?.includes(b.id) ?? false}
-                                                                            variant="icon"
-                                                                        />
-                                                                    ))
-                                                                }
-                                                                <StepStatusBadge
-                                                                    status={submissionsMap?.[step.id]?.status}
-                                                                    type={step.type}
-                                                                    isViewed={localViews[step.id]}
-                                                                    completionMode={step.completion_mode}
-                                                                />
-                                                                <StepXpBadge xp={step.xp || 0} />
                                                             </div>
+                                                            {/* Child steps (self_eval / peer_eval) */}
+                                                            {visibleChildren.map((child: any) => {
+                                                                const isChildActive = selectedStepId === child.id;
+                                                                const isChildLocked = child.is_locked;
+                                                                return (
+                                                                    <div
+                                                                        key={child.id}
+                                                                        onClick={() => !isChildLocked && handleStepSelect(child.id)}
+                                                                        className={cn(
+                                                                            "flex items-center gap-2 py-2 px-3 pl-8 text-xs cursor-pointer transition-all",
+                                                                            isChildActive
+                                                                                ? "bg-surface/50 text-foreground"
+                                                                                : isChildLocked
+                                                                                    ? "text-text-muted/60 opacity-80 cursor-not-allowed"
+                                                                                    : "hover:bg-surface-dark/50 text-text-muted hover:text-foreground"
+                                                                        )}
+                                                                    >
+                                                                        <div className="w-3 shrink-0 text-border/40 font-mono leading-none">└</div>
+                                                                        <div className={cn("shrink-0", isChildActive ? "text-accent-blue" : "text-text-muted")}>
+                                                                            {getStepIcon(child.type)}
+                                                                        </div>
+                                                                        <span className="flex-1 truncate">{child.title}</span>
+                                                                        <div className="flex items-center gap-1 shrink-0 ml-auto">
+                                                                            <StepStatusBadge
+                                                                                status={submissionsMap?.[child.id]?.status}
+                                                                                type={child.type}
+                                                                                isViewed={localViews[child.id]}
+                                                                                completionMode={child.completion_mode}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
                                                     );
                                                 })
@@ -460,8 +506,8 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                     {/* Tabs Bar — matches EditorTabsBar styling (editor-tabs-bar.tsx) */}
                     {openStepIds.length > 0 ? (
                         <DndContext sensors={tabSensors} collisionDetection={closestCenter} onDragEnd={handleTabDragEnd}>
-                        <div className="h-10 shrink-0 bg-surface-dark border-b border-border/50 flex print:hidden">
-                            <div className="flex items-center h-full flex-1 overflow-x-auto no-scrollbar">
+                            <div className="h-10 shrink-0 bg-surface-dark border-b border-border/50 flex print:hidden">
+                                <div className="flex items-center h-full flex-1 overflow-x-auto no-scrollbar">
                                     <SortableContext items={openStepIds} strategy={horizontalListSortingStrategy}>
                                         {openStepIds.map(stepId => {
                                             const step = accessibleSteps.find((item) => item.id === stepId);
@@ -486,33 +532,33 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                             );
                                         })}
                                     </SortableContext>
-                            </div>
+                                </div>
 
-                            {/* Step Counter + Navigation */}
-                            <div className="flex items-center gap-1 px-4 border-l border-border/50 h-full shrink-0 print:hidden">
-                                <span className="text-[10px] font-mono text-text-muted mr-2">
-                                    {selectedStepIndex >= 0 ? selectedStepIndex + 1 : 0} / {accessibleSteps.length}
-                                </span>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="size-7 text-text-muted hover:text-foreground"
-                                    disabled={selectedStepIndex <= 0}
-                                    onClick={handlePrev}
-                                >
-                                    <ChevronLeft className="size-3.5" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="size-7 text-text-muted hover:text-foreground"
-                                    disabled={selectedStepIndex >= allSteps.length - 1}
-                                    onClick={handleNext}
-                                >
-                                    <ChevronRight className="size-3.5" />
-                                </Button>
+                                {/* Step Counter + Navigation */}
+                                <div className="flex items-center gap-1 px-4 border-l border-border/50 h-full shrink-0 print:hidden">
+                                    <span className="text-[10px] font-mono text-text-muted mr-2">
+                                        {selectedStepIndex >= 0 ? selectedStepIndex + 1 : 0} / {accessibleSteps.length}
+                                    </span>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-7 text-text-muted hover:text-foreground"
+                                        disabled={selectedStepIndex <= 0}
+                                        onClick={handlePrev}
+                                    >
+                                        <ChevronLeft className="size-3.5" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-7 text-text-muted hover:text-foreground"
+                                        disabled={selectedStepIndex >= allSteps.length - 1}
+                                        onClick={handleNext}
+                                    >
+                                        <ChevronRight className="size-3.5" />
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
                         </DndContext>
                     ) : (
                         <div className="h-10 shrink-0 bg-surface-dark border-b border-border/50 flex items-center px-4 text-xs text-text-muted print:hidden">
@@ -577,76 +623,76 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                 </div>
                             </div>
                         ) : (
-                        <div className="flex-1 overflow-y-auto p-12 bg-background relative">
-                            <div className="w-full max-w-7xl mx-auto space-y-12 px-4 sm:px-6">
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="px-2 py-0.5 bg-accent-blue/10 border border-accent-blue/20 rounded-md">
-                                            <span className="text-[9px] font-bold text-accent-blue uppercase tracking-widest px-1">
-                                                {selectedStep.type}
-                                            </span>
+                            <div className="flex-1 overflow-y-auto p-12 bg-background relative">
+                                <div className="w-full max-w-7xl mx-auto space-y-12 px-4 sm:px-6">
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="px-2 py-0.5 bg-accent-blue/10 border border-accent-blue/20 rounded-md">
+                                                <span className="text-[9px] font-bold text-accent-blue uppercase tracking-widest px-1">
+                                                    {selectedStep.type}
+                                                </span>
+                                            </div>
+                                            <div className="h-px flex-1 bg-linear-to-r from-border/50 to-transparent" />
                                         </div>
-                                        <div className="h-px flex-1 bg-linear-to-r from-border/50 to-transparent" />
+                                        <h2 className="text-3xl font-bold text-foreground tracking-tight leading-none">
+                                            {selectedStep.title}
+                                        </h2>
                                     </div>
-                                    <h2 className="text-3xl font-bold text-foreground tracking-tight leading-none">
-                                        {selectedStep.title}
-                                    </h2>
-                                </div>
 
-                                <StepViewer
-                                    step={selectedStep}
-                                    activityId={activity.id}
-                                    submission={submissionsMap?.[selectedStep.id]}
-                                    submissionsMap={submissionsMap}
-                                    stepTitleMap={stepTitleMap}
-                                    googleEmail={googleEmail}
-                                    userId={user?.id}
-                                    studentName={profile?.full_name}
-                                    isPreview={isPreview}
-                                    groupName={(selectedStep.content as any)?.is_group_submission ? groupName : null}
-                                    groupColor={(selectedStep.content as any)?.is_group_submission ? groupColor : null}
-                                />
+                                    <StepViewer
+                                        step={selectedStep}
+                                        activityId={activity.id}
+                                        submission={submissionsMap?.[selectedStep.id]}
+                                        submissionsMap={submissionsMap}
+                                        stepTitleMap={stepTitleMap}
+                                        googleEmail={googleEmail}
+                                        userId={user?.id}
+                                        studentName={profile?.full_name}
+                                        isPreview={isPreview}
+                                        groupName={(selectedStep.content as any)?.is_group_submission ? groupName : null}
+                                        groupColor={(selectedStep.content as any)?.is_group_submission ? groupColor : null}
+                                    />
 
-                                {/* Navigation footer */}
-                                <div className="flex justify-between items-center pt-8 border-t border-border/50 mt-8 print:hidden">
-                                    <Button
-                                        variant="outline"
-                                        className="border-border/50 hover:bg-surface-dark h-10 px-6 text-sm font-medium"
-                                        onClick={handlePrev}
-                                        disabled={selectedStepIndex <= 0}
-                                    >
-                                        <ChevronLeft className="size-4 mr-2" /> Anterior
-                                    </Button>
-                                    {selectedStep.completion_mode === 'viewable' && (
-                                        localViews[selectedStep.id] ? (
-                                            <Button
-                                                className="bg-green-600/50 text-white cursor-not-allowed h-10 px-6 text-sm font-medium"
-                                                disabled
-                                            >
-                                                <CheckCircle2 className="size-4 mr-2" /> Visto
-                                            </Button>
-                                        ) : (
-                                            <Button
-                                                className="bg-green-600 hover:bg-green-700 text-white h-10 px-6 text-sm font-medium disabled:opacity-50"
-                                                onClick={handleMarkViewed}
-                                                disabled={markingViewed || isPreview}
-                                            >
-                                                <Eye className="size-4 mr-2" />
-                                                {markingViewed ? "Guardando..." : "Marcar como visto"}
-                                            </Button>
-                                        )
-                                    )}
-                                    <Button
-                                        className="bg-accent-blue hover:bg-accent-blue/90 text-white px-8 h-10 text-sm font-medium"
-                                        onClick={handleNext}
-                                        disabled={selectedStepIndex >= accessibleSteps.length - 1}
-                                    >
-                                        {selectedStepIndex >= accessibleSteps.length - 1 ? "Completar Misión" : "Siguiente Paso"}
-                                        <ChevronRight className="size-4 ml-2" />
-                                    </Button>
+                                    {/* Navigation footer */}
+                                    <div className="flex justify-between items-center pt-8 border-t border-border/50 mt-8 print:hidden">
+                                        <Button
+                                            variant="outline"
+                                            className="border-border/50 hover:bg-surface-dark h-10 px-6 text-sm font-medium"
+                                            onClick={handlePrev}
+                                            disabled={selectedStepIndex <= 0}
+                                        >
+                                            <ChevronLeft className="size-4 mr-2" /> Anterior
+                                        </Button>
+                                        {selectedStep.completion_mode === 'viewable' && (
+                                            localViews[selectedStep.id] ? (
+                                                <Button
+                                                    className="bg-green-600/50 text-white cursor-not-allowed h-10 px-6 text-sm font-medium"
+                                                    disabled
+                                                >
+                                                    <CheckCircle2 className="size-4 mr-2" /> Visto
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    className="bg-green-600 hover:bg-green-700 text-white h-10 px-6 text-sm font-medium disabled:opacity-50"
+                                                    onClick={handleMarkViewed}
+                                                    disabled={markingViewed || isPreview}
+                                                >
+                                                    <Eye className="size-4 mr-2" />
+                                                    {markingViewed ? "Guardando..." : "Marcar como visto"}
+                                                </Button>
+                                            )
+                                        )}
+                                        <Button
+                                            className="bg-accent-blue hover:bg-accent-blue/90 text-white px-8 h-10 text-sm font-medium"
+                                            onClick={handleNext}
+                                            disabled={selectedStepIndex >= accessibleSteps.length - 1}
+                                        >
+                                            {selectedStepIndex >= accessibleSteps.length - 1 ? "Completar Misión" : "Siguiente Paso"}
+                                            <ChevronRight className="size-4 ml-2" />
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
                         )
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center text-text-muted">

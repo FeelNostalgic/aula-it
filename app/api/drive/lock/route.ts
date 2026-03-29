@@ -19,7 +19,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { stepId } = body as { stepId: string };
+    const { stepId, kind, parentStepId, phaseId } = body as {
+        stepId: string;
+        kind?: "step_parent";
+        parentStepId?: string | null;
+        phaseId?: string;
+    };
     if (!stepId) {
         return NextResponse.json({ error: "stepId es requerido" }, { status: 400 });
     }
@@ -29,6 +34,55 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = createAdminClient();
+
+    if (kind === "step_parent") {
+        const expectedParentStepId = parentStepId ?? null;
+        const expectedPhaseId = phaseId;
+
+        const updates: { parent_step_id: string | null; phase_id?: string } = {
+            parent_step_id: parentStepId ?? null,
+        };
+
+        if (phaseId) {
+            updates.phase_id = phaseId;
+        }
+
+        const { data: updatedStep, error } = await admin
+            .from("activity_steps")
+            .update(updates)
+            .eq("id", stepId)
+            .select("id, parent_step_id, phase_id")
+            .single();
+
+        if (error) {
+            console.error("Error setting step parent:", error);
+            return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+
+        if (!updatedStep) {
+            return NextResponse.json({ error: "No se pudo confirmar la actualización del paso." }, { status: 500 });
+        }
+
+        if (updatedStep.parent_step_id !== expectedParentStepId) {
+            console.error("parent_step_id mismatch after update:", {
+                stepId,
+                expectedParentStepId,
+                actualParentStepId: updatedStep.parent_step_id,
+            });
+            return NextResponse.json({ error: "La base de datos no persistió el parent_step_id." }, { status: 500 });
+        }
+
+        if (expectedPhaseId && updatedStep.phase_id !== expectedPhaseId) {
+            console.error("phase_id mismatch after update:", {
+                stepId,
+                expectedPhaseId,
+                actualPhaseId: updatedStep.phase_id,
+            });
+            return NextResponse.json({ error: "La base de datos no persistió el phase_id." }, { status: 500 });
+        }
+
+        return NextResponse.json({ success: true, step: updatedStep });
+    }
 
     const { data: stepOwner } = await admin
         .from("activity_steps")

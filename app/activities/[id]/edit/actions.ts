@@ -8,6 +8,7 @@ import { ActivityPhase, ActivityStep, ActivityStepType, CompletionMode, RubricCr
 import { extractGoogleFileId } from "@/lib/google-drive-urls";
 import { setFormAcceptingResponses } from "@/lib/google-forms-api";
 import { getDriveClient, updateFilePermissionRole } from "@/lib/google-drive-api";
+import { normalizeNestedActivityPhases } from "@/lib/activity-step-tree";
 
 type RubricCriterionLibraryVisibility = "private" | "public";
 
@@ -52,11 +53,7 @@ export async function getActivityPhases(activityId: string) {
         return { error: error.message };
     }
 
-    // Sort steps within each phase
-    const sortedPhases = phases?.map(phase => ({
-        ...phase,
-        steps: (phase.steps || []).sort((a: any, b: any) => a.order_index - b.order_index)
-    })) || [];
+    const sortedPhases = normalizeNestedActivityPhases((phases ?? []) as any);
 
     return { data: sortedPhases };
 }
@@ -112,7 +109,7 @@ export async function createStep(phaseId: string, title: string, type: ActivityS
     } else if (type === 'self_evaluation') {
         defaultContent = { rubric: [], requireJustification: false, countsTowardGrade: false };
     } else if (type === 'peer_evaluation') {
-        defaultContent = { mode: 'individual', sourceStepId: '', rubric: [], requireJustification: false, submissionsPerEvaluator: 2, peerWeight: 30, anonymousEvaluation: true, outlierSensitivity: 'normal', nonEvaluatorPolicy: 'fallback_teacher' };
+        defaultContent = { mode: 'individual', rubric: [], requireJustification: false, submissionsPerEvaluator: 2, anonymousEvaluation: true, outlierSensitivity: 'normal', nonEvaluatorPolicy: 'fallback_teacher' };
     }
 
     const admin = createAdminClient();
@@ -291,6 +288,7 @@ export async function duplicateStep(stepId: string) {
         due_date: (originalStep as any).due_date ?? null,
         completion_mode: (originalStep as any).completion_mode ?? null,
         xp: (originalStep as any).xp ?? null,
+        parent_step_id: (originalStep as any).parent_step_id ?? null,
     };
 
     const { data: insertedStep, error: insertError } = await admin
@@ -326,6 +324,32 @@ export async function duplicateStep(stepId: string) {
     if (reorderError?.error) {
         console.error("Error duplicating step: reindex failed", reorderError.error);
         return { error: "La actividad se duplicó pero no se pudo reordenar correctamente." };
+    }
+
+    // Duplicate children (self_evaluation / peer_evaluation nested under this step)
+    const { data: childSteps } = await admin
+        .from("activity_steps")
+        .select("*")
+        .eq("parent_step_id", stepId)
+        .order("order_index", { ascending: true });
+
+    if (childSteps && childSteps.length > 0) {
+        const childPayloads = childSteps.map((child: any) => ({
+            phase_id: child.phase_id,
+            title: child.title,
+            type: child.type,
+            content: child.content,
+            order_index: child.order_index,
+            is_visible: child.is_visible,
+            is_locked: child.is_locked,
+            is_activity_closed: child.is_activity_closed ?? false,
+            is_lockdown: child.is_lockdown ?? false,
+            due_date: child.due_date ?? null,
+            completion_mode: child.completion_mode ?? null,
+            xp: child.xp ?? null,
+            parent_step_id: insertedStep.id,
+        }));
+        await admin.from("activity_steps").insert(childPayloads);
     }
 
     if (activityId) revalidatePath(`/activities/${activityId}/edit`);

@@ -25,7 +25,7 @@ import {
     CalendarClock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ActivityPhaseWithSteps, ActivityStepWithClientState, ActivityStepType } from "@/types/activity";
+import { ActivityPhaseWithSteps, ActivityStep, ActivityStepWithClientState, ActivityStepType } from "@/types/activity";
 import { getStepIcon, getTabStepIcon, STEP_TYPE_LABELS } from "@/lib/constants/step-icons";
 import {
     DropdownMenu,
@@ -71,6 +71,7 @@ import {
     DragOverEvent,
     DragOverlay,
     defaultDropAnimationSideEffects,
+    useDraggable,
 } from "@dnd-kit/core";
 import {
     arrayMove,
@@ -81,7 +82,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-// Mock imports for server actions
 import { createPhase, createStep, deletePhase, deleteStep, duplicateStep, reorderSteps, reorderPhases, updatePhaseTitle, updateStepVisibility, updateStepLock, updateStepActivityClosed, updatePhaseStepsVisibility, updatePhaseStepsActivityClosed, updatePhaseStepsLock } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import {
@@ -104,25 +104,78 @@ interface MissionBuilderSidebarProps {
 }
 
 
+const EVAL_STEP_TYPES = ['self_evaluation', 'peer_evaluation'] as const;
+const PARENT_STEP_TYPES = ['deliverable', 'file_upload'] as const;
+
+function ensureClientStep(step: ActivityStep | ActivityStepWithClientState): ActivityStepWithClientState {
+    return {
+        ...step,
+        content: (step.content ?? {}) as ActivityStepWithClientState["content"],
+        children: (step.children ?? []).map(ensureClientStep),
+    };
+}
+
+async function persistStepParent(stepId: string, parentStepId: string | null, phaseId: string) {
+    const response = await fetch("/api/drive/lock", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            kind: "step_parent",
+            stepId,
+            parentStepId,
+            phaseId,
+        }),
+    });
+
+    const payload = await response.json().catch(() => ({ error: "Respuesta inválida del servidor." })) as {
+        error?: string;
+        success?: boolean;
+    };
+
+    if (!response.ok || !payload.success) {
+        return { error: payload.error ?? "No se pudo vincular el paso." };
+    }
+
+    return { success: true };
+}
+
 // Sortable Step Component
 function SortableStepItem({
     step,
     isSelected,
+    isDropTarget,
     onSelect,
     onDelete,
     onDuplicate,
     onToggleVisibility,
     onToggleLock,
     onToggleActivityClosed,
+    onSelectChild,
+    onChildToggleVisibility,
+    onChildToggleLock,
+    onChildToggleActivityClosed,
+    onChildDuplicate,
+    onDeleteChild,
+    selectedStepId,
 }: {
     step: ActivityStepWithClientState,
     isSelected: boolean,
+    isDropTarget?: boolean,
     onSelect: () => void,
     onDelete: () => void,
     onDuplicate: () => void,
     onToggleVisibility: () => void,
     onToggleLock: () => void,
     onToggleActivityClosed: () => void,
+    onSelectChild?: (childId: string) => void,
+    onChildToggleVisibility?: (childId: string, current: boolean) => void,
+    onChildToggleLock?: (childId: string, current: boolean) => void,
+    onChildToggleActivityClosed?: (childId: string, current: boolean) => void,
+    onChildDuplicate?: (childId: string) => void,
+    onDeleteChild?: (childId: string) => void,
+    selectedStepId?: string | null,
 }) {
     const {
         attributes,
@@ -139,7 +192,10 @@ function SortableStepItem({
         zIndex: isDragging ? 50 : undefined,
     };
 
+    const children = (step.children ?? []).map(ensureClientStep);
+
     return (
+        <div data-step-id={step.id}>
         <div
             ref={setNodeRef}
             style={style}
@@ -150,7 +206,8 @@ function SortableStepItem({
                 isSelected
                     ? "bg-surface border-accent-blue text-foreground"
                     : "border-transparent hover:bg-surface-dark text-text-muted hover:text-foreground",
-                isDragging && "opacity-50 ring-2 ring-accent-blue/20 bg-surface border-accent-blue"
+                isDragging && "opacity-50 ring-2 ring-accent-blue/20 bg-surface border-accent-blue",
+                isDropTarget && !isDragging && "border-accent-blue/60 bg-accent-blue/5"
             )}
         >
             <div
@@ -238,6 +295,136 @@ function SortableStepItem({
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
+        </div>
+        {/* Nested children (self_eval / peer_eval linked to this step) */}
+        {children.length > 0 && (
+            <div>
+                {children.map(child => (
+                    <ChildStepItem
+                        key={child.id}
+                        step={child}
+                        parentStepId={step.id}
+                        isSelected={selectedStepId === child.id}
+                        onSelect={() => onSelectChild?.(child.id)}
+                        onToggleVisibility={() => onChildToggleVisibility?.(child.id, child.is_visible !== false)}
+                        onToggleLock={() => onChildToggleLock?.(child.id, !!child.is_locked)}
+                        onToggleActivityClosed={() => onChildToggleActivityClosed?.(child.id, !!child.is_activity_closed)}
+                        onDuplicate={() => onChildDuplicate?.(child.id)}
+                        onDelete={() => onDeleteChild?.(child.id)}
+                    />
+                ))}
+            </div>
+        )}
+        </div>
+    );
+}
+
+// Child Step Item — draggable, with full action buttons
+function ChildStepItem({
+    step,
+    parentStepId,
+    isSelected,
+    onSelect,
+    onToggleVisibility,
+    onToggleLock,
+    onToggleActivityClosed,
+    onDuplicate,
+    onDelete,
+}: {
+    step: ActivityStepWithClientState;
+    parentStepId: string;
+    isSelected: boolean;
+    onSelect: () => void;
+    onToggleVisibility: () => void;
+    onToggleLock: () => void;
+    onToggleActivityClosed: () => void;
+    onDuplicate: () => void;
+    onDelete: () => void;
+}) {
+    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+        id: `child-${step.id}`,
+        data: { type: "ChildStep", step, parentStepId },
+    });
+
+    return (
+        <div
+            ref={setNodeRef}
+            onClick={onSelect}
+            className={cn(
+                "group flex items-center gap-2 py-1.5 px-3 pl-10 text-xs cursor-pointer transition-colors",
+                isSelected
+                    ? "bg-surface text-foreground"
+                    : "hover:bg-surface-dark text-text-muted hover:text-foreground",
+                isDragging && "opacity-40"
+            )}
+        >
+            <div
+                {...attributes}
+                {...listeners}
+                className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-text-muted hover:text-foreground shrink-0"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <GripVertical className="size-3" />
+            </div>
+            <div className="w-3 shrink-0 text-border/40 font-mono leading-none">└</div>
+            {getStepIcon(step.type)}
+            <span className={cn("flex-1 truncate", step.is_visible === false && "line-through opacity-50")}>
+                {step.title}
+            </span>
+            <div className="flex items-center gap-1 min-w-[40px] justify-end">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    title={step.is_visible !== false ? "Ocultar" : "Mostrar"}
+                    className={cn(
+                        "size-5 transition-all",
+                        step.is_visible !== false ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-accent-blue"
+                    )}
+                    onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}
+                >
+                    {step.is_visible !== false ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    title={!step.is_locked ? "Bloquear" : "Desbloquear"}
+                    className={cn(
+                        "size-5 transition-all",
+                        !step.is_locked ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-muted-foreground"
+                    )}
+                    onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
+                >
+                    <CalendarClock className="size-3" />
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    title={!step.is_activity_closed ? "Cerrar entregas" : "Abrir entregas"}
+                    className={cn(
+                        "size-5 transition-all",
+                        !step.is_activity_closed ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-amber-500"
+                    )}
+                    onClick={(e) => { e.stopPropagation(); onToggleActivityClosed(); }}
+                >
+                    {!step.is_activity_closed ? <Unlock className="size-3" /> : <Lock className="size-3" />}
+                </Button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="size-5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted" onClick={e => e.stopPropagation()}>
+                            <MoreVertical className="size-3" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-surface-dark border-border-strong w-32 z-50">
+                        <DropdownMenuItem className="cursor-pointer text-xs" onClick={(e) => { e.stopPropagation(); onDuplicate(); }}>
+                            <Copy className="size-3.5 mr-2" /> Duplicar
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator className="bg-border-subtle" />
+                        <DropdownMenuItem className="text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer text-xs" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
+                            <Trash2 className="size-3.5 mr-2" /> Eliminar
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
         </div>
     );
 }
@@ -434,6 +621,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
 
     const [activeId, setActiveId] = useState<string | null>(null);
     const [activeType, setActiveType] = useState<"Phase" | "Step" | null>(null);
+    const [draggingEvalStep, setDraggingEvalStep] = useState(false);
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -550,9 +738,26 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                     const result = await deleteStep(stepToDelete.stepId);
                     if (result.error) throw new Error(result.error);
 
-                    const newPhases = [...phases];
-                    const phaseIndex = newPhases.findIndex((phase) => phase.id === stepToDelete.phaseId);
-                    newPhases[phaseIndex].steps = newPhases[phaseIndex].steps.filter((step) => step.id !== stepToDelete.stepId);
+                    const newPhases: ActivityPhaseWithSteps[] = [...phases];
+                    if (stepToDelete.phaseId) {
+                        // Root step
+                        const phaseIndex = newPhases.findIndex((phase) => phase.id === stepToDelete.phaseId);
+                        if (phaseIndex !== -1) {
+                            newPhases[phaseIndex].steps = newPhases[phaseIndex].steps.filter((step) => step.id !== stepToDelete.stepId);
+                        }
+                    } else {
+                        // Child step — find the parent and remove from its children
+                        for (let phaseIndex = 0; phaseIndex < newPhases.length; phaseIndex++) {
+                            newPhases[phaseIndex] = {
+                                ...newPhases[phaseIndex],
+                                steps: newPhases[phaseIndex].steps.map((step) =>
+                                    step.children?.some((child) => child.id === stepToDelete.stepId)
+                                        ? { ...step, children: step.children.filter((child) => child.id !== stepToDelete.stepId).map(ensureClientStep) }
+                                        : step
+                                ),
+                            };
+                        }
+                    }
                     setPhases(newPhases);
                     if (selectedStepId === stepToDelete.stepId) setSelectedStepId(null);
                 })(),
@@ -579,9 +784,12 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                     const sourceIndex = phase.steps.findIndex((step) => step.id === stepId);
                     if (sourceIndex === -1) return phase;
 
+                    const originalStep = phase.steps[sourceIndex];
                     const duplicate = {
                         ...result.data,
                         content: (result.data.content ?? {}) as any,
+                        // Clone children optimistically — server already inserted them with correct parent_step_id
+                        children: (originalStep.children ?? []).map(c => ensureClientStep({ ...c, parent_step_id: result.data!.id })),
                     };
 
                     const nextSteps = [...phase.steps];
@@ -611,8 +819,13 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
         if (result.error) {
             toast.error("Error al actualizar visibilidad");
         } else {
-            // Optimistic update
-            setPhases(phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => s.id === stepId ? { ...s, is_visible: !currentVisibility } : s) } : p));
+            setPhases(phases.map(p => p.id !== phaseId ? p : {
+                ...p, steps: p.steps.map(s => {
+                    if (s.id === stepId) return { ...s, is_visible: !currentVisibility };
+                    if (s.children?.some(c => c.id === stepId)) return { ...s, children: s.children.map(c => c.id === stepId ? ensureClientStep({ ...c, is_visible: !currentVisibility }) : c) };
+                    return s;
+                })
+            }) as ActivityPhaseWithSteps[]);
         }
     };
 
@@ -621,8 +834,47 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
         if (result.error) {
             toast.error("Error al actualizar bloqueo");
         } else {
-            setPhases(phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => s.id === stepId ? { ...s, is_locked: !currentLock } : s) } : p));
+            setPhases(phases.map(p => p.id !== phaseId ? p : {
+                ...p, steps: p.steps.map(s => {
+                    if (s.id === stepId) return { ...s, is_locked: !currentLock };
+                    if (s.children?.some(c => c.id === stepId)) return { ...s, children: s.children.map(c => c.id === stepId ? ensureClientStep({ ...c, is_locked: !currentLock }) : c) };
+                    return s;
+                })
+            }) as ActivityPhaseWithSteps[]);
         }
+    };
+
+    const handleDuplicateChildStep = async (childId: string, parentStepId: string, phaseId: string) => {
+        await toast.promise(
+            (async () => {
+                const result = await duplicateStep(childId);
+                if (result.error || !result.data) throw new Error(result.error ?? "No se pudo duplicar la actividad.");
+
+                const duplicate = ensureClientStep({ ...result.data, content: (result.data.content ?? {}) as any });
+                setPhases(prev => prev.map(p => {
+                    if (p.id !== phaseId) return p;
+                    return {
+                        ...p, steps: p.steps.map(s => {
+                            if (s.id !== parentStepId) return s;
+                            const children = s.children ?? [];
+                            const sourceIndex = children.findIndex(c => c.id === childId);
+                            const next = [...children];
+                            next.splice(sourceIndex + 1, 0, duplicate as any);
+                            return { ...s, children: next };
+                        })
+                    };
+                }));
+            })(),
+            {
+                loading: "Duplicando actividad...",
+                success: "Actividad duplicada",
+                error: (error) => error.message,
+            }
+        );
+    };
+
+    const handleDeleteChildStep = (childId: string) => {
+        setStepToDelete({ phaseId: "", stepId: childId }); // phaseId not needed for child delete
     };
 
     const handleToggleActivityClosed = async (phaseId: string, stepId: string, currentClosed: boolean) => {
@@ -633,7 +885,13 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
             loading: nextClosed ? "Cerrando entregas..." : "Abriendo entregas...",
             success: (result) => {
                 if (result.error) throw new Error(result.error);
-                setPhases(phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => s.id === stepId ? { ...s, is_activity_closed: nextClosed } : s) } : p));
+                setPhases(phases.map(p => p.id !== phaseId ? p : {
+                    ...p, steps: p.steps.map(s => {
+                        if (s.id === stepId) return { ...s, is_activity_closed: nextClosed };
+                        if (s.children?.some(c => c.id === stepId)) return { ...s, children: s.children.map(c => c.id === stepId ? ensureClientStep({ ...c, is_activity_closed: nextClosed }) : c) };
+                        return s;
+                    })
+                }) as ActivityPhaseWithSteps[]);
                 if ("formserror" in result) return "Entregas actualizadas, pero no se pudo sincronizar Google Forms";
                 if ("formssynced" in result) return nextClosed ? "Formulario cerrado en Google Forms" : "Formulario abierto en Google Forms";
                 if ("drivesynced" in result) return nextClosed ? "Documentos bloqueados en Drive" : "Documentos desbloqueados en Drive";
@@ -686,7 +944,11 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
 
     const handleDragStart = (e: DragStartEvent) => {
         setActiveId(e.active.id as string);
-        setActiveType(e.active.data.current?.type as "Phase" | "Step" | null);
+        const dragType = e.active.data.current?.type as "Phase" | "Step" | "ChildStep" | null;
+        setActiveType(dragType as "Phase" | "Step" | null);
+        const stepType = e.active.data.current?.step?.type;
+        // ChildStep is always an eval step — highlight valid parent drop targets
+        setDraggingEvalStep(EVAL_STEP_TYPES.includes(stepType) || dragType === "ChildStep");
     };
 
     const handleDragOver = (e: DragOverEvent) => {
@@ -742,14 +1004,121 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
         }
     };
 
+    const handleNestStep = async (evalStepId: string, parentStepId: string) => {
+        const targetPhase = phases.find(phase => phase.steps.some(step => step.id === parentStepId));
+        if (!targetPhase) return;
+
+        setPhases(prev => {
+            let evalStep: ActivityStepWithClientState | null = null;
+
+            const withoutEvalAtRoot = prev.map(phase => ({
+                ...phase,
+                steps: phase.steps.filter(step => {
+                    if (step.id === evalStepId) {
+                        evalStep = step;
+                        return false;
+                    }
+                    return true;
+                }),
+            }));
+
+            if (!evalStep) return prev;
+            const currentEvalStep = ensureClientStep(evalStep);
+            const stepToNest = ensureClientStep({ ...currentEvalStep, parent_step_id: parentStepId, phase_id: targetPhase.id });
+
+            return withoutEvalAtRoot.map(phase => ({
+                ...phase,
+                steps: phase.steps.map(step =>
+                    step.id === parentStepId
+                        ? { ...step, children: [...(step.children ?? []), stepToNest] }
+                        : step
+                ),
+            }));
+        });
+        const res = await persistStepParent(evalStepId, parentStepId, targetPhase.id);
+        if (res.error) toast.error("Error al vincular el paso");
+    };
+
+    const handleUnlinkStep = async (childStepId: string, parentStepId: string, phaseId: string) => {
+        let unlinkedStep: ActivityStepWithClientState | null = null;
+        setPhases(prev => prev.map(p => {
+            if (p.id !== phaseId) return p;
+            const updatedSteps = p.steps.map(s => {
+                if (s.id !== parentStepId) return s;
+                const child = (s.children ?? []).find(c => c.id === childStepId);
+                if (child) unlinkedStep = ensureClientStep({ ...child, parent_step_id: null });
+                return { ...s, children: (s.children ?? []).filter(c => c.id !== childStepId) };
+            });
+            if (unlinkedStep) {
+                return { ...p, steps: [...updatedSteps, unlinkedStep] };
+            }
+            return { ...p, steps: updatedSteps };
+        }) as ActivityPhaseWithSteps[]);
+        const res = await persistStepParent(childStepId, null, phaseId);
+        if (res.error) toast.error("Error al desvincular el paso");
+    };
+
     const handleDragEnd = async (e: DragEndEvent) => {
         setActiveId(null);
         setActiveType(null);
+        setDraggingEvalStep(false);
 
         const { active, over } = e;
         if (!over) return;
 
         const activeType = active.data.current?.type;
+
+        // Child step dragged: either re-nest onto another parent or unlink to root
+        if (activeType === "ChildStep") {
+            const childStep = active.data.current?.step as ActivityStepWithClientState;
+            const parentStepId = active.data.current?.parentStepId as string;
+            const overStep = over.data.current?.step as ActivityStepWithClientState | undefined;
+
+            const parentPhase = phases.find(p => p.steps.some(s => s.id === parentStepId));
+            if (!parentPhase) return;
+
+            if (overStep && PARENT_STEP_TYPES.includes(overStep.type as any) && overStep.id !== parentStepId) {
+                // Dropped on a different valid parent → re-nest
+                const newParentPhase = phases.find(p => p.steps.some(s => s.id === overStep.id)) ?? parentPhase;
+                setPhases(prev => prev.map(p => {
+                    const isOldPhase = p.id === parentPhase.id;
+                    const isNewPhase = p.id === newParentPhase.id;
+                    if (isOldPhase && isNewPhase) {
+                        return {
+                            ...p, steps: p.steps.map(s => {
+                                if (s.id === parentStepId) return { ...s, children: (s.children ?? []).filter(c => c.id !== childStep.id) };
+                                if (s.id === overStep.id) return { ...s, children: [...(s.children ?? []), ensureClientStep({ ...childStep, parent_step_id: overStep.id, phase_id: newParentPhase.id })] };
+                                return s;
+                            })
+                        };
+                    }
+                    if (isOldPhase) return { ...p, steps: p.steps.map(s => s.id === parentStepId ? { ...s, children: (s.children ?? []).filter(c => c.id !== childStep.id) } : s) };
+                    if (isNewPhase) return { ...p, steps: p.steps.map(s => s.id === overStep.id ? { ...s, children: [...(s.children ?? []), ensureClientStep({ ...childStep, parent_step_id: overStep.id, phase_id: newParentPhase.id })] } : s) };
+                    return p;
+                }) as ActivityPhaseWithSteps[]);
+                const res = await persistStepParent(childStep.id, overStep.id, newParentPhase.id);
+                if (res.error) toast.error("Error al mover el paso");
+            } else {
+                // Dropped on root area or same parent → unlink to root
+                await handleUnlinkStep(childStep.id, parentStepId, parentPhase.id);
+            }
+            return;
+        }
+
+        // Nest-on-drop: eval step dragged onto a deliverable/file_upload step
+        if (activeType === "Step") {
+            const activeStep = active.data.current?.step as ActivityStepWithClientState | undefined;
+            const overStep = over.data.current?.step as ActivityStepWithClientState | undefined;
+            if (
+                activeStep && overStep &&
+                EVAL_STEP_TYPES.includes(activeStep.type as any) &&
+                PARENT_STEP_TYPES.includes(overStep.type as any) &&
+                active.id !== over.id
+            ) {
+                await handleNestStep(activeStep.id, overStep.id);
+                return;
+            }
+        }
 
         if (activeType === "Phase") {
             if (active.id !== over.id) {
@@ -806,9 +1175,9 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
 
     return (
         <div className="w-full h-full bg-background flex flex-col">
-            <div className="p-4 border-b border-border/50 flex items-center justify-between shrink-0">
+            <div className="pb-2 pt-2 pr-4 pl-4 border-b border-border/50 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
-                    <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">El Mapa (Fases)</h2>
+                    <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">Fases</h2>
                     {moduleRole !== "creator" && (
                         <TooltipProvider>
                             <Tooltip>
@@ -897,7 +1266,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                 </DialogContent>
             </Dialog>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-4">
+            <div className="flex-1 overflow-y-auto pt-2 pr-0 pl-0 pb-0 space-y-0">
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -942,12 +1311,20 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                                             key={step.id}
                                                              step={step}
                                                              isSelected={selectedStepId === step.id}
+                                                             isDropTarget={draggingEvalStep && PARENT_STEP_TYPES.includes(step.type as any)}
                                                              onSelect={() => setSelectedStepId(step.id)}
                                                              onDelete={() => handleDeleteStep(phase.id, step.id)}
                                                              onDuplicate={() => handleDuplicateStep(phase.id, step.id)}
                                                              onToggleVisibility={() => handleToggleVisibility(phase.id, step.id, step.is_visible !== false)}
                                                              onToggleLock={() => handleToggleLock(phase.id, step.id, !!step.is_locked)}
                                                              onToggleActivityClosed={() => handleToggleActivityClosed(phase.id, step.id, !!step.is_activity_closed)}
+                                                             onSelectChild={(childId) => setSelectedStepId(childId)}
+                                                             onChildToggleVisibility={(childId, current) => handleToggleVisibility(phase.id, childId, current)}
+                                                             onChildToggleLock={(childId, current) => handleToggleLock(phase.id, childId, current)}
+                                                             onChildToggleActivityClosed={(childId, current) => handleToggleActivityClosed(phase.id, childId, current)}
+                                                             onChildDuplicate={(childId) => handleDuplicateChildStep(childId, step.id, phase.id)}
+                                                             onDeleteChild={(childId) => handleDeleteChildStep(childId)}
+                                                             selectedStepId={selectedStepId}
                                                         />
                                                     ))}
                                                 </SortableContext>
@@ -971,7 +1348,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                         {activeId && activeType === "Step" ? (
                             <SortableStepItem
                                  step={phases.flatMap(p => p.steps).find(s => `step-${s.id}` === activeId) as any}
-                                 isSelected={selectedStepId === (phases.flatMap(p => p.steps).find(s => `step-${s.id}` === activeId)?.id)}
+                                 isSelected={false}
                                  onSelect={() => { }}
                                  onDelete={() => { }}
                                  onDuplicate={() => { }}

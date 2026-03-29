@@ -23,6 +23,7 @@ import { BreadcrumbProvider, useBreadcrumb } from "@/components/dashboard/layout
 import { EditorTabsBar } from "@/components/dashboard/activities/activity-builder/editor-tabs-bar";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { updateActivityStatus, updateStepTitle, updateActivitySettings } from "./actions";
+import { normalizeNestedActivityPhases } from "@/lib/activity-step-tree";
 import {
     getModuleRoleLabel,
     getModuleRoleTooltip,
@@ -71,18 +72,19 @@ function BreadcrumbSetter({ activity }: { activity: any }) {
 
 export function ActivityBuilderClient({ activity, initialPhases, profile, user, moduleRole, modulePermissions }: ActivityBuilderClientProps) {
     const router = useRouter();
-    const [phases, setPhases] = useState<ActivityPhaseWithSteps[]>(initialPhases);
+    const normalizedInitialPhases = normalizeNestedActivityPhases(initialPhases);
+    const [phases, setPhases] = useState<ActivityPhaseWithSteps[]>(normalizedInitialPhases);
     const [selectedStepId, setSelectedStepId] = useState<string | null>(() => {
         try {
             const saved = localStorage.getItem(`aula-it:activity-editor:${activity.id}:selected-tab`);
-            const allStepIds = initialPhases.flatMap(p => p.steps.map((s: any) => s.id));
+            const allStepIds = normalizedInitialPhases.flatMap(p => p.steps.flatMap((s: any) => [s.id, ...(s.children ?? []).map((c: any) => c.id)]));
             return saved && (allStepIds.includes(saved) || saved === 'settings' || saved === 'badges') ? saved : null;
         } catch { return null; }
     });
     const [openedStepsIds, setOpenedStepsIds] = useState<string[]>(() => {
         try {
             const saved = JSON.parse(localStorage.getItem(`aula-it:activity-editor:${activity.id}:open-tabs`) ?? '[]');
-            const allStepIds = initialPhases.flatMap(p => p.steps.map((s: any) => s.id));
+            const allStepIds = normalizedInitialPhases.flatMap(p => p.steps.flatMap((s: any) => [s.id, ...(s.children ?? []).map((c: any) => c.id)]));
             return (saved as string[]).filter(id => allStepIds.includes(id) || id === 'settings' || id === 'badges');
         } catch { return []; }
     });
@@ -93,6 +95,10 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user, 
     useEffect(() => {
         setActivityData(activity);
     }, [activity]);
+
+    useEffect(() => {
+        setPhases(normalizeNestedActivityPhases(initialPhases));
+    }, [initialPhases]);
 
     // Persist open tabs and selected tab to localStorage
     useEffect(() => {
@@ -123,15 +129,21 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user, 
 
     const selectedStep = phases
         .flatMap((p: ActivityPhaseWithSteps) => p.steps)
+        .flatMap((s: any) => [s, ...(s.children ?? [])])
         .find((s: any) => s.id === selectedStepId) as ActivityStepWithClientState | undefined;
 
     const handleUpdateStep = (updatedStep: ActivityStepWithClientState) => {
         setPhases((current: ActivityPhaseWithSteps[]) =>
             current.map((phase: ActivityPhaseWithSteps) => ({
                 ...phase,
-                steps: phase.steps.map((step: any) =>
-                    step.id === updatedStep.id ? updatedStep : step
-                )
+                steps: phase.steps.map((step: any) => {
+                    if (step.id === updatedStep.id) return updatedStep;
+                    // Also update if it's a child step
+                    if (step.children?.some((c: any) => c.id === updatedStep.id)) {
+                        return { ...step, children: step.children.map((c: any) => c.id === updatedStep.id ? updatedStep : c) };
+                    }
+                    return step;
+                })
             }))
         );
     };
@@ -146,7 +158,13 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user, 
             // Rename step
             setPhases(current => current.map(p => ({
                 ...p,
-                steps: p.steps.map(s => s.id === id ? { ...s, title: newTitle } : s)
+                steps: p.steps.map((s: any) => {
+                    if (s.id === id) return { ...s, title: newTitle };
+                    if (s.children?.some((c: any) => c.id === id)) {
+                        return { ...s, children: s.children.map((c: any) => c.id === id ? { ...c, title: newTitle } : c) };
+                    }
+                    return s;
+                })
             })));
             const res = await updateStepTitle(id, newTitle);
             if (res.error) toast.error("Error al renombrar paso");
@@ -320,7 +338,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user, 
                 ) : (
                     <ResizablePanelGroup id="activity-builder-layout" direction="horizontal" className="flex-1 overflow-hidden">
                         {/* Left Sidebar - Structure Builder */}
-                        <ResizablePanel id="sidebar-panel" defaultSize={12} minSize={10} maxSize={40} className="bg-background h-full flex flex-col">
+                        <ResizablePanel id="sidebar-panel" defaultSize={17} minSize={14} maxSize={30} className="bg-background h-full flex flex-col">
                             <MissionBuilderSidebar
                                 activityId={activity.id}
                                 phases={phases}
@@ -347,7 +365,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user, 
                                         setSelectedStepId(newOpened.length > 0 ? newOpened[newOpened.length - 1] : null);
                                     }
                                 }}
-                                allSteps={phases.flatMap(p => p.steps)}
+                                allSteps={phases.flatMap(p => p.steps.flatMap((s: any) => [s, ...(s.children ?? [])]))}
                                 onRenameTab={handleRenameTab}
                             />
                             {selectedStepId === 'settings' ? (
@@ -362,7 +380,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user, 
                                     onUpdate={setActivityData}
                                 />
                             ) : selectedStep ? (
-                                <StepEditorPanel step={selectedStep} onUpdateStep={handleUpdateStep} activityId={activityData.id} phases={phases} />
+                                <StepEditorPanel step={selectedStep} onUpdateStep={handleUpdateStep} activityId={activityData.id} phases={phases} moduleId={(activityData as any).unit?.module?.id} />
                             ) : (
                                 <div className="flex-1 flex flex-col items-center justify-center text-text-muted">
                                     <FileText className="size-12 mb-4 opacity-20" />

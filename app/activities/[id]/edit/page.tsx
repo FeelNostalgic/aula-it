@@ -3,6 +3,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { notFound, redirect } from "next/navigation";
 import { ActivityBuilderClient } from "./client";
 import { getActivityAccess } from "@/lib/module-access";
+import { normalizeNestedActivityPhases } from "@/lib/activity-step-tree";
 
 export default async function ActivityEditPage({
     params,
@@ -72,10 +73,7 @@ export default async function ActivityEditPage({
 
     let initialPhases = phases || [];
     if (!phasesError) {
-        initialPhases = initialPhases.map(phase => ({
-            ...phase,
-            steps: (phase.steps || []).sort((a: any, b: any) => a.order_index - b.order_index)
-        }));
+        initialPhases = normalizeNestedActivityPhases(initialPhases as any);
     }
 
     return (
