@@ -30,6 +30,7 @@ export function PeerEvaluationViewer({
     const [receivedFeedback, setReceivedFeedback] = useState<{ rubricScores: Record<string, number>; justifications: Record<string, string> }[]>([]);
     const [feedbackVisible, setFeedbackVisible] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [currentIndex, setCurrentIndex] = useState(0);
 
     useEffect(() => {
@@ -38,9 +39,13 @@ export function PeerEvaluationViewer({
             getMyPeerAssignments(stepId),
             getMyReceivedPeerFeedback(stepId),
         ]).then(([assignRes, feedbackRes]) => {
+            if (assignRes.error) setLoadError(assignRes.error);
             if (assignRes.assignments) setAssignments(assignRes.assignments);
             if (feedbackRes.items) setReceivedFeedback(feedbackRes.items);
             setFeedbackVisible(feedbackRes.visible ?? false);
+            setLoading(false);
+        }).catch(err => {
+            setLoadError(String(err));
             setLoading(false);
         });
     }, [stepId, isPreview]);
@@ -69,6 +74,10 @@ export function PeerEvaluationViewer({
                                 ? "El profesor todavía no ha generado las asignaciones o ya evaluaste a todos tus compañeros."
                                 : "El profesor todavía no ha generado las asignaciones de coevaluación o ya las has completado todas."}
                     </p>
+                    {loadError && (
+                        <p className="text-[10px] font-mono text-red-400 max-w-sm break-all">[debug] {loadError}</p>
+                    )}
+                    <p className="text-[10px] font-mono text-text-muted/30">[debug] stepId: {stepId}</p>
                 </div>
             </div>
         );
