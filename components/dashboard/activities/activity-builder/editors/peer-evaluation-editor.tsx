@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { ListChecks, Users, User, MessageSquare, Plus, Trash2, GripVertical, PanelRightClose, PanelRightOpen, Link2 } from "lucide-react";
+import { ListChecks, Users, User, MessageSquare, Plus, Trash2, GripVertical, PanelRightClose, PanelRightOpen, Link2, CheckCircle2, Clock } from "lucide-react";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StepConfigSection } from "./step-config-section";
@@ -26,7 +26,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { generatePeerAssignments } from "@/app/dashboard/units/[id]/actions";
+import { generatePeerAssignments, getPeerEvaluationResults } from "@/app/dashboard/units/[id]/actions";
 
 interface PeerEvaluationEditorProps {
     step: ActivityStepWithClientState;
@@ -70,11 +70,25 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
     const [antiGamingOpen, setAntiGamingOpen] = useState(false);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
     const [isPending, startTransition] = useTransition();
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [gestionAssignments, setGestionAssignments] = useState<any[]>([]);
+    const [gestionLoading, setGestionLoading] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const loadGestionAssignments = async () => {
+        setGestionLoading(true);
+        const res = await getPeerEvaluationResults(step.id);
+        setGestionAssignments(res.assignments ?? []);
+        setGestionLoading(false);
+    };
 
     useEffect(() => {
         setContent((step.content as PeerEvaluationContent) || defaultContent);
     }, [step.id, step.content]);
+
+    useEffect(() => {
+        if (moduleId) loadGestionAssignments();
+    }, [step.id, moduleId]);
 
     const save = (newContent: PeerEvaluationContent) => {
         setContent(newContent);
@@ -591,28 +605,61 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                     {/* Gestión — generate assignments */}
                     {moduleId && (
                         <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
+                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2 flex items-center justify-between">
                                 <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Gestión</span>
-                            </div>
-                            <div className="p-5 flex items-center justify-between gap-4">
-                                <div>
-                                    <p className="text-sm text-foreground font-medium">Asignaciones de evaluación</p>
-                                    <p className="text-xs text-text-muted mt-0.5">Genera o regenera las asignaciones de quién evalúa a quién.</p>
-                                </div>
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    disabled={isPending}
-                                    onClick={() => startTransition(async () => {
+                                    disabled={isGenerating}
+                                    onClick={async () => {
+                                        setIsGenerating(true);
                                         const res = await generatePeerAssignments(step.id, moduleId);
-                                        if (res.error) toast.error(res.error);
-                                        else toast.success("Asignaciones generadas correctamente.");
-                                    })}
-                                    className="shrink-0 h-8 text-xs gap-1.5 border-border/50 text-text-muted hover:text-foreground"
+                                        if (res.error) {
+                                            toast.error(res.error);
+                                        } else {
+                                            toast.success("Asignaciones generadas correctamente.");
+                                            await loadGestionAssignments();
+                                        }
+                                        setIsGenerating(false);
+                                    }}
+                                    className="shrink-0 h-7 text-xs gap-1.5 border-border/50 text-text-muted hover:text-foreground"
                                 >
-                                    {isPending ? <span className="size-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Users className="size-3.5" />}
+                                    {isGenerating ? <span className="size-3 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Users className="size-3" />}
                                     Generar asignaciones
                                 </Button>
+                            </div>
+                            <div className="p-5 space-y-3">
+                                {gestionLoading ? (
+                                    <div className="flex items-center gap-2 text-xs text-text-muted py-2">
+                                        <span className="size-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                                        Cargando asignaciones...
+                                    </div>
+                                ) : gestionAssignments.length === 0 ? (
+                                    <p className="text-xs text-text-muted py-1">No hay asignaciones generadas todavía.</p>
+                                ) : (
+                                    <div className="space-y-1.5">
+                                        <p className="text-xs text-text-muted mb-2">
+                                            {gestionAssignments.filter(a => a.eval_submission_id).length} / {gestionAssignments.length} completadas
+                                        </p>
+                                        {gestionAssignments.map((a: any) => {
+                                            const evaluatorName = a.evaluator?.full_name ?? a.evaluator_group?.name ?? "—";
+                                            const targetName = content.mode === "intra_group"
+                                                ? (a.target_student?.full_name ?? "—")
+                                                : (a.target_submission?.student?.full_name ?? a.target_submission?.group?.name ?? "—");
+                                            const done = !!a.eval_submission_id;
+                                            return (
+                                                <div key={a.id} className="flex items-center gap-2 text-xs py-1 border-b border-white/3 last:border-0">
+                                                    {done
+                                                        ? <CheckCircle2 className="size-3 text-emerald-500 shrink-0" />
+                                                        : <Clock className="size-3 text-text-muted/50 shrink-0" />}
+                                                    <span className="text-foreground font-medium truncate max-w-[35%]">{evaluatorName}</span>
+                                                    <span className="text-text-muted/50 shrink-0">→</span>
+                                                    <span className="text-text-muted truncate flex-1">{targetName}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

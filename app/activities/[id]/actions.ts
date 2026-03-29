@@ -644,7 +644,11 @@ export async function getMyPeerAssignments(
         .or(orFilter)
         .order("created_at");
 
-    if (error) return { error: error.message };
+    if (error) {
+        console.error("[getMyPeerAssignments] query error:", error.message, { stepId, userId: user.id, orFilter });
+        return { error: error.message };
+    }
+    console.log("[getMyPeerAssignments] rows returned:", data?.length ?? 0, { stepId, userId: user.id, orFilter });
     return { assignments: (data ?? []) as unknown as PeerAssignmentWithTarget[] };
 }
 
