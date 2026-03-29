@@ -39,6 +39,8 @@ export type ActivityStep = {
     due_date?: string | null;
     xp?: number;
     completion_mode?: CompletionMode;
+    parent_step_id?: string | null;   // si set, este paso es hijo del paso padre indicado
+    children?: ActivityStep[];        // populated client-side; sólo self_evaluation y peer_evaluation
     created_at: string;
     updated_at: string;
 };
@@ -77,12 +79,20 @@ export function criteriaMaxPoints(c: RubricCriteria): number {
     return Math.max(...c.levels.map(l => l.points));
 }
 
+export type GradeComposition = {
+    selfEvalWeight: number;       // % de nota de la self_evaluation hijo (0–100)
+    peerEvalWeight: number;       // % de nota del peer_evaluation hijo individual/group (0–100)
+    intraGroupWeight: number;     // % de nota del peer_evaluation hijo intra_group (0–100)
+    // teacherWeight = 100 - selfEvalWeight - peerEvalWeight - intraGroupWeight (implícito)
+};
+
 export type DeliverableContent = {
     templateUrl: string;
     instructionsMarkdown: string;
     deliveryMode?: DeliveryMode; // undefined = 'manual' (backwards-compat)
     rubric?: RubricCriteria[];
     is_group_submission?: boolean; // si true, la entrega es grupal
+    gradeComposition?: GradeComposition; // ponderación 360º; si undefined, 100% profesor
 };
 
 // 3. Animation/Interactive
@@ -297,6 +307,7 @@ export type FileUploadContent = {
     maxFiles: number;
     rubric?: RubricCriteria[];
     is_group_submission?: boolean; // si true, todos los miembros del grupo comparten los archivos
+    gradeComposition?: GradeComposition; // ponderación 360º; si undefined, 100% profesor
 };
 
 // 6. Resource (Files/Links)
@@ -340,7 +351,7 @@ export type SelfEvaluationContent = {
 };
 
 // 9. Peer Evaluation (coevaluación entre alumnos o grupos)
-export type PeerEvaluationMode = 'individual' | 'group';
+export type PeerEvaluationMode = 'individual' | 'group' | 'intra_group';
 export type OutlierSensitivity = 'strict' | 'normal' | 'lenient';
 export type NonEvaluatorPolicy = 'none' | 'fallback_teacher' | 'grade_penalty';
 
@@ -348,12 +359,12 @@ export type PeerEvaluationContent = {
     evalMode?: EvalMode;            // 'rubric' (default) | 'questions'
     questions?: QuizQuestion[];     // usado cuando evalMode = 'questions' (tipos: short_answer | likert)
     mode: PeerEvaluationMode;
-    sourceStepId: string;               // deliverable/file_upload cuyas submissions se evalúan
+    sourceStepId?: string;              // @deprecated — usa parent_step_id en su lugar; mantenido para BC
     rubric: RubricCriteria[];
     requireJustification: boolean;
     // Modo A — Individual
     submissionsPerEvaluator?: number;   // cuántos trabajos evalúa cada alumno
-    peerWeight?: number;                // % de la nota del promedio de pares (0–100)
+    peerWeight?: number;                // @deprecated — usa gradeComposition en el padre
     anonymousEvaluation?: boolean;      // oculta el evaluador al alumno evaluado
     peerFeedbackVisibleToStudents?: boolean; // el profesor revela justificaciones recibidas al publicar
     // Anti-gaming
@@ -366,6 +377,8 @@ export type PeerEvaluationContent = {
     evaluateAllGroups?: boolean;        // cada grupo evalúa a todos los demás
     individualEvaluatorMode?: boolean;  // false=grupo envía 1 eval; true=cada miembro individualmente
     livePresentationMode?: boolean;     // añade sección Q&A al final de la rúbrica
+    // Modo C — Intra-grupo (miembros del grupo se evalúan entre sí)
+    intraGroupWeight?: number;          // @deprecated — usa gradeComposition.intraGroupWeight en el padre
     instructionsMarkdown?: string;
 };
 
@@ -386,6 +399,7 @@ export type ActivityStepWithClientState = ActivityStep & {
     isExpanded?: boolean;
     isSelected?: boolean;
     content: TheoryContent | DeliverableContent | AnimationContent | QuizContent | PresentationContent | ResourceContent | FileUploadContent | SelfEvaluationContent | PeerEvaluationContent;
+    children?: ActivityStepWithClientState[];  // hijos self_eval / peer_eval
 };
 
 export type ActivityPhaseWithSteps = ActivityPhase & {

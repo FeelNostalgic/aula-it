@@ -576,6 +576,7 @@ export type PeerAssignmentWithTarget = {
     evaluator_id: string | null;
     evaluator_group_id: string | null;
     target_submission_id: string;
+    target_student_id: string | null;  // for intra_group mode
     eval_submission_id: string | null;
     target_submission: {
         id: string;
@@ -585,6 +586,7 @@ export type PeerAssignmentWithTarget = {
         student?: { full_name: string | null } | null;
         group?: { name: string } | null;
     };
+    target_student?: { full_name: string | null } | null;  // for intra_group mode
 };
 
 export async function getMyPeerAssignments(
@@ -630,12 +632,13 @@ export async function getMyPeerAssignments(
     const { data, error } = await supabase
         .from("peer_evaluation_assignments")
         .select(`
-            id, step_id, evaluator_id, evaluator_group_id, target_submission_id, eval_submission_id,
+            id, step_id, evaluator_id, evaluator_group_id, target_submission_id, target_student_id, eval_submission_id,
             target_submission:activity_submissions!target_submission_id(
                 id, drive_file_url, student_id, group_id,
                 student:profiles!student_id(full_name),
                 group:module_groups!group_id(name)
-            )
+            ),
+            target_student:profiles!target_student_id(full_name)
         `)
         .eq("step_id", stepId)
         .or(orFilter)
