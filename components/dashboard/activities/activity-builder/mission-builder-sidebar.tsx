@@ -69,9 +69,8 @@ import {
     DragEndEvent,
     DragStartEvent,
     DragOverEvent,
+    DragMoveEvent,
     DragOverlay,
-    defaultDropAnimationSideEffects,
-    useDraggable,
 } from "@dnd-kit/core";
 import {
     arrayMove,
@@ -83,6 +82,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { createPhase, createStep, deletePhase, deleteStep, duplicateStep, reorderSteps, reorderPhases, updatePhaseTitle, updateStepVisibility, updateStepLock, updateStepActivityClosed, updatePhaseStepsVisibility, updatePhaseStepsActivityClosed, updatePhaseStepsLock } from "@/app/activities/[id]/edit/actions";
+import { flattenPhaseSteps, getProjectedPosition, projectedEqual, type ProjectedPosition } from "@/lib/activity-step-tree";
 import { toast } from "sonner";
 import {
     CREATE_DIALOG_BODY_CLASS,
@@ -141,41 +141,41 @@ async function persistStepParent(stepId: string, parentStepId: string | null, ph
     return { success: true };
 }
 
-// Sortable Step Component
+// Drop indicator — shown between items at the projected insertion point
+function DropIndicator({ depth }: { depth: 0 | 1 }) {
+    const marginLeft = depth === 0 ? 32 : 56;
+    return (
+        <div className="relative h-0.5 my-0.5 pointer-events-none" style={{ marginLeft }}>
+            <div className="absolute inset-0 bg-accent-blue rounded-full" />
+            <div
+                className="absolute left-0 top-1/2 -translate-y-1/2 size-2 rounded-full bg-accent-blue border-2 border-background"
+                style={{ marginLeft: -4 }}
+            />
+        </div>
+    );
+}
+
+// Sortable Step Component — handles both root (depth=0) and child (depth=1) steps
 function SortableStepItem({
     step,
+    depth,
     isSelected,
-    isDropTarget,
     onSelect,
     onDelete,
     onDuplicate,
     onToggleVisibility,
     onToggleLock,
     onToggleActivityClosed,
-    onSelectChild,
-    onChildToggleVisibility,
-    onChildToggleLock,
-    onChildToggleActivityClosed,
-    onChildDuplicate,
-    onDeleteChild,
-    selectedStepId,
 }: {
     step: ActivityStepWithClientState,
+    depth: 0 | 1,
     isSelected: boolean,
-    isDropTarget?: boolean,
     onSelect: () => void,
     onDelete: () => void,
     onDuplicate: () => void,
     onToggleVisibility: () => void,
     onToggleLock: () => void,
     onToggleActivityClosed: () => void,
-    onSelectChild?: (childId: string) => void,
-    onChildToggleVisibility?: (childId: string, current: boolean) => void,
-    onChildToggleLock?: (childId: string, current: boolean) => void,
-    onChildToggleActivityClosed?: (childId: string, current: boolean) => void,
-    onChildDuplicate?: (childId: string) => void,
-    onDeleteChild?: (childId: string) => void,
-    selectedStepId?: string | null,
 }) {
     const {
         attributes,
@@ -192,51 +192,58 @@ function SortableStepItem({
         zIndex: isDragging ? 50 : undefined,
     };
 
-    const children = (step.children ?? []).map(ensureClientStep);
+    const isChild = depth === 1;
+    const iconSize = isChild ? "size-3.5" : "size-3.5";
+    const btnSize = isChild ? "size-5" : "size-6";
+    const textSize = isChild ? "text-xs" : "text-sm";
+    const paddingLeft = isChild ? "pl-10" : "pl-8";
+    const py = isChild ? "py-1.5" : "py-2";
 
     return (
-        <div data-step-id={step.id}>
         <div
             ref={setNodeRef}
             style={style}
             onClick={onSelect}
+            data-step-id={step.id}
             data-step-title={step.title}
             className={cn(
-                "group flex items-center gap-2 py-2 px-3 pl-8 text-sm cursor-pointer transition-colors border-l-2",
+                `group flex items-center gap-2 ${py} px-3 ${paddingLeft} ${textSize} cursor-pointer transition-colors border-l-2`,
                 isSelected
                     ? "bg-surface border-accent-blue text-foreground"
                     : "border-transparent hover:bg-surface-dark text-text-muted hover:text-foreground",
-                isDragging && "opacity-50 ring-2 ring-accent-blue/20 bg-surface border-accent-blue",
-                isDropTarget && !isDragging && "border-accent-blue/60 bg-accent-blue/5"
+                isDragging && "opacity-30 ring-2 ring-accent-blue/20 bg-surface border-accent-blue",
             )}
         >
             <div
                 {...attributes}
                 {...listeners}
-                className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-text-muted hover:text-foreground mr-1"
+                className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-text-muted hover:text-foreground shrink-0 mr-1"
                 onClick={(e) => e.stopPropagation()}
             >
-                <GripVertical className="size-3.5" />
+                <GripVertical className={iconSize} />
             </div>
+
+            {isChild && (
+                <div className="w-3 shrink-0 text-border/40 font-mono leading-none">└</div>
+            )}
 
             {getStepIcon(step.type)}
 
             <span className={cn("flex-1 truncate", step.is_visible === false && "line-through opacity-50")}>{step.title}</span>
 
             <div className="flex items-center gap-1 min-w-[40px] justify-end">
-                {/* Always show if hidden or locked, otherwise show on hover */}
                 <Button
                     variant="ghost"
                     size="icon"
                     aria-label={step.is_visible !== false ? "Ocultar actividad" : "Mostrar actividad"}
                     title={step.is_visible !== false ? "Ocultar actividad" : "Mostrar actividad"}
                     className={cn(
-                        "size-6 transition-all",
+                        `${btnSize} transition-all`,
                         step.is_visible !== false ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-accent-blue"
                     )}
                     onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}
                 >
-                    {step.is_visible !== false ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                    {step.is_visible !== false ? <Eye className={iconSize} /> : <EyeOff className={iconSize} />}
                 </Button>
 
                 <Button
@@ -245,12 +252,12 @@ function SortableStepItem({
                     aria-label={!step.is_locked ? "Bloquear actividad" : "Desbloquear actividad"}
                     title={!step.is_locked ? "Bloquear actividad" : "Desbloquear actividad"}
                     className={cn(
-                        "size-6 transition-all",
+                        `${btnSize} transition-all`,
                         !step.is_locked ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-muted-foreground"
                     )}
                     onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
                 >
-                    <CalendarClock className="size-3.5" />
+                    <CalendarClock className={iconSize} />
                 </Button>
                 <Button
                     variant="ghost"
@@ -258,173 +265,37 @@ function SortableStepItem({
                     aria-label={!step.is_activity_closed ? "Cerrar entregas" : "Abrir entregas"}
                     title={!step.is_activity_closed ? "Cerrar entregas" : "Abrir entregas"}
                     className={cn(
-                        "size-6 transition-all",
+                        `${btnSize} transition-all`,
                         !step.is_activity_closed ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-amber-500"
                     )}
                     onClick={(e) => { e.stopPropagation(); onToggleActivityClosed(); }}
                 >
-                    {!step.is_activity_closed ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
+                    {!step.is_activity_closed ? <Unlock className={iconSize} /> : <Lock className={iconSize} />}
                 </Button>
             </div>
 
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="size-6 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted" onClick={e => e.stopPropagation()}>
-                        <MoreVertical className="size-3.5" />
+                    <Button variant="ghost" size="icon" className={`${btnSize} opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted`} onClick={e => e.stopPropagation()}>
+                        <MoreVertical className={iconSize} />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-surface-dark border-border-strong w-32 z-50">
                     <DropdownMenuItem
                         className="cursor-pointer text-xs"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDuplicate();
-                        }}
+                        onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
                     >
                         <Copy className="size-3.5 mr-2" /> Duplicar
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-border-subtle" />
                     <DropdownMenuItem
                         className="text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer text-xs"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete();
-                        }}
+                        onClick={(e) => { e.stopPropagation(); onDelete(); }}
                     >
                         <Trash2 className="size-3.5 mr-2" /> Eliminar
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-        </div>
-        {/* Nested children (self_eval / peer_eval linked to this step) */}
-        {children.length > 0 && (
-            <div>
-                {children.map(child => (
-                    <ChildStepItem
-                        key={child.id}
-                        step={child}
-                        parentStepId={step.id}
-                        isSelected={selectedStepId === child.id}
-                        onSelect={() => onSelectChild?.(child.id)}
-                        onToggleVisibility={() => onChildToggleVisibility?.(child.id, child.is_visible !== false)}
-                        onToggleLock={() => onChildToggleLock?.(child.id, !!child.is_locked)}
-                        onToggleActivityClosed={() => onChildToggleActivityClosed?.(child.id, !!child.is_activity_closed)}
-                        onDuplicate={() => onChildDuplicate?.(child.id)}
-                        onDelete={() => onDeleteChild?.(child.id)}
-                    />
-                ))}
-            </div>
-        )}
-        </div>
-    );
-}
-
-// Child Step Item — draggable, with full action buttons
-function ChildStepItem({
-    step,
-    parentStepId,
-    isSelected,
-    onSelect,
-    onToggleVisibility,
-    onToggleLock,
-    onToggleActivityClosed,
-    onDuplicate,
-    onDelete,
-}: {
-    step: ActivityStepWithClientState;
-    parentStepId: string;
-    isSelected: boolean;
-    onSelect: () => void;
-    onToggleVisibility: () => void;
-    onToggleLock: () => void;
-    onToggleActivityClosed: () => void;
-    onDuplicate: () => void;
-    onDelete: () => void;
-}) {
-    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-        id: `child-${step.id}`,
-        data: { type: "ChildStep", step, parentStepId },
-    });
-
-    return (
-        <div
-            ref={setNodeRef}
-            onClick={onSelect}
-            className={cn(
-                "group flex items-center gap-2 py-1.5 px-3 pl-10 text-xs cursor-pointer transition-colors",
-                isSelected
-                    ? "bg-surface text-foreground"
-                    : "hover:bg-surface-dark text-text-muted hover:text-foreground",
-                isDragging && "opacity-40"
-            )}
-        >
-            <div
-                {...attributes}
-                {...listeners}
-                className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-text-muted hover:text-foreground shrink-0"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <GripVertical className="size-3" />
-            </div>
-            <div className="w-3 shrink-0 text-border/40 font-mono leading-none">└</div>
-            {getStepIcon(step.type)}
-            <span className={cn("flex-1 truncate", step.is_visible === false && "line-through opacity-50")}>
-                {step.title}
-            </span>
-            <div className="flex items-center gap-1 min-w-[40px] justify-end">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    title={step.is_visible !== false ? "Ocultar" : "Mostrar"}
-                    className={cn(
-                        "size-5 transition-all",
-                        step.is_visible !== false ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-accent-blue"
-                    )}
-                    onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}
-                >
-                    {step.is_visible !== false ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
-                </Button>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    title={!step.is_locked ? "Bloquear" : "Desbloquear"}
-                    className={cn(
-                        "size-5 transition-all",
-                        !step.is_locked ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-muted-foreground"
-                    )}
-                    onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
-                >
-                    <CalendarClock className="size-3" />
-                </Button>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    title={!step.is_activity_closed ? "Cerrar entregas" : "Abrir entregas"}
-                    className={cn(
-                        "size-5 transition-all",
-                        !step.is_activity_closed ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-amber-500"
-                    )}
-                    onClick={(e) => { e.stopPropagation(); onToggleActivityClosed(); }}
-                >
-                    {!step.is_activity_closed ? <Unlock className="size-3" /> : <Lock className="size-3" />}
-                </Button>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted" onClick={e => e.stopPropagation()}>
-                            <MoreVertical className="size-3" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-surface-dark border-border-strong w-32 z-50">
-                        <DropdownMenuItem className="cursor-pointer text-xs" onClick={(e) => { e.stopPropagation(); onDuplicate(); }}>
-                            <Copy className="size-3.5 mr-2" /> Duplicar
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-border-subtle" />
-                        <DropdownMenuItem className="text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer text-xs" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
-                            <Trash2 className="size-3.5 mr-2" /> Eliminar
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </div>
         </div>
     );
 }
@@ -621,7 +492,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
 
     const [activeId, setActiveId] = useState<string | null>(null);
     const [activeType, setActiveType] = useState<"Phase" | "Step" | null>(null);
-    const [draggingEvalStep, setDraggingEvalStep] = useState(false);
+    const [projected, setProjected] = useState<ProjectedPosition | null>(null);
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -944,11 +815,25 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
 
     const handleDragStart = (e: DragStartEvent) => {
         setActiveId(e.active.id as string);
-        const dragType = e.active.data.current?.type as "Phase" | "Step" | "ChildStep" | null;
-        setActiveType(dragType as "Phase" | "Step" | null);
-        const stepType = e.active.data.current?.step?.type;
-        // ChildStep is always an eval step — highlight valid parent drop targets
-        setDraggingEvalStep(EVAL_STEP_TYPES.includes(stepType) || dragType === "ChildStep");
+        const dragType = e.active.data.current?.type as "Phase" | "Step" | null;
+        setActiveType(dragType);
+        setProjected(null);
+    };
+
+    const handleDragMove = (e: DragMoveEvent) => {
+        const { active, over, delta } = e;
+        if (!over || active.data.current?.type !== "Step") return;
+
+        const activeStepId = active.id as string;
+        // Find the phase containing the active step (search root + children)
+        const activePhase = phases.find(p =>
+            p.steps.some(s => `step-${s.id}` === activeStepId || (s.children ?? []).some(c => `step-${c.id}` === activeStepId))
+        );
+        if (!activePhase) return;
+
+        const flatItems = flattenPhaseSteps(activePhase);
+        const next = getProjectedPosition(flatItems, activeStepId, over.id as string, delta.x, activePhase.id);
+        setProjected(prev => projectedEqual(prev, next) ? prev : next);
     };
 
     const handleDragOver = (e: DragOverEvent) => {
@@ -958,17 +843,19 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
         const activeType = active.data.current?.type;
         const overType = over.data.current?.type;
 
-        // Si arrastramos un paso sobre otro paso (incluso de otra fase) o sobre una fase
         if (activeType === "Step") {
-            const activePhaseId = active.data.current?.step?.phase_id;
-            // Si overType es Phase, usamos el id de la phase. Si es Step, usamos su phase_id
+            // Block cross-phase moves for child steps
+            const activeStep = active.data.current?.step as ActivityStepWithClientState | undefined;
+            if (activeStep?.parent_step_id) return;
+
+            const activePhaseId = activeStep?.phase_id;
             const overPhaseId = overType === "Phase" ? over.data.current?.phase?.id : over.data.current?.step?.phase_id;
 
             if (!activePhaseId || !overPhaseId || activePhaseId === overPhaseId) {
-                return; // Same container, handled by drag end or it's just sorting
+                return;
             }
 
-            // Move step between phases
+            // Move root step between phases
             setPhases((prev) => {
                 const activePhaseIndex = prev.findIndex(p => p.id === activePhaseId);
                 const overPhaseIndex = prev.findIndex(p => p.id === overPhaseId);
@@ -983,29 +870,34 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                     overIndex = overItems.findIndex(s => `step-${s.id}` === over.id);
                 }
 
-                let newIndex = overItems.length; // Default to end
+                let newIndex = overItems.length;
                 if (overIndex >= 0) {
                     const isBelowOverItem = over && active.rect.current.translated && active.rect.current.translated.top > over.rect.top + over.rect.height;
-                    const modifier = isBelowOverItem ? 1 : 0;
-                    newIndex = overIndex + modifier;
+                    newIndex = overIndex + (isBelowOverItem ? 1 : 0);
                 }
 
                 const [item] = activeItems.splice(activeIndex, 1);
-                item.phase_id = overPhaseId; // Update optimistically
+                item.phase_id = overPhaseId;
 
                 overItems.splice(newIndex, 0, item);
 
                 const next = [...prev];
                 next[activePhaseIndex] = { ...next[activePhaseIndex], steps: activeItems };
-                next[overPhaseIndex] = { ...next[overPhaseIndex], steps: overItems, isExpanded: true }; // Expand destination
+                next[overPhaseIndex] = { ...next[overPhaseIndex], steps: overItems, isExpanded: true };
 
                 return next;
             });
         }
     };
 
-    const handleNestStep = async (evalStepId: string, parentStepId: string) => {
-        const targetPhase = phases.find(phase => phase.steps.some(step => step.id === parentStepId));
+    const handleDragCancel = () => {
+        setActiveId(null);
+        setActiveType(null);
+        setProjected(null);
+    };
+
+    const handleNestStep = async (evalStepId: string, parentStepId: string, targetPhaseId: string) => {
+        const targetPhase = phases.find(p => p.id === targetPhaseId) ?? phases.find(p => p.steps.some(s => s.id === parentStepId));
         if (!targetPhase) return;
 
         setPhases(prev => {
@@ -1014,17 +906,14 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
             const withoutEvalAtRoot = prev.map(phase => ({
                 ...phase,
                 steps: phase.steps.filter(step => {
-                    if (step.id === evalStepId) {
-                        evalStep = step;
-                        return false;
-                    }
+                    if (step.id === evalStepId) { evalStep = step; return false; }
                     return true;
                 }),
             }));
 
             if (!evalStep) return prev;
-            const currentEvalStep = ensureClientStep(evalStep);
-            const stepToNest = ensureClientStep({ ...currentEvalStep, parent_step_id: parentStepId, phase_id: targetPhase.id });
+            const safeEvalStep = ensureClientStep(evalStep);
+            const stepToNest = ensureClientStep({ ...safeEvalStep, parent_step_id: parentStepId, phase_id: targetPhase.id });
 
             return withoutEvalAtRoot.map(phase => ({
                 ...phase,
@@ -1039,7 +928,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
         if (res.error) toast.error("Error al vincular el paso");
     };
 
-    const handleUnlinkStep = async (childStepId: string, parentStepId: string, phaseId: string) => {
+    const handleUnlinkStep = async (childStepId: string, parentStepId: string, phaseId: string, insertAtIndex?: number) => {
         let unlinkedStep: ActivityStepWithClientState | null = null;
         setPhases(prev => prev.map(p => {
             if (p.id !== phaseId) return p;
@@ -1050,7 +939,10 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                 return { ...s, children: (s.children ?? []).filter(c => c.id !== childStepId) };
             });
             if (unlinkedStep) {
-                return { ...p, steps: [...updatedSteps, unlinkedStep] };
+                const newSteps = [...updatedSteps];
+                const insertAt = insertAtIndex !== undefined ? insertAtIndex : newSteps.length;
+                newSteps.splice(insertAt, 0, unlinkedStep);
+                return { ...p, steps: newSteps.map((s, i) => ({ ...s, order_index: i })) };
             }
             return { ...p, steps: updatedSteps };
         }) as ActivityPhaseWithSteps[]);
@@ -1059,118 +951,99 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
     };
 
     const handleDragEnd = async (e: DragEndEvent) => {
+        const { active, over } = e;
+        const currentProjected = projected;
+
         setActiveId(null);
         setActiveType(null);
-        setDraggingEvalStep(false);
+        setProjected(null);
 
-        const { active, over } = e;
         if (!over) return;
 
-        const activeType = active.data.current?.type;
+        const dragType = active.data.current?.type;
 
-        // Child step dragged: either re-nest onto another parent or unlink to root
-        if (activeType === "ChildStep") {
-            const childStep = active.data.current?.step as ActivityStepWithClientState;
-            const parentStepId = active.data.current?.parentStepId as string;
-            const overStep = over.data.current?.step as ActivityStepWithClientState | undefined;
-
-            const parentPhase = phases.find(p => p.steps.some(s => s.id === parentStepId));
-            if (!parentPhase) return;
-
-            if (overStep && PARENT_STEP_TYPES.includes(overStep.type as any) && overStep.id !== parentStepId) {
-                // Dropped on a different valid parent → re-nest
-                const newParentPhase = phases.find(p => p.steps.some(s => s.id === overStep.id)) ?? parentPhase;
-                setPhases(prev => prev.map(p => {
-                    const isOldPhase = p.id === parentPhase.id;
-                    const isNewPhase = p.id === newParentPhase.id;
-                    if (isOldPhase && isNewPhase) {
-                        return {
-                            ...p, steps: p.steps.map(s => {
-                                if (s.id === parentStepId) return { ...s, children: (s.children ?? []).filter(c => c.id !== childStep.id) };
-                                if (s.id === overStep.id) return { ...s, children: [...(s.children ?? []), ensureClientStep({ ...childStep, parent_step_id: overStep.id, phase_id: newParentPhase.id })] };
-                                return s;
-                            })
-                        };
-                    }
-                    if (isOldPhase) return { ...p, steps: p.steps.map(s => s.id === parentStepId ? { ...s, children: (s.children ?? []).filter(c => c.id !== childStep.id) } : s) };
-                    if (isNewPhase) return { ...p, steps: p.steps.map(s => s.id === overStep.id ? { ...s, children: [...(s.children ?? []), ensureClientStep({ ...childStep, parent_step_id: overStep.id, phase_id: newParentPhase.id })] } : s) };
-                    return p;
-                }) as ActivityPhaseWithSteps[]);
-                const res = await persistStepParent(childStep.id, overStep.id, newParentPhase.id);
-                if (res.error) toast.error("Error al mover el paso");
-            } else {
-                // Dropped on root area or same parent → unlink to root
-                await handleUnlinkStep(childStep.id, parentStepId, parentPhase.id);
+        // --- Phase reorder (unchanged) ---
+        if (dragType === "Phase") {
+            if (active.id !== over.id) {
+                const oldIndex = phases.findIndex(p => `phase-${p.id}` === active.id);
+                const newIndex = phases.findIndex(p => `phase-${p.id}` === over.id);
+                const reordered = arrayMove(phases, oldIndex, newIndex).map((p, idx) => ({ ...p, order_index: idx }));
+                setPhases(reordered);
+                await reorderPhases(activityId, reordered.map(p => ({ id: p.id, order_index: p.order_index })));
             }
             return;
         }
 
-        // Nest-on-drop: eval step dragged onto a deliverable/file_upload step
-        if (activeType === "Step") {
-            const activeStep = active.data.current?.step as ActivityStepWithClientState | undefined;
-            const overStep = over.data.current?.step as ActivityStepWithClientState | undefined;
-            if (
-                activeStep && overStep &&
-                EVAL_STEP_TYPES.includes(activeStep.type as any) &&
-                PARENT_STEP_TYPES.includes(overStep.type as any) &&
-                active.id !== over.id
-            ) {
-                await handleNestStep(activeStep.id, overStep.id);
-                return;
-            }
+        if (dragType !== "Step") return;
+
+        const activeStep = active.data.current?.step as ActivityStepWithClientState;
+
+        // Find which phase has this step (root or as child)
+        const activePhase = phases.find(p =>
+            p.steps.some(s => `step-${s.id}` === active.id || (s.children ?? []).some(c => `step-${c.id}` === active.id))
+        );
+        if (!activePhase) return;
+
+        const flatItems = flattenPhaseSteps(activePhase);
+        const activeFlat = flatItems.find(f => `step-${f.step.id}` === active.id);
+        if (!activeFlat) return;
+
+        const wasChild = activeFlat.depth === 1;
+        const oldParentId = activeFlat.parentId;
+
+        // Use projected if available, otherwise fall back to same-position (no-op on nesting)
+        const proj = currentProjected ?? { depth: activeFlat.depth, parentId: oldParentId, overFlatIndex: activeFlat.flatIndex, phaseId: activePhase.id };
+        const willBeChild = proj.depth === 1;
+        const newParentId = proj.parentId;
+
+        // === Case A: Nest or re-nest (depth changes to 1 or parent changes) ===
+        if (willBeChild && newParentId && newParentId !== oldParentId) {
+            await handleNestStep(activeStep.id, newParentId, activePhase.id);
+            return;
         }
 
-        if (activeType === "Phase") {
-            if (active.id !== over.id) {
-                const oldIndex = phases.findIndex(p => `phase-${p.id}` === active.id);
-                const newIndex = phases.findIndex(p => `phase-${p.id}` === over.id);
-
-                const reordered = arrayMove(phases, oldIndex, newIndex);
-                const reorderedWithIndex = reordered.map((p, idx) => ({ ...p, order_index: idx }));
-                setPhases(reorderedWithIndex);
-
-                // persist array of phase orders
-                const updates = reorderedWithIndex.map(p => ({ id: p.id, order_index: p.order_index }));
-                // Note: Make sure backend has `reorderPhases`
-                await reorderPhases(activityId, updates);
-            }
-        } else if (activeType === "Step") {
-            // Find current phase of the active step
-            const phase = phases.find(p => p.steps.some(s => `step-${s.id}` === active.id));
-            if (!phase) return;
-
-            const oldIndex = phase.steps.findIndex(s => `step-${s.id}` === active.id);
-            let newIndex = oldIndex;
-
-            if (over.data.current?.type === "Step") {
-                newIndex = phase.steps.findIndex(s => `step-${s.id}` === over.id);
-            }
-
-            // if we dropped exactly on the same list but different index
-            if (active.id !== over.id && oldIndex !== -1 && newIndex !== -1) {
-                const reorderedSteps = arrayMove(phase.steps, oldIndex, newIndex);
-                const reorderedWithIndex = reorderedSteps.map((s, idx) => ({ ...s, order_index: idx }));
-
-                const newPhases = [...phases];
-                const pIdx = newPhases.findIndex(p => p.id === phase.id);
-                newPhases[pIdx].steps = reorderedWithIndex;
-                setPhases(newPhases);
-
-                const updates = reorderedWithIndex.map(s => ({ id: s.id, phase_id: phase.id, order_index: s.order_index }));
-                await reorderSteps(activityId, updates);
-            } else {
-                // It was moved during onDragOver, we just need to persist the new order of the phase it ended up in
-                // We ensure everything within the target phase is updated.
-                const reorderedWithIndex = phase.steps.map((s, idx) => ({ ...s, order_index: idx }));
-                const newPhases = [...phases];
-                const pIdx = newPhases.findIndex(p => p.id === phase.id);
-                newPhases[pIdx].steps = reorderedWithIndex;
-                setPhases(newPhases);
-
-                const updates = reorderedWithIndex.map(s => ({ id: s.id, phase_id: phase.id, order_index: s.order_index }));
-                await reorderSteps(activityId, updates);
-            }
+        // === Case B: Unlink (depth changes from 1 to 0) ===
+        if (!willBeChild && wasChild && oldParentId) {
+            // Find the insertion index in root steps based on overFlatIndex
+            const overFlatItem = flatItems[proj.overFlatIndex];
+            const overRootIndex = overFlatItem
+                ? activePhase.steps.findIndex(s => s.id === (overFlatItem.depth === 0 ? overFlatItem.step.id : overFlatItem.parentId))
+                : undefined;
+            await handleUnlinkStep(activeStep.id, oldParentId, activePhase.id, overRootIndex !== undefined && overRootIndex >= 0 ? overRootIndex + 1 : undefined);
+            return;
         }
+
+        // === Case C: Reorder at same depth ===
+        if (active.id === over.id) return;
+
+        const activeIndexInFlat = flatItems.findIndex(f => `step-${f.step.id}` === active.id);
+        const overIndexInFlat = flatItems.findIndex(f => `step-${f.step.id}` === over.id);
+
+        if (activeIndexInFlat === -1 || overIndexInFlat === -1) return;
+
+        // Use arrayMove on the flat list — same as standard dnd-kit sortable strategy.
+        // closestCenter already handles before/after semantics; no isBelowOver heuristic needed.
+        const newFlatItems = arrayMove(flatItems, activeIndexInFlat, overIndexInFlat);
+
+        // Reconstruct phase.steps from the new flat order
+        const newRootSteps = newFlatItems
+            .filter(f => f.depth === 0)
+            .map((f, rootIdx) => ({
+                ...f.step,
+                order_index: rootIdx,
+                children: newFlatItems
+                    .filter(c => c.depth === 1 && c.parentId === f.step.id)
+                    .map((c, cIdx) => ({ ...c.step, order_index: cIdx })),
+            }));
+
+        setPhases(prev => prev.map(p => p.id === activePhase.id ? { ...p, steps: newRootSteps } : p));
+
+        // Persist: root steps order + children order
+        const rootUpdates = newRootSteps.map(s => ({ id: s.id, phase_id: activePhase.id, order_index: s.order_index }));
+        const childUpdates = newRootSteps.flatMap(s =>
+            (s.children ?? []).map(c => ({ id: c.id, phase_id: activePhase.id, order_index: c.order_index }))
+        );
+        await reorderSteps(activityId, [...rootUpdates, ...childUpdates]);
     };
 
     return (
@@ -1266,17 +1139,28 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                 </DialogContent>
             </Dialog>
 
-            <div className="flex-1 overflow-y-auto pt-2 pr-0 pl-0 pb-0 space-y-0">
+            <div className="flex-1 overflow-y-auto pt-2 pr-0 pl-5 pb-0 space-y-0">
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
                     onDragStart={handleDragStart}
+                    onDragMove={handleDragMove}
                     onDragOver={handleDragOver}
                     onDragEnd={handleDragEnd}
+                    onDragCancel={handleDragCancel}
                 >
                     <SortableContext items={phases.map(p => `phase-${p.id}`)} strategy={verticalListSortingStrategy}>
                         {phases.map(phase => {
                             const isExpanded = phase.isExpanded !== false;
+                            const flatItems = flattenPhaseSteps(phase);
+
+                            // When dragging a parent step, hide its children so they "travel" with it.
+                            // They remain in the full flatItems for handleDragEnd reconstruction,
+                            // but are excluded from the visible list and SortableContext.
+                            const visibleFlatItems = activeId
+                                ? flatItems.filter(f => !(f.depth === 1 && activeId === `step-${f.parentId}`))
+                                : flatItems;
+                            const flatIds = visibleFlatItems.map(f => `step-${f.step.id}`);
 
                             return (
                                 <div key={phase.id} className="flex flex-col mb-4" data-phase-title={phase.title}>
@@ -1299,34 +1183,52 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                         onTogglePhaseLock={handleTogglePhaseLock}
                                     />
 
-                                    {/* Phase Steps List */}
+                                    {/* Phase Steps List — flat list including children */}
                                     {isExpanded && (
                                         <div className="mt-1 flex flex-col">
-                                            {phase.steps.length === 0 ? (
+                                            {visibleFlatItems.length === 0 ? (
                                                 <div className="text-xs text-text-muted italic pl-8 py-2 border-l-2 border-transparent">Sin actividades. Añade una desde el botón +.</div>
                                             ) : (
-                                                <SortableContext items={phase.steps.map(s => `step-${s.id}`)} strategy={verticalListSortingStrategy}>
-                                                    {phase.steps.map(step => (
-                                                        <SortableStepItem
-                                                            key={step.id}
-                                                             step={step}
-                                                             isSelected={selectedStepId === step.id}
-                                                             isDropTarget={draggingEvalStep && PARENT_STEP_TYPES.includes(step.type as any)}
-                                                             onSelect={() => setSelectedStepId(step.id)}
-                                                             onDelete={() => handleDeleteStep(phase.id, step.id)}
-                                                             onDuplicate={() => handleDuplicateStep(phase.id, step.id)}
-                                                             onToggleVisibility={() => handleToggleVisibility(phase.id, step.id, step.is_visible !== false)}
-                                                             onToggleLock={() => handleToggleLock(phase.id, step.id, !!step.is_locked)}
-                                                             onToggleActivityClosed={() => handleToggleActivityClosed(phase.id, step.id, !!step.is_activity_closed)}
-                                                             onSelectChild={(childId) => setSelectedStepId(childId)}
-                                                             onChildToggleVisibility={(childId, current) => handleToggleVisibility(phase.id, childId, current)}
-                                                             onChildToggleLock={(childId, current) => handleToggleLock(phase.id, childId, current)}
-                                                             onChildToggleActivityClosed={(childId, current) => handleToggleActivityClosed(phase.id, childId, current)}
-                                                             onChildDuplicate={(childId) => handleDuplicateChildStep(childId, step.id, phase.id)}
-                                                             onDeleteChild={(childId) => handleDeleteChildStep(childId)}
-                                                             selectedStepId={selectedStepId}
-                                                        />
-                                                    ))}
+                                                <SortableContext items={flatIds} strategy={verticalListSortingStrategy}>
+                                                    {visibleFlatItems.map(({ step, depth }, idx) => {
+                                                        const phaseId = phase.id;
+                                                        const parentStep = depth === 1
+                                                            ? phase.steps.find(s => (s.children ?? []).some(c => c.id === step.id))
+                                                            : null;
+
+                                                        // Map visible index back to flatItems index for the indicator
+                                                        const flatIdx = flatItems.findIndex(f => f.step.id === step.id);
+                                                        const showIndicatorAfter =
+                                                            activeId !== null &&
+                                                            projected !== null &&
+                                                            projected.phaseId === phaseId &&
+                                                            projected.overFlatIndex === flatIdx;
+
+                                                        return (
+                                                            <div key={step.id}>
+                                                                <SortableStepItem
+                                                                    step={step}
+                                                                    depth={depth}
+                                                                    isSelected={selectedStepId === step.id}
+                                                                    onSelect={() => setSelectedStepId(step.id)}
+                                                                    onDelete={() => depth === 0
+                                                                        ? handleDeleteStep(phaseId, step.id)
+                                                                        : handleDeleteChildStep(step.id)
+                                                                    }
+                                                                    onDuplicate={() => depth === 0
+                                                                        ? handleDuplicateStep(phaseId, step.id)
+                                                                        : handleDuplicateChildStep(step.id, parentStep?.id ?? "", phaseId)
+                                                                    }
+                                                                    onToggleVisibility={() => handleToggleVisibility(phaseId, step.id, step.is_visible !== false)}
+                                                                    onToggleLock={() => handleToggleLock(phaseId, step.id, !!step.is_locked)}
+                                                                    onToggleActivityClosed={() => handleToggleActivityClosed(phaseId, step.id, !!step.is_activity_closed)}
+                                                                />
+                                                                {showIndicatorAfter && projected && (
+                                                                    <DropIndicator depth={projected.depth} />
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </SortableContext>
                                             )}
                                         </div>
@@ -1336,8 +1238,8 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                         })}
                     </SortableContext>
 
-                    {/* Drag Overlay for better visual feedback */}
-                    <DragOverlay>
+                    {/* Drag Overlay */}
+                    <DragOverlay dropAnimation={null}>
                         {activeId && activeType === "Phase" ? (
                             <SortablePhaseHeader
                                 phase={phases.find(p => `phase-${p.id}` === activeId)}
@@ -1345,18 +1247,37 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                                 togglePhase={() => { }}
                             />
                         ) : null}
-                        {activeId && activeType === "Step" ? (
-                            <SortableStepItem
-                                 step={phases.flatMap(p => p.steps).find(s => `step-${s.id}` === activeId) as any}
-                                 isSelected={false}
-                                 onSelect={() => { }}
-                                 onDelete={() => { }}
-                                 onDuplicate={() => { }}
-                                 onToggleVisibility={() => { }}
-                                 onToggleLock={() => { }}
-                                 onToggleActivityClosed={() => { }}
-                            />
-                        ) : null}
+                        {activeId && activeType === "Step" ? (() => {
+                            const allSteps = phases.flatMap(p => [
+                                ...p.steps,
+                                ...p.steps.flatMap(s => s.children ?? []),
+                            ]);
+                            const step = allSteps.find(s => `step-${s.id}` === activeId) as ActivityStepWithClientState | undefined;
+                            if (!step) return null;
+                            const childCount = (step.children ?? []).length;
+                            return (
+                                <div className="relative">
+                                    <SortableStepItem
+                                        step={step}
+                                        depth={0}
+                                        isSelected={false}
+                                        onSelect={() => {}}
+                                        onDelete={() => {}}
+                                        onDuplicate={() => {}}
+                                        onToggleVisibility={() => {}}
+                                        onToggleLock={() => {}}
+                                        onToggleActivityClosed={() => {}}
+                                    />
+                                    {childCount > 0 && (
+                                        <div className="pl-14 pb-1">
+                                            <span className="text-[10px] text-text-muted/60 italic">
+                                                +{childCount} {childCount === 1 ? "evaluación" : "evaluaciones"}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })() : null}
                     </DragOverlay>
 
                 </DndContext>
