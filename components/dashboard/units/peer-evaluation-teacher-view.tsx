@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useTransition, useEffect, useMemo, useCallback } from "react";
-import { Users2, AlertTriangle, CheckCircle2, Clock, RefreshCw, PlayCircle, Send, ShieldAlert, Star, Eye, EyeOff, UserCheck, Users } from "lucide-react";
+import { Users2, AlertTriangle, CheckCircle2, Clock, RefreshCw, PlayCircle, Send, ShieldAlert, Star, Eye, EyeOff, UserCheck, Users, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
     generatePeerAssignments,
+    deletePeerAssignments,
     getPeerEvaluationResults,
     computeEvaluatorReliability,
     publishPeerFinalGrades,
@@ -60,6 +61,7 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle }: PeerE
     const [feedbackVisible, setFeedbackVisible] = useState(false);
     const [mode, setMode] = useState<string>("individual");
     const [loading, setLoading] = useState(true);
+    const [confirmReset, setConfirmReset] = useState(false);
     const [isPending, startTransition] = useTransition();
 
     const load = () => {
@@ -142,6 +144,23 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle }: PeerE
         });
     }
 
+    function handleReset() {
+        if (!confirmReset) {
+            setConfirmReset(true);
+            setTimeout(() => setConfirmReset(false), 4000);
+            return;
+        }
+        setConfirmReset(false);
+        startTransition(async () => {
+            const del = await deletePeerAssignments(stepId);
+            if (del.error) { toast.error(del.error); return; }
+            const gen = await generatePeerAssignments(stepId, moduleId);
+            if (gen.error) { toast.error(gen.error); return; }
+            toast.success("Asignaciones regeneradas correctamente.");
+            load();
+        });
+    }
+
     function handleComputeReliability() {
         startTransition(async () => {
             const res = await computeEvaluatorReliability(stepId);
@@ -218,6 +237,19 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle }: PeerE
                             <Button onClick={() => load()} variant="outline" size="sm" disabled={isPending} className="gap-2 border-border/50">
                                 <RefreshCw className={cn("size-3.5", isPending && "animate-spin")} />
                                 Actualizar
+                            </Button>
+                            <Button
+                                onClick={handleReset}
+                                variant="outline"
+                                size="sm"
+                                disabled={isPending}
+                                className={cn(
+                                    "gap-2 border-border/50 transition-colors",
+                                    confirmReset && "border-red-500/50 text-red-400 bg-red-500/5 hover:bg-red-500/10"
+                                )}
+                            >
+                                <Trash2 className="size-3.5" />
+                                {confirmReset ? "¿Confirmar? Borrar y regenerar" : "Borrar y regenerar"}
                             </Button>
                             <Button
                                 onClick={handleToggleFeedback}

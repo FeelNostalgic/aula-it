@@ -1640,6 +1640,23 @@ export async function publishGroupGrade(submissionId: string) {
  * Each submission is assigned to `submissionsPerEvaluator` different evaluators.
  * Skips re-generation if assignments already exist for this step.
  */
+export async function deletePeerAssignments(
+    stepId: string,
+): Promise<{ error?: string }> {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const { error } = await auth.admin
+        .from("peer_evaluation_assignments")
+        .delete()
+        .eq("step_id", stepId);
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return {};
+}
+
 export async function generatePeerAssignments(
     stepId: string,
     moduleId: string,
@@ -1751,14 +1768,13 @@ export async function generatePeerAssignments(
             return { error: "Se necesitan al menos 2 entregas para generar asignaciones." };
         }
 
-        // Fetch evaluators: enrolled students in this module
-        const { data: enrollments } = await admin
-            .from("module_enrollments")
-            .select("student_id")
-            .eq("module_id", moduleId);
-
-        const evaluatorIds = (enrollments ?? []).map((e: any) => e.student_id as string);
-        if (evaluatorIds.length === 0) return { error: "No hay alumnos matriculados." };
+        // Evaluators are the students who submitted (not all enrolled students).
+        // This ensures submitters evaluate each other rather than picking students
+        // who never submitted as evaluators.
+        const evaluatorIds = (submissions ?? [])
+            .map((s: any) => s.student_id as string)
+            .filter((id: string, idx: number, arr: string[]) => arr.indexOf(id) === idx); // dedupe (group subs)
+        if (evaluatorIds.length === 0) return { error: "No hay entregas para generar asignaciones." };
 
         // Round-robin balanced assignment: each submission gets ~submissionsPerEvaluator evaluators
         // Use Fisher-Yates shuffle, then distribute

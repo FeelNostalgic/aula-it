@@ -26,7 +26,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { generatePeerAssignments, getPeerEvaluationResults } from "@/app/dashboard/units/[id]/actions";
+import { generatePeerAssignments, deletePeerAssignments, getPeerEvaluationResults } from "@/app/dashboard/units/[id]/actions";
 
 interface PeerEvaluationEditorProps {
     step: ActivityStepWithClientState;
@@ -71,6 +71,7 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
     const [isPending, startTransition] = useTransition();
     const [isGenerating, setIsGenerating] = useState(false);
+    const [confirmReset, setConfirmReset] = useState(false);
     const [gestionAssignments, setGestionAssignments] = useState<any[]>([]);
     const [gestionLoading, setGestionLoading] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -605,28 +606,65 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                     {/* Gestión — generate assignments */}
                     {moduleId && (
                         <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2 flex items-center justify-between">
+                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2 flex items-center justify-between gap-2">
                                 <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Gestión</span>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={isGenerating}
-                                    onClick={async () => {
-                                        setIsGenerating(true);
-                                        const res = await generatePeerAssignments(step.id, moduleId);
-                                        if (res.error) {
-                                            toast.error(res.error);
-                                        } else {
-                                            toast.success("Asignaciones generadas correctamente.");
-                                            await loadGestionAssignments();
-                                        }
-                                        setIsGenerating(false);
-                                    }}
-                                    className="shrink-0 h-7 text-xs gap-1.5 border-border/50 text-text-muted hover:text-foreground"
-                                >
-                                    {isGenerating ? <span className="size-3 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Users className="size-3" />}
-                                    Generar asignaciones
-                                </Button>
+                                <div className="flex items-center gap-1.5">
+                                    {gestionAssignments.length > 0 && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={isGenerating}
+                                            onClick={async () => {
+                                                if (!confirmReset) {
+                                                    setConfirmReset(true);
+                                                    setTimeout(() => setConfirmReset(false), 4000);
+                                                    return;
+                                                }
+                                                setConfirmReset(false);
+                                                setIsGenerating(true);
+                                                const del = await deletePeerAssignments(step.id);
+                                                if (del.error) { toast.error(del.error); setIsGenerating(false); return; }
+                                                const gen = await generatePeerAssignments(step.id, moduleId);
+                                                if (gen.error) {
+                                                    toast.error(gen.error);
+                                                } else {
+                                                    toast.success("Asignaciones regeneradas correctamente.");
+                                                    await loadGestionAssignments();
+                                                }
+                                                setIsGenerating(false);
+                                            }}
+                                            className={cn(
+                                                "shrink-0 h-7 text-xs gap-1.5 transition-colors",
+                                                confirmReset
+                                                    ? "border-red-500/50 text-red-400 bg-red-500/5 hover:bg-red-500/10"
+                                                    : "border-border/50 text-text-muted hover:text-foreground"
+                                            )}
+                                        >
+                                            <Trash2 className="size-3" />
+                                            {confirmReset ? "¿Confirmar?" : "Borrar y regenerar"}
+                                        </Button>
+                                    )}
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={isGenerating}
+                                        onClick={async () => {
+                                            setIsGenerating(true);
+                                            const res = await generatePeerAssignments(step.id, moduleId);
+                                            if (res.error) {
+                                                toast.error(res.error);
+                                            } else {
+                                                toast.success("Asignaciones generadas correctamente.");
+                                                await loadGestionAssignments();
+                                            }
+                                            setIsGenerating(false);
+                                        }}
+                                        className="shrink-0 h-7 text-xs gap-1.5 border-border/50 text-text-muted hover:text-foreground"
+                                    >
+                                        {isGenerating ? <span className="size-3 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Users className="size-3" />}
+                                        Generar asignaciones
+                                    </Button>
+                                </div>
                             </div>
                             <div className="p-5 space-y-3">
                                 {gestionLoading ? (

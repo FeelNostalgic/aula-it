@@ -589,6 +589,17 @@ export type PeerAssignmentWithTarget = {
     target_student?: { full_name: string | null } | null;  // for intra_group mode
 };
 
+interface PeerAssignmentRow {
+    id: string;
+    step_id: string;
+    evaluator_id: string | null;
+    evaluator_group_id: string | null;
+    target_submission_id: string;
+    target_student_id: string | null;
+    eval_submission_id: string | null;
+    target_submission: PeerAssignmentWithTarget["target_submission"];
+}
+
 export async function getMyPeerAssignments(
     stepId: string,
 ): Promise<{ assignments?: PeerAssignmentWithTarget[]; error?: string }> {
@@ -624,12 +635,15 @@ export async function getMyPeerAssignments(
         }
     }
 
-    // Fetch individual + group assignments
+    // Fetch individual + group assignments.
+    // Use admin client to avoid RLS silently dropping rows via the NOT NULL FK inner join
+    // to activity_submissions. Security is enforced by the explicit evaluator filter below.
+    const adminForQuery = createAdminClient();
     const orFilter = groupId
         ? `evaluator_id.eq.${user.id},evaluator_group_id.eq.${groupId}`
         : `evaluator_id.eq.${user.id}`;
 
-    const { data, error } = await supabase
+    const { data, error } = await adminForQuery
         .from("peer_evaluation_assignments")
         .select(`
             id, step_id, evaluator_id, evaluator_group_id, target_submission_id, target_student_id, eval_submission_id,
@@ -637,8 +651,7 @@ export async function getMyPeerAssignments(
                 id, drive_file_url, student_id, group_id,
                 student:profiles!student_id(full_name),
                 group:module_groups!group_id(name)
-            ),
-            target_student:profiles!target_student_id(full_name)
+            )
         `)
         .eq("step_id", stepId)
         .or(orFilter)
@@ -648,8 +661,43 @@ export async function getMyPeerAssignments(
         console.error("[getMyPeerAssignments] query error:", error.message, { stepId, userId: user.id, orFilter });
         return { error: error.message };
     }
+
+    const rows = (data ?? []) as PeerAssignmentRow[];
+    const targetStudentIds = rows
+        .map((row) => row.target_student_id)
+        .filter((value): value is string => typeof value === "string" && value.length > 0);
+
+    let targetStudentNameById = new Map<string, string | null>();
+
+    if (targetStudentIds.length > 0) {
+        const { data: targetStudents, error: targetStudentsError } = await supabase
+            .from("profiles")
+            .select("id, full_name")
+            .in("id", Array.from(new Set(targetStudentIds)));
+
+        if (targetStudentsError) {
+            console.error("[getMyPeerAssignments] target student lookup error:", targetStudentsError.message, {
+                stepId,
+                userId: user.id,
+                targetStudentIds,
+            });
+            return { error: targetStudentsError.message };
+        }
+
+        targetStudentNameById = new Map(
+            (targetStudents ?? []).map((profile) => [profile.id as string, (profile.full_name ?? null) as string | null])
+        );
+    }
+
+    const assignments: PeerAssignmentWithTarget[] = rows.map((row) => ({
+        ...row,
+        target_student: row.target_student_id
+            ? { full_name: targetStudentNameById.get(row.target_student_id) ?? null }
+            : null,
+    }));
+
     console.log("[getMyPeerAssignments] rows returned:", data?.length ?? 0, { stepId, userId: user.id, orFilter });
-    return { assignments: (data ?? []) as unknown as PeerAssignmentWithTarget[] };
+    return { assignments };
 }
 
 export async function submitPeerEvaluation(
@@ -716,8 +764,11 @@ export async function submitPeerEvaluation(
         evalSubmissionId = newSub!.id;
     }
 
-    // Link back to the assignment
-    await supabase
+    // Link back to the assignment.
+    // Use admin client: students have no UPDATE policy on peer_evaluation_assignments
+    // (only SELECT). Security is guaranteed by the evaluator check above.
+    const admin = createAdminClient();
+    await admin
         .from("peer_evaluation_assignments")
         .update({ eval_submission_id: evalSubmissionId })
         .eq("id", assignmentId);

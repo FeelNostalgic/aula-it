@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { SupabaseMockBuilder } from "../helpers/supabase-mock";
 import { createMockUser, createMockSubmission } from "../helpers/fixtures";
 import type { SubmissionFile } from "@/types/activity";
 import {
+  getMyPeerAssignments,
   submitDeliverable,
   submitFileUpload,
   submitFileUploadMulti,
@@ -13,6 +15,7 @@ import {
 } from "@/app/activities/[id]/actions";
 
 const vi_createClient = vi.mocked(createClient);
+const vi_createAdminClient = vi.mocked(createAdminClient);
 const vi_revalidatePath = vi.mocked(revalidatePath);
 
 // ─── Shared fixtures ──────────────────────────────────────────────────────────
@@ -24,6 +27,74 @@ const VALID_DOCS_URL = "https://docs.google.com/document/d/abc123/edit";
 
 const PAST_DATE = new Date(Date.now() - 86_400_000).toISOString(); // yesterday
 const FUTURE_DATE = new Date(Date.now() + 86_400_000).toISOString(); // tomorrow
+
+// ─── getMyPeerAssignments ─────────────────────────────────────────────────────
+
+describe("getMyPeerAssignments", () => {
+  it("hydrates intra-group target student names via profiles without relying on a direct FK join", async () => {
+    const user = createMockUser();
+
+    const { client: serverClient } = new SupabaseMockBuilder()
+      .mockAuth(user)
+      .mockQuery("activity_steps", {
+        data: {
+          phase: {
+            activity: {
+              unit: {
+                module_id: "module-1",
+              },
+            },
+          },
+        },
+        error: null,
+      })
+      .mockQuery("peer_evaluation_assignments", {
+        data: [
+          {
+            id: "assignment-1",
+            step_id: STEP_ID,
+            evaluator_id: user.id,
+            evaluator_group_id: null,
+            target_submission_id: "submission-1",
+            target_student_id: "student-2",
+            eval_submission_id: null,
+            target_submission: {
+              id: "submission-1",
+              drive_file_url: null,
+              student_id: "student-2",
+              group_id: null,
+              student: null,
+              group: null,
+            },
+          },
+        ],
+        error: null,
+      })
+      .mockQuery("profiles", {
+        data: [{ id: "student-2", full_name: "Ada Lovelace" }],
+        error: null,
+      })
+      .build();
+
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockQuery("module_groups", { data: [], error: null })
+      .build();
+
+    vi_createClient.mockResolvedValue(serverClient as any);
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await getMyPeerAssignments(STEP_ID);
+
+    expect(result.error).toBeUndefined();
+    expect(result.assignments).toEqual([
+      expect.objectContaining({
+        id: "assignment-1",
+        target_student_id: "student-2",
+        target_student: { full_name: "Ada Lovelace" },
+      }),
+    ]);
+  });
+});
 
 // ─── submitDeliverable ────────────────────────────────────────────────────────
 

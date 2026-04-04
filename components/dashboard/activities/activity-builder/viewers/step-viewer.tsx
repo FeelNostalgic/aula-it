@@ -140,7 +140,6 @@ export function StepViewer({ step, activityId, submission, submissionsMap, stepT
                         content={step.content as PeerEvaluationContent}
                         stepId={step.id}
                         activityId={activityId}
-                        initialSubmission={submission}
                         isPreview={isPreview}
                         isClosed={step.is_activity_closed ?? false}
                     />

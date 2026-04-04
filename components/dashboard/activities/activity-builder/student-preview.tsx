@@ -182,29 +182,27 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
         return map;
     }, [allSteps]);
 
-    const [selectedStepId, setSelectedStepId] = useState<string | null>(() => {
-        try {
-            const saved = localStorage.getItem(`aula-it:activity-view:${activity.id}:selected-tab`);
-            const allIds = phases.flatMap((p) => p.steps
-                .filter((s: any) => s.is_visible !== false && !s.is_locked)
-                .flatMap((s: any) => [s.id, ...(s.children ?? []).filter((c: any) => c.is_visible !== false && !c.is_locked).map((c: any) => c.id)])
-            );
-            return saved && allIds.includes(saved) ? saved : null;
-        } catch { return null; }
-    });
-    const [openStepIds, setOpenStepIds] = useState<string[]>(() => {
-        try {
-            const saved = JSON.parse(localStorage.getItem(`aula-it:activity-view:${activity.id}:open-tabs`) ?? '[]');
-            const allIds = phases.flatMap((p) => p.steps
-                .filter((s: any) => s.is_visible !== false && !s.is_locked)
-                .flatMap((s: any) => [s.id, ...(s.children ?? []).filter((c: any) => c.is_visible !== false && !c.is_locked).map((c: any) => c.id)])
-            );
-            return (saved as string[]).filter((id) => allIds.includes(id));
-        } catch { return []; }
-    });
+    const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+    const [openStepIds, setOpenStepIds] = useState<string[]>([]);
     const [collapsedPhases, setCollapsedPhases] = useState<string[]>([]);
     const [localViews, setLocalViews] = useState<Record<string, boolean>>(viewsMap ?? {});
     const [markingViewed, setMarkingViewed] = useState(false);
+
+    // Restore persisted tab state after mount (SSR-safe: never runs on server)
+    useEffect(() => {
+        const allIds = phases.flatMap((p) => p.steps
+            .filter((s: any) => s.is_visible !== false && !s.is_locked)
+            .flatMap((s: any) => [s.id, ...(s.children ?? []).filter((c: any) => c.is_visible !== false && !c.is_locked).map((c: any) => c.id)])
+        );
+        try {
+            const savedTab = localStorage.getItem(`aula-it:activity-view:${activity.id}:selected-tab`);
+            if (savedTab && allIds.includes(savedTab)) setSelectedStepId(savedTab);
+            const savedTabs = JSON.parse(localStorage.getItem(`aula-it:activity-view:${activity.id}:open-tabs`) ?? '[]');
+            const validTabs = (savedTabs as string[]).filter((id) => allIds.includes(id));
+            if (validTabs.length > 0) setOpenStepIds(validTabs);
+        } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // intentionally empty — read localStorage once on mount
 
     useEffect(() => {
         localStorage.setItem(`aula-it:activity-view:${activity.id}:open-tabs`, JSON.stringify(openStepIds));
