@@ -178,9 +178,12 @@ export function UnitEvaluationTab({ unitId, moduleId, students, activities, subm
             byStep: Record<string, {
                 stepTitle: string;
                 stepType: ActivityStepType;
+                orderIndex: number;
                 deliveryMode: "manual" | "teacher_copy" | undefined;
                 isLocked: boolean;
                 isGroupSubmission: boolean;
+                parentStepId: string | null;
+                isActivityClosed: boolean;
                 rows: StepSubmissionRow[];
             }>;
         }> = {};
@@ -198,9 +201,12 @@ export function UnitEvaluationTab({ unitId, moduleId, students, activities, subm
                 map[row.activity_id].byStep[row.step_id] = {
                     stepTitle: row.step_title,
                     stepType: row.step_type,
+                    orderIndex: row.step_order_index ?? 0,
                     deliveryMode: row.delivery_mode,
                     isLocked: row.step_is_locked ?? false,
                     isGroupSubmission: row.is_group_submission ?? false,
+                    parentStepId: row.parent_step_id ?? null,
+                    isActivityClosed: row.is_activity_closed ?? false,
                     rows: [],
                 };
             }
@@ -357,6 +363,7 @@ export function UnitEvaluationTab({ unitId, moduleId, students, activities, subm
                                         onSubmissionsChange={setStepSubmissions}
                                         allSubmissions={stepSubmissions}
                                         onRefetchSubmissions={refetchSubmissions}
+                                        students={enrolledStudents}
                                     />
                                 ) : (
                                     <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
@@ -462,41 +469,68 @@ function ChallengeAccordion({ id, index, data, selectedStepId, onSelectStep, isO
                         className="overflow-hidden"
                     >
                         <div className="pl-6 pr-1 py-1 space-y-0.5">
-                            {stepIds.map((stepId) => {
+                            {(() => {
+                                // Reorder: roots sorted by order_index, each immediately followed by
+                                // its children also sorted by order_index (matching IDE order)
+                                const rootIds = stepIds
+                                    .filter(sid => {
+                                        const s = data.byStep[sid];
+                                        return !s.parentStepId || !stepIds.includes(s.parentStepId);
+                                    })
+                                    .sort((a, b) => (data.byStep[a].orderIndex ?? 0) - (data.byStep[b].orderIndex ?? 0));
+                                const orderedIds: string[] = [];
+                                for (const rootId of rootIds) {
+                                    orderedIds.push(rootId);
+                                    const children = stepIds
+                                        .filter(sid => data.byStep[sid].parentStepId === rootId)
+                                        .sort((a, b) => (data.byStep[a].orderIndex ?? 0) - (data.byStep[b].orderIndex ?? 0));
+                                    orderedIds.push(...children);
+                                }
+                                return orderedIds;
+                            })().map((stepId) => {
                                 const step = data.byStep[stepId];
+                                const isChild = !!step.parentStepId && stepIds.includes(step.parentStepId);
                                 const isSelected = selectedStepId === stepId;
                                 const stepPending = step.rows.filter((r: any) => r.status === 'submitted' && !r.synthetic).length;
                                 const stepTotal = step.rows.length;
-                                
+
                                 return (
                                     <button
                                         key={stepId}
                                         onClick={() => onSelectStep(id, stepId)}
                                         className={cn(
                                             "w-full flex items-center gap-3 p-2 rounded-xl transition-all text-left relative group/item",
-                                            isSelected 
-                                                ? "bg-accent-blue/10 text-accent-blue shadow-inner" 
+                                            isChild && "ml-4",
+                                            isSelected
+                                                ? "bg-accent-blue/10 text-accent-blue shadow-inner"
                                                 : "text-text-muted hover:text-foreground hover:bg-white/5"
                                         )}
                                     >
                                         {isSelected && (
-                                            <motion.div 
+                                            <motion.div
                                                 layoutId="active-step-indicator"
-                                                className="absolute left-0 w-0.5 h-3 bg-accent-blue rounded-full" 
+                                                className="absolute left-0 w-0.5 h-3 bg-accent-blue rounded-full"
                                             />
                                         )}
+                                        {isChild && (
+                                            <span className="text-[8px] text-text-muted/40 shrink-0">↳</span>
+                                        )}
                                         <div className={cn(
-                                            "size-5 rounded-lg flex items-center justify-center border transition-colors",
+                                            "rounded-lg flex items-center justify-center border transition-colors shrink-0",
+                                            isChild ? "size-4" : "size-5",
                                             isSelected ? "border-accent-blue/20 bg-accent-blue/5" : "border-border-strong bg-surface-dark group-hover/item:border-border-subtle"
                                         )}>
                                             {getTabStepIcon(step.stepType)}
                                         </div>
-                                        <span className="text-[10px] font-bold truncate flex-1 uppercase tracking-tight">{step.stepTitle}</span>
-                                        {stepPending > 0 ? (
+                                        <span className={cn(
+                                            "font-bold truncate flex-1 uppercase tracking-tight",
+                                            isChild ? "text-[9px]" : "text-[10px]"
+                                        )}>{step.stepTitle}</span>
+                                        {!isChild && (stepPending > 0 ? (
                                             <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-accent-blue text-white shadow-sm">{stepPending}</span>
                                         ) : (
                                             <span className="text-[9px] font-black text-text-muted/20">{stepTotal}</span>
-                                        )}
+                                        ))}
                                     </button>
                                 );
                             })}
@@ -508,17 +542,17 @@ function ChallengeAccordion({ id, index, data, selectedStepId, onSelectStep, isO
     );
 }
 
-function SortableHeader({ column, label }: { column: Column<StepSubmissionRow, unknown>; label: string }) {
+function SortableHeader({ column, label, className }: { column: Column<StepSubmissionRow, unknown>; label: string; className?: string }) {
     return (
-        <button className="flex items-center gap-1 cursor-pointer select-none uppercase tracking-wider text-[11px] font-mono font-medium" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        <button className={cn("flex items-center gap-1 cursor-pointer select-none uppercase tracking-wider text-[11px] font-mono font-medium", className)} onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
             {label}
             {column.getIsSorted() === "asc" ? <ArrowUp className="size-3" /> : column.getIsSorted() === "desc" ? <ArrowDown className="size-3" /> : <ArrowUpDown className="size-3 opacity-40" />}
         </button>
     );
 }
 
-function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmissionsChange, allSubmissions, onRefetchSubmissions }: {
-    stepId: string, activityId: string, moduleId: string, stepData: any, onSubmissionsChange: (rows: StepSubmissionRow[]) => void, allSubmissions: StepSubmissionRow[], onRefetchSubmissions?: () => void
+function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmissionsChange, allSubmissions, onRefetchSubmissions, students }: {
+    stepId: string, activityId: string, moduleId: string, stepData: any, onSubmissionsChange: (rows: StepSubmissionRow[]) => void, allSubmissions: StepSubmissionRow[], onRefetchSubmissions?: () => void, students?: { student_id: string; name: string }[]
 }) {
     const [gradingState, setGradingState] = useState<{ rows: StepSubmissionRow[]; index: number } | null>(null);
     const gradingSubmission = gradingState ? gradingState.rows[gradingState.index] : null;
@@ -537,6 +571,14 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
         const published = rows.filter((r: any) => r.status === 'published' && !r.synthetic).length;
         return { total, pending, graded, published };
     }, [stepData]);
+
+    const hasLinkedSelf = useMemo(() =>
+        (stepData?.rows ?? []).some((r: StepSubmissionRow) => r.linked_self_eval_score != null),
+    [stepData]);
+
+    const hasLinkedPeer = useMemo(() =>
+        (stepData?.rows ?? []).some((r: StepSubmissionRow) => r.linked_peer_eval_score != null),
+    [stepData]);
 
     const columns: ColumnDef<StepSubmissionRow>[] = useMemo(() => [
         {
@@ -624,6 +666,88 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
             size: 100,
             sortingFn: (rowA, rowB) => (rowA.original.score ?? -1) - (rowB.original.score ?? -1),
         },
+        ...(hasLinkedSelf ? [{
+            id: "linked_self",
+            header: ({ column }: { column: any }) => <SortableHeader column={column} label="Auto" className="text-indigo-400" />,
+            cell: ({ row }: { row: any }) => {
+                const s = row.original.linked_self_eval_score;
+                const w = row.original.linked_self_eval_weight;
+                if (s == null) return <span className="text-text-muted/20 font-mono text-[10px]">—</span>;
+                if (w === 0) {
+                    // Questions mode — show completion %, doesn't count toward grade
+                    const pct = Math.round(s * 10);
+                    return (
+                        <div className="flex flex-col">
+                            <span className="text-[11px] font-mono font-bold text-indigo-400">{pct}%</span>
+                            <span className="text-[8px] text-text-muted/40 font-mono">completado</span>
+                        </div>
+                    );
+                }
+                return (
+                    <div className="flex flex-col">
+                        <span className="text-[11px] font-mono font-bold text-indigo-400">{s}/10</span>
+                        {w != null && <span className="text-[8px] text-text-muted/40 font-mono">{w}%</span>}
+                    </div>
+                );
+            },
+            sortingFn: (rowA: any, rowB: any) => (rowA.original.linked_self_eval_score ?? -1) - (rowB.original.linked_self_eval_score ?? -1),
+            enableSorting: true,
+            size: 75,
+        }] as ColumnDef<StepSubmissionRow>[] : []),
+        ...(hasLinkedPeer ? [{
+            id: "linked_peer",
+            header: ({ column }: { column: any }) => <SortableHeader column={column} label="Co-eval" className="text-purple-400" />,
+            cell: ({ row }: { row: any }) => {
+                const s = row.original.linked_peer_eval_score;
+                const w = row.original.linked_peer_eval_weight;
+                if (s == null) return <span className="text-text-muted/20 font-mono text-[10px]">—</span>;
+                return (
+                    <div className="flex flex-col">
+                        <span className="text-[11px] font-mono font-bold text-purple-400">{s}/10</span>
+                        {w != null && <span className="text-[8px] text-text-muted/40 font-mono">{w}%</span>}
+                    </div>
+                );
+            },
+            sortingFn: (rowA: any, rowB: any) => (rowA.original.linked_peer_eval_score ?? -1) - (rowB.original.linked_peer_eval_score ?? -1),
+            enableSorting: true,
+            size: 85,
+        }] as ColumnDef<StepSubmissionRow>[] : []),
+        ...((hasLinkedSelf || hasLinkedPeer) ? [{
+            id: "weighted_total",
+            header: ({ column }: { column: any }) => <SortableHeader column={column} label="⇒ Total" className="text-emerald-400" />,
+            cell: ({ row }: { row: any }) => {
+                const r: StepSubmissionRow = row.original;
+                const teacherScore = r.score;
+                if (teacherScore == null) return <span className="text-text-muted/20 font-mono text-[10px]">—</span>;
+                const selfW = r.linked_self_eval_weight ?? 0;
+                const peerW = r.linked_peer_eval_weight ?? 0;
+                const teacherW = 100 - selfW - peerW;
+                let total = (teacherW / 100) * teacherScore;
+                if (r.linked_self_eval_score != null) total += (selfW / 100) * r.linked_self_eval_score;
+                if (r.linked_peer_eval_score != null) total += (peerW / 100) * r.linked_peer_eval_score;
+                total = Math.round(total * 100) / 100;
+                return (
+                    <div className="px-2 py-1 rounded-lg border bg-emerald-500/10 border-emerald-500/20 font-mono text-[10px] font-black text-emerald-400 w-fit">
+                        {total}/10
+                    </div>
+                );
+            },
+            sortingFn: (rowA: any, rowB: any) => {
+                const total = (r: StepSubmissionRow) => {
+                    if (r.score == null) return -1;
+                    const selfW = r.linked_self_eval_weight ?? 0;
+                    const peerW = r.linked_peer_eval_weight ?? 0;
+                    const teacherW = 100 - selfW - peerW;
+                    let t = (teacherW / 100) * r.score;
+                    if (r.linked_self_eval_score != null) t += (selfW / 100) * r.linked_self_eval_score;
+                    if (r.linked_peer_eval_score != null) t += (peerW / 100) * r.linked_peer_eval_score;
+                    return t;
+                };
+                return total(rowA.original) - total(rowB.original);
+            },
+            enableSorting: true,
+            size: 90,
+        }] as ColumnDef<StepSubmissionRow>[] : []),
         {
             accessorKey: "submitted_at",
             header: ({ column }) => <SortableHeader column={column} label="Fecha" />,
@@ -659,7 +783,7 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
             }} onPropagate={onRefetchSubmissions} />,
             enableSorting: false,
         },
-    ], [allSubmissions, onSubmissionsChange, stepData, onRefetchSubmissions]);
+    ], [allSubmissions, onSubmissionsChange, stepData, onRefetchSubmissions, hasLinkedSelf, hasLinkedPeer]);
 
     // For group steps: only show canonical group rows (is_group_submission === true).
     // Virtual student rows and propagated member rows are excluded from the correction table.
@@ -686,7 +810,7 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
     if (!stepData) return null;
 
     if (stepData.stepType === 'peer_evaluation') {
-        return <PeerEvaluationTeacherView stepId={stepId} moduleId={moduleId} stepTitle={stepData.stepTitle} />;
+        return <PeerEvaluationTeacherView stepId={stepId} moduleId={moduleId} stepTitle={stepData.stepTitle} activityId={activityId} isActivityClosed={stepData.isActivityClosed} students={students ?? []} />;
     }
 
     const noGroupSubmissionsYet = stepData.isGroupSubmission && tableRows.every((r: StepSubmissionRow) => r.synthetic);

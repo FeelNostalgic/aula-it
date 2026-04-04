@@ -41,7 +41,7 @@ export default async function EvaluacionPage({
             id, unit_id, title, description, type, order_index, status, created_at, duration, difficulty, logo_url, position_x, position_y, grade_weight,
             activity_phases (
                 id,
-                activity_steps ( id, title, type, xp, grade_weight, order_index )
+                activity_steps ( id, title, type, xp, grade_weight, order_index, parent_step_id )
             )
         `)
         .eq("unit_id", unitId)
@@ -83,7 +83,8 @@ export default async function EvaluacionPage({
             const steps = Array.isArray(phase.activity_steps) ? phase.activity_steps : [];
             steps.forEach((step: any) => {
                 totalXp += (step.xp || 0);
-                if (EVALUABLE_TYPES.includes(step.type)) {
+                // Skip nested self_eval / peer_eval — their weight is baked into the parent deliverable
+                if (EVALUABLE_TYPES.includes(step.type) && !step.parent_step_id) {
                     evaluableSteps.push({
                         id: step.id,
                         title: step.title,

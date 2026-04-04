@@ -449,13 +449,17 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
 
                         if (!selfEvalChild && !peerEvalChild && !showIntraGroup) return null;
 
+                        // Questions-mode self-evals are completion gates, not graded — weight is always 0
+                        const selfEvalIsQuestions = selfEvalChild && (selfEvalChild.content as any)?.evalMode === 'questions';
+
                         const comp: GradeComposition = content.gradeComposition ?? { selfEvalWeight: 0, peerEvalWeight: 0, intraGroupWeight: 0 };
-                        const totalAssigned = comp.selfEvalWeight + comp.peerEvalWeight + (showIntraGroup ? comp.intraGroupWeight : 0);
+                        const effectiveSelfW = selfEvalIsQuestions ? 0 : comp.selfEvalWeight;
+                        const totalAssigned = effectiveSelfW + comp.peerEvalWeight + (showIntraGroup ? comp.intraGroupWeight : 0);
                         const teacherWeight = Math.max(0, 100 - totalAssigned);
 
                         const updateComp = (field: keyof GradeComposition, value: number) => {
                             const newComp = { ...comp, [field]: value };
-                            const newTotal = newComp.selfEvalWeight + newComp.peerEvalWeight + (showIntraGroup ? newComp.intraGroupWeight : 0);
+                            const newTotal = (selfEvalIsQuestions ? 0 : newComp.selfEvalWeight) + newComp.peerEvalWeight + (showIntraGroup ? newComp.intraGroupWeight : 0);
                             if (newTotal > 100) return;
                             const newContent = { ...content, gradeComposition: newComp };
                             setContent(newContent);
@@ -496,18 +500,28 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
 
                                     {/* Autoevaluación */}
                                     {selfEvalChild && (
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-sm text-foreground w-36 shrink-0">Autoevaluación</span>
-                                            <input
-                                                type="range"
-                                                min={0}
-                                                max={100 - comp.peerEvalWeight - (showIntraGroup ? comp.intraGroupWeight : 0)}
-                                                value={comp.selfEvalWeight}
-                                                onChange={e => updateComp("selfEvalWeight", Number(e.target.value))}
-                                                className="flex-1 accent-accent-blue"
-                                            />
-                                            <span className="text-sm font-mono text-foreground w-10 text-right">{comp.selfEvalWeight}%</span>
-                                        </div>
+                                        selfEvalIsQuestions ? (
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-sm text-text-muted w-36 shrink-0">Autoevaluación</span>
+                                                <span className="flex-1 text-xs text-text-muted/50 italic">
+                                                    Tipo preguntas — solo mide completitud, no cuenta en la nota (0%)
+                                                </span>
+                                                <span className="text-sm font-mono text-text-muted/40 w-10 text-right">0%</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-sm text-foreground w-36 shrink-0">Autoevaluación</span>
+                                                <input
+                                                    type="range"
+                                                    min={0}
+                                                    max={100 - comp.peerEvalWeight - (showIntraGroup ? comp.intraGroupWeight : 0)}
+                                                    value={comp.selfEvalWeight}
+                                                    onChange={e => updateComp("selfEvalWeight", Number(e.target.value))}
+                                                    className="flex-1 accent-accent-blue"
+                                                />
+                                                <span className="text-sm font-mono text-foreground w-10 text-right">{comp.selfEvalWeight}%</span>
+                                            </div>
+                                        )
                                     )}
 
                                     {/* Coevaluación */}
@@ -517,7 +531,7 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                                             <input
                                                 type="range"
                                                 min={0}
-                                                max={100 - comp.selfEvalWeight - (showIntraGroup ? comp.intraGroupWeight : 0)}
+                                                max={100 - effectiveSelfW - (showIntraGroup ? comp.intraGroupWeight : 0)}
                                                 value={comp.peerEvalWeight}
                                                 onChange={e => updateComp("peerEvalWeight", Number(e.target.value))}
                                                 className="flex-1 accent-accent-blue"
@@ -533,7 +547,7 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                                             <input
                                                 type="range"
                                                 min={0}
-                                                max={100 - comp.selfEvalWeight - comp.peerEvalWeight}
+                                                max={100 - effectiveSelfW - comp.peerEvalWeight}
                                                 value={comp.intraGroupWeight}
                                                 onChange={e => updateComp("intraGroupWeight", Number(e.target.value))}
                                                 className="flex-1 accent-accent-blue"

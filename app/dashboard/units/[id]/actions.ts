@@ -454,6 +454,12 @@ export type StepSubmissionRow = {
     // For deliverable/file_upload rows: populated when a linked self-eval with countsTowardGrade exists
     linked_self_eval_score?: number | null;   // student's self-eval normalised score (0–10)
     linked_self_eval_weight?: number | null;  // selfEvalWeight % from the self-eval step content
+    linked_peer_eval_score?: number | null;  // average peer eval normalised score (0–10)
+    linked_peer_eval_weight?: number | null; // peerEvalWeight % from deliverable gradeComposition
+    // Structural fields for nesting in grading view
+    parent_step_id?: string | null;
+    is_activity_closed?: boolean;
+    step_order_index?: number;
 };
 
 export async function getUnitStepSubmissions(
@@ -485,7 +491,7 @@ export async function getUnitStepSubmissions(
     // Step 2: get gradeable + eval steps in those phases
     const { data: steps, error: stepsError } = await supabase
         .from("activity_steps")
-        .select("id, type, title, phase_id, content, is_locked, is_activity_closed, order_index")
+        .select("id, type, title, phase_id, content, is_locked, is_activity_closed, parent_step_id, order_index")
         .in("type", ["deliverable", "file_upload", "quiz", "self_evaluation", "peer_evaluation"])
         .in("phase_id", phaseIds)
         .order("order_index", { ascending: true });
@@ -503,7 +509,7 @@ export async function getUnitStepSubmissions(
     const activityTitles: Record<string, string> = {};
     activities?.forEach(a => activityTitles[a.id] = a.title);
 
-    const stepMeta: Record<string, { title: string; stepType: string; activityId: string; activityTitle: string; deliveryMode: any; rubric: any; quizContent: any; isLocked: boolean; isGroupSubmission: boolean; evalMode: any; evalQuestions: any; countsTowardGrade: boolean; selfEvalWeight: number | null }> = {};
+    const stepMeta: Record<string, { title: string; stepType: string; activityId: string; activityTitle: string; deliveryMode: any; rubric: any; quizContent: any; isLocked: boolean; isActivityClosed: boolean; isGroupSubmission: boolean; evalMode: any; evalQuestions: any; countsTowardGrade: boolean; selfEvalWeight: number | null; parentStepId: string | null; orderIndex: number }> = {};
     for (const s of steps) {
         const activityId = phaseActivityMap[s.phase_id] ?? "";
         stepMeta[s.id] = {
@@ -515,11 +521,14 @@ export async function getUnitStepSubmissions(
             rubric: (s.content as any)?.rubric ?? [],
             quizContent: s.type === 'quiz' ? (s.content as any) : null,
             isLocked: (s as any).is_locked ?? false,
+            isActivityClosed: (s as any).is_activity_closed ?? false,
             isGroupSubmission: (s.content as any)?.is_group_submission === true,
             evalMode: (s.type === 'self_evaluation' || s.type === 'peer_evaluation') ? ((s.content as any)?.evalMode ?? 'rubric') : null,
             evalQuestions: (s.type === 'self_evaluation' || s.type === 'peer_evaluation') ? ((s.content as any)?.questions ?? []) : null,
             countsTowardGrade: s.type === 'self_evaluation' ? (((s.content as any)?.countsTowardGrade) === true) : false,
             selfEvalWeight: s.type === 'self_evaluation' ? ((s.content as any)?.selfEvalWeight ?? null) : null,
+            parentStepId: (s as any).parent_step_id ?? null,
+            orderIndex: (s as any).order_index ?? 0,
         };
     }
 
@@ -605,6 +614,7 @@ export async function getUnitStepSubmissions(
                 step_eval_questions: null,
                 step_eval_counts_toward_grade: null,
                 step_eval_weight: null,
+                step_order_index: meta?.orderIndex ?? 0,
             };
         });
     }
@@ -680,6 +690,7 @@ export async function getUnitStepSubmissions(
                     step_eval_questions: null,
                     step_eval_counts_toward_grade: null,
                     step_eval_weight: null,
+                    step_order_index: meta?.orderIndex ?? 0,
                 };
             });
         }
@@ -728,6 +739,7 @@ export async function getUnitStepSubmissions(
                 step_eval_questions: null,
                 step_eval_counts_toward_grade: null,
                 step_eval_weight: null,
+                step_order_index: meta?.orderIndex ?? 0,
             });
         }
     }
@@ -791,6 +803,7 @@ export async function getUnitStepSubmissions(
             step_eval_questions: null,
             step_eval_counts_toward_grade: null,
             step_eval_weight: null,
+            step_order_index: meta?.orderIndex ?? 0,
         };
     });
 
@@ -840,6 +853,7 @@ export async function getUnitStepSubmissions(
                     step_eval_questions: null,
                     step_eval_counts_toward_grade: null,
                     step_eval_weight: null,
+                    step_order_index: meta.orderIndex ?? 0,
                 });
             }
         }
@@ -897,6 +911,9 @@ export async function getUnitStepSubmissions(
                 step_eval_questions: meta?.evalQuestions ?? null,
                 step_eval_counts_toward_grade: meta?.countsTowardGrade ?? null,
                 step_eval_weight: meta?.selfEvalWeight ?? null,
+                parent_step_id: meta?.parentStepId ?? null,
+                is_activity_closed: meta?.isActivityClosed ?? false,
+                step_order_index: meta?.orderIndex ?? 0,
             };
         });
 
@@ -944,6 +961,9 @@ export async function getUnitStepSubmissions(
                         step_eval_questions: meta.evalQuestions ?? null,
                         step_eval_counts_toward_grade: meta.countsTowardGrade ?? null,
                         step_eval_weight: meta.selfEvalWeight ?? null,
+                        parent_step_id: meta.parentStepId ?? null,
+                        is_activity_closed: meta.isActivityClosed ?? false,
+                        step_order_index: meta.orderIndex ?? 0,
                     });
                 }
             }
@@ -952,25 +972,33 @@ export async function getUnitStepSubmissions(
 
     // Post-process: enrich deliverable/file_upload rows with the student's linked self-eval score.
     // This lets GradingModal preview the weighted formula before the teacher publishes.
+    // Questions-mode self-evals always have weight=0 (they don't count toward grade, only completion).
     {
-        // selfEvalByDeliverable: deliverableStepId → { selfEvalStepId, weight, rubric }
-        const selfEvalByDeliverable: Record<string, { stepId: string; weight: number; rubric: any[] }> = {};
+        const selfEvalByDeliverable: Record<string, {
+            stepId: string; weight: number; rubric: any[]; isQuestions: boolean; questions: any[];
+        }> = {};
         for (const step of steps) {
             if (step.type !== 'self_evaluation') continue;
             const c = step.content as any;
-            if (!c?.countsTowardGrade || !c?.referenceStepId) continue;
+            if (!c?.referenceStepId) continue;
+            const isQuestions = c.evalMode === 'questions';
             selfEvalByDeliverable[c.referenceStepId] = {
                 stepId: step.id,
-                weight: c.selfEvalWeight ?? 20,
+                weight: isQuestions ? 0 : (c.countsTowardGrade ? (c.selfEvalWeight ?? 20) : 0),
                 rubric: c.rubric ?? [],
+                isQuestions,
+                questions: c.questions ?? [],
             };
         }
         if (Object.keys(selfEvalByDeliverable).length > 0) {
-            // selfScoresMap: "studentId:selfEvalStepId" → rubric scores
             const selfScoresMap: Record<string, Record<string, number>> = {};
+            const questionsAnswersMap: Record<string, Record<string, string>> = {};
             for (const row of selfEvalResults) {
                 if (row.self_eval_rubric_scores) {
                     selfScoresMap[`${row.student_id}:${row.step_id}`] = row.self_eval_rubric_scores;
+                }
+                if (row.self_eval_justifications && Object.keys(row.self_eval_justifications).length > 0) {
+                    questionsAnswersMap[`${row.student_id}:${row.step_id}`] = row.self_eval_justifications as Record<string, string>;
                 }
             }
             for (const row of results) {
@@ -978,14 +1006,108 @@ export async function getUnitStepSubmissions(
                 if (!row.student_id) continue;
                 const seInfo = selfEvalByDeliverable[row.step_id];
                 if (!seInfo) continue;
-                const rubricScores = selfScoresMap[`${row.student_id}:${seInfo.stepId}`];
-                if (!rubricScores) continue;
-                const rubricMax = seInfo.rubric.reduce((sum: number, c: any) =>
-                    sum + Math.max(0, ...(c.levels ?? []).map((l: any) => l.points ?? 0)), 0);
-                if (rubricMax === 0) continue;
-                const selfTotal = Object.values(rubricScores).reduce((a: number, b: number) => a + b, 0);
-                row.linked_self_eval_score = Math.round((selfTotal / rubricMax) * 1000) / 100;
-                row.linked_self_eval_weight = seInfo.weight;
+
+                if (seInfo.isQuestions) {
+                    // Questions mode: count answered questions by direct question ID match.
+                    // Likert with requireJustification stores extra keys (e.g. q.id + "_j"), so
+                    // counting Object.values would overcount — we only check answers[q.id] per question.
+                    const answers = questionsAnswersMap[`${row.student_id}:${seInfo.stepId}`];
+                    if (!answers) continue;
+                    const totalQ = seInfo.questions.length;
+                    const answeredQ = totalQ > 0
+                        ? seInfo.questions.filter((q: any) => {
+                            const v = answers[q.id];
+                            return v != null && String(v).trim().length > 0;
+                        }).length
+                        : 0;
+                    row.linked_self_eval_score = totalQ > 0
+                        ? Math.round((answeredQ / totalQ) * 1000) / 100
+                        : 10;
+                    row.linked_self_eval_weight = 0;
+                } else {
+                    // Rubric mode: compute normalised score
+                    const rubricScores = selfScoresMap[`${row.student_id}:${seInfo.stepId}`];
+                    if (!rubricScores) continue;
+                    const rubricMax = seInfo.rubric.reduce((sum: number, c: any) =>
+                        sum + Math.max(0, ...(c.levels ?? []).map((l: any) => l.points ?? 0)), 0);
+                    if (rubricMax === 0) continue;
+                    const selfTotal = Object.values(rubricScores).reduce((a: number, b: number) => a + b, 0);
+                    row.linked_self_eval_score = Math.round((selfTotal / rubricMax) * 1000) / 100;
+                    row.linked_self_eval_weight = seInfo.weight;
+                }
+            }
+        }
+    }
+
+    // Post-process: enrich deliverable/file_upload rows with peer eval average score.
+    // Reads gradeComposition.peerEvalWeight from the deliverable step and averages
+    // the normalised rubric scores of all completed peer eval assignments targeting each submission.
+    {
+        // peerEvalByDeliverable: deliverableStepId → { weight, rubric }
+        const peerEvalByDeliverable: Record<string, { weight: number; rubric: any[] }> = {};
+        for (const step of steps) {
+            if (step.type !== 'peer_evaluation') continue;
+            const parentStepId = (step as any).parent_step_id;
+            if (!parentStepId) continue;
+            const parentStep = steps.find(s => s.id === parentStepId);
+            if (!parentStep || (parentStep.type !== 'deliverable' && parentStep.type !== 'file_upload')) continue;
+            const gc = (parentStep.content as any)?.gradeComposition;
+            const weight = gc?.peerEvalWeight ?? 0;
+            if (weight === 0) continue;
+            peerEvalByDeliverable[parentStepId] = {
+                weight,
+                rubric: (step.content as any)?.rubric ?? [],
+            };
+        }
+
+        if (Object.keys(peerEvalByDeliverable).length > 0) {
+            const relevantSubIds = results
+                .filter(r => (r.step_type === 'deliverable' || r.step_type === 'file_upload')
+                          && !!peerEvalByDeliverable[r.step_id]
+                          && !r.id.startsWith('virtual:'))
+                .map(r => r.id);
+
+            if (relevantSubIds.length > 0) {
+                const { data: peerAssignments } = await supabase
+                    .from('peer_evaluation_assignments')
+                    .select('target_submission_id, eval_submission:activity_submissions!eval_submission_id(self_eval_rubric_scores)')
+                    .in('target_submission_id', relevantSubIds)
+                    .not('eval_submission_id', 'is', null);
+
+                // Build a map from submission_id to the step_id (to look up rubric)
+                const subToStepId: Record<string, string> = {};
+                for (const row of results) {
+                    if (row.step_type !== 'deliverable' && row.step_type !== 'file_upload') continue;
+                    if (!peerEvalByDeliverable[row.step_id]) continue;
+                    subToStepId[row.id] = row.step_id;
+                }
+
+                const peerScoreAgg: Record<string, { sum: number; count: number }> = {};
+                for (const a of peerAssignments ?? []) {
+                    const stepId = subToStepId[a.target_submission_id];
+                    if (!stepId) continue;
+                    const peInfo = peerEvalByDeliverable[stepId];
+                    const scores = (a.eval_submission as any)?.self_eval_rubric_scores as Record<string, number> | null;
+                    if (!scores || !peInfo?.rubric?.length) continue;
+                    const rubricMax = peInfo.rubric.reduce((sum: number, c: any) =>
+                        sum + Math.max(0, ...(c.levels ?? []).map((l: any) => l.points ?? 0)), 0);
+                    if (rubricMax === 0) continue;
+                    const total = Object.values(scores).reduce((a: number, b: number) => a + b, 0);
+                    const norm = Math.round((total / rubricMax) * 1000) / 100;
+                    if (!peerScoreAgg[a.target_submission_id]) peerScoreAgg[a.target_submission_id] = { sum: 0, count: 0 };
+                    peerScoreAgg[a.target_submission_id].sum += norm;
+                    peerScoreAgg[a.target_submission_id].count++;
+                }
+
+                for (const row of results) {
+                    if (row.step_type !== 'deliverable' && row.step_type !== 'file_upload') continue;
+                    const peInfo = peerEvalByDeliverable[row.step_id];
+                    if (!peInfo) continue;
+                    const agg = peerScoreAgg[row.id];
+                    if (!agg || agg.count === 0) continue;
+                    row.linked_peer_eval_score = Math.round((agg.sum / agg.count) * 100) / 100;
+                    row.linked_peer_eval_weight = peInfo.weight;
+                }
             }
         }
     }
@@ -1031,6 +1153,9 @@ export async function getUnitStepSubmissions(
             step_eval_questions: null,
             step_eval_counts_toward_grade: null,
             step_eval_weight: null,
+            parent_step_id: meta.parentStepId ?? null,
+            is_activity_closed: meta.isActivityClosed ?? false,
+            step_order_index: meta.orderIndex ?? 0,
         });
     }
 
@@ -1657,6 +1782,22 @@ export async function deletePeerAssignments(
     return {};
 }
 
+export async function setAssignmentOutlier(
+    assignmentId: string,
+    isOutlier: boolean,
+): Promise<{ error?: string }> {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const { error } = await auth.admin
+        .from("peer_evaluation_assignments")
+        .update({ is_outlier: isOutlier })
+        .eq("id", assignmentId);
+
+    if (error) return { error: error.message };
+    return {};
+}
+
 export async function generatePeerAssignments(
     stepId: string,
     moduleId: string,
@@ -1871,6 +2012,9 @@ export async function getPeerEvaluationResults(stepId: string): Promise<{
     peerFeedbackVisibleToStudents?: boolean;
     anonymousEvaluation?: boolean;
     mode?: string;
+    evalMode?: string;
+    rubric?: any[];
+    evalQuestions?: any[];
     error?: string;
 }> {
     const auth = await requireTeacher();
@@ -1909,6 +2053,9 @@ export async function getPeerEvaluationResults(stepId: string): Promise<{
         peerFeedbackVisibleToStudents: content?.peerFeedbackVisibleToStudents ?? false,
         anonymousEvaluation: content?.anonymousEvaluation ?? false,
         mode: content?.mode ?? "individual",
+        evalMode: content?.evalMode ?? "rubric",
+        rubric: content?.rubric ?? [],
+        evalQuestions: content?.questions ?? [],
     };
 }
 

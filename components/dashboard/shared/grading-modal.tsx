@@ -406,20 +406,28 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                                             className="bg-surface-dark border-border-strong w-32 font-mono text-lg text-center"
                                         />
                                         <p className="text-xs text-text-muted">Déjalo vacío para no asignar nota numérica.</p>
-                                        {/* Weighted formula preview — shown when a linked self-eval with countsTowardGrade exists */}
+                                        {/* Weighted formula preview */}
                                         {submission?.linked_self_eval_score != null && score !== "" && (() => {
-                                            const selfW = submission!.linked_self_eval_weight ?? 20;
+                                            const selfW = submission!.linked_self_eval_weight ?? 0;
                                             const selfS = submission!.linked_self_eval_score!;
+                                            const peerW = submission!.linked_peer_eval_weight ?? 0;
+                                            const peerS = submission!.linked_peer_eval_score ?? null;
+                                            const teacherW = 100 - selfW - peerW;
                                             const teacherS = parseFloat(score);
                                             if (isNaN(teacherS)) return null;
-                                            const final = Math.round(((selfW / 100) * selfS + ((100 - selfW) / 100) * teacherS) * 100) / 100;
+                                            let total = (teacherW / 100) * teacherS + (selfW / 100) * selfS;
+                                            if (peerS != null) total += (peerW / 100) * peerS;
+                                            total = Math.round(total * 100) / 100;
                                             return (
                                                 <div className="flex items-start gap-2.5 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-200">
                                                     <UserCheck className="size-3.5 shrink-0 text-indigo-400 mt-0.5" />
                                                     <div>
-                                                        <p className="font-semibold text-indigo-300 mb-0.5">Nota ponderada con autoevaluación</p>
+                                                        <p className="font-semibold text-indigo-300 mb-0.5">Nota ponderada 360°</p>
                                                         <p className="font-mono">
-                                                            {selfW}% × {selfS} + {100 - selfW}% × {teacherS} = <span className="font-bold text-white">{final}</span> / 10
+                                                            {teacherW}%×{teacherS}
+                                                            {selfW > 0 && ` + ${selfW}%×${selfS}(auto)`}
+                                                            {peerS != null && peerW > 0 && ` + ${peerW}%×${peerS}(co)`}
+                                                            {" = "}<span className="font-bold text-white">{total}</span>/10
                                                         </p>
                                                     </div>
                                                 </div>
@@ -454,16 +462,26 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                                                     </span>
                                                 </div>
                                                 {submission?.linked_self_eval_score != null && rubricMax > 0 && (() => {
-                                                    const selfW = submission!.linked_self_eval_weight ?? 20;
+                                                    const selfW = submission!.linked_self_eval_weight ?? 0;
                                                     const selfS = submission!.linked_self_eval_score!;
+                                                    const peerW = submission!.linked_peer_eval_weight ?? 0;
+                                                    const peerS = submission!.linked_peer_eval_score ?? null;
+                                                    const teacherW = 100 - selfW - peerW;
                                                     const teacherS = Math.round((rubricTotal / rubricMax) * 10 * 100) / 100;
-                                                    const final = Math.round(((selfW / 100) * selfS + ((100 - selfW) / 100) * teacherS) * 100) / 100;
+                                                    let total = (teacherW / 100) * teacherS + (selfW / 100) * selfS;
+                                                    if (peerS != null) total += (peerW / 100) * peerS;
+                                                    total = Math.round(total * 100) / 100;
                                                     return (
                                                         <div className="flex items-start gap-2.5 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-200">
                                                             <UserCheck className="size-3.5 shrink-0 text-indigo-400 mt-0.5" />
                                                             <div>
-                                                                <p className="font-semibold text-indigo-300 mb-0.5">Nota ponderada con autoevaluación</p>
-                                                                <p className="font-mono">{selfW}% × {selfS} + {100 - selfW}% × {teacherS} = <span className="font-bold text-white">{final}</span> / 10</p>
+                                                                <p className="font-semibold text-indigo-300 mb-0.5">Nota ponderada 360°</p>
+                                                                <p className="font-mono">
+                                                                    {teacherW}%×{teacherS}
+                                                                    {selfW > 0 && ` + ${selfW}%×${selfS}(auto)`}
+                                                                    {peerS != null && peerW > 0 && ` + ${peerW}%×${peerS}(co)`}
+                                                                    {" = "}<span className="font-bold text-white">{total}</span>/10
+                                                                </p>
                                                             </div>
                                                         </div>
                                                     );

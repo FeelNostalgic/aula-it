@@ -386,25 +386,6 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                     />
                                 </div>
 
-                                {/* Peer weight — only relevant in rubric mode */}
-                                {evalMode === "rubric" && (
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-sm text-foreground font-medium">Peso de los pares</p>
-                                            <span className="text-sm font-mono font-bold text-accent-blue">{content.peerWeight ?? 30}%</span>
-                                        </div>
-                                        <input
-                                            type="range" min={0} max={100} step={5}
-                                            value={content.peerWeight ?? 30}
-                                            onChange={(e) => save({ ...content, peerWeight: Number(e.target.value) })}
-                                            className="w-full accent-accent-blue"
-                                        />
-                                        <p className="text-xs text-text-muted">
-                                            Nota final = {content.peerWeight ?? 30}% promedio de pares + {100 - (content.peerWeight ?? 30)}% nota del profesor.
-                                        </p>
-                                    </div>
-                                )}
-
                                 {/* Anonymous */}
                                 <Toggle
                                     label="Evaluación anónima"
@@ -641,7 +622,7 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                             )}
                                         >
                                             <Trash2 className="size-3" />
-                                            {confirmReset ? "¿Confirmar?" : "Borrar y regenerar"}
+                                            {confirmReset ? "¿Confirmar?" : "Regenerar asignaciones"}
                                         </Button>
                                     )}
                                     <Button
