@@ -12,8 +12,11 @@ import { toast } from "sonner";
 import { Plus, Trash2, CheckCircle2, Circle, HardDrive, ExternalLink, BarChart2, AlignLeft, GripVertical, Layers, FileUp } from "lucide-react";
 import { GoogleFormCsvImport } from "./google-form-csv-import";
 import { cn } from "@/lib/utils";
+import { createDefaultQuizQuestion, convertQuestionToType, getGroupStatsAvailability, getQuestionType, QUIZ_QUESTION_TYPE, supportsClassicOptions } from "@/lib/quiz-core";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toFormEmbedUrl, GOOGLE_MIME } from "@/lib/google-drive-urls";
+import { StructuredQuestionFields } from "../quiz/structured-question-fields";
+import { QuizStatsPanel } from "../quiz/quiz-stats-panel";
 import {
     DndContext,
     closestCenter,
@@ -49,6 +52,11 @@ const QUESTION_TYPES: { value: QuizQuestionType; label: string }[] = [
     { value: 'multiple_choice', label: 'Opción múltiple' },
     { value: 'true_false', label: 'Verdadero/Falso' },
     { value: 'short_answer', label: 'Respuesta corta' },
+    { value: 'fill_in_the_blank_dropdown', label: 'Texto con huecos' },
+    { value: 'table_drag_drop', label: 'Tabla drag & drop' },
+    { value: 'matching_pairs', label: 'Emparejar' },
+    { value: 'ordering_sequence', label: 'Ordenar secuencia' },
+    { value: 'categorization_drag_drop', label: 'Clasificar' },
 ];
 
 export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
@@ -59,7 +67,8 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
             showCorrectAnswers: content.showCorrectAnswers ?? true,
             penalizeWrongAnswers: content.penalizeWrongAnswers ?? false,
             randomizeQuestions: content.randomizeQuestions ?? false,
-            randomizeOptions: content.randomizeOptions ?? false
+            randomizeOptions: content.randomizeOptions ?? false,
+            saveQuestionStats: content.saveQuestionStats ?? false,
         };
     };
 
@@ -89,23 +98,16 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
     };
 
     const handleUpdate = (newContent: QuizContent) => {
-        setContent(newContent);
-        onUpdate({ ...step, content: newContent });
-        saveToServer(newContent);
+        const nextContent = getGroupStatsAvailability(newContent).enabled
+            ? newContent
+            : { ...newContent, saveQuestionStats: false };
+        setContent(nextContent);
+        onUpdate({ ...step, content: nextContent });
+        saveToServer(nextContent);
     };
 
     const addQuestion = () => {
-        const newQuestion: QuizQuestion = {
-            id: crypto.randomUUID(),
-            type: 'multiple_choice',
-            text: "",
-            options: [
-                { id: crypto.randomUUID(), text: "", isCorrect: true },
-                { id: crypto.randomUUID(), text: "", isCorrect: false }
-            ],
-            points: 1,
-        };
-        handleUpdate({ ...content, questions: [...content.questions, newQuestion] });
+        handleUpdate({ ...content, questions: [...content.questions, createDefaultQuizQuestion()] });
     };
 
     const updateQuestion = (qId: string, updates: Partial<QuizQuestion>) => {
@@ -115,17 +117,7 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
     const changeQuestionType = (qId: string, type: QuizQuestionType) => {
         const questions = content.questions.map(q => {
             if (q.id !== qId) return q;
-            if (type === 'true_false') {
-                return { ...q, type, options: [
-                    { id: crypto.randomUUID(), text: "Verdadero", isCorrect: true },
-                    { id: crypto.randomUUID(), text: "Falso", isCorrect: false },
-                ]};
-            }
-            if (type === 'short_answer') return { ...q, type, options: [] };
-            return { ...q, type, options: q.options.length >= 2 ? q.options : [
-                { id: crypto.randomUUID(), text: "", isCorrect: true },
-                { id: crypto.randomUUID(), text: "", isCorrect: false },
-            ]};
+            return convertQuestionToType(q, type);
         });
         handleUpdate({ ...content, questions });
     };
@@ -209,6 +201,7 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
     };
 
     const effectiveMode: QuizMode = content.quizMode ?? (content.googleFormUrl ? 'google_form' : 'builtin');
+    const statsAvailability = getGroupStatsAvailability(content);
 
     const tabTriggerClass = "h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none";
 
@@ -227,6 +220,9 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                         <TabsTrigger value="pools" className={tabTriggerClass}>
                             Bancos{(content.bankSelections?.length ?? 0) > 0 && <span className="ml-1.5 text-[10px] font-mono opacity-60">({content.bankSelections!.length})</span>}
                         </TabsTrigger>
+                    )}
+                    {effectiveMode === 'builtin' && (
+                        <TabsTrigger value="stats" className={tabTriggerClass}>Stats</TabsTrigger>
                     )}
                     <TabsTrigger value="configuracion" className={tabTriggerClass}>Configuración</TabsTrigger>
                 </TabsList>
@@ -291,7 +287,7 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                     </div>
                 ) : (
                     /* Built-in mode — questions builder */
-                    <div className="max-w-4xl mx-auto p-8 space-y-4 pb-32">
+                    <div className="w-full max-w-7xl mx-auto p-6 sm:p-8 space-y-4 pb-32">
                         {content.questions.length === 0 ? (
                             <div className="text-center p-12 border border-dashed border-border/50 rounded-xl bg-surface/20">
                                 <p className="text-text-muted mb-4">No hay preguntas creadas.</p>
@@ -417,6 +413,16 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                 </div>
             </TabsContent>
 
+            <TabsContent value="stats" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <div className="w-full max-w-7xl mx-auto p-6 sm:p-8 pb-16">
+                    <QuizStatsPanel
+                        stepId={step.id}
+                        content={content}
+                        visible={activeTab === "stats"}
+                    />
+                </div>
+            </TabsContent>
+
             {/* Configuración tab */}
             <TabsContent value="configuracion" className="mt-0 flex-1 min-h-0 overflow-y-auto">
                 <div className="max-w-2xl mx-auto p-8 space-y-4 pb-16">
@@ -510,6 +516,28 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                                     label="Mostrar respuestas correctas al alumno"
                                     description="Al terminar el cuestionario, el alumno ve qué respuestas eran correctas y su nota. Si está desactivado, solo se muestra la nota cuando el profesor publique las calificaciones."
                                 />
+                                <label className={cn(
+                                    "flex items-start gap-3 group",
+                                    statsAvailability.enabled ? "cursor-pointer" : "cursor-not-allowed opacity-70"
+                                )}>
+                                    <div className="mt-0.5 shrink-0">
+                                        <input
+                                            type="checkbox"
+                                            checked={!!content.saveQuestionStats}
+                                            disabled={!statsAvailability.enabled}
+                                            onChange={(e) => handleUpdate({ ...content, saveQuestionStats: e.target.checked })}
+                                            className="accent-accent-blue size-4"
+                                        />
+                                    </div>
+                                    <div className="space-y-0.5">
+                                        <p className="text-sm font-semibold text-foreground group-hover:text-white transition-colors">Guardar estadísticas grupales</p>
+                                        <p className="text-xs text-text-muted/70 leading-relaxed">
+                                            {statsAvailability.enabled
+                                                ? "Permite comparar por intento qué respondió cada alumno en cada pregunta y verlo en la pestaña Stats."
+                                                : statsAvailability.reason}
+                                        </p>
+                                    </div>
+                                </label>
                             </ConfigSection>
 
                             <ConfigSection title="Aleatoriedad">
@@ -577,7 +605,7 @@ function SortableQuestion({
 }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: q.id });
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
-    const qType = q.type ?? 'multiple_choice';
+    const qType = getQuestionType(q);
 
     return (
         <div ref={setNodeRef} style={style} className="p-6 bg-surface-dark border border-white/5 rounded-xl space-y-4 shadow-sm relative group">
@@ -629,7 +657,7 @@ function SortableQuestion({
             </div>
 
             {/* Options with DnD */}
-            {qType !== 'short_answer' && (
+            {supportsClassicOptions(q) && (
                 <div className="pl-14 space-y-2">
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => onOptionDragEnd(q.id, e)}>
                         <SortableContext items={q.options.map(o => o.id)} strategy={verticalListSortingStrategy}>
@@ -641,7 +669,7 @@ function SortableQuestion({
                                     qType={qType}
                                     canRemove={q.options.length > 2}
                                     onToggleCorrect={() => {
-                                        if (qType === 'true_false') {
+                                        if (qType === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
                                             // Single-select: set this as correct, all others incorrect
                                             onUpdate(q.id, { options: q.options.map(o => ({ ...o, isCorrect: o.id === opt.id })) });
                                         } else {
@@ -654,7 +682,7 @@ function SortableQuestion({
                             ))}
                         </SortableContext>
                     </DndContext>
-                    {qType === 'multiple_choice' && (
+                    {qType === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE && (
                         <Button variant="ghost" size="sm" onClick={() => onAddOption(q.id)}
                             className="text-text-muted hover:text-accent-blue ml-7 mt-2">
                             <Plus className="size-3 mr-1" /> Añadir Opción
@@ -664,13 +692,20 @@ function SortableQuestion({
             )}
 
             {/* Short answer placeholder */}
-            {qType === 'short_answer' && (
+            {qType === QUIZ_QUESTION_TYPE.SHORT_ANSWER && (
                 <div className="pl-14">
                     <div className="flex items-center gap-2 p-3 rounded-lg bg-surface border border-border/30 text-text-muted text-sm">
                         <AlignLeft className="size-4 shrink-0" />
                         <span>El alumno escribirá su respuesta en texto libre. Requiere corrección manual.</span>
                     </div>
                 </div>
+            )}
+
+            {!supportsClassicOptions(q) && qType !== QUIZ_QUESTION_TYPE.SHORT_ANSWER && (
+                <StructuredQuestionFields
+                    question={q}
+                    onUpdate={(updates) => onUpdate(q.id, updates)}
+                />
             )}
 
             {/* Explanation */}

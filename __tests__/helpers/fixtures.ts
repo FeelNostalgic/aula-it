@@ -261,11 +261,13 @@ export function createMockQuizAttempt(
     attempt_number: 1,
     answers: { "q-1": ["opt-2"] },
     short_answers: {},
+    structured_answers: {},
     short_answer_scores: {},
     short_answer_feedback: {},
     points_earned: 1,
     points_total: 1,
     completed_at: "2024-01-01T00:00:00.000Z",
+    resolved_questions: overrides.resolved_questions ?? undefined,
     ...overrides,
   };
 }

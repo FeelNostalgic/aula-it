@@ -89,13 +89,123 @@ export type QuizOption = {
     isCorrect: boolean;
 };
 
-export type QuizQuestionType = 'multiple_choice' | 'true_false' | 'short_answer';
+export type QuizQuestionType =
+    | 'multiple_choice'
+    | 'true_false'
+    | 'short_answer'
+    | 'fill_in_the_blank_dropdown'
+    | 'table_drag_drop'
+    | 'matching_pairs'
+    | 'ordering_sequence'
+    | 'categorization_drag_drop';
+
+export type QuizPromptSegment =
+    | {
+        id: string;
+        kind: 'text';
+        text: string;
+    }
+    | {
+        id: string;
+        kind: 'blank';
+        blankId: string;
+    };
+
+export type QuizDropdownBlank = {
+    id: string;
+    options: QuizOption[];
+};
+
+export type QuizTableColumn = {
+    id: string;
+    label: string;
+};
+
+export type QuizTableRow = {
+    id: string;
+    label: string;
+};
+
+export type QuizTableItem = {
+    id: string;
+    text: string;
+};
+
+export type QuizTableCell = {
+    id: string;
+    rowId: string;
+    columnId: string;
+    correctItemId: string;
+};
+
+export type QuizMatchingPrompt = {
+    id: string;
+    text: string;
+    correctMatchId: string;
+};
+
+export type QuizMatchingOption = {
+    id: string;
+    text: string;
+};
+
+export type QuizOrderingItem = {
+    id: string;
+    text: string;
+};
+
+export type QuizCategory = {
+    id: string;
+    label: string;
+};
+
+export type QuizCategoryItem = {
+    id: string;
+    text: string;
+    correctCategoryId: string;
+};
+
+export type QuizStructuredQuestionAnswer =
+    | {
+        kind: 'fill_in_the_blank_dropdown';
+        blanks: Record<string, string>;
+    }
+    | {
+        kind: 'table_drag_drop';
+        placements: Record<string, string>;
+    }
+    | {
+        kind: 'matching_pairs';
+        matches: Record<string, string>;
+    }
+    | {
+        kind: 'ordering_sequence';
+        orderedItemIds: string[];
+    }
+    | {
+        kind: 'categorization_drag_drop';
+        assignments: Record<string, string>;
+    };
+
+export type QuizStructuredAnswers = Record<string, QuizStructuredQuestionAnswer>;
 
 export type QuizQuestion = {
     id: string;
     type: QuizQuestionType;   // default: 'multiple_choice' (backwards-compat: undefined = multiple_choice)
     text: string;
     options: QuizOption[];    // empty if type === 'short_answer'
+    promptSegments?: QuizPromptSegment[];
+    dropdownBlanks?: QuizDropdownBlank[];
+    tableRowHeaderLabel?: string;
+    tableColumns?: QuizTableColumn[];
+    tableRows?: QuizTableRow[];
+    tableItems?: QuizTableItem[];
+    tableCells?: QuizTableCell[];
+    matchingPrompts?: QuizMatchingPrompt[];
+    matchingOptions?: QuizMatchingOption[];
+    orderingItems?: QuizOrderingItem[];
+    categories?: QuizCategory[];
+    categoryItems?: QuizCategoryItem[];
     points: number;           // default: 1
     explanation?: string;     // shown after submission if showCorrectAnswers
     poolId?: string;          // if set, question belongs to a pool; undefined = always shown
@@ -128,6 +238,7 @@ export type QuizContent = {
     randomizeOptions?: boolean;
     penalizeWrongAnswers?: boolean;
     questionsPerPage?: number;   // undefined = all on one page
+    saveQuestionStats?: boolean;
     googleFormUrl?: string;
     quizMode?: QuizMode;
 };
@@ -139,11 +250,13 @@ export type QuizAttempt = {
     attempt_number: number;
     answers: Record<string, string[]>;            // questionId → selectedOptionIds
     short_answers: Record<string, string>;        // questionId → free text
+    structured_answers: QuizStructuredAnswers;    // questionId → structured answer payload
     short_answer_scores: Record<string, number>;  // questionId → manual points (set by teacher)
     points_earned: number;
     points_total: number;
     completed_at: string;
     short_answer_feedback: Record<string, string>;
+    resolved_questions?: QuizQuestion[];
 };
 
 export type PresentationContent = {

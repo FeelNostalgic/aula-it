@@ -107,7 +107,7 @@ describe("submitQuizAttempt", () => {
     vi_createClient.mockResolvedValue(client as any);
 
     const content = createMockQuizContent();
-    const result = await submitQuizAttempt("step-1", "activity-1", {}, {}, content);
+    const result = await submitQuizAttempt("step-1", "activity-1", {}, {}, {}, content);
 
     expect(result).toEqual({ error: "No autenticado." });
   });
@@ -119,7 +119,7 @@ describe("submitQuizAttempt", () => {
         .mockQuery("quiz_attempts", { data: null, count: 2, error: null })
     );
 
-    const result = await submitQuizAttempt("step-1", "activity-1", {}, {}, content);
+    const result = await submitQuizAttempt("step-1", "activity-1", {}, {}, {}, content);
 
     expect(result).toEqual({ error: "Máximo de intentos alcanzado (2)." });
   });
@@ -137,7 +137,7 @@ describe("submitQuizAttempt", () => {
     );
 
     const answers = { "q-1": ["opt-2"] }; // correct
-    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, content);
+    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, {}, content);
 
     expect(result).not.toHaveProperty("error");
     expect(result.data?.score).toBe(10); // 1/1 * 10 = 10
@@ -157,7 +157,7 @@ describe("submitQuizAttempt", () => {
     );
 
     const answers = { "q-1": ["opt-1"] }; // wrong
-    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, content);
+    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, {}, content);
 
     expect(result.data?.pointsEarned).toBe(0);
   });
@@ -175,7 +175,7 @@ describe("submitQuizAttempt", () => {
     );
 
     const answers = { "q-1": ["opt-1"] }; // wrong answer with penalization
-    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, content);
+    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, {}, content);
 
     // -1/3 raw, but clamped to 0 via Math.max(0, ...)
     expect(result.data?.pointsEarned).toBe(0);
@@ -203,12 +203,108 @@ describe("submitQuizAttempt", () => {
     );
 
     const shortAnswers = { "q-sa": "My answer here" };
-    const result = await submitQuizAttempt("step-1", "activity-1", {}, shortAnswers, content);
+    const result = await submitQuizAttempt("step-1", "activity-1", {}, shortAnswers, {}, content);
 
     // When hasShortAnswer=true, submission status should be "submitted" (not auto-graded)
     // The function upserts with status: hasShortAnswer ? "submitted" : "graded"
     expect(result).not.toHaveProperty("error");
     expect(result.data?.pointsTotal).toBe(2);
+  });
+
+  it("auto-scores fill_in_the_blank_dropdown questions", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-fill",
+          type: "fill_in_the_blank_dropdown",
+          text: "Completa el texto",
+          options: [],
+          promptSegments: [
+            { id: "seg-1", kind: "text", text: "React usa " },
+            { id: "seg-2", kind: "blank", blankId: "blank-1" },
+          ],
+          dropdownBlanks: [
+            {
+              id: "blank-1",
+              options: [
+                { id: "opt-hook", text: "hooks", isCorrect: true },
+                { id: "opt-class", text: "clases", isCorrect: false },
+              ],
+            },
+          ],
+          points: 2,
+        },
+      ],
+    });
+    const attempt = createMockQuizAttempt({ points_earned: 2, points_total: 2 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const result = await submitQuizAttempt(
+      "step-1",
+      "activity-1",
+      {},
+      {},
+      {
+        "q-fill": {
+          kind: "fill_in_the_blank_dropdown",
+          blanks: { "blank-1": "opt-hook" },
+        },
+      },
+      content
+    );
+
+    expect(result.data?.pointsEarned).toBe(2);
+    expect(result.data?.pointsTotal).toBe(2);
+  });
+
+  it("auto-scores ordering_sequence questions by correct position", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-order",
+          type: "ordering_sequence",
+          text: "Ordena el flujo",
+          options: [],
+          orderingItems: [
+            { id: "item-1", text: "Analizar" },
+            { id: "item-2", text: "Implementar" },
+            { id: "item-3", text: "Probar" },
+          ],
+          points: 3,
+        },
+      ],
+    });
+    const attempt = createMockQuizAttempt({ points_earned: 2, points_total: 3 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const result = await submitQuizAttempt(
+      "step-1",
+      "activity-1",
+      {},
+      {},
+      {
+        "q-order": {
+          kind: "ordering_sequence",
+          orderedItemIds: ["item-1", "item-3", "item-2"],
+        },
+      },
+      content
+    );
+
+    expect(result.data?.pointsEarned).toBe(1);
+    expect(result.data?.pointsTotal).toBe(3);
   });
 
   it("does not downgrade existing best score", async () => {
@@ -227,7 +323,7 @@ describe("submitQuizAttempt", () => {
     );
 
     const answers = { "q-1": [] }; // no answer → 0 points → score 0
-    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, content);
+    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, {}, content);
 
     // Score is 0 which is less than existing 9, so submission should NOT be updated
     // The function checks: shouldUpdateScore = !existing || existing.score === null || scoreOutOf10 >= existing.score
@@ -245,7 +341,7 @@ describe("submitQuizAttempt", () => {
         .mockInsert("quiz_attempts", { data: null, error: { message: "DB insert failed" } })
     );
 
-    const result = await submitQuizAttempt("step-1", "activity-1", {}, {}, content);
+    const result = await submitQuizAttempt("step-1", "activity-1", {}, {}, {}, content);
 
     expect(result).toEqual({ error: "DB insert failed" });
   });
@@ -262,7 +358,7 @@ describe("submitQuizAttempt", () => {
     );
 
     const answers = { "q-1": ["opt-2"] };
-    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, content);
+    const result = await submitQuizAttempt("step-1", "activity-1", answers, {}, {}, content);
 
     expect(result).not.toHaveProperty("error");
   });

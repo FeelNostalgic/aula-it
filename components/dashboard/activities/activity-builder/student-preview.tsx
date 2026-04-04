@@ -567,7 +567,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                             </div>
                         ) : (
                         <div className="flex-1 overflow-y-auto p-12 bg-background relative">
-                            <div className="max-w-4xl mx-auto space-y-12">
+                            <div className="w-full max-w-7xl mx-auto space-y-12 px-4 sm:px-6">
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3">
                                         <div className="px-2 py-0.5 bg-accent-blue/10 border border-accent-blue/20 rounded-md">

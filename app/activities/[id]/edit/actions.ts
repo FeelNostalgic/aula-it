@@ -1127,3 +1127,30 @@ export async function getBankQuestionsForStep(stepId: string): Promise<Record<st
     }
     return result;
 }
+
+export async function getQuizStatsAttempts(stepId: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado.", attempts: [] };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos.", attempts: [] };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+        .from("quiz_attempts")
+        .select(`
+            *,
+            student:profiles(full_name)
+        `)
+        .eq("step_id", stepId)
+        .order("attempt_number", { ascending: true })
+        .order("completed_at", { ascending: true });
+
+    if (error) return { error: error.message, attempts: [] };
+
+    const attempts = (data ?? []).map((attempt: any) => ({
+        ...attempt,
+        student_name: attempt.student?.full_name ?? null,
+    }));
+
+    return { attempts };
+}

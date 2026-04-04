@@ -1,6 +1,6 @@
 "use client";
 
-import { ActivityStepWithClientState, TheoryContent, QuizContent, PresentationContent, ResourceContent, DeliverableContent, AnimationContent, FileUploadContent, ActivitySubmission, QuizAttempt } from "@/types/activity";
+import { ActivityStepWithClientState, TheoryContent, QuizContent, PresentationContent, ResourceContent, DeliverableContent, AnimationContent, FileUploadContent, ActivitySubmission, QuizAttempt, QuizStructuredAnswers } from "@/types/activity";
 import { DeliverableViewer } from "./deliverable-viewer";
 import { FileUploadViewer } from "./file-upload-viewer";
 import ReactMarkdown from "react-markdown";
@@ -9,12 +9,11 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
-import { FileText, MonitorPlay, CheckSquare, FolderDown, Download, ExternalLink, GraduationCap, CheckCircle2, XCircle, Circle, PencilRuler, Zap, Copy, AlignLeft, RefreshCw, Trophy, AlertCircle, ChevronRight, ChevronLeft, Clock, ArrowLeft, Plus, MessageSquare, Printer, ClipboardList, Shield } from "lucide-react";
+import { FileText, MonitorPlay, CheckSquare, Download, ExternalLink, GraduationCap, CheckCircle2, XCircle, Circle, PencilRuler, Zap, Copy, RefreshCw, Trophy, AlertCircle, ChevronRight, ChevronLeft, Clock, ArrowLeft, Plus, MessageSquare, Printer, Shield } from "lucide-react";
 import { useState, useEffect, useTransition, useMemo } from "react";
 import { getQuizAttempts, submitQuizAttempt } from "@/app/activities/[id]/actions";
 import { getBankQuestionsForStep } from "@/app/activities/[id]/edit/actions";
 import { generateMarkdownPdf } from "@/app/actions/generate-pdf";
-import { Textarea } from "@/components/ui/textarea";
 import { animationRegistry } from "@/lib/animations/registry";
 import { AnimationPlayer } from "@/components/animations/animation-player";
 import { ArpAnimation } from "@/components/animations/arp-animation";
@@ -29,6 +28,8 @@ import { cn } from "@/lib/utils";
 import { ResourceIcon } from "@/components/dashboard/shared/resource-icon";
 import { toSlidesDownloadUrl, toDriveDownloadUrl } from "@/lib/google-drive-urls";
 import { selectQuestionsForAttempt } from "@/lib/quiz-pool-selection";
+import { buildQuestionReview, getQuestionType, getQuizAttemptQuestions, QUIZ_QUESTION_TYPE } from "@/lib/quiz-core";
+import { QuizQuestionAnswerField } from "../quiz/quiz-question-answer-field";
 
 interface StepViewerProps {
     step: ActivityStepWithClientState;
@@ -312,9 +313,11 @@ function BuiltinQuizViewer({
     isClosed?: boolean;
     isLockdown?: boolean;
 }) {
+    const quizContentShellClassName = "w-full max-w-7xl mx-auto px-3 py-4 sm:px-4 lg:px-6";
     const [phase, setPhase] = useState<'answering' | 'result' | 'list'>('answering');
     const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string[]>>({});
     const [shortAnswers, setShortAnswers] = useState<Record<string, string>>({});
+    const [structuredAnswers, setStructuredAnswers] = useState<QuizStructuredAnswers>({});
     const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
     const [lastAttempt, setLastAttempt] = useState<QuizAttempt | null>(null);
     const [isPending, startTransition] = useTransition();
@@ -330,6 +333,7 @@ function BuiltinQuizViewer({
         setPhase('answering');
         setSelectedAnswers({});
         setShortAnswers({});
+        setStructuredAnswers({});
         setAttempts([]);
         setLastAttempt(null);
         setCurrentPage(0);
@@ -348,9 +352,10 @@ function BuiltinQuizViewer({
                 try {
                     const raw = localStorage.getItem(`exam-draft:${stepId}`);
                     if (raw) {
-                        const { selectedAnswers: sa, shortAnswers: sha } = JSON.parse(raw);
+                        const { selectedAnswers: sa, shortAnswers: sha, structuredAnswers: sqa } = JSON.parse(raw);
                         setSelectedAnswers(sa || {});
                         setShortAnswers(sha || {});
+                        setStructuredAnswers(sqa || {});
                     }
                 } catch { /* corrupt draft, start fresh */ }
                 setIsExamActive(true);
@@ -392,8 +397,8 @@ function BuiltinQuizViewer({
     // Auto-save answers to localStorage while exam is active
     useEffect(() => {
         if (!isExamActive || !stepId) return;
-        localStorage.setItem(`exam-draft:${stepId}`, JSON.stringify({ selectedAnswers, shortAnswers }));
-    }, [selectedAnswers, shortAnswers, isExamActive, stepId]);
+        localStorage.setItem(`exam-draft:${stepId}`, JSON.stringify({ selectedAnswers, shortAnswers, structuredAnswers }));
+    }, [selectedAnswers, shortAnswers, structuredAnswers, isExamActive, stepId]);
 
     const displayQuestions = useMemo(() => {
         if (!content?.questions && !content?.bankSelections?.length) return [];
@@ -447,32 +452,35 @@ function BuiltinQuizViewer({
     function startExam() {
         if (stepId) {
             try {
-                const raw = localStorage.getItem(`exam-draft:${stepId}`);
-                if (raw) {
-                    const { selectedAnswers: sa, shortAnswers: sha } = JSON.parse(raw);
-                    setSelectedAnswers(sa || {});
-                    setShortAnswers(sha || {});
-                } else {
+                    const raw = localStorage.getItem(`exam-draft:${stepId}`);
+                    if (raw) {
+                        const { selectedAnswers: sa, shortAnswers: sha, structuredAnswers: sqa } = JSON.parse(raw);
+                        setSelectedAnswers(sa || {});
+                        setShortAnswers(sha || {});
+                        setStructuredAnswers(sqa || {});
+                    } else {
+                        setSelectedAnswers({});
+                        setShortAnswers({});
+                        setStructuredAnswers({});
+                    }
+                } catch {
                     setSelectedAnswers({});
                     setShortAnswers({});
+                    setStructuredAnswers({});
                 }
-            } catch {
-                setSelectedAnswers({});
-                setShortAnswers({});
-            }
             // Persist session so F5 restores the exam
             localStorage.setItem(`exam-session:${stepId}`, '1');
         }
         setLastAttempt(null);
-        setCurrentPage(0);
-        setIsExamActive(true);
-        setPhase('answering');
+            setCurrentPage(0);
+            setIsExamActive(true);
+            setPhase('answering');
     }
 
     function handleSubmit() {
         if (!stepId || !activityId) return;
         startTransition(async () => {
-            const result = await submitQuizAttempt(stepId, activityId, selectedAnswers, shortAnswers, content);
+            const result = await submitQuizAttempt(stepId, activityId, selectedAnswers, shortAnswers, structuredAnswers, content);
             if (result.error) {
                 toast.error(result.error);
                 return;
@@ -498,6 +506,7 @@ function BuiltinQuizViewer({
     function handleRetry() {
         setSelectedAnswers({});
         setShortAnswers({});
+        setStructuredAnswers({});
         setLastAttempt(null);
         setCurrentPage(0);
         setPhase('answering');
@@ -622,8 +631,8 @@ function BuiltinQuizViewer({
             ? Math.round((lastAttempt.points_earned / lastAttempt.points_total) * 100)
             : 0;
         const passed = content.passingScore !== undefined ? pct >= content.passingScore : null;
-        const effectiveQuestions = (lastAttempt as any).resolved_questions ?? content.questions;
-        const hasShortAnswerQs = effectiveQuestions.some((q: any) => (q.type ?? 'multiple_choice') === 'short_answer');
+        const effectiveQuestions = getQuizAttemptQuestions(content, lastAttempt);
+        const hasShortAnswerQs = effectiveQuestions.some((q) => getQuestionType(q) === QUIZ_QUESTION_TYPE.SHORT_ANSWER);
         const isPublished = submission?.status === 'published';
         // Score visible only when: grades are visible AND (no short answers OR already published)
         const scoreVisible = gradesVisible && (!hasShortAnswerQs || isPublished);
@@ -632,7 +641,7 @@ function BuiltinQuizViewer({
         const newAttemptsLeft = maxAttempts !== undefined ? maxAttempts - attempts.length : null;
 
         return (
-            <div className="max-w-2xl mx-auto space-y-6 py-4">
+            <div className={cn("space-y-6", quizContentShellClassName)}>
                 {/* Score card */}
                 {scoreVisible ? (
                     <div className={cn(
@@ -675,68 +684,44 @@ function BuiltinQuizViewer({
                 {/* Per-question review — visible if teacher enabled showCorrectAnswers OR if published */}
                 {(content.showCorrectAnswers !== false || gradesVisible) && (
                     <div className="space-y-4">
-                        {((lastAttempt as any).resolved_questions ?? content.questions).map((q: any, idx: number) => {
-                            const qType = q.type ?? 'multiple_choice';
-                            const studentOpts = lastAttempt.answers[q.id] ?? [];
-                            const correctOpts = q.options.filter((o: any) => o.isCorrect).map((o: any) => o.id);
-                            const isAutoGraded = qType !== 'short_answer';
-                            const qPoints = q.points ?? 1;
-                            const penalize = !!content.penalizeWrongAnswers;
-
-                            // Compute per-question score (mirrors server formula)
-                            let qScore: number | null = null;
-                            if (isAutoGraded) {
-                                if (!penalize) {
-                                    const cs = studentOpts.filter(id => correctOpts.includes(id)).length;
-                                    const ws = studentOpts.filter(id => !correctOpts.includes(id)).length;
-                                    qScore = correctOpts.length > 0
-                                        ? Math.max(0, Math.round(qPoints * ((cs - ws) / correctOpts.length) * 100) / 100)
-                                        : 0;
-                                } else if (correctOpts.length === 1) {
-                                    if (studentOpts.length === 0) qScore = 0;
-                                    else if (studentOpts[0] === correctOpts[0]) qScore = qPoints;
-                                    else qScore = Math.round((-qPoints / 3) * 100) / 100;
-                                } else {
-                                    const cs = studentOpts.filter(id => correctOpts.includes(id)).length;
-                                    const ws = studentOpts.filter(id => !correctOpts.includes(id)).length;
-                                    qScore = Math.round((qPoints / correctOpts.length) * (cs - ws) * 100) / 100;
-                                }
-                            }
-
-                            const borderClass = isAutoGraded
-                                ? qScore! > 0 ? "bg-emerald-500/5 border-emerald-500/20"
-                                : qScore! < 0 ? "bg-red-500/5 border-red-500/20"
+                        {effectiveQuestions.map((q, idx: number) => {
+                            const review = buildQuestionReview(q, lastAttempt, !!content.penalizeWrongAnswers);
+                            const qType = getQuestionType(q);
+                            const qScore = review.pointsEarned;
+                            const borderClass = review.isAutoGraded
+                                ? (qScore ?? 0) > 0 ? "bg-emerald-500/5 border-emerald-500/20"
+                                : (qScore ?? 0) < 0 ? "bg-red-500/5 border-red-500/20"
                                 : "bg-surface border-border/30"
                                 : "bg-surface border-border/30";
 
                             return (
-                                <div key={q.id} className={cn("p-6 rounded-xl border", borderClass)}>
+                                <div key={q.id} className={cn("rounded-xl border p-6 md:p-7", borderClass)}>
                                     <div className="flex items-start gap-3 mb-3">
                                         <span className="size-6 rounded-md bg-surface-dark text-text-muted flex items-center justify-center text-xs font-bold shrink-0">{idx + 1}</span>
                                         <p className="font-semibold text-foreground leading-tight flex-1">{q.text}</p>
-                                        {isAutoGraded && qScore !== null ? (
+                                        {review.isAutoGraded && qScore !== null ? (
                                             <span className={cn(
                                                 "text-xs font-mono font-bold shrink-0",
                                                 qScore > 0 ? "text-emerald-400" : qScore < 0 ? "text-red-400" : "text-text-muted"
                                             )}>
-                                                {qScore > 0 ? "+" : ""}{qScore}/{qPoints} pts
+                                                {qScore > 0 ? "+" : ""}{qScore}/{review.pointsTotal} pts
                                             </span>
-                                        ) : !isAutoGraded ? (() => {
+                                        ) : !review.isAutoGraded ? (() => {
                                             const manualScore = lastAttempt.short_answer_scores?.[q.id];
                                             return isPublished && manualScore !== undefined ? (
                                                 <span className={cn(
                                                     "text-xs font-mono font-bold shrink-0",
                                                     manualScore > 0 ? "text-emerald-400" : "text-text-muted"
                                                 )}>
-                                                    {manualScore}/{qPoints} pts
+                                                    {manualScore}/{review.pointsTotal} pts
                                                 </span>
                                             ) : (
-                                                <span className="text-xs font-mono text-text-muted shrink-0">?/{qPoints} pts</span>
+                                                <span className="text-xs font-mono text-text-muted shrink-0">?/{review.pointsTotal} pts</span>
                                             );
                                         })() : null}
                                     </div>
 
-                                    {qType === 'short_answer' ? (
+                                    {qType === QUIZ_QUESTION_TYPE.SHORT_ANSWER ? (
                                         <div className="pl-9 space-y-2">
                                             <p className="text-xs text-text-muted mb-1">Tu respuesta:</p>
                                             <p className="text-sm text-foreground italic bg-surface p-2 rounded-lg border border-border/30">
@@ -751,23 +736,22 @@ function BuiltinQuizViewer({
                                         </div>
                                     ) : (
                                         <div className="pl-9 space-y-1.5">
-                                            {q.options.map((opt: any) => {
-                                                const studentSelected = studentOpts.includes(opt.id);
-                                                const isCorrectOpt = opt.isCorrect;
-                                                return (
-                                                    <div key={opt.id} className={cn(
-                                                        "flex items-center gap-2 px-3 py-2 rounded-lg text-sm",
-                                                        isCorrectOpt ? "bg-emerald-500/10 text-emerald-300" :
-                                                        studentSelected ? "bg-red-500/10 text-red-300" : "text-text-muted"
-                                                    )}>
-                                                        {isCorrectOpt ? <CheckCircle2 className="size-3.5 shrink-0" /> :
-                                                         studentSelected ? <XCircle className="size-3.5 shrink-0" /> :
-                                                         <Circle className="size-3.5 shrink-0 opacity-30" />}
-                                                        <span>{opt.text}</span>
-                                                        {studentSelected && <span className="ml-auto text-[10px] opacity-60">tu respuesta</span>}
-                                                    </div>
-                                                );
-                                            })}
+                                            {review.rows.map((row) => (
+                                                <div key={row.id} className={cn(
+                                                    "flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg text-sm",
+                                                    row.isCorrect === true ? "bg-emerald-500/10 text-emerald-300" :
+                                                    row.isCorrect === false ? "bg-red-500/10 text-red-300" : "text-text-muted"
+                                                )}>
+                                                    {row.isCorrect === true ? <CheckCircle2 className="size-3.5 shrink-0" /> :
+                                                     row.isCorrect === false ? <XCircle className="size-3.5 shrink-0" /> :
+                                                     <Circle className="size-3.5 shrink-0 opacity-30" />}
+                                                    <span className="font-medium">{row.label}:</span>
+                                                    <span>{row.value}</span>
+                                                    {row.expectedValue && row.expectedValue !== row.value && (
+                                                        <span className="ml-auto text-[10px] opacity-60">Correcta: {row.expectedValue}</span>
+                                                    )}
+                                                </div>
+                                            ))}
                                         </div>
                                     )}
 
@@ -837,9 +821,6 @@ function BuiltinQuizViewer({
                 )}
 
                 {paginatedQuestions.map((q, idx) => {
-                    const qType = q.type ?? 'multiple_choice';
-                    const correctCount = q.options.filter(o => o.isCorrect).length;
-                    const isSingleSelect = correctCount <= 1;
                     const globalIdx = qpp ? currentPage * qpp + idx : idx;
 
                     return (
@@ -854,47 +835,15 @@ function BuiltinQuizViewer({
                                 <span className="text-xs font-mono text-text-muted shrink-0 mt-1">{q.points ?? 1} pt{(q.points ?? 1) !== 1 ? 's' : ''}</span>
                             </div>
 
-                            {qType === 'short_answer' ? (
-                                <div className="pl-12">
-                                    <Textarea
-                                        value={shortAnswers[q.id] ?? ""}
-                                        onChange={(e) => setShortAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                                        placeholder="Escribe tu respuesta..."
-                                        rows={3}
-                                        className="bg-background/50 border-border/50 resize-none text-sm"
-                                    />
-                                    <p className="text-xs text-text-muted mt-1.5 flex items-center gap-1">
-                                        <AlignLeft className="size-3" /> Respuesta libre — el profesor la revisará
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="space-y-3 pl-12">
-                                    {!isSingleSelect && (
-                                        <p className="text-xs text-text-muted -mt-3">Selecciona todas las correctas</p>
-                                    )}
-                                    {q.options.map((opt) => {
-                                        const isSelected = (selectedAnswers[q.id] ?? []).includes(opt.id);
-                                        return (
-                                            <button
-                                                key={opt.id}
-                                                onClick={() => toggleOption(q.id, opt.id, isSingleSelect)}
-                                                className={cn(
-                                                    "w-full flex items-center gap-4 p-4 rounded-xl border transition-all text-left",
-                                                    isSelected
-                                                        ? "bg-accent-blue/10 border-accent-blue/50 text-foreground"
-                                                        : "bg-background border-border/50 hover:bg-surface-light hover:border-accent-blue/30 text-foreground"
-                                                )}
-                                            >
-                                                {isSelected
-                                                    ? <CheckCircle2 className="size-5 text-accent-blue shrink-0" />
-                                                    : <Circle className="size-5 text-text-muted/40 shrink-0" />
-                                                }
-                                                <span className="font-medium">{opt.text}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                            <QuizQuestionAnswerField
+                                question={q}
+                                selectedAnswers={selectedAnswers}
+                                shortAnswers={shortAnswers}
+                                structuredAnswers={structuredAnswers}
+                                onToggleOption={toggleOption}
+                                onShortAnswerChange={(questionId, value) => setShortAnswers(prev => ({ ...prev, [questionId]: value }))}
+                                onStructuredAnswerChange={(questionId, value) => setStructuredAnswers(prev => ({ ...prev, [questionId]: value }))}
+                            />
                         </div>
                     );
                 })}
@@ -981,7 +930,7 @@ function BuiltinQuizViewer({
                     <p className="text-[11px] text-text-muted/60 italic">No puedes salir hasta entregar el examen</p>
                 </div>
                 <div className="flex-1 overflow-y-auto px-8 py-6">
-                    <div className="max-w-2xl mx-auto">
+                    <div className="w-full max-w-7xl mx-auto"> 
                         {answeringContent}
                     </div>
                 </div>
@@ -992,7 +941,7 @@ function BuiltinQuizViewer({
 
     return (
         <>
-            <div className="max-w-2xl mx-auto py-4">
+            <div className={quizContentShellClassName}>
                 {answeringContent}
             </div>
             {confirmDialog}

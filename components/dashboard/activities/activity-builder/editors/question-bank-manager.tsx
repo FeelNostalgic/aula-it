@@ -9,7 +9,9 @@ import { toast } from "sonner";
 import { Plus, Trash2, RefreshCw, Layers, CheckCircle2, Circle, GripVertical, AlignLeft, X } from "lucide-react";
 import { QuestionBank, QuizQuestion, QuizQuestionType } from "@/types/activity";
 import { getQuestionBanks, createQuestionBank, updateQuestionBank, deleteQuestionBank } from "@/app/activities/[id]/edit/actions";
+import { createDefaultQuizQuestion, convertQuestionToType, getQuestionType, QUIZ_QUESTION_TYPE, supportsClassicOptions } from "@/lib/quiz-core";
 import { cn } from "@/lib/utils";
+import { StructuredQuestionFields } from "../quiz/structured-question-fields";
 import {
     DndContext, closestCenter, KeyboardSensor, PointerSensor,
     useSensor, useSensors, DragEndEvent,
@@ -33,6 +35,11 @@ const QUESTION_TYPES: { value: QuizQuestionType; label: string }[] = [
     { value: 'multiple_choice', label: 'Opción múltiple' },
     { value: 'true_false', label: 'Verdadero/Falso' },
     { value: 'short_answer', label: 'Respuesta corta' },
+    { value: 'fill_in_the_blank_dropdown', label: 'Texto con huecos' },
+    { value: 'table_drag_drop', label: 'Tabla drag & drop' },
+    { value: 'matching_pairs', label: 'Emparejar' },
+    { value: 'ordering_sequence', label: 'Ordenar secuencia' },
+    { value: 'categorization_drag_drop', label: 'Clasificar' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -170,17 +177,7 @@ export function QuestionBankManagerDialog({
 
     // Question CRUD
     function addQuestion(bank: QuestionBank) {
-        const newQ: QuizQuestion = {
-            id: crypto.randomUUID(),
-            type: 'multiple_choice',
-            text: "",
-            options: [
-                { id: crypto.randomUUID(), text: "", isCorrect: true },
-                { id: crypto.randomUUID(), text: "", isCorrect: false },
-            ],
-            points: 1,
-        };
-        applyQuestionUpdate(bank, [...bank.questions, newQ]);
+        applyQuestionUpdate(bank, [...bank.questions, createDefaultQuizQuestion()]);
     }
 
     function updateQuestion(bank: QuestionBank, qId: string, updates: Partial<QuizQuestion>) {
@@ -194,15 +191,7 @@ export function QuestionBankManagerDialog({
     function changeQuestionType(bank: QuestionBank, qId: string, type: QuizQuestionType) {
         const questions = bank.questions.map(q => {
             if (q.id !== qId) return q;
-            if (type === 'true_false') return { ...q, type, options: [
-                { id: crypto.randomUUID(), text: "Verdadero", isCorrect: true },
-                { id: crypto.randomUUID(), text: "Falso", isCorrect: false },
-            ]};
-            if (type === 'short_answer') return { ...q, type, options: [] };
-            return { ...q, type, options: q.options.length >= 2 ? q.options : [
-                { id: crypto.randomUUID(), text: "", isCorrect: true },
-                { id: crypto.randomUUID(), text: "", isCorrect: false },
-            ]};
+            return convertQuestionToType(q, type);
         });
         applyQuestionUpdate(bank, questions);
     }
@@ -369,7 +358,7 @@ export function QuestionBankManagerDialog({
                                 )}
 
                                 {selectedBank.questions.map((q, idx) => {
-                                    const qType = q.type ?? 'multiple_choice';
+                                    const qType = getQuestionType(q);
                                     return (
                                         <div key={q.id} className="p-6 bg-surface-dark border border-white/5 rounded-xl space-y-4 shadow-sm relative group">
                                             {/* Question text row */}
@@ -414,7 +403,7 @@ export function QuestionBankManagerDialog({
                                             </div>
 
                                             {/* Options with DnD */}
-                                            {qType !== 'short_answer' && (
+                                            {supportsClassicOptions(q) && (
                                                 <div className="pl-14 space-y-2">
                                                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleOptionDragEnd(selectedBank, q.id, e)}>
                                                         <SortableContext items={q.options.map(o => o.id)} strategy={verticalListSortingStrategy}>
@@ -426,7 +415,7 @@ export function QuestionBankManagerDialog({
                                                                     qType={qType}
                                                                     canRemove={q.options.length > 2}
                                                                     onToggleCorrect={() => {
-                                                                        if (qType === 'true_false') {
+                                                                        if (qType === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
                                                                             updateQuestion(selectedBank, q.id, { options: q.options.map(o => ({ ...o, isCorrect: o.id === opt.id })) });
                                                                         } else {
                                                                             updateOption(selectedBank, q.id, opt.id, { isCorrect: !opt.isCorrect });
@@ -438,7 +427,7 @@ export function QuestionBankManagerDialog({
                                                             ))}
                                                         </SortableContext>
                                                     </DndContext>
-                                                    {qType === 'multiple_choice' && (
+                                                    {qType === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE && (
                                                         <Button variant="ghost" size="sm" onClick={() => addOption(selectedBank, q.id)}
                                                             className="text-text-muted hover:text-accent-blue ml-7 mt-2">
                                                             <Plus className="size-3 mr-1" /> Añadir Opción
@@ -448,13 +437,20 @@ export function QuestionBankManagerDialog({
                                             )}
 
                                             {/* Short answer placeholder */}
-                                            {qType === 'short_answer' && (
+                                            {qType === QUIZ_QUESTION_TYPE.SHORT_ANSWER && (
                                                 <div className="pl-14">
                                                     <div className="flex items-center gap-2 p-3 rounded-lg bg-surface border border-border/30 text-text-muted text-sm">
                                                         <AlignLeft className="size-4 shrink-0" />
                                                         <span>El alumno escribirá su respuesta en texto libre. Requiere corrección manual.</span>
                                                     </div>
                                                 </div>
+                                            )}
+
+                                            {!supportsClassicOptions(q) && qType !== QUIZ_QUESTION_TYPE.SHORT_ANSWER && (
+                                                <StructuredQuestionFields
+                                                    question={q}
+                                                    onUpdate={(updates) => updateQuestion(selectedBank, q.id, updates)}
+                                                />
                                             )}
 
                                             {/* Explanation */}

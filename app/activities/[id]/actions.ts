@@ -3,8 +3,9 @@
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
-import { ActivitySubmission, SubmissionFile, QuizContent, QuizAttempt } from "@/types/activity";
+import { ActivitySubmission, QuizContent, QuizStructuredAnswers, SubmissionFile, QuizAttempt } from "@/types/activity";
 import { selectQuestionsForAttempt } from "@/lib/quiz-pool-selection";
+import { scoreQuizAttempt } from "@/lib/quiz-core";
 
 const DRIVE_URL_REGEX = /^https:\/\/(docs|drive|sheets|slides|forms)\.google\.com\//;
 
@@ -234,6 +235,7 @@ export async function submitQuizAttempt(
     activityId: string,
     answers: Record<string, string[]>,
     shortAnswers: Record<string, string>,
+    structuredAnswers: QuizStructuredAnswers,
     content: QuizContent
 ): Promise<{ data?: { attempt: QuizAttempt; score: number; pointsEarned: number; pointsTotal: number }; error?: string }> {
     const supabase = await createClient();
@@ -274,49 +276,17 @@ export async function submitQuizAttempt(
         resolvedQuestions = selectQuestionsForAttempt(content, bankMap, user.id, stepId, attemptCount + 1);
     }
 
-    // Auto-score
-    let rawScore = 0;
-    let pointsTotal = 0;
-    let hasShortAnswer = false;
-    const penalize = !!content.penalizeWrongAnswers;
-
-    for (const q of resolvedQuestions) {
-        const qType = q.type ?? 'multiple_choice';
-        const qPoints = q.points ?? 1;
-        pointsTotal += qPoints;
-
-        if (qType === 'short_answer') {
-            hasShortAnswer = true;
-            continue;
-        }
-
-        const selectedIds = answers[q.id] ?? [];
-        const correctIds = q.options.filter(o => o.isCorrect).map(o => o.id);
-        if (correctIds.length === 0) continue;
-
-        if (!penalize) {
-            const correctSelected = selectedIds.filter(id => correctIds.includes(id)).length;
-            const incorrectSelected = selectedIds.filter(id => !correctIds.includes(id)).length;
-            const ratio = (correctSelected - incorrectSelected) / correctIds.length;
-            rawScore += Math.max(0, qPoints * ratio);
-        } else if (correctIds.length === 1) {
-            // Single-select: correct = +pts, wrong = -pts/3, no answer = 0
-            if (selectedIds.length === 0) {
-                // no answer
-            } else if (selectedIds[0] === correctIds[0]) {
-                rawScore += qPoints;
-            } else {
-                rawScore -= qPoints / 3;
-            }
-        } else {
-            // Multi-select: each wrong cancels one correct (±pts/M)
-            const correctSelected = selectedIds.filter(id => correctIds.includes(id)).length;
-            const incorrectSelected = selectedIds.filter(id => !correctIds.includes(id)).length;
-            rawScore += (qPoints / correctIds.length) * (correctSelected - incorrectSelected);
-        }
-    }
-
-    let pointsEarned = Math.max(0, Math.round(rawScore * 100) / 100);
+    const scoreSummary = scoreQuizAttempt(
+        resolvedQuestions,
+        {
+            answers,
+            shortAnswers,
+            structuredAnswers,
+        },
+        !!content.penalizeWrongAnswers,
+    );
+    const pointsEarned = scoreSummary.pointsEarned;
+    const pointsTotal = scoreSummary.pointsTotal;
 
     const attemptNumber = attemptCount + 1;
 
@@ -328,9 +298,10 @@ export async function submitQuizAttempt(
             attempt_number: attemptNumber,
             answers,
             short_answers: shortAnswers,
+            structured_answers: structuredAnswers,
             points_earned: pointsEarned,
             points_total: pointsTotal,
-            ...(content.bankSelections?.length ? { resolved_questions: resolvedQuestions } : {}),
+            resolved_questions: resolvedQuestions,
         })
         .select()
         .single();
@@ -341,7 +312,7 @@ export async function submitQuizAttempt(
     const scoreOutOf10 = pointsTotal > 0 ? Math.round((pointsEarned / pointsTotal) * 1000) / 100 : 0;
 
     // Needs review if: has short-answer questions OR teacher explicitly hides grades from students
-    const needsReview = hasShortAnswer || content.showCorrectAnswers === false || step?.is_lockdown === true;
+    const needsReview = scoreSummary.hasShortAnswer || content.showCorrectAnswers === false || step?.is_lockdown === true;
 
     const { data: existing } = await supabase
         .from("activity_submissions")

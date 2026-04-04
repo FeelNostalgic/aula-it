@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { ExternalLink, FileText, File, Image, Video, User, Calendar, CheckCircle2, XCircle, Circle, AlertTriangle, ChevronLeft, ChevronRight, AlignLeft } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { buildQuestionReview, getQuestionType, QUIZ_QUESTION_TYPE } from "@/lib/quiz-core";
 
 type GradingMode = 'score' | 'rubric' | 'complete';
 
@@ -239,7 +240,7 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
 
                 <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
                     {/* Left: Quiz attempt, Drive iframe, or file list */}
-                    <ResizablePanel defaultSize={62} minSize={30}>
+                    <ResizablePanel defaultSize={70} minSize={40}>
                         <div className="h-full flex flex-col bg-surface-dark">
                             {isQuiz ? (
                                 quizAttempt ? (
@@ -273,7 +274,7 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                     <ResizableHandle withHandle className="bg-border-subtle hover:bg-accent-blue transition-colors duration-200 w-1.5" />
 
                     {/* Right: grading form */}
-                    <ResizablePanel defaultSize={38} minSize={28}>
+                    <ResizablePanel defaultSize={30} minSize={24}>
                         <div className="h-full flex flex-col overflow-y-auto bg-surface">
                             <div className="p-6 space-y-6">
                                 {/* Student info */}
@@ -485,40 +486,32 @@ function QuizAttemptPanel({
                     {autoPoints + manualPoints} / {totalPoints} pts
                 </span>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4">
                 {(attempt.resolved_questions && attempt.resolved_questions.length > 0 
                     ? attempt.resolved_questions 
                     : (content?.questions ?? [])
                 ).map((q: any, idx: number) => {
-                    const qType = q.type ?? 'multiple_choice';
-                    const studentOpts = attempt.answers[q.id] ?? [];
-                    const correctOpts = q.options.filter((o: any) => o.isCorrect).map((o: any) => o.id);
-
-                    let ptsEarned = 0;
-                    if (qType !== 'short_answer') {
-                        const correctSelected = studentOpts.filter(id => correctOpts.includes(id)).length;
-                        const incorrectSelected = studentOpts.filter(id => !correctOpts.includes(id)).length;
-                        const ratio = correctOpts.length > 0 ? (correctSelected - incorrectSelected) / correctOpts.length : 0;
-                        ptsEarned = Math.max(0, Math.round((q.points ?? 1) * ratio));
-                    }
+                    const qType = getQuestionType(q);
+                    const review = buildQuestionReview(q, attempt, !!content?.penalizeWrongAnswers);
+                    const ptsEarned = review.pointsEarned ?? 0;
 
                     return (
-                        <div key={q.id} className="p-4 rounded-xl border border-border-strong bg-surface space-y-3">
+                        <div key={q.id} className="rounded-xl border border-border-strong bg-surface p-5 md:p-6 space-y-3">
                             <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-start gap-2 flex-1">
                                     <span className="size-5 rounded bg-surface-dark text-text-muted flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">{idx + 1}</span>
                                     <p className="text-sm font-semibold text-foreground leading-snug">{q.text}</p>
                                 </div>
                                 <span className="text-xs font-mono text-text-muted shrink-0">
-                                    {qType !== 'short_answer'
-                                    ? `${ptsEarned}/${q.points ?? 1}pts`
+                                    {qType !== QUIZ_QUESTION_TYPE.SHORT_ANSWER
+                                    ? `${ptsEarned}/${review.pointsTotal}pts`
                                     : shortAnswerScores[q.id] != null
-                                        ? `${shortAnswerScores[q.id]}/${q.points ?? 1}pts`
-                                        : `?/${q.points ?? 1}pts`}
+                                        ? `${shortAnswerScores[q.id]}/${review.pointsTotal}pts`
+                                        : `?/${review.pointsTotal}pts`}
                                 </span>
                             </div>
 
-                            {qType === 'short_answer' ? (
+                            {qType === QUIZ_QUESTION_TYPE.SHORT_ANSWER ? (
                                 <div className="space-y-2">
                                     <div className="flex items-start gap-2 p-3 rounded-lg bg-surface-dark border border-border-strong">
                                         <AlignLeft className="size-3.5 text-text-muted shrink-0 mt-0.5" />
@@ -531,14 +524,14 @@ function QuizAttemptPanel({
                                         <Input
                                             type="number"
                                             min={0}
-                                            max={q.points ?? 1}
+                                            max={review.pointsTotal}
                                             step={0.5}
                                             value={shortAnswerScores[q.id] ?? ""}
-                                            onChange={(e) => onShortAnswerScore(q.id, Math.min(q.points ?? 1, Math.max(0, Number(e.target.value) || 0)))}
+                                            onChange={(e) => onShortAnswerScore(q.id, Math.min(review.pointsTotal, Math.max(0, Number(e.target.value) || 0)))}
                                             placeholder="0"
                                             className="w-16 h-7 text-xs font-mono bg-surface-dark border-border-strong text-center px-1"
                                         />
-                                        <span className="text-xs text-text-muted">/ {q.points ?? 1}</span>
+                                        <span className="text-xs text-text-muted">/ {review.pointsTotal}</span>
                                     </div>
                                     <Textarea
                                         value={shortAnswerFeedback[q.id] ?? ""}
@@ -550,20 +543,21 @@ function QuizAttemptPanel({
                                 </div>
                             ) : (
                                 <div className="space-y-1">
-                                    {q.options.map((opt: any) => {
-                                        const selected = studentOpts.includes(opt.id);
-                                        const correct = opt.isCorrect;
+                                    {review.rows.map((row) => {
                                         return (
-                                            <div key={opt.id} className={cn(
-                                                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs",
-                                                correct ? "text-emerald-400 bg-emerald-500/5" :
-                                                selected ? "text-red-400 bg-red-500/5" : "text-text-muted"
+                                            <div key={row.id} className={cn(
+                                                "flex flex-wrap items-center gap-2 px-3 py-1.5 rounded-lg text-xs",
+                                                row.isCorrect === true ? "text-emerald-400 bg-emerald-500/5" :
+                                                row.isCorrect === false ? "text-red-400 bg-red-500/5" : "text-text-muted"
                                             )}>
-                                                {correct ? <CheckCircle2 className="size-3.5 shrink-0" /> :
-                                                 selected ? <XCircle className="size-3.5 shrink-0" /> :
+                                                {row.isCorrect === true ? <CheckCircle2 className="size-3.5 shrink-0" /> :
+                                                 row.isCorrect === false ? <XCircle className="size-3.5 shrink-0" /> :
                                                  <Circle className="size-3.5 shrink-0 opacity-30" />}
-                                                <span>{opt.text}</span>
-                                                {selected && <span className="ml-auto opacity-60">alumno</span>}
+                                                <span className="font-medium">{row.label}:</span>
+                                                <span>{row.value}</span>
+                                                {row.expectedValue && row.expectedValue !== row.value && (
+                                                    <span className="ml-auto opacity-60">Correcta: {row.expectedValue}</span>
+                                                )}
                                             </div>
                                         );
                                     })}

@@ -416,6 +416,7 @@ export type StepSubmissionRow = {
         attempt_number: number;
         answers: Record<string, string[]>;
         short_answers: Record<string, string>;
+        structured_answers: import('@/types/activity').QuizStructuredAnswers;
         short_answer_scores: Record<string, number>;
         short_answer_feedback: Record<string, string>;
         points_earned: number;
@@ -427,6 +428,7 @@ export type StepSubmissionRow = {
         attempt_number: number;
         answers: Record<string, string[]>;
         short_answers: Record<string, string>;
+        structured_answers: import('@/types/activity').QuizStructuredAnswers;
         short_answer_scores: Record<string, number>;
         short_answer_feedback: Record<string, string>;
         points_earned: number;
