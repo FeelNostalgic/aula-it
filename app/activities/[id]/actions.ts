@@ -575,9 +575,13 @@ export type PeerAssignmentWithTarget = {
     step_id: string;
     evaluator_id: string | null;
     evaluator_group_id: string | null;
-    target_submission_id: string;
+    target_submission_id: string | null;
     target_student_id: string | null;  // for intra_group mode
     eval_submission_id: string | null;
+    eval_submission?: {
+        self_eval_rubric_scores: Record<string, number> | null;
+        self_eval_justifications: Record<string, string> | null;
+    } | null;
     target_submission: {
         id: string;
         drive_file_url: string | null;
@@ -585,7 +589,7 @@ export type PeerAssignmentWithTarget = {
         group_id: string | null;
         student?: { full_name: string | null } | null;
         group?: { name: string } | null;
-    };
+    } | null;
     target_student?: { full_name: string | null } | null;  // for intra_group mode
 };
 
@@ -594,7 +598,7 @@ interface PeerAssignmentRow {
     step_id: string;
     evaluator_id: string | null;
     evaluator_group_id: string | null;
-    target_submission_id: string;
+    target_submission_id: string | null;
     target_student_id: string | null;
     eval_submission_id: string | null;
     target_submission: PeerAssignmentWithTarget["target_submission"];
@@ -610,10 +614,11 @@ export async function getMyPeerAssignments(
     // Get the student's group in this step's module (for group-mode assignments)
     const { data: stepRow } = await supabase
         .from("activity_steps")
-        .select("phase:activity_phases(activity:activities(unit:units(module_id)))")
+        .select("content, phase:activity_phases(activity:activities(unit:units(module_id)))")
         .eq("id", stepId)
         .single();
     const moduleId = (stepRow?.phase as any)?.activity?.unit?.module_id as string | undefined;
+    const stepMode = (stepRow?.content as any)?.mode as string | undefined;
 
     let groupId: string | null = null;
     if (moduleId) {
@@ -635,9 +640,99 @@ export async function getMyPeerAssignments(
         }
     }
 
-    // Fetch individual + group assignments.
-    // Use admin client to avoid RLS silently dropping rows via the NOT NULL FK inner join
-    // to activity_submissions. Security is enforced by the explicit evaluator filter below.
+    // ── intra_group: derive assignments from group membership, create lazily ──
+    if (stepMode === 'intra_group') {
+        if (!moduleId) return { assignments: [] };
+        const admin = createAdminClient();
+
+        // Resolve student's group
+        const { data: moduleGroups } = await admin
+            .from("module_groups")
+            .select("id")
+            .eq("module_id", moduleId)
+            .eq("status", "active");
+        const moduleGroupIds = (moduleGroups ?? []).map((g: any) => g.id as string);
+        if (!moduleGroupIds.length) return { assignments: [] };
+
+        const { data: memberRow } = await admin
+            .from("module_group_members")
+            .select("group_id")
+            .eq("student_id", user.id)
+            .in("group_id", moduleGroupIds)
+            .maybeSingle();
+        const myGroupId = memberRow?.group_id as string | undefined;
+        if (!myGroupId) return { assignments: [] };
+
+        // Get peers (all other members of the group)
+        const { data: groupMembers } = await admin
+            .from("module_group_members")
+            .select("student_id, profile:profiles!student_id(id, full_name)")
+            .eq("group_id", myGroupId)
+            .neq("student_id", user.id);
+        if (!groupMembers?.length) return { assignments: [] };
+
+        const peerIds = groupMembers.map((m: any) => m.student_id as string);
+
+        // Fetch existing assignments for this evaluator + those targets (including eval submission for pre-fill)
+        const { data: existing } = await admin
+            .from("peer_evaluation_assignments")
+            .select(`
+                id, step_id, evaluator_id, evaluator_group_id, target_submission_id, target_student_id, eval_submission_id,
+                eval_submission:activity_submissions!eval_submission_id(self_eval_rubric_scores, self_eval_justifications)
+            `)
+            .eq("step_id", stepId)
+            .eq("evaluator_id", user.id)
+            .in("target_student_id", peerIds);
+
+        const existingByTarget = new Map(
+            (existing ?? []).map((a: any) => [a.target_student_id as string, a])
+        );
+
+        // Lazily insert missing assignment rows
+        const toInsert = peerIds
+            .filter(id => !existingByTarget.has(id))
+            .map(targetStudentId => ({
+                step_id: stepId,
+                evaluator_id: user.id,
+                evaluator_group_id: null,
+                target_student_id: targetStudentId,
+                target_submission_id: null,
+            }));
+
+        if (toInsert.length > 0) {
+            const { data: inserted } = await admin
+                .from("peer_evaluation_assignments")
+                .insert(toInsert)
+                .select("id, step_id, evaluator_id, evaluator_group_id, target_submission_id, target_student_id, eval_submission_id");
+            for (const row of (inserted ?? []) as any[]) {
+                existingByTarget.set(row.target_student_id, row);
+            }
+        }
+
+        // Build result from group member list — only include members with a real assignment row
+        const intraAssignments: PeerAssignmentWithTarget[] = groupMembers
+            .map((member: any) => {
+                const a = existingByTarget.get(member.student_id as string);
+                if (!a) return null;
+                return {
+                    id: a.id,
+                    step_id: stepId,
+                    evaluator_id: user.id,
+                    evaluator_group_id: null,
+                    target_submission_id: a.target_submission_id ?? null,
+                    target_student_id: member.student_id,
+                    eval_submission_id: a.eval_submission_id ?? null,
+                    eval_submission: (a as any).eval_submission ?? null,
+                    target_submission: null,
+                    target_student: { full_name: (member.profile as any)?.full_name ?? null },
+                } satisfies PeerAssignmentWithTarget;
+            })
+            .filter((a): a is PeerAssignmentWithTarget => a !== null);
+
+        return { assignments: intraAssignments };
+    }
+
+    // ── Standard group/individual mode ────────────────────────────────────────
     const adminForQuery = createAdminClient();
     const orFilter = groupId
         ? `evaluator_id.eq.${user.id},evaluator_group_id.eq.${groupId}`
@@ -647,6 +742,7 @@ export async function getMyPeerAssignments(
         .from("peer_evaluation_assignments")
         .select(`
             id, step_id, evaluator_id, evaluator_group_id, target_submission_id, target_student_id, eval_submission_id,
+            eval_submission:activity_submissions!eval_submission_id(self_eval_rubric_scores, self_eval_justifications),
             target_submission:activity_submissions!target_submission_id(
                 id, drive_file_url, student_id, group_id,
                 student:profiles!student_id(full_name),
@@ -662,7 +758,7 @@ export async function getMyPeerAssignments(
         return { error: error.message };
     }
 
-    const rows = (data ?? []) as PeerAssignmentRow[];
+    const rows = (data ?? []) as unknown as PeerAssignmentRow[];
     const targetStudentIds = rows
         .map((row) => row.target_student_id)
         .filter((value): value is string => typeof value === "string" && value.length > 0);
@@ -676,11 +772,7 @@ export async function getMyPeerAssignments(
             .in("id", Array.from(new Set(targetStudentIds)));
 
         if (targetStudentsError) {
-            console.error("[getMyPeerAssignments] target student lookup error:", targetStudentsError.message, {
-                stepId,
-                userId: user.id,
-                targetStudentIds,
-            });
+            console.error("[getMyPeerAssignments] target student lookup error:", targetStudentsError.message);
             return { error: targetStudentsError.message };
         }
 
@@ -696,7 +788,6 @@ export async function getMyPeerAssignments(
             : null,
     }));
 
-    console.log("[getMyPeerAssignments] rows returned:", data?.length ?? 0, { stepId, userId: user.id, orFilter });
     return { assignments };
 }
 
@@ -711,10 +802,10 @@ export async function submitPeerEvaluation(
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return { error: "No autenticado." };
 
-    // Verify the assignment belongs to this evaluator
+    // Verify the assignment belongs to this evaluator (also fetch existing eval_submission_id)
     const { data: assignment } = await supabase
         .from("peer_evaluation_assignments")
-        .select("id, step_id, evaluator_id, evaluator_group_id, target_submission_id")
+        .select("id, step_id, evaluator_id, evaluator_group_id, target_submission_id, eval_submission_id")
         .eq("id", assignmentId)
         .single();
 
@@ -723,54 +814,40 @@ export async function submitPeerEvaluation(
         return { error: "No autorizado." };
     }
 
-    // Create/update the peer eval submission
-    const { data: existing } = await supabase
-        .from("activity_submissions")
-        .select("id")
-        .eq("student_id", user.id)
-        .eq("step_id", assignment.step_id)
-        .maybeSingle();
-
-    let evalSubmissionId: string;
-
+    // Each assignment gets its own activity_submissions row, keyed by peer_assignment_id.
+    // Upsert on peer_assignment_id avoids the unique-constraint bug on (student_id, step_id)
+    // that caused all peer evals for the same step to share one row and overwrite each other.
+    // Admin client is required: RLS UPDATE policies block student writes on peer-eval rows.
+    // Security is guaranteed by the evaluator_id check above.
+    const admin = createAdminClient();
     const filesPayload = qaNotes ? [{ qaNotes }] : null;
+    const submissionPayload = {
+        self_eval_rubric_scores: rubricScores,
+        self_eval_justifications: justifications,
+        files: filesPayload,
+        status: "submitted",
+        submitted_at: new Date().toISOString(),
+    };
 
-    if (existing) {
-        await supabase
-            .from("activity_submissions")
-            .update({
-                self_eval_rubric_scores: rubricScores,
-                self_eval_justifications: justifications,
-                files: filesPayload,
-                status: "submitted",
-                submitted_at: new Date().toISOString(),
-            })
-            .eq("id", existing.id);
-        evalSubmissionId = existing.id;
-    } else {
-        const { data: newSub } = await supabase
-            .from("activity_submissions")
-            .insert({
+    const { data: sub, error: upsertErr } = await admin
+        .from("activity_submissions")
+        .upsert(
+            {
                 student_id: user.id,
                 step_id: assignment.step_id,
-                self_eval_rubric_scores: rubricScores,
-                self_eval_justifications: justifications,
-                files: filesPayload,
-                status: "submitted",
-                submitted_at: new Date().toISOString(),
-            })
-            .select("id")
-            .single();
-        evalSubmissionId = newSub!.id;
-    }
+                peer_assignment_id: assignmentId,
+                ...submissionPayload,
+            },
+            { onConflict: "peer_assignment_id" },
+        )
+        .select("id")
+        .single();
+    if (upsertErr) return { error: upsertErr.message };
 
-    // Link back to the assignment.
-    // Use admin client: students have no UPDATE policy on peer_evaluation_assignments
-    // (only SELECT). Security is guaranteed by the evaluator check above.
-    const admin = createAdminClient();
+    // Keep eval_submission_id in sync so teacher-side joins still work.
     await admin
         .from("peer_evaluation_assignments")
-        .update({ eval_submission_id: evalSubmissionId })
+        .update({ eval_submission_id: sub!.id })
         .eq("id", assignmentId);
 
     revalidatePath(`/activities/${activityId}`);

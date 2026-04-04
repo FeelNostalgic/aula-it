@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { ListChecks, MessageSquare, Plus, Trash2, PanelRightClose, PanelRightOpen, AlignLeft, GripVertical, Link2 } from "lucide-react";
+import { ListChecks, MessageSquare, Plus, Trash2, PanelRightClose, PanelRightOpen, AlignLeft, GripVertical, Link2, Hash } from "lucide-react";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StepConfigSection } from "./step-config-section";
@@ -394,9 +394,10 @@ function SortableEvalQuestion({ q, idx, onUpdate, onRemove }: SortableEvalQuesti
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: q.id });
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
 
-    const TYPES: { value: 'short_answer' | 'likert'; label: string }[] = [
+    const TYPES: { value: 'short_answer' | 'likert' | 'numeric'; label: string }[] = [
         { value: 'short_answer', label: 'Respuesta libre' },
         { value: 'likert', label: 'Escala Likert' },
+        { value: 'numeric', label: 'Numérico' },
     ];
 
     return (
@@ -467,6 +468,49 @@ function SortableEvalQuestion({ q, idx, onUpdate, onRemove }: SortableEvalQuesti
                             onChange={(e) => onUpdate(q.id, { minLength: Number(e.target.value) || undefined })}
                             className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
                         />
+                    </div>
+                )}
+
+                {/* numeric options */}
+                {q.type === 'numeric' && (
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 flex-1">
+                                <Hash className="size-3.5 text-text-muted shrink-0" />
+                                <span className="text-sm text-foreground font-medium">Rango</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-text-muted">Mín</span>
+                                <input
+                                    type="number"
+                                    value={q.numericMin ?? 0}
+                                    onChange={(e) => onUpdate(q.id, { numericMin: Number(e.target.value) })}
+                                    className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                />
+                                <span className="text-xs text-text-muted">Máx</span>
+                                <input
+                                    type="number"
+                                    value={q.numericMax ?? 10}
+                                    onChange={(e) => onUpdate(q.id, { numericMax: Number(e.target.value) })}
+                                    className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <p className="text-sm text-foreground font-medium">% en la nota</p>
+                                <p className="text-xs text-text-muted mt-0.5">0 = solo descriptivo, &gt;0 = contribuye a la nota del entregable.</p>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <input
+                                    type="number" min={0} max={100} step={1}
+                                    value={q.points ?? 0}
+                                    onChange={(e) => onUpdate(q.id, { points: Number(e.target.value) })}
+                                    className="h-9 w-16 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                />
+                                <span className="text-xs text-text-muted">%</span>
+                            </div>
+                        </div>
                     </div>
                 )}
 

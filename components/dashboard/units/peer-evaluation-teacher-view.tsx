@@ -17,6 +17,7 @@ import {
     getPeerEvaluationResults,
     computeEvaluatorReliability,
     togglePeerFeedbackVisible,
+    ensureIntraGroupAssignments,
 } from "@/app/dashboard/units/[id]/actions";
 import { updateStepActivityClosed } from "@/app/activities/[id]/edit/actions";
 import { PeerEvalReviewModal } from "@/components/dashboard/shared/peer-eval-review-modal";
@@ -37,6 +38,7 @@ type Assignment = {
     evaluator_id: string | null;
     evaluator_group_id: string | null;
     target_submission_id: string;
+    target_student_id: string | null;
     eval_submission_id: string | null;
     reliability_score: number | null;
     is_outlier: boolean | null;
@@ -52,6 +54,7 @@ type Assignment = {
         student: { full_name: string | null } | null;
         group: { name: string } | null;
     } | null;
+    target_student: { full_name: string | null } | null;
     eval_submission: {
         id: string;
         self_eval_rubric_scores: Record<string, number> | null;
@@ -71,6 +74,18 @@ type EvaluatorRow = {
     outlierCount: number;
 };
 
+type IntraGroupRow = {
+    studentId: string;
+    studentName: string;
+    groupName: string;
+    madeCompleted: number;
+    madeTotal: number;
+    receivedCompleted: number;
+    receivedTotal: number;
+    evaluatorAssignments: Assignment[];
+    receivedAssignments: Assignment[];
+};
+
 export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle, activityId, isActivityClosed, students = [] }: PeerEvaluationTeacherViewProps) {
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [feedbackVisible, setFeedbackVisible] = useState(false);
@@ -78,24 +93,36 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle, activit
     const [evalMode, setEvalMode] = useState<"rubric" | "questions">("rubric");
     const [rubric, setRubric] = useState<RubricCriteria[]>([]);
     const [evalQuestions, setEvalQuestions] = useState<QuizQuestion[]>([]);
+    const [groupByStudentId, setGroupByStudentId] = useState<Record<string, { id: string; name: string }>>({});
     const [loading, setLoading] = useState(true);
     const [confirmReset, setConfirmReset] = useState(false);
     const [closed, setClosed] = useState(isActivityClosed ?? false);
-    const [reviewEvaluatorKey, setReviewEvaluatorKey] = useState<string | null>(null);
+    const [reviewTarget, setReviewTarget] = useState<{ name: string; assignments: { id: string; targetName: string; isOutlier: boolean | null; reliabilityScore: number | null; evalSubmission: any } [] } | null>(null);
     const [isPending, startTransition] = useTransition();
 
-    const load = useCallback(() => {
+    const load = useCallback(async () => {
         setLoading(true);
-        getPeerEvaluationResults(stepId).then(res => {
-            if (res.assignments) setAssignments(res.assignments as Assignment[]);
-            setFeedbackVisible(res.peerFeedbackVisibleToStudents ?? false);
-            setMode(res.mode ?? "individual");
-            setEvalMode((res.evalMode as "rubric" | "questions") ?? "rubric");
-            setRubric(res.rubric ?? []);
-            setEvalQuestions(res.evalQuestions ?? []);
-            setLoading(false);
-        });
-    }, [stepId]);
+        const res = await getPeerEvaluationResults(stepId, moduleId);
+        const loadedAssignments = (res.assignments ?? []) as Assignment[];
+        setAssignments(loadedAssignments);
+        setFeedbackVisible(res.peerFeedbackVisibleToStudents ?? false);
+        const loadedMode = res.mode ?? "individual";
+        setMode(loadedMode);
+        setEvalMode((res.evalMode as "rubric" | "questions") ?? "rubric");
+        setRubric(res.rubric ?? []);
+        setEvalQuestions(res.evalQuestions ?? []);
+        setGroupByStudentId(res.groupByStudentId ?? {});
+
+        // Auto-generate for intra_group if no assignments yet
+        if (loadedMode === 'intra_group' && loadedAssignments.length === 0) {
+            await ensureIntraGroupAssignments(stepId, moduleId);
+            const res2 = await getPeerEvaluationResults(stepId, moduleId);
+            setAssignments((res2.assignments ?? []) as Assignment[]);
+            setGroupByStudentId(res2.groupByStudentId ?? {});
+        }
+
+        setLoading(false);
+    }, [stepId, moduleId]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -140,22 +167,73 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle, activit
         return [...map.values()].sort((a, b) => a.evaluatorName.localeCompare(b.evaluatorName));
     }, [assignments, students]);
 
-    const reviewEvaluator = reviewEvaluatorKey
-        ? evaluatorRows.find(r => r.evaluatorKey === reviewEvaluatorKey) ?? null
-        : null;
+    const intraGroupRows = useMemo<IntraGroupRow[]>(() => {
+        const rowMap = new Map<string, IntraGroupRow>();
+        for (const s of students) {
+            rowMap.set(s.student_id, {
+                studentId: s.student_id,
+                studentName: s.name,
+                groupName: groupByStudentId[s.student_id]?.name ?? '—',
+                madeCompleted: 0, madeTotal: 0,
+                receivedCompleted: 0, receivedTotal: 0,
+                evaluatorAssignments: [],
+                receivedAssignments: [],
+            });
+        }
+        for (const a of assignments) {
+            if (a.evaluator_id) {
+                if (!rowMap.has(a.evaluator_id)) {
+                    rowMap.set(a.evaluator_id, {
+                        studentId: a.evaluator_id,
+                        studentName: a.evaluator?.full_name ?? 'Alumno',
+                        groupName: groupByStudentId[a.evaluator_id]?.name ?? '—',
+                        madeCompleted: 0, madeTotal: 0,
+                        receivedCompleted: 0, receivedTotal: 0,
+                        evaluatorAssignments: [],
+                        receivedAssignments: [],
+                    });
+                }
+                const row = rowMap.get(a.evaluator_id)!;
+                row.madeTotal++;
+                if (a.eval_submission_id) row.madeCompleted++;
+                row.evaluatorAssignments.push(a);
+            }
+            if (a.target_student_id) {
+                if (!rowMap.has(a.target_student_id)) {
+                    rowMap.set(a.target_student_id, {
+                        studentId: a.target_student_id,
+                        studentName: a.target_student?.full_name ?? 'Alumno',
+                        groupName: groupByStudentId[a.target_student_id]?.name ?? '—',
+                        madeCompleted: 0, madeTotal: 0,
+                        receivedCompleted: 0, receivedTotal: 0,
+                        evaluatorAssignments: [],
+                        receivedAssignments: [],
+                    });
+                }
+                const row = rowMap.get(a.target_student_id)!;
+                row.receivedTotal++;
+                if (a.eval_submission_id) row.receivedCompleted++;
+                row.receivedAssignments.push(a);
+            }
+        }
+        return [...rowMap.values()].sort((a, b) => {
+            const g = a.groupName.localeCompare(b.groupName);
+            return g !== 0 ? g : a.studentName.localeCompare(b.studentName);
+        });
+    }, [assignments, students, groupByStudentId]);
 
-    const reviewAssignments = useMemo(() => {
-        if (!reviewEvaluator) return [];
-        return reviewEvaluator.assignments.map(a => ({
+    function buildReviewAssignments(evals: Assignment[]) {
+        return evals.map(a => ({
             id: a.id,
-            targetName: a.target_submission?.group?.name
+            targetName: a.target_student?.full_name
+                ?? a.target_submission?.group?.name
                 ?? a.target_submission?.student?.full_name
                 ?? "Alumno",
             isOutlier: a.is_outlier,
             reliabilityScore: a.reliability_score,
             evalSubmission: a.eval_submission ?? null,
         }));
-    }, [reviewEvaluator]);
+    }
 
     function handleOutlierToggled(assignmentId: string, newValue: boolean) {
         setAssignments(prev => prev.map(a =>
@@ -277,7 +355,8 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle, activit
                         {isPending ? "..." : closed ? "Abrir" : "Cerrar"}
                     </Button>
 
-                    {!hasAssignments ? (
+                    {/* Generate/Regenerate buttons only for non-intra_group */}
+                    {mode !== 'intra_group' && (!hasAssignments ? (
                         <Button onClick={handleGenerate} disabled={isPending} size="sm" className="gap-2 bg-indigo-600 hover:bg-indigo-500 text-white">
                             <PlayCircle className="size-3.5" />
                             Generar asignaciones
@@ -325,40 +404,63 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle, activit
                                 Calcular fiabilidad
                             </Button>
                         </>
-                    )}
+                    ))}
+
                 </div>
             </div>
 
-            {evaluatorRows.length === 0 ? (
-                <EmptyState />
-            ) : (
-                <>
-                    {!hasAssignments && (
-                        <div className="px-5 py-3 bg-amber-500/5 border border-amber-500/20 rounded-xl text-[11px] text-amber-400 font-medium">
-                            Sin asignaciones generadas. Pulsa "Generar asignaciones" para distribuir las evaluaciones.
-                        </div>
-                    )}
-                    <EvaluatorsTable
-                        rows={evaluatorRows}
-                        mode={mode}
-                        onReview={(key) => setReviewEvaluatorKey(key)}
+            {mode === 'intra_group' ? (
+                intraGroupRows.length === 0 ? (
+                    <EmptyState />
+                ) : (
+                    <IntraGroupTable
+                        rows={intraGroupRows}
+                        evalMode={evalMode}
+                        rubric={rubric}
+                        evalQuestions={evalQuestions}
+                        onReview={(row) => setReviewTarget({
+                            name: row.studentName,
+                            assignments: buildReviewAssignments(row.evaluatorAssignments),
+                        })}
                     />
-                </>
+                )
+            ) : (
+                evaluatorRows.length === 0 ? (
+                    <EmptyState />
+                ) : (
+                    <>
+                        {!hasAssignments && (
+                            <div className="px-5 py-3 bg-amber-500/5 border border-amber-500/20 rounded-xl text-[11px] text-amber-400 font-medium">
+                                Sin asignaciones generadas. Pulsa "Generar asignaciones" para distribuir las evaluaciones.
+                            </div>
+                        )}
+                        <EvaluatorsTable
+                            rows={evaluatorRows}
+                            mode={mode}
+                            onReview={(key) => {
+                                const ev = evaluatorRows.find(r => r.evaluatorKey === key);
+                                if (!ev) return;
+                                setReviewTarget({
+                                    name: ev.evaluatorName,
+                                    assignments: buildReviewAssignments(ev.assignments),
+                                });
+                            }}
+                        />
+                    </>
+                )
             )}
 
             {/* Review Modal */}
-            {reviewEvaluator && (
-                <PeerEvalReviewModal
-                    open={reviewEvaluatorKey !== null}
-                    onClose={() => setReviewEvaluatorKey(null)}
-                    evaluatorName={reviewEvaluator.evaluatorName}
-                    assignments={reviewAssignments}
-                    evalMode={evalMode}
-                    rubric={rubric}
-                    evalQuestions={evalQuestions}
-                    onOutlierToggled={handleOutlierToggled}
-                />
-            )}
+            <PeerEvalReviewModal
+                open={reviewTarget !== null}
+                onClose={() => setReviewTarget(null)}
+                evaluatorName={reviewTarget?.name ?? ''}
+                assignments={reviewTarget?.assignments ?? []}
+                evalMode={evalMode}
+                rubric={rubric}
+                evalQuestions={evalQuestions}
+                onOutlierToggled={handleOutlierToggled}
+            />
         </div>
     );
 }
@@ -643,3 +745,266 @@ function EvaluatorsTable({ rows, mode, onReview }: {
     );
 }
 
+
+// ─── Intra-group table ────────────────────────────────────────────────────────
+
+function computeAvgReceivedScore(
+    receivedAssignments: Assignment[],
+    evalMode: "rubric" | "questions",
+    rubric: RubricCriteria[],
+    evalQuestions: QuizQuestion[],
+): number | null {
+    const completed = receivedAssignments.filter(a => a.eval_submission !== null);
+    if (completed.length === 0) return null;
+
+    if (evalMode === "rubric") {
+        const rubricMax = rubric.reduce((sum, c) =>
+            sum + Math.max(0, ...(c.levels ?? []).map(l => l.points)), 0);
+        if (rubricMax === 0) return null;
+        const scores = completed.map(a => {
+            const s = a.eval_submission?.self_eval_rubric_scores ?? {};
+            const total = Object.values(s).reduce((acc: number, v) => acc + (v as number), 0);
+            return (total / rubricMax) * 10;
+        });
+        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+        return Math.round(avg * 100) / 100;
+    }
+
+    // questions mode: only numeric questions with weight > 0 contribute
+    const numericQs = evalQuestions.filter(q => q.type === 'numeric' && (q.points ?? 0) > 0);
+    if (numericQs.length === 0) return null;
+    const scores = completed.map(a => {
+        const answers = a.eval_submission?.self_eval_justifications ?? {};
+        let weightedSum = 0, totalWeight = 0;
+        for (const q of numericQs) {
+            const raw = parseFloat(answers[q.id] ?? '');
+            if (isNaN(raw)) continue;
+            const min = q.numericMin ?? 0, max = q.numericMax ?? 10;
+            const norm = max > min ? ((raw - min) / (max - min)) * 10 : 5;
+            weightedSum += norm * (q.points ?? 1);
+            totalWeight += (q.points ?? 1);
+        }
+        return totalWeight > 0 ? weightedSum / totalWeight : null;
+    }).filter((s): s is number => s !== null);
+    if (scores.length === 0) return null;
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+    return Math.round(avg * 100) / 100;
+}
+
+function IntraGroupTable({ rows, onReview, evalMode, rubric, evalQuestions }: {
+    rows: IntraGroupRow[];
+    onReview: (row: IntraGroupRow) => void;
+    evalMode: "rubric" | "questions";
+    rubric: RubricCriteria[];
+    evalQuestions: QuizQuestion[];
+}) {
+    const [sorting, setSorting] = useState<SortingState>([]);
+    const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+    const columns: ColumnDef<IntraGroupRow>[] = useMemo(() => [
+        {
+            id: "select",
+            header: ({ table }) => (
+                <Checkbox
+                    checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+                    onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+                    aria-label="Seleccionar todos"
+                    className="border-border-strong"
+                />
+            ),
+            cell: ({ row }) => (
+                <Checkbox
+                    checked={row.getIsSelected()}
+                    onCheckedChange={(v) => row.toggleSelected(!!v)}
+                    aria-label="Seleccionar fila"
+                    className="border-border-strong"
+                />
+            ),
+            enableSorting: false,
+            size: 40,
+        },
+        {
+            accessorKey: "studentName",
+            header: ({ column }) => <SortBtn column={column} label="Alumno" />,
+            cell: ({ row }) => {
+                const r = row.original;
+                const initial = r.studentName.charAt(0).toUpperCase();
+                return (
+                    <div className="flex items-center gap-3">
+                        <div className="size-8 rounded-xl border bg-surface-dark border-border-strong text-text-muted flex items-center justify-center text-[11px] font-black shrink-0 shadow-inner">
+                            {initial}
+                        </div>
+                        <span className="text-[14px] font-bold text-foreground truncate uppercase tracking-tight font-mono">{r.studentName}</span>
+                    </div>
+                );
+            },
+            size: 220,
+        },
+        {
+            accessorKey: "groupName",
+            header: ({ column }) => <SortBtn column={column} label="Grupo" />,
+            cell: ({ row }) => (
+                <span className="text-[11px] font-mono text-text-muted">{row.original.groupName}</span>
+            ),
+            size: 140,
+        },
+        {
+            id: "made",
+            header: ({ column }) => <SortBtn column={column} label="Evals. hechas" />,
+            cell: ({ row }) => {
+                const r = row.original;
+                if (r.madeTotal === 0) return <span className="text-text-muted/20 font-mono text-[10px]">—</span>;
+                const allDone = r.madeCompleted === r.madeTotal;
+                const noneDone = r.madeCompleted === 0;
+                return (
+                    <span className={cn(
+                        "text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg border",
+                        allDone ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                            : noneDone ? "bg-red-500/10 border-red-500/20 text-red-400"
+                            : "bg-surface-dark border-border-strong text-foreground"
+                    )}>
+                        {r.madeCompleted}<span className="text-text-muted/50">/{r.madeTotal}</span>
+                    </span>
+                );
+            },
+            sortingFn: (a, b) => (a.original.madeCompleted / Math.max(a.original.madeTotal, 1)) - (b.original.madeCompleted / Math.max(b.original.madeTotal, 1)),
+            enableSorting: true,
+            size: 130,
+        },
+        {
+            id: "received",
+            header: ({ column }) => <SortBtn column={column} label="Evals. recibidas" />,
+            cell: ({ row }) => {
+                const r = row.original;
+                if (r.receivedTotal === 0) return <span className="text-text-muted/20 font-mono text-[10px]">—</span>;
+                const allDone = r.receivedCompleted === r.receivedTotal;
+                const noneDone = r.receivedCompleted === 0;
+                return (
+                    <span className={cn(
+                        "text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg border",
+                        allDone ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                            : noneDone ? "bg-red-500/10 border-red-500/20 text-red-400"
+                            : "bg-surface-dark border-border-strong text-foreground"
+                    )}>
+                        {r.receivedCompleted}<span className="text-text-muted/50">/{r.receivedTotal}</span>
+                    </span>
+                );
+            },
+            sortingFn: (a, b) => (a.original.receivedCompleted / Math.max(a.original.receivedTotal, 1)) - (b.original.receivedCompleted / Math.max(b.original.receivedTotal, 1)),
+            enableSorting: true,
+            size: 140,
+        },
+        {
+            id: "avgScore",
+            header: ({ column }) => <SortBtn column={column} label="Nota media" />,
+            cell: ({ row }) => {
+                const r = row.original;
+                const score = computeAvgReceivedScore(r.receivedAssignments, evalMode, rubric, evalQuestions);
+                if (score === null) return <span className="text-text-muted/20 font-mono text-[10px]">—</span>;
+                return (
+                    <span className={cn(
+                        "text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg border",
+                        score >= 7 ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                            : score >= 5 ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                            : "bg-red-500/10 border-red-500/20 text-red-400"
+                    )}>
+                        {score.toFixed(2)}<span className="text-text-muted/50">/10</span>
+                    </span>
+                );
+            },
+            sortingFn: (a, b) => {
+                const sa = computeAvgReceivedScore(a.original.receivedAssignments, evalMode, rubric, evalQuestions) ?? -1;
+                const sb = computeAvgReceivedScore(b.original.receivedAssignments, evalMode, rubric, evalQuestions) ?? -1;
+                return sa - sb;
+            },
+            enableSorting: true,
+            size: 120,
+        },
+        {
+            id: "actions",
+            header: () => <span className="text-right block uppercase text-[11px] font-mono font-medium tracking-wider">Acciones</span>,
+            cell: ({ row }) => {
+                const r = row.original;
+                if (r.madeTotal === 0) return null;
+                return (
+                    <div className="flex justify-end">
+                        <Button variant="outline" size="sm" className="h-7 text-[10px] px-2.5 border-border/50 gap-1.5" onClick={() => onReview(r)}>
+                            <Eye className="size-3" />
+                            Ver evals
+                        </Button>
+                    </div>
+                );
+            },
+            enableSorting: false,
+            size: 110,
+        },
+    ], [onReview, evalMode, rubric, evalQuestions]);
+
+    const table = useReactTable({
+        data: rows,
+        columns,
+        state: { sorting, rowSelection },
+        onSortingChange: setSorting,
+        onRowSelectionChange: setRowSelection,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        getRowId: (row) => row.studentId,
+        enableRowSelection: true,
+    });
+
+    const selectedCount = Object.keys(rowSelection).length;
+
+    return (
+        <div className="bg-surface border border-border-strong rounded-[2rem] overflow-hidden flex flex-col shadow-xl shadow-black/5">
+            {selectedCount > 0 && (
+                <div className="flex items-center gap-3 px-5 py-2.5 bg-accent-blue/5 border-b border-accent-blue/20">
+                    <span className="text-[11px] font-black text-accent-blue uppercase tracking-wider">
+                        {selectedCount} seleccionado{selectedCount !== 1 ? "s" : ""}
+                    </span>
+                    <div className="flex-1" />
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[10px] px-2 text-text-muted hover:text-foreground"
+                        onClick={() => setRowSelection({})}
+                    >
+                        Cancelar selección
+                    </Button>
+                </div>
+            )}
+            <div className="overflow-auto flex-1 rounded-[2rem]">
+                <Table className="table-fixed">
+                    <TableHeader className="sticky top-0 z-10">
+                        {table.getHeaderGroups().map(headerGroup => (
+                            <TableRow key={headerGroup.id} className="bg-surface-dark/50 border-b border-border-strong hover:bg-surface-dark/50">
+                                {headerGroup.headers.map(header => (
+                                    <TableHead key={header.id} style={{ width: header.getSize() }}>
+                                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                                    </TableHead>
+                                ))}
+                            </TableRow>
+                        ))}
+                    </TableHeader>
+                    <TableBody>
+                        {table.getRowModel().rows.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={columns.length} className="h-24 text-center text-text-muted/40 text-xs">Sin datos</TableCell>
+                            </TableRow>
+                        ) : table.getRowModel().rows.map(row => (
+                            <TableRow
+                                key={row.id}
+                                data-state={row.getIsSelected() ? "selected" : undefined}
+                                className={cn("group transition-colors odd:bg-muted/60 even:bg-transparent hover:bg-blue-500/10",
+                                    row.getIsSelected() && "bg-accent-blue/10 hover:bg-accent-blue/15")}
+                            >
+                                {row.getVisibleCells().map(cell => (
+                                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                                ))}
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+        </div>
+    );
+}

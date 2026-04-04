@@ -60,10 +60,15 @@ export function SelfEvaluationViewer({
     const allAnswered = evalMode !== "questions" || questions.every(q => {
         const ans = (answers[q.id] ?? "").trim();
         if (!ans) return false;
+        if (q.type === 'numeric') {
+            const val = parseFloat(ans);
+            if (isNaN(val)) return false;
+            const min = q.numericMin ?? 0, max = q.numericMax ?? 10;
+            if (val < min || val > max) return false;
+            return true;
+        }
         if (q.type === 'short_answer' && q.minLength && ans.length < q.minLength) return false;
         if (q.type === 'likert') {
-            // Likert requires a scale selection (stored as string "1".."N" in answers)
-            if (!ans) return false;
             if (q.requireJustification) {
                 const just = (answers[`${q.id}:justification`] ?? "").trim();
                 if (!just) return false;
@@ -333,12 +338,13 @@ function QuestionBlock({
     onJustification: (v: string) => void;
 }) {
     const isLikert = question.type === 'likert';
+    const isNumeric = question.type === 'numeric';
     const scale = question.likertScale ?? 5;
     const labels = question.likertLabels ?? [];
     const charCount = answer.trim().length;
     const justificationCharCount = justification.trim().length;
     const minLength = question.minLength ?? 0;
-    const showMinLengthWarning = !isLikert && !readOnly && minLength > 0 && charCount > 0 && charCount < minLength;
+    const showMinLengthWarning = !isLikert && !isNumeric && !readOnly && minLength > 0 && charCount > 0 && charCount < minLength;
     const showJustificationWarning = isLikert && question.requireJustification && !readOnly && minLength > 0 && justificationCharCount > 0 && justificationCharCount < minLength;
 
     return (
@@ -353,7 +359,27 @@ function QuestionBlock({
                 )}
             </div>
 
-            {isLikert ? (
+            {isNumeric ? (
+                <div className="flex items-center gap-3">
+                    <input
+                        type="number"
+                        min={question.numericMin ?? 0}
+                        max={question.numericMax ?? 10}
+                        step="0.01"
+                        value={answer}
+                        onChange={(e) => !readOnly && onAnswer(e.target.value)}
+                        readOnly={readOnly}
+                        placeholder={`${question.numericMin ?? 0} – ${question.numericMax ?? 10}`}
+                        className={cn(
+                            "h-10 w-32 rounded-xl border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-indigo-500",
+                            readOnly && "cursor-default opacity-80"
+                        )}
+                    />
+                    <span className="text-xs text-text-muted">
+                        Rango: {question.numericMin ?? 0} – {question.numericMax ?? 10}
+                    </span>
+                </div>
+            ) : isLikert ? (
                 <div className="space-y-2">
                     <div className={cn("grid gap-1.5", scale <= 5 ? "grid-cols-5" : "grid-cols-7")}>
                         {Array.from({ length: scale }, (_, i) => {

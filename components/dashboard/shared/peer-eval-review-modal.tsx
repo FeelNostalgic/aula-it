@@ -192,10 +192,10 @@ export function PeerEvalReviewModal({
                                 <>
                                     {/* Sub-header */}
                                     <div className="px-6 py-3 border-b border-border-strong flex items-center gap-3 shrink-0">
-                                        <p className="text-sm font-bold text-foreground flex-1">
-                                            <span className="text-text-muted font-normal text-xs">→ </span>
-                                            {selected.targetName}
-                                        </p>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] text-text-muted uppercase tracking-widest mb-0.5">Evaluando a</p>
+                                            <p className="text-sm font-bold text-foreground truncate">{selected.targetName}</p>
+                                        </div>
                                         <Button
                                             variant="outline"
                                             size="sm"
@@ -350,7 +350,16 @@ function QuestionsAnswersPanel({
                         </p>
                         <div className="bg-surface/50 border border-border/30 rounded-xl px-3 py-2">
                             {answer ? (
-                                <p className="text-xs text-foreground/80">{answer}</p>
+                                q.type === 'numeric' ? (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-bold text-foreground tabular-nums">{answer}</span>
+                                        <span className="text-[10px] text-text-muted/50 font-mono">
+                                            [{q.numericMin ?? 0} – {q.numericMax ?? 10}]
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-foreground/80">{answer}</p>
+                                )
                             ) : (
                                 <p className="text-xs text-text-muted/40 italic">Sin respuesta.</p>
                             )}

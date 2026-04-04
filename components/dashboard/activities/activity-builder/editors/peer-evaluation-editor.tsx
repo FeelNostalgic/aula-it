@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { ListChecks, Users, User, MessageSquare, Plus, Trash2, GripVertical, PanelRightClose, PanelRightOpen, Link2, CheckCircle2, Clock } from "lucide-react";
+import { ListChecks, Users, User, MessageSquare, Plus, Trash2, GripVertical, PanelRightClose, PanelRightOpen, Link2, CheckCircle2, Clock, Hash } from "lucide-react";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StepConfigSection } from "./step-config-section";
@@ -228,64 +228,77 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                     <StepConfigSection step={step} onUpdateStep={onUpdate} />
 
                     {/* Mode selector */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Modo</span>
-                        </div>
-                        <div className="p-5 space-y-3">
-                            <div className="flex gap-2">
-                                {(["individual", "group", "intra_group"] as PeerEvaluationMode[]).map(m => (
-                                    <button
-                                        key={m}
-                                        onClick={() => save({ ...content, mode: m })}
-                                        className={cn(
-                                            "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
-                                            content.mode === m
-                                                ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
-                                                : "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark"
-                                        )}
-                                    >
-                                        {m === "individual" ? <User className="size-3.5" /> : <Users className="size-3.5" />}
-                                        {m === "individual" ? "Individual" : m === "group" ? "Grupos" : "Entre miembros"}
-                                    </button>
-                                ))}
+                    {(() => {
+                        const parentIsGroup = parentStep && (parentStep.content as any)?.is_group_submission === true;
+                        const parentIsIndividual = parentStep && !parentIsGroup;
+                        const allowedModes: PeerEvaluationMode[] = parentIsGroup
+                            ? ["group", "intra_group"]
+                            : parentIsIndividual
+                                ? ["individual"]
+                                : ["individual", "group", "intra_group"];
+                        return (
+                            <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                                <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
+                                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Modo</span>
+                                </div>
+                                <div className="p-5 space-y-3">
+                                    <div className="flex gap-2 flex-wrap">
+                                        {(["individual", "group", "intra_group"] as PeerEvaluationMode[]).map(m => {
+                                            const isAllowed = allowedModes.includes(m);
+                                            return (
+                                                <button
+                                                    key={m}
+                                                    onClick={() => isAllowed && save({ ...content, mode: m })}
+                                                    disabled={!isAllowed}
+                                                    title={!isAllowed ? "No disponible para este tipo de entregable" : undefined}
+                                                    className={cn(
+                                                        "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
+                                                        content.mode === m
+                                                            ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
+                                                            : isAllowed
+                                                                ? "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark"
+                                                                : "bg-surface/30 border-border/20 text-text-muted/30 cursor-not-allowed"
+                                                    )}
+                                                >
+                                                    {m === "individual" ? <User className="size-3.5" /> : <Users className="size-3.5" />}
+                                                    {m === "individual" ? "Individual" : m === "group" ? "Grupos" : "Entre miembros"}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <p className="text-xs text-text-muted">
+                                        {content.mode === "individual"
+                                            ? "Cada alumno evalúa trabajos de N compañeros asignados aleatoriamente."
+                                            : content.mode === "group"
+                                                ? "Los grupos se evalúan entre sí."
+                                                : "Los miembros de cada grupo se evalúan entre sí — mide contribución individual."}
+                                    </p>
+                                </div>
                             </div>
-                            <p className="text-xs text-text-muted">
-                                {content.mode === "individual"
-                                    ? "Cada alumno evalúa trabajos de N compañeros asignados aleatoriamente."
-                                    : content.mode === "group"
-                                        ? "Los grupos se evalúan entre sí."
-                                        : "Los miembros de cada grupo se evalúan entre sí — mide contribución individual."}
-                            </p>
-                        </div>
-                    </div>
+                        );
+                    })()}
 
                     {/* Parent step indicator */}
-                    {content.mode !== 'intra_group' && (
-                        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Entregable Vinculado</span>
-                            </div>
-                            <div className="p-5">
-                                {parentStep ? (
-                                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-blue/10 border border-accent-blue/20 text-accent-blue text-sm">
-                                        <Link2 className="size-3.5 shrink-0" />
-                                        <span className="font-medium truncate">{parentStep.title}</span>
-                                    </div>
-                                ) : (
-                                    <p className="text-xs text-text-muted">
-                                        Arrastra este paso bajo un <span className="font-semibold text-foreground">Entregable</span> o <span className="font-semibold text-foreground">Subida de Archivos</span> en el constructor de actividad para vincularlo.
-                                    </p>
-                                )}
-                            </div>
+                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
+                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
+                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Entregable Vinculado</span>
                         </div>
-                    )}
-                    {content.mode === 'intra_group' && (
-                        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface-dark border border-white/5 text-xs text-text-muted">
-                            <Users className="size-3.5 text-accent-blue shrink-0" />
-                            Evalúa la contribución individual de los miembros del grupo. No requiere un entregable vinculado.
+                        <div className="p-5">
+                            {parentStep ? (
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-blue/10 border border-accent-blue/20 text-accent-blue text-sm">
+                                    <Link2 className="size-3.5 shrink-0" />
+                                    <span className="font-medium truncate">{parentStep.title}</span>
+                                </div>
+                            ) : (
+                                <p className="text-xs text-text-muted">
+                                    {content.mode === 'intra_group'
+                                        ? <>Opcional — arrastra este paso bajo un <span className="font-semibold text-foreground">Entregable grupal</span> para asociarlo a una entrega. Sin entregable funciona como coevaluación global del módulo.</>
+                                        : <>Arrastra este paso bajo un <span className="font-semibold text-foreground">Entregable</span> o <span className="font-semibold text-foreground">Subida de Archivos</span> en el constructor de actividad para vincularlo.</>
+                                    }
+                                </p>
+                            )}
                         </div>
-                    )}
+                    </div>
 
                     {/* Eval mode selector */}
                     <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
@@ -584,8 +597,8 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                         </div>
                     )}
 
-                    {/* Gestión — generate assignments */}
-                    {moduleId && (
+                    {/* Gestión — generate assignments (hidden for intra_group — auto-generated) */}
+                    {moduleId && content.mode !== 'intra_group' && (
                         <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
                             <div className="px-5 py-2.5 border-b border-white/5 bg-white/2 flex items-center justify-between gap-2">
                                 <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Gestión</span>
@@ -744,9 +757,10 @@ function SortablePeerEvalQuestion({ q, idx, onUpdate, onRemove }: SortablePeerEv
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: q.id });
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
 
-    const TYPES: { value: 'short_answer' | 'likert'; label: string }[] = [
+    const TYPES: { value: 'short_answer' | 'likert' | 'numeric'; label: string }[] = [
         { value: 'short_answer', label: 'Respuesta libre' },
         { value: 'likert', label: 'Escala Likert' },
+        { value: 'numeric', label: 'Numérico' },
     ];
 
     return (
@@ -769,7 +783,7 @@ function SortablePeerEvalQuestion({ q, idx, onUpdate, onRemove }: SortablePeerEv
                     value={q.text}
                     onChange={(e) => onUpdate(q.id, { text: e.target.value })}
                     placeholder="Escribe la pregunta..."
-                    className="flex-1 bg-transparent border-0 border-b border-border/30 rounded-none px-0 focus-visible:ring-0 focus-visible:border-accent-blue text-sm"
+                    className="flex-1 bg-surface border-border font-medium text-sm"
                 />
 
                 <button
@@ -842,6 +856,72 @@ function SortablePeerEvalQuestion({ q, idx, onUpdate, onRemove }: SortablePeerEv
                             <div>
                                 <p className="text-sm text-foreground font-medium">Justificación obligatoria</p>
                                 <p className="text-xs text-text-muted mt-0.5">El evaluador debe razonar su elección.</p>
+                            </div>
+                            <LikertJustifToggle
+                                value={q.requireJustification ?? false}
+                                onChange={(v) => onUpdate(q.id, { requireJustification: v })}
+                            />
+                        </div>
+                        {q.requireJustification && (
+                            <div className="flex items-center justify-between gap-4 pl-4 border-l-2 border-border/30">
+                                <div>
+                                    <p className="text-sm text-foreground font-medium">Mínimo de caracteres</p>
+                                    <p className="text-xs text-text-muted mt-0.5">Por justificación.</p>
+                                </div>
+                                <input
+                                    type="number" min={0} max={2000}
+                                    value={q.minLength ?? 0}
+                                    onChange={(e) => onUpdate(q.id, { minLength: Number(e.target.value) || undefined })}
+                                    className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {q.type === 'numeric' && (
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 flex-1">
+                                <Hash className="size-3.5 text-text-muted shrink-0" />
+                                <span className="text-sm text-foreground font-medium">Rango</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-text-muted">Mín</span>
+                                <input
+                                    type="number"
+                                    value={q.numericMin ?? 0}
+                                    onChange={(e) => onUpdate(q.id, { numericMin: Number(e.target.value) })}
+                                    className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                />
+                                <span className="text-xs text-text-muted">Máx</span>
+                                <input
+                                    type="number"
+                                    value={q.numericMax ?? 10}
+                                    onChange={(e) => onUpdate(q.id, { numericMax: Number(e.target.value) })}
+                                    className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <p className="text-sm text-foreground font-medium">% en la nota</p>
+                                <p className="text-xs text-text-muted mt-0.5">0 = solo descriptivo, &gt;0 = contribuye a la nota del entregable.</p>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <input
+                                    type="number" min={0} max={100} step={1}
+                                    value={q.points ?? 0}
+                                    onChange={(e) => onUpdate(q.id, { points: Number(e.target.value) })}
+                                    className="h-9 w-16 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                />
+                                <span className="text-xs text-text-muted">%</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <p className="text-sm text-foreground font-medium">Justificación obligatoria</p>
+                                <p className="text-xs text-text-muted mt-0.5">El evaluador debe razonar su valoración numérica.</p>
                             </div>
                             <LikertJustifToggle
                                 value={q.requireJustification ?? false}

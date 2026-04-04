@@ -86,9 +86,8 @@ export function PeerEvaluationViewer({
                                 : "El profesor todavía no ha generado las asignaciones de coevaluación o ya las has completado todas."}
                     </p>
                     {loadError && (
-                        <p className="text-[10px] font-mono text-red-400 max-w-sm break-all">[debug] {loadError}</p>
+                        <p className="text-[10px] font-mono text-red-400 max-w-sm break-all">{loadError}</p>
                     )}
-                    <p className="text-[10px] font-mono text-text-muted/30">[debug] stepId: {stepId}</p>
                 </div>
             </div>
         );
@@ -101,13 +100,27 @@ export function PeerEvaluationViewer({
             ?? (assignment.target_submission?.student as any)?.full_name
             ?? (assignment.target_submission?.group as any)?.name
             ?? "Alumno";
-        return content.anonymousEvaluation ? `Entrega ${idx + 1}` : name;
+        // intra_group always shows real names — anonymous doesn't apply between group members
+        return (content.anonymousEvaluation && content.mode !== "intra_group") ? `Entrega ${idx + 1}` : name;
     }
 
-    function handleCompleted(assignmentId: string) {
+    function handleCompleted(
+        assignmentId: string,
+        submittedScores: Record<string, number>,
+        submittedAnswers: Record<string, string>,
+    ) {
         setAssignments(prev =>
-            prev.map(a => a.id === assignmentId ? { ...a, eval_submission_id: assignmentId } : a)
+            prev.map(a => a.id === assignmentId ? {
+                ...a,
+                eval_submission_id: assignmentId, // truthy marker — real ID comes from next load
+                eval_submission: {
+                    self_eval_rubric_scores: submittedScores,
+                    self_eval_justifications: submittedAnswers,
+                },
+            } : a)
         );
+        // intra_group: user navigates via the left panel — don't auto-advance or close
+        if (content.mode === "intra_group") return;
         // Auto-advance to next pending or close
         const nextPending = assignments.findIndex(
             (a, i) => i > (activeIndex ?? 0) && !a.eval_submission_id && a.id !== assignmentId
@@ -214,6 +227,9 @@ export function PeerEvaluationViewer({
                     onNext={() => setActiveIndex(i => Math.min(assignments.length - 1, (i ?? 0) + 1))}
                     onClose={() => setActiveIndex(null)}
                     onCompleted={handleCompleted}
+                    allAssignments={content.mode === "intra_group" ? assignments : undefined}
+                    onNavigate={content.mode === "intra_group" ? (idx) => setActiveIndex(idx) : undefined}
+                    getTargetName={content.mode === "intra_group" ? getTargetName : undefined}
                 />
             )}
 
@@ -269,6 +285,9 @@ function PeerEvalModal({
     onNext,
     onClose,
     onCompleted,
+    allAssignments,
+    onNavigate,
+    getTargetName,
 }: {
     assignment: PeerAssignmentWithTarget;
     assignmentIndex: number;
@@ -280,7 +299,10 @@ function PeerEvalModal({
     onPrev: () => void;
     onNext: () => void;
     onClose: () => void;
-    onCompleted: (assignmentId: string) => void;
+    onCompleted: (assignmentId: string, scores: Record<string, number>, answers: Record<string, string>) => void;
+    allAssignments?: PeerAssignmentWithTarget[];
+    onNavigate?: (idx: number) => void;
+    getTargetName?: (a: PeerAssignmentWithTarget, idx: number) => string;
 }) {
     const evalMode = content.evalMode ?? "rubric";
     const rubric = content.rubric ?? [];
@@ -292,7 +314,7 @@ function PeerEvalModal({
     const [qaNotes, setQaNotes] = useState("");
     const [isPending, startTransition] = useTransition();
 
-    // Reset form when switching to a different assignment
+    // Always reset form when switching to a different assignment
     useEffect(() => {
         setScores({});
         setAnswers({});
@@ -313,7 +335,7 @@ function PeerEvalModal({
         ?? (assignment.target_submission?.student as any)?.full_name
         ?? (assignment.target_submission?.group as any)?.name
         ?? "Alumno";
-    const displayName = content.anonymousEvaluation
+    const displayName = (content.anonymousEvaluation && content.mode !== "intra_group")
         ? `Entrega ${assignmentIndex + 1}`
         : targetName;
 
@@ -326,6 +348,12 @@ function PeerEvalModal({
     const allAnswered = evalMode !== "questions" || questions.every(q => {
         const ans = (answers[q.id] ?? "").trim();
         if (!ans) return false;
+        if (q.type === "numeric") {
+            const val = parseFloat(ans);
+            if (isNaN(val)) return false;
+            const min = q.numericMin ?? 0, max = q.numericMax ?? 10;
+            if (val < min || val > max) return false;
+        }
         if (q.type === "likert" && q.requireJustification) {
             const just = (answers[`${q.id}:justification`] ?? "").trim();
             if (!just) return false;
@@ -356,7 +384,7 @@ function PeerEvalModal({
                 toast.error(res.error);
             } else {
                 toast.success("Evaluación enviada correctamente.");
-                onCompleted(assignment.id);
+                onCompleted(assignment.id, evalMode === "questions" ? {} : scores, answers);
             }
         });
     }
@@ -376,48 +404,106 @@ function PeerEvalModal({
                 </DialogHeader>
 
                 <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
-                    {/* Left: submission preview */}
-                    <ResizablePanel defaultSize={62} minSize={30}>
-                        <div className="h-full flex flex-col bg-surface-dark">
-                            {previewUrl ? (
-                                <>
-                                    <div className="shrink-0 h-9 flex items-center justify-between px-4 border-b border-border-strong bg-surface">
-                                        <span className="text-xs text-text-muted font-mono uppercase tracking-widest">
-                                            Entrega del alumno
-                                        </span>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-6 text-xs gap-1 text-text-muted hover:text-foreground"
-                                            onClick={() => window.open(rawDriveUrl!, "_blank")}
-                                        >
-                                            <ExternalLink className="size-3" /> Abrir en Drive
-                                        </Button>
+                    {/* Left panel A: member list — intra_group only */}
+                    {content.mode === "intra_group" && allAssignments && onNavigate && (
+                        <>
+                            <ResizablePanel defaultSize={28} minSize={18}>
+                                <div className="h-full flex flex-col bg-surface overflow-hidden">
+                                    <div className="px-4 py-2.5 border-b border-border-strong shrink-0">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.15em] text-text-muted">
+                                            Compañeros del grupo
+                                        </p>
                                     </div>
-                                    <iframe
-                                        src={previewUrl}
-                                        className="flex-1 w-full border-none bg-white"
-                                        title="Entrega a evaluar"
-                                        allow="autoplay"
-                                    />
-                                </>
-                            ) : (
-                                <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center p-12">
-                                    <FileText className="size-12 text-text-muted/20" />
-                                    <p className="text-sm text-text-muted">
-                                        {content.mode === "intra_group"
-                                            ? "Evalúa el trabajo y participación de este compañero según los criterios."
-                                            : "Este alumno no ha adjuntado ningún archivo."}
-                                    </p>
+                                    <div className="flex-1 overflow-y-auto divide-y divide-border/30">
+                                        {allAssignments.map((a, i) => {
+                                            const name = getTargetName
+                                                ? getTargetName(a, i)
+                                                : ((a as any).target_student?.full_name ?? `Compañero ${i + 1}`);
+                                            const isActive = a.id === assignment.id;
+                                            const isDone = !!a.eval_submission_id;
+                                            return (
+                                                <button
+                                                    key={a.id}
+                                                    onClick={() => onNavigate(i)}
+                                                    className={cn(
+                                                        "w-full flex items-center gap-3 px-4 py-3 text-left transition-all relative",
+                                                        isActive
+                                                            ? "bg-indigo-500/10 text-indigo-400"
+                                                            : "hover:bg-white/5 text-text-muted hover:text-foreground"
+                                                    )}
+                                                >
+                                                    {isActive && (
+                                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-indigo-400 rounded-full" />
+                                                    )}
+                                                    <div className={cn(
+                                                        "size-6 rounded-full flex items-center justify-center border shrink-0 text-[10px] font-bold",
+                                                        isDone
+                                                            ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
+                                                            : "bg-surface-dark border-border-strong text-text-muted"
+                                                    )}>
+                                                        {isDone ? <CheckCircle2 className="size-3.5" /> : i + 1}
+                                                    </div>
+                                                    <p className="text-[11px] font-semibold truncate">{name}</p>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                            )}
-                        </div>
-                    </ResizablePanel>
+                            </ResizablePanel>
+                            <ResizableHandle withHandle className="bg-border-subtle hover:bg-indigo-500/40 transition-colors duration-200 w-1.5" />
+                        </>
+                    )}
 
-                    <ResizableHandle withHandle className="bg-border-subtle hover:bg-accent-blue transition-colors duration-200 w-1.5" />
+                    {/* Left panel B: submission preview — standard modes only */}
+                    {content.mode !== "intra_group" && (
+                        <>
+                            <ResizablePanel defaultSize={62} minSize={30}>
+                                <div className="h-full flex flex-col bg-surface-dark">
+                                    {previewUrl ? (
+                                        <>
+                                            <div className="shrink-0 h-9 flex items-center justify-between px-4 border-b border-border-strong bg-surface">
+                                                <span className="text-xs text-text-muted font-mono uppercase tracking-widest">
+                                                    Entrega del alumno
+                                                </span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-6 text-xs gap-1 text-text-muted hover:text-foreground"
+                                                    onClick={() => window.open(rawDriveUrl!, "_blank")}
+                                                >
+                                                    <ExternalLink className="size-3" /> Abrir en Drive
+                                                </Button>
+                                            </div>
+                                            <iframe
+                                                src={previewUrl}
+                                                className="flex-1 w-full border-none bg-white"
+                                                title="Entrega a evaluar"
+                                                allow="autoplay"
+                                            />
+                                        </>
+                                    ) : (
+                                        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center p-12">
+                                            <FileText className="size-12 text-text-muted/20" />
+                                            <p className="text-sm text-text-muted">
+                                                Este alumno no ha adjuntado ningún archivo.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </ResizablePanel>
+                            <ResizableHandle withHandle className="bg-border-subtle hover:bg-accent-blue transition-colors duration-200 w-1.5" />
+                        </>
+                    )}
 
                     {/* Right: rubric / questions + submit */}
-                    <ResizablePanel defaultSize={38} minSize={28}>
+                    <ResizablePanel
+                        defaultSize={
+                            content.mode === "intra_group"
+                                ? (allAssignments ? 72 : 100)
+                                : 38
+                        }
+                        minSize={28}
+                    >
                         <div className="h-full flex flex-col bg-surface">
                             <div className="flex-1 overflow-y-auto">
                                 <div className="p-6 space-y-6">
@@ -429,43 +515,54 @@ function PeerEvalModal({
                                     )}
 
                                     {/* Rubric mode */}
-                                    {evalMode === "rubric" && (
-                                        <div className="space-y-6">
-                                            <h3 className="text-xs font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
-                                                <ClipboardList className="size-3.5" /> Rúbrica de evaluación
-                                            </h3>
-                                            {rubric.map(criterion => (
-                                                <CriterionBlock
-                                                    key={criterion.id}
-                                                    criterion={criterion}
-                                                    selected={scores[criterion.id]}
-                                                    justification={answers[criterion.id] ?? ""}
-                                                    requireJustification={content.requireJustification}
-                                                    minLength={content.minJustificationLength ?? 0}
-                                                    onSelect={pts => setScores(p => ({ ...p, [criterion.id]: pts }))}
-                                                    onJustify={text => setAnswers(p => ({ ...p, [criterion.id]: text }))}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
+                                    {evalMode === "rubric" && (() => {
+                                        const prevScores = (assignment as any).eval_submission?.self_eval_rubric_scores ?? null;
+                                        const prevJustifications = (assignment as any).eval_submission?.self_eval_justifications ?? null;
+                                        return (
+                                            <div className="space-y-6">
+                                                <h3 className="text-xs font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
+                                                    <ClipboardList className="size-3.5" /> Rúbrica de evaluación
+                                                </h3>
+                                                {rubric.map(criterion => (
+                                                    <CriterionBlock
+                                                        key={criterion.id}
+                                                        criterion={criterion}
+                                                        selected={scores[criterion.id]}
+                                                        justification={answers[criterion.id] ?? ""}
+                                                        requireJustification={content.requireJustification}
+                                                        minLength={content.minJustificationLength ?? 0}
+                                                        prevScore={prevScores?.[criterion.id]}
+                                                        prevJustification={prevJustifications?.[criterion.id]}
+                                                        onSelect={pts => setScores(p => ({ ...p, [criterion.id]: pts }))}
+                                                        onJustify={text => setAnswers(p => ({ ...p, [criterion.id]: text }))}
+                                                    />
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* Questions mode */}
-                                    {evalMode === "questions" && (
-                                        <div className="space-y-6">
-                                            <h3 className="text-xs font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
-                                                <MessageSquare className="size-3.5" /> Preguntas de evaluación
-                                            </h3>
-                                            {questions.map((q, idx) => (
-                                                <QuestionBlock
-                                                    key={q.id}
-                                                    question={q}
-                                                    index={idx}
-                                                    answers={answers}
-                                                    onChange={(key, val) => setAnswers(p => ({ ...p, [key]: val }))}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
+                                    {evalMode === "questions" && (() => {
+                                        const prevAnswers = (assignment as any).eval_submission?.self_eval_justifications ?? null;
+                                        return (
+                                            <div className="space-y-6">
+                                                <h3 className="text-xs font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
+                                                    <MessageSquare className="size-3.5" /> Preguntas de evaluación
+                                                </h3>
+                                                {questions.map((q, idx) => (
+                                                    <QuestionBlock
+                                                        key={q.id}
+                                                        question={q}
+                                                        index={idx}
+                                                        answers={answers}
+                                                        prevAnswer={prevAnswers?.[q.id]}
+                                                        prevJustification={prevAnswers?.[`${q.id}:justification`]}
+                                                        onChange={(key, val) => setAnswers(p => ({ ...p, [key]: val }))}
+                                                    />
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* Q&A (live presentation mode) */}
                                     {content.livePresentationMode && (
@@ -486,26 +583,28 @@ function PeerEvalModal({
 
                             {/* Footer */}
                             <div className="shrink-0 px-6 py-4 border-t border-border-strong flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-1">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 w-8 p-0 border-border-strong text-text-muted hover:text-foreground"
-                                        onClick={onPrev}
-                                        disabled={!hasPrev}
-                                    >
-                                        <ChevronLeft className="size-4" />
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 w-8 p-0 border-border-strong text-text-muted hover:text-foreground"
-                                        onClick={onNext}
-                                        disabled={!hasNext}
-                                    >
-                                        <ChevronRight className="size-4" />
-                                    </Button>
-                                </div>
+                                {content.mode !== "intra_group" && (
+                                    <div className="flex items-center gap-1">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 border-border-strong text-text-muted hover:text-foreground"
+                                            onClick={onPrev}
+                                            disabled={!hasPrev}
+                                        >
+                                            <ChevronLeft className="size-4" />
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 border-border-strong text-text-muted hover:text-foreground"
+                                            onClick={onNext}
+                                            disabled={!hasNext}
+                                        >
+                                            <ChevronRight className="size-4" />
+                                        </Button>
+                                    </div>
+                                )}
                                 <Button
                                     onClick={handleSubmit}
                                     disabled={!canSubmit || isPending}
@@ -529,14 +628,19 @@ function QuestionBlock({
     question,
     index,
     answers,
+    prevAnswer,
+    prevJustification,
     onChange,
 }: {
     question: QuizQuestion;
     index: number;
     answers: Record<string, string>;
+    prevAnswer?: string;
+    prevJustification?: string;
     onChange: (key: string, val: string) => void;
 }) {
     const isLikert = question.type === "likert";
+    const isNumeric = question.type === "numeric";
     const scale = question.likertScale ?? 5;
     const labels = question.likertLabels ?? [];
 
@@ -551,7 +655,25 @@ function QuestionBlock({
                     <p className="text-xs text-text-muted mt-0.5">{question.explanation}</p>
                 )}
             </div>
-            {isLikert ? (
+            {isNumeric ? (
+                <div className="space-y-1">
+                    <div className="flex items-center gap-3">
+                        <input
+                            type="number"
+                            min={question.numericMin ?? 0}
+                            max={question.numericMax ?? 10}
+                            step="0.01"
+                            value={answers[question.id] ?? ""}
+                            onChange={(e) => onChange(question.id, e.target.value)}
+                            placeholder={`${question.numericMin ?? 0} – ${question.numericMax ?? 10}`}
+                            className="h-10 w-32 rounded-xl border border-border-strong bg-surface-dark px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                        <span className="text-xs text-text-muted">
+                            Rango: {question.numericMin ?? 0} – {question.numericMax ?? 10}
+                        </span>
+                    </div>
+                </div>
+            ) : isLikert ? (
                 <div className="space-y-2">
                     <div className={cn("grid gap-1.5", scale <= 5 ? "grid-cols-5" : "grid-cols-7")}>
                         {Array.from({ length: scale }, (_, i) => {
@@ -627,6 +749,27 @@ function QuestionBlock({
                     </div>
                 );
             })()}
+            {prevAnswer && (
+                <PrevAnswerInline answer={prevAnswer} justification={prevJustification} />
+            )}
+        </div>
+    );
+}
+
+// ─── Inline prev-answer accordion (shown below each question / criterion) ─────
+
+function PrevAnswerInline({ answer, justification }: { answer: string; justification?: string }) {
+    return (
+        <div className="mt-2 space-y-1.5">
+            <div className="flex items-start gap-2 px-4 py-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-medium">
+                <span className="shrink-0">Tu respuesta:</span>
+                <span className="font-normal opacity-80">{answer}</span>
+            </div>
+            {justification && (
+                <div className="px-4 py-2 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-indigo-300/70 text-xs italic">
+                    {justification}
+                </div>
+            )}
         </div>
     );
 }
@@ -634,16 +777,23 @@ function QuestionBlock({
 // ─── Criterion block ──────────────────────────────────────────────────────────
 
 function CriterionBlock({
-    criterion, selected, justification, requireJustification, minLength, onSelect, onJustify,
+    criterion, selected, justification, requireJustification, minLength,
+    prevScore, prevJustification,
+    onSelect, onJustify,
 }: {
     criterion: RubricCriteria;
     selected?: number;
     justification: string;
     requireJustification: boolean;
     minLength: number;
+    prevScore?: number;
+    prevJustification?: string;
     onSelect: (pts: number) => void;
     onJustify: (text: string) => void;
 }) {
+    const prevLevel = prevScore !== undefined ? criterion.levels.find(l => l.points === prevScore) : undefined;
+    const prevAnswerText = prevLevel ? `${prevLevel.label} — ${prevScore} pts` : prevScore !== undefined ? `${prevScore} pts` : undefined;
+
     return (
         <div className="space-y-3">
             <div>
@@ -699,6 +849,9 @@ function CriterionBlock({
                         </p>
                     )}
                 </div>
+            )}
+            {prevAnswerText !== undefined && (
+                <PrevAnswerInline answer={prevAnswerText} justification={prevJustification} />
             )}
         </div>
     );

@@ -112,7 +112,7 @@ export type QuizOption = {
 export type QuizQuestionType =
     | 'multiple_choice'
     | 'true_false'
-    | 'short_answer' | 'likert'
+    | 'short_answer' | 'likert' | 'numeric'
     | 'fill_in_the_blank_dropdown'
     | 'table_drag_drop'
     | 'matching_pairs'
@@ -226,7 +226,7 @@ export type QuizQuestion = {
     orderingItems?: QuizOrderingItem[];
     categories?: QuizCategory[];
     categoryItems?: QuizCategoryItem[];
-    points: number;           // default: 1
+    points: number;           // default: 1; for 'numeric' in peer_eval: grade weight (0 = no grade)
     explanation?: string;     // shown after submission if showCorrectAnswers
     poolId?: string;          // if set, question belongs to a pool; undefined = always shown
     // short_answer / likert specific
@@ -235,6 +235,9 @@ export type QuizQuestion = {
     // likert specific
     likertScale?: number;         // number of levels: 3, 5 (default), or 7
     likertLabels?: string[];      // labels per level, length must match likertScale
+    // numeric specific
+    numericMin?: number;          // minimum value (default 0)
+    numericMax?: number;          // maximum value (default 10)
 };
 
 export type QuizMode = 'builtin' | 'google_form';
