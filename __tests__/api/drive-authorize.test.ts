@@ -11,7 +11,7 @@ describe("GET /api/drive/authorize", () => {
     const { client } = new SupabaseMockBuilder().mockAuth(null).build();
     vi.mocked(createClient).mockResolvedValue(client as any);
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/drive/authorize"));
     const body = await response.json();
 
     expect(response.status).toBe(401);
@@ -25,7 +25,7 @@ describe("GET /api/drive/authorize", () => {
       .build();
     vi.mocked(createClient).mockResolvedValue(client as any);
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost/api/drive/authorize"));
     const body = await response.json();
 
     expect(response.status).toBe(403);
@@ -42,9 +42,9 @@ describe("GET /api/drive/authorize", () => {
     vi.mocked(createClient).mockResolvedValue(client as any);
     vi.mocked(getAuthorizeUrl).mockReturnValue(oauthUrl);
 
-    const response = await GET();
+    const response = await GET(new Request("https://aula-it.vercel.app/api/drive/authorize"));
 
-    expect(getAuthorizeUrl).toHaveBeenCalledWith("teacher-123");
+    expect(getAuthorizeUrl).toHaveBeenCalledWith("teacher-123", "https://aula-it.vercel.app");
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(oauthUrl);
   });

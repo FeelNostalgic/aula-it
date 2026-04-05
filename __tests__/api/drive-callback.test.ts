@@ -66,7 +66,7 @@ describe("GET /api/drive/callback", () => {
 
     const response = await GET(request);
 
-    expect(exchangeCodeForTokens).toHaveBeenCalledWith("good-code");
+    expect(exchangeCodeForTokens).toHaveBeenCalledWith("good-code", "http://localhost");
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toContain(
       "/dashboard?drive=connected"

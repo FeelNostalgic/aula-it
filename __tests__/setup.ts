@@ -8,7 +8,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = "mock-service-role-key";
 process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000";
 process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = "mock-google-client-id";
 process.env.GOOGLE_CLIENT_SECRET = "mock-google-client-secret";
-process.env.GOOGLE_REDIRECT_URI = "http://localhost:3000/auth/google/callback";
+process.env.GOOGLE_REDIRECT_URI = "http://localhost:3000/api/drive/callback";
 
 // ─── RedirectError ────────────────────────────────────────────────────────────
 

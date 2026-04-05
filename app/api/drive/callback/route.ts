@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const tokens = await exchangeCodeForTokens(code);
+        const tokens = await exchangeCodeForTokens(code, new URL(request.url).origin);
 
         if (!tokens.access_token || !tokens.refresh_token || !tokens.expiry_date) {
             return NextResponse.redirect(new URL("/dashboard?drive=error", request.url));

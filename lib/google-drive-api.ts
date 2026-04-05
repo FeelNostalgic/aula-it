@@ -1,17 +1,11 @@
 import { google } from "googleapis";
 import { extractGoogleFileId } from "@/lib/google-drive-urls";
 import { DRIVE_CONNECTION_STATUS, type DriveConnectionStatus } from "@/lib/drive-connection-status";
+import { createGoogleOAuth2Client, requireGoogleRedirectUri } from "@/lib/google-oauth";
 
-function createOAuth2Client() {
-    return new google.auth.OAuth2(
-        process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-        process.env.GOOGLE_CLIENT_SECRET!,
-        process.env.GOOGLE_REDIRECT_URI!
-    );
-}
-
-export function getAuthorizeUrl(teacherId: string): string {
-    const client = createOAuth2Client();
+export function getAuthorizeUrl(teacherId: string, origin?: string): string {
+    requireGoogleRedirectUri(origin);
+    const client = createGoogleOAuth2Client(origin);
     return client.generateAuthUrl({
         access_type: "offline",
         scope: ["https://www.googleapis.com/auth/drive"],
@@ -20,14 +14,15 @@ export function getAuthorizeUrl(teacherId: string): string {
     });
 }
 
-export async function exchangeCodeForTokens(code: string) {
-    const client = createOAuth2Client();
+export async function exchangeCodeForTokens(code: string, origin?: string) {
+    requireGoogleRedirectUri(origin);
+    const client = createGoogleOAuth2Client(origin);
     const { tokens } = await client.getToken(code);
     return tokens;
 }
 
 export function getDriveClient(refreshToken: string) {
-    const auth = createOAuth2Client();
+    const auth = createGoogleOAuth2Client();
     auth.setCredentials({ refresh_token: refreshToken });
     return google.drive({ version: "v3", auth });
 }
@@ -36,7 +31,7 @@ export async function getDriveConnectionStatus(refreshToken?: string | null): Pr
     if (!refreshToken) return DRIVE_CONNECTION_STATUS.DISCONNECTED;
 
     try {
-        const auth = createOAuth2Client();
+        const auth = createGoogleOAuth2Client();
         auth.setCredentials({ refresh_token: refreshToken });
         await auth.getAccessToken();
         return DRIVE_CONNECTION_STATUS.CONNECTED;
@@ -45,6 +40,7 @@ export async function getDriveConnectionStatus(refreshToken?: string | null): Pr
         if (message.includes("invalid_grant")) {
             return DRIVE_CONNECTION_STATUS.INVALID;
         }
+        console.error("[drive/status] unexpected oauth error", error);
         return DRIVE_CONNECTION_STATUS.INVALID;
     }
 }

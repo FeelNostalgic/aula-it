@@ -1,12 +1,4 @@
-import { google } from "googleapis";
-
-function createOAuth2Client() {
-    return new google.auth.OAuth2(
-        process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-        process.env.GOOGLE_CLIENT_SECRET!,
-        process.env.GOOGLE_REDIRECT_URI!
-    );
-}
+import { createGoogleOAuth2Client } from "@/lib/google-oauth";
 
 /**
  * Opens or closes a Google Form for new responses.
@@ -21,7 +13,7 @@ export async function setFormAcceptingResponses(
     formId: string,
     accepting: boolean
 ): Promise<void> {
-    const auth = createOAuth2Client();
+    const auth = createGoogleOAuth2Client();
     auth.setCredentials({ refresh_token: refreshToken });
     const { token } = await auth.getAccessToken();
     if (!token) throw new Error("No se pudo obtener token de acceso a Google.");

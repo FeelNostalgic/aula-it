@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { getAuthorizeUrl } from "@/lib/google-drive-api";
 
-export async function GET() {
+export async function GET(request: Request) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -20,6 +20,6 @@ export async function GET() {
         return NextResponse.json({ error: "Solo profesores pueden conectar Drive" }, { status: 403 });
     }
 
-    const url = getAuthorizeUrl(user.id);
+    const url = getAuthorizeUrl(user.id, new URL(request.url).origin);
     return NextResponse.redirect(url);
 }

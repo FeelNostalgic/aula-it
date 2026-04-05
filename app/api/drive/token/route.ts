@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
-import { google } from "googleapis";
+import { createGoogleOAuth2Client } from "@/lib/google-oauth";
 
 export async function GET() {
     const supabase = await createClient();
@@ -36,11 +36,7 @@ export async function GET() {
     }
 
     // Refresh token
-    const auth = new google.auth.OAuth2(
-        process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-        process.env.GOOGLE_CLIENT_SECRET!,
-        process.env.GOOGLE_REDIRECT_URI!
-    );
+    const auth = createGoogleOAuth2Client();
     auth.setCredentials({ refresh_token: tokenRow.refresh_token });
 
     try {
