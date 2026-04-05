@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
@@ -7,6 +7,7 @@ import { createMockUser, createMockSubmission } from "../helpers/fixtures";
 import type { SubmissionFile } from "@/types/activity";
 import {
   getMyPeerAssignments,
+  submitPeerEvaluation,
   submitDeliverable,
   submitFileUpload,
   submitFileUploadMulti,
@@ -28,6 +29,12 @@ const VALID_DOCS_URL = "https://docs.google.com/document/d/abc123/edit";
 const PAST_DATE = new Date(Date.now() - 86_400_000).toISOString(); // yesterday
 const FUTURE_DATE = new Date(Date.now() + 86_400_000).toISOString(); // tomorrow
 
+beforeEach(() => {
+  vi.resetAllMocks();
+  const { client: adminClient } = new SupabaseMockBuilder().build();
+  vi_createAdminClient.mockReturnValue(adminClient as any);
+});
+
 // ─── getMyPeerAssignments ─────────────────────────────────────────────────────
 
 describe("getMyPeerAssignments", () => {
@@ -48,6 +55,14 @@ describe("getMyPeerAssignments", () => {
         },
         error: null,
       })
+      .mockQuery("profiles", {
+        data: [{ id: "student-2", full_name: "Ada Lovelace" }],
+        error: null,
+      })
+      .build();
+
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockQuery("module_groups", { data: [], error: null })
       .mockQuery("peer_evaluation_assignments", {
         data: [
           {
@@ -70,14 +85,6 @@ describe("getMyPeerAssignments", () => {
         ],
         error: null,
       })
-      .mockQuery("profiles", {
-        data: [{ id: "student-2", full_name: "Ada Lovelace" }],
-        error: null,
-      })
-      .build();
-
-    const { client: adminClient } = new SupabaseMockBuilder()
-      .mockQuery("module_groups", { data: [], error: null })
       .build();
 
     vi_createClient.mockResolvedValue(serverClient as any);
@@ -93,6 +100,345 @@ describe("getMyPeerAssignments", () => {
         target_student: { full_name: "Ada Lovelace" },
       }),
     ]);
+  });
+
+  it("auto-generates group assignments for evaluateAllGroups and returns colored group targets", async () => {
+    const user = createMockUser();
+
+    function createChain<T>(response: { data: T; error: { message: string } | null; count?: number | null }) {
+      const chain: Record<string, unknown> = {};
+      const methods = ["select", "eq", "in", "not", "or", "order", "single", "maybeSingle"];
+
+      for (const method of methods) {
+        chain[method] = vi.fn().mockReturnValue(chain);
+      }
+
+      chain.then = (resolve: (value: typeof response) => void, reject?: (reason: unknown) => void) =>
+        Promise.resolve(response).then(resolve, reject);
+      chain.catch = (reject: (reason: unknown) => void) => Promise.resolve(response).catch(reject);
+      chain.finally = (onFinally: () => void) => Promise.resolve(response).finally(onFinally);
+
+      return chain as Promise<typeof response> & Record<string, unknown>;
+    }
+
+    const { client: serverClient } = new SupabaseMockBuilder()
+      .mockAuth(user)
+      .mockQuery("activity_steps", {
+        data: {
+          content: {
+            mode: "group",
+            evaluateAllGroups: true,
+          },
+          phase: {
+            activity: {
+              unit: {
+                module_id: "module-1",
+              },
+            },
+          },
+        },
+        error: null,
+      })
+      .build();
+
+    const insertSpy = vi.fn((_rows?: unknown) => ({
+      select: vi.fn((_cols?: unknown) => createChain({
+        data: [{ id: "generated-row" }],
+        error: null,
+      })),
+    }));
+
+    let peerAssignmentSelectCalls = 0;
+
+    const adminClient = {
+      from: vi.fn((table: string) => {
+        if (table === "module_groups") {
+          return {
+            select: vi.fn(() => createChain({
+              data: [{ id: "group-1" }, { id: "group-2" }],
+              error: null,
+            })),
+          };
+        }
+
+        if (table === "module_group_members") {
+          return {
+            select: vi.fn(() => createChain({
+              data: { group_id: "group-1" },
+              error: null,
+            })),
+          };
+        }
+
+        if (table === "activity_steps") {
+          return {
+            select: vi.fn(() => createChain({
+              data: {
+                content: { sourceStepId: "source-step-1" },
+                parent_step_id: null,
+              },
+              error: null,
+            })),
+          };
+        }
+
+        if (table === "activity_submissions") {
+          return {
+            select: vi.fn(() => createChain({
+              data: [
+                { id: "submission-1", group_id: "group-1" },
+                { id: "submission-2", group_id: "group-2" },
+              ],
+              error: null,
+            })),
+          };
+        }
+
+        if (table === "peer_evaluation_assignments") {
+          return {
+            select: vi.fn(() => {
+              peerAssignmentSelectCalls += 1;
+              if (peerAssignmentSelectCalls === 1) {
+                return createChain({
+                  data: null,
+                  error: null,
+                  count: 0,
+                });
+              }
+
+              return createChain({
+                data: [
+                  {
+                    id: "assignment-1",
+                    step_id: STEP_ID,
+                    evaluator_id: null,
+                    evaluator_group_id: "group-1",
+                    target_submission_id: "submission-2",
+                    target_student_id: null,
+                    eval_submission_id: null,
+                    eval_submission: null,
+                    target_submission: {
+                      id: "submission-2",
+                      drive_file_url: null,
+                      student_id: null,
+                      group_id: "group-2",
+                      student: null,
+                      group: { name: "Equipo Beta", color: "#00AAFF" },
+                    },
+                  },
+                ],
+                error: null,
+              });
+            }),
+            insert: insertSpy,
+          };
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+
+    vi_createClient.mockResolvedValue(serverClient as any);
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await getMyPeerAssignments(STEP_ID);
+
+    expect(insertSpy).toHaveBeenCalledWith([
+      {
+        step_id: STEP_ID,
+        evaluator_group_id: "group-1",
+        target_submission_id: "submission-2",
+      },
+      {
+        step_id: STEP_ID,
+        evaluator_group_id: "group-2",
+        target_submission_id: "submission-1",
+      },
+    ]);
+    expect(result.assignments).toEqual([
+      expect.objectContaining({
+        id: "assignment-1",
+        evaluator_group_id: "group-1",
+        target_submission: expect.objectContaining({
+          group: { name: "Equipo Beta", color: "#00AAFF" },
+        }),
+      }),
+    ]);
+  });
+
+  it("preserves live presentation notes stored in eval_submission.files", async () => {
+    const user = createMockUser();
+
+    const { client: serverClient } = new SupabaseMockBuilder()
+      .mockAuth(user)
+      .mockQuery("activity_steps", {
+        data: {
+          content: {
+            mode: "individual",
+          },
+          phase: {
+            activity: {
+              unit: {
+                module_id: "module-1",
+              },
+            },
+          },
+        },
+        error: null,
+      })
+      .mockQuery("profiles", {
+        data: [{ id: "student-2", full_name: "Ada Lovelace" }],
+        error: null,
+      })
+      .build();
+
+    const { client: adminClient } = new SupabaseMockBuilder()
+      .mockQuery("module_groups", { data: [], error: null })
+      .mockQuery("peer_evaluation_assignments", {
+        data: [
+          {
+            id: "assignment-1",
+            step_id: STEP_ID,
+            evaluator_id: user.id,
+            evaluator_group_id: null,
+            target_submission_id: "submission-1",
+            target_student_id: "student-2",
+            eval_submission_id: "eval-sub-1",
+            eval_submission: {
+              self_eval_rubric_scores: { criterion_1: 4 },
+              self_eval_justifications: { criterion_1: "Buena explicación" },
+              files: [{ qaNotes: "Preguntó por la API y respondió bien" }],
+            },
+            target_submission: {
+              id: "submission-1",
+              drive_file_url: null,
+              student_id: "student-2",
+              group_id: null,
+              student: null,
+              group: null,
+            },
+          },
+        ],
+        error: null,
+      })
+      .build();
+
+    vi_createClient.mockResolvedValue(serverClient as any);
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await getMyPeerAssignments(STEP_ID);
+
+    expect(result.assignments).toEqual([
+      expect.objectContaining({
+        id: "assignment-1",
+        eval_submission: expect.objectContaining({
+          files: [{ qaNotes: "Preguntó por la API y respondió bien" }],
+        }),
+      }),
+    ]);
+  });
+});
+
+describe("submitPeerEvaluation", () => {
+  it("stores live presentation notes in submission files", async () => {
+    const user = createMockUser();
+
+    function createChain<T>(response: { data: T; error: { message: string } | null }) {
+      const chain: Record<string, unknown> = {};
+      const methods = ["select", "eq", "single"];
+
+      for (const method of methods) {
+        chain[method] = vi.fn().mockReturnValue(chain);
+      }
+
+      chain.then = (resolve: (value: typeof response) => void, reject?: (reason: unknown) => void) =>
+        Promise.resolve(response).then(resolve, reject);
+      chain.catch = (reject: (reason: unknown) => void) => Promise.resolve(response).catch(reject);
+      chain.finally = (onFinally: () => void) => Promise.resolve(response).finally(onFinally);
+
+      return chain as Promise<typeof response> & Record<string, unknown>;
+    }
+
+    const serverClient = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user }, error: null }),
+      },
+      from: vi.fn((table: string) => {
+        if (table === "peer_evaluation_assignments") {
+          return {
+            select: vi.fn(() => createChain({
+              data: {
+                id: "assignment-1",
+                step_id: STEP_ID,
+                evaluator_id: user.id,
+                evaluator_group_id: null,
+                target_submission_id: "submission-1",
+                eval_submission_id: null,
+              },
+              error: null,
+            })),
+          };
+        }
+
+        throw new Error(`Unexpected server table: ${table}`);
+      }),
+    };
+
+    const upsertSpy = vi.fn((_payload?: unknown, _opts?: unknown) => ({
+      select: vi.fn(() => createChain({
+        data: { id: "eval-sub-1" },
+        error: null,
+      })),
+    }));
+
+    const updateSpy = vi.fn((_payload?: unknown) => ({
+      eq: vi.fn(() => createChain({
+        data: null,
+        error: null,
+      })),
+    }));
+
+    const adminClient = {
+      from: vi.fn((table: string) => {
+        if (table === "activity_submissions") {
+          return {
+            upsert: upsertSpy,
+          };
+        }
+
+        if (table === "peer_evaluation_assignments") {
+          return {
+            update: updateSpy,
+          };
+        }
+
+        throw new Error(`Unexpected admin table: ${table}`);
+      }),
+    };
+
+    vi_createClient.mockResolvedValue(serverClient as any);
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    const result = await submitPeerEvaluation(
+      "assignment-1",
+      ACTIVITY_ID,
+      { criterion_1: 4 },
+      { criterion_1: "Buena defensa" },
+      "Preguntó por la autenticación y respondió con claridad"
+    );
+
+    expect(result).toEqual({});
+    expect(upsertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        student_id: user.id,
+        step_id: STEP_ID,
+        peer_assignment_id: "assignment-1",
+        files: [{ qaNotes: "Preguntó por la autenticación y respondió con claridad" }],
+      }),
+      { onConflict: "peer_assignment_id" }
+    );
+    expect(updateSpy).toHaveBeenCalledWith({ eval_submission_id: "eval-sub-1" });
+    expect(vi_revalidatePath).toHaveBeenCalledWith(`/activities/${ACTIVITY_ID}`);
   });
 });
 

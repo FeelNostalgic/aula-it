@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { extractGoogleFileId } from "@/lib/google-drive-urls";
+import { DRIVE_CONNECTION_STATUS, type DriveConnectionStatus } from "@/lib/drive-connection-status";
 
 function createOAuth2Client() {
     return new google.auth.OAuth2(
@@ -29,6 +30,23 @@ export function getDriveClient(refreshToken: string) {
     const auth = createOAuth2Client();
     auth.setCredentials({ refresh_token: refreshToken });
     return google.drive({ version: "v3", auth });
+}
+
+export async function getDriveConnectionStatus(refreshToken?: string | null): Promise<DriveConnectionStatus> {
+    if (!refreshToken) return DRIVE_CONNECTION_STATUS.DISCONNECTED;
+
+    try {
+        const auth = createOAuth2Client();
+        auth.setCredentials({ refresh_token: refreshToken });
+        await auth.getAccessToken();
+        return DRIVE_CONNECTION_STATUS.CONNECTED;
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        if (message.includes("invalid_grant")) {
+            return DRIVE_CONNECTION_STATUS.INVALID;
+        }
+        return DRIVE_CONNECTION_STATUS.INVALID;
+    }
 }
 
 export { extractGoogleFileId as extractFileIdFromUrl };

@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { SettingsClient } from "./settings-client";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { BreadcrumbProvider } from "@/components/dashboard/layout/breadcrumb-context";
+import { DRIVE_CONNECTION_STATUS, type DriveConnectionStatus } from "@/lib/drive-connection-status";
+import { getDriveConnectionStatus } from "@/lib/google-drive-api";
 
 export default async function SettingsPage() {
     const supabase = await createClient();
@@ -22,15 +24,15 @@ export default async function SettingsPage() {
     const isTeacher = profile?.role === "teacher";
 
     // Check Drive connection status for teachers
-    let driveConnected = false;
+    let driveStatus: DriveConnectionStatus = DRIVE_CONNECTION_STATUS.DISCONNECTED;
     if (isTeacher) {
         const admin = createAdminClient();
         const { data: tokenRow } = await admin
             .from("teacher_drive_tokens")
-            .select("id")
+            .select("refresh_token")
             .eq("teacher_id", user.id)
             .single();
-        driveConnected = !!tokenRow;
+        driveStatus = await getDriveConnectionStatus(tokenRow?.refresh_token ?? null);
     }
 
     return (
@@ -43,7 +45,7 @@ export default async function SettingsPage() {
                 userAvatar={userAvatar}
                 userId={user.id}
                 isTeacher={isTeacher}
-                driveConnected={driveConnected}
+                driveStatus={driveStatus}
             />
         </BreadcrumbProvider>
     );

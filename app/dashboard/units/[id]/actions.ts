@@ -2383,7 +2383,7 @@ export async function generatePeerAssignments(
         return { generated: rows.length };
     }
 
-    // Group mode: each group evaluates all other groups
+    // Group mode
     const { data: groups } = await admin
         .from("module_groups")
         .select("id")
@@ -2404,17 +2404,43 @@ export async function generatePeerAssignments(
         (submissions ?? []).map((s: any) => [s.group_id, s.id])
     );
 
+    const evaluateAllGroups = content?.evaluateAllGroups ?? true;
     const rows: { step_id: string; evaluator_group_id: string; target_submission_id: string }[] = [];
-    for (const evaluatorGroup of groups) {
-        for (const targetGroup of groups) {
-            if (evaluatorGroup.id === targetGroup.id) continue;
-            const targetSubId = subByGroup.get(targetGroup.id);
-            if (!targetSubId) continue;
-            rows.push({
-                step_id: stepId,
-                evaluator_group_id: evaluatorGroup.id,
-                target_submission_id: targetSubId,
-            });
+
+    if (evaluateAllGroups) {
+        for (const evaluatorGroup of groups) {
+            for (const targetGroup of groups) {
+                if (evaluatorGroup.id === targetGroup.id) continue;
+                const targetSubId = subByGroup.get(targetGroup.id);
+                if (!targetSubId) continue;
+                rows.push({
+                    step_id: stepId,
+                    evaluator_group_id: evaluatorGroup.id,
+                    target_submission_id: targetSubId,
+                });
+            }
+        }
+    } else {
+        const requestedGroupsPerGroup = Math.max(1, Number(content?.groupsPerGroup ?? 1));
+        const groupsPerGroup = Math.min(requestedGroupsPerGroup, Math.max(groups.length - 1, 1));
+
+        for (let i = 0; i < groups.length; i++) {
+            let assigned = 0;
+            let offset = 1;
+
+            while (assigned < groupsPerGroup && offset < groups.length) {
+                const targetGroup = groups[(i + offset) % groups.length];
+                const targetSubId = subByGroup.get(targetGroup.id);
+                if (targetSubId) {
+                    rows.push({
+                        step_id: stepId,
+                        evaluator_group_id: groups[i].id,
+                        target_submission_id: targetSubId,
+                    });
+                    assigned++;
+                }
+                offset++;
+            }
         }
     }
 
@@ -2435,10 +2461,13 @@ export async function getPeerEvaluationResults(stepId: string, moduleId?: string
     peerFeedbackVisibleToStudents?: boolean;
     anonymousEvaluation?: boolean;
     mode?: string;
+    livePresentationMode?: boolean;
     evalMode?: string;
     rubric?: any[];
     evalQuestions?: any[];
     groupByStudentId?: Record<string, { id: string; name: string; color?: string | null }>;
+    allGroups?: { id: string; name: string; color?: string | null }[];
+    evaluateAllGroups?: boolean;
     error?: string;
 }> {
     const auth = await requireTeacher();
@@ -2456,7 +2485,7 @@ export async function getPeerEvaluationResults(stepId: string, moduleId?: string
                 id, evaluator_id, evaluator_group_id, target_submission_id, target_student_id, eval_submission_id,
                 reliability_score, is_outlier, calibration_score, validated_numeric_answers,
                 evaluator:profiles!evaluator_id(id, full_name),
-                evaluator_group:module_groups!evaluator_group_id(id, name),
+                evaluator_group:module_groups!evaluator_group_id(id, name, color),
                 target_submission:activity_submissions!target_submission_id(
                     id, student_id, group_id, score, peer_eval_override_score,
                     student:profiles!student_id(full_name),
@@ -2476,6 +2505,7 @@ export async function getPeerEvaluationResults(stepId: string, moduleId?: string
 
     let assignments = data ?? [];
     let groupByStudentId: Record<string, { id: string; name: string; color?: string | null }> = {};
+    let allGroups: { id: string; name: string; color?: string | null }[] = [];
 
     if (mode === 'intra_group' && assignments.length > 0) {
         // Resolve target_student names
@@ -2497,7 +2527,7 @@ export async function getPeerEvaluationResults(stepId: string, moduleId?: string
         }
     }
 
-    if (moduleId && mode === 'intra_group') {
+    if (moduleId && (mode === 'intra_group' || mode === 'group')) {
         const { data: groups } = await auth.admin
             .from("module_groups")
             .select("id")
@@ -2518,15 +2548,27 @@ export async function getPeerEvaluationResults(stepId: string, moduleId?: string
         }
     }
 
+    if (moduleId && mode === 'group') {
+        const { data: moduleGroupsForTable } = await auth.admin
+            .from("module_groups")
+            .select("id, name, color")
+            .eq("module_id", moduleId)
+            .eq("status", "active");
+        allGroups = (moduleGroupsForTable ?? []) as { id: string; name: string; color?: string | null }[];
+    }
+
     return {
         assignments,
         peerFeedbackVisibleToStudents: content?.peerFeedbackVisibleToStudents ?? false,
         anonymousEvaluation: content?.anonymousEvaluation ?? false,
         mode,
+        livePresentationMode: content?.livePresentationMode ?? false,
         evalMode: content?.evalMode ?? "rubric",
         rubric: content?.rubric ?? [],
         evalQuestions: content?.questions ?? [],
         groupByStudentId,
+        allGroups,
+        evaluateAllGroups: content?.evaluateAllGroups ?? true,
     };
 }
 
@@ -2560,6 +2602,30 @@ export async function ensureIntraGroupAssignments(
 
     const sourceStepId = ((step as any)?.parent_step_id ?? content?.sourceStepId) as string | null ?? null;
     return _insertIntraGroupAssignments(stepId, moduleId, sourceStepId, admin);
+}
+
+export async function ensureGroupAssignments(
+    stepId: string,
+    moduleId: string,
+): Promise<{ error?: string; generated?: number }> {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const { data: step } = await auth.admin
+        .from("activity_steps")
+        .select("content")
+        .eq("id", stepId)
+        .single();
+    const content = step?.content as any;
+    if (content?.mode !== "group" || !content?.evaluateAllGroups) return {};
+
+    const { count } = await auth.admin
+        .from("peer_evaluation_assignments")
+        .select("id", { count: "exact", head: true })
+        .eq("step_id", stepId);
+    if ((count ?? 0) > 0) return {};
+
+    return generatePeerAssignments(stepId, moduleId);
 }
 
 /**

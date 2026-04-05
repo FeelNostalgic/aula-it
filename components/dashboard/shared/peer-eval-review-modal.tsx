@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { setAssignmentOutlier, setQuestionValidation } from "@/app/dashboard/units/[id]/actions";
 import { RubricCriteria, QuizQuestion } from "@/types/activity";
+import { extractPeerEvaluationLiveNotes } from "@/lib/peer-evaluation-live-notes";
 import { toast } from "sonner";
-import { CheckCircle2, Clock, AlertTriangle, ChevronLeft, ChevronRight, ShieldCheck, ShieldOff } from "lucide-react";
+import { CheckCircle2, Clock, AlertTriangle, ChevronLeft, ChevronRight, ShieldCheck, ShieldOff, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type EvalMode = "rubric" | "questions";
@@ -31,6 +32,7 @@ interface PeerEvalReviewModalProps {
     onClose: () => void;
     evaluatorName: string;
     assignments: AssignmentForReview[];
+    showLivePresentationNotes?: boolean;
     evalMode: EvalMode;
     rubric: RubricCriteria[];
     evalQuestions: QuizQuestion[];
@@ -43,6 +45,7 @@ export function PeerEvalReviewModal({
     onClose,
     evaluatorName,
     assignments,
+    showLivePresentationNotes = false,
     evalMode,
     rubric,
     evalQuestions,
@@ -237,11 +240,15 @@ export function PeerEvalReviewModal({
                                             rubric={rubric}
                                             scores={selected.evalSubmission.self_eval_rubric_scores ?? {}}
                                             justifications={selected.evalSubmission.self_eval_justifications ?? {}}
+                                            qaNotes={extractPeerEvaluationLiveNotes(selected.evalSubmission.files)}
+                                            showLivePresentationNotes={showLivePresentationNotes}
                                         />
                                     ) : (
                                         <QuestionsAnswersPanel
                                             questions={evalQuestions}
                                             answers={selected.evalSubmission.self_eval_justifications ?? {}}
+                                            qaNotes={extractPeerEvaluationLiveNotes(selected.evalSubmission.files)}
+                                            showLivePresentationNotes={showLivePresentationNotes}
                                             validatedNumericAnswers={selected.validatedNumericAnswers ?? {}}
                                             onValidateQuestion={handleValidateQuestion}
                                             validatingQuestion={validatingQuestion}
@@ -267,10 +274,14 @@ function RubricAnswersPanel({
     rubric,
     scores,
     justifications,
+    qaNotes,
+    showLivePresentationNotes,
 }: {
     rubric: RubricCriteria[];
     scores: Record<string, number>;
     justifications: Record<string, string>;
+    qaNotes: string | null;
+    showLivePresentationNotes: boolean;
 }) {
     if (!rubric.length) {
         return (
@@ -334,6 +345,10 @@ function RubricAnswersPanel({
                     </div>
                 );
             })}
+            <LivePresentationNotesBlock
+                qaNotes={qaNotes}
+                showLivePresentationNotes={showLivePresentationNotes}
+            />
         </div>
     );
 }
@@ -343,12 +358,16 @@ function RubricAnswersPanel({
 function QuestionsAnswersPanel({
     questions,
     answers,
+    qaNotes,
+    showLivePresentationNotes,
     validatedNumericAnswers,
     onValidateQuestion,
     validatingQuestion,
 }: {
     questions: QuizQuestion[];
     answers: Record<string, string>;
+    qaNotes: string | null;
+    showLivePresentationNotes: boolean;
     validatedNumericAnswers: Record<string, boolean>;
     onValidateQuestion?: (questionId: string, currentlyValidated: boolean) => void;
     validatingQuestion?: string | null;
@@ -435,6 +454,36 @@ function QuestionsAnswersPanel({
                     </div>
                 );
             })}
+            <LivePresentationNotesBlock
+                qaNotes={qaNotes}
+                showLivePresentationNotes={showLivePresentationNotes}
+            />
+        </div>
+    );
+}
+
+function LivePresentationNotesBlock({
+    qaNotes,
+    showLivePresentationNotes,
+}: {
+    qaNotes: string | null;
+    showLivePresentationNotes: boolean;
+}) {
+    if (!showLivePresentationNotes) {
+        return null;
+    }
+
+    return (
+        <div className="space-y-2 rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4">
+            <div className="flex items-center gap-2">
+                <MessageSquare className="size-4 text-indigo-400" />
+                <p className="text-xs font-black uppercase tracking-wider text-indigo-300">Sesión de preguntas</p>
+            </div>
+            {qaNotes ? (
+                <p className="text-sm leading-relaxed text-foreground/85 whitespace-pre-wrap">{qaNotes}</p>
+            ) : (
+                <p className="text-xs italic text-text-muted">Sin observaciones enviadas.</p>
+            )}
         </div>
     );
 }

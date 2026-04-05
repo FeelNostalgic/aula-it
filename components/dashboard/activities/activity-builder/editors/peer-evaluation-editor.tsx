@@ -454,6 +454,20 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                     value={!!content.evaluateAllGroups}
                                     onChange={(v) => save({ ...content, evaluateAllGroups: v })}
                                 />
+                                {!content.evaluateAllGroups && (
+                                    <div className="flex items-center justify-between gap-4 pl-4 border-l-2 border-border/30">
+                                        <div>
+                                            <p className="text-sm text-foreground font-medium">Grupos por grupo</p>
+                                            <p className="text-xs text-text-muted mt-0.5">Cuántos grupos evalúa cada grupo.</p>
+                                        </div>
+                                        <input
+                                            type="number" min={1} max={20}
+                                            value={content.groupsPerGroup ?? 1}
+                                            onChange={(e) => save({ ...content, groupsPerGroup: Number(e.target.value) })}
+                                            className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
+                                        />
+                                    </div>
+                                )}
                                 <Toggle
                                     label="Modo individual dentro del grupo"
                                     description="Cada miembro envía su propia evaluación (en lugar de una por grupo)."
@@ -598,7 +612,16 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                     )}
 
                     {/* Gestión — generate assignments (hidden for intra_group — auto-generated) */}
-                    {moduleId && content.mode !== 'intra_group' && (
+                    {content.mode === 'group' && content.evaluateAllGroups && (
+                        <div className="rounded-xl border border-accent-blue/20 bg-accent-blue/5 px-5 py-4">
+                            <p className="text-sm font-semibold text-accent-blue">Asignaciones automáticas</p>
+                            <p className="text-xs text-text-muted mt-1">
+                                Las asignaciones se generan automáticamente cuando los grupos acceden a la actividad.
+                            </p>
+                        </div>
+                    )}
+
+                    {moduleId && content.mode !== 'intra_group' && !(content.mode === 'group' && content.evaluateAllGroups) && (
                         <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
                             <div className="px-5 py-2.5 border-b border-white/5 bg-white/2 flex items-center justify-between gap-2">
                                 <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Gestión</span>

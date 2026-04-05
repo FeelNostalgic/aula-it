@@ -7,6 +7,7 @@ import { updateProfile, disconnectDrive } from "./actions";
 import { toast } from "sonner";
 import {
     ArrowLeft,
+    AlertTriangle,
     CheckCircle2,
     HardDrive,
     Mail,
@@ -43,6 +44,7 @@ import { Separator } from "@/components/ui/separator";
 import { UserNav } from "@/components/dashboard/layout/user-nav";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
+import { DRIVE_CONNECTION_STATUS, type DriveConnectionStatus } from "@/lib/drive-connection-status";
 
 interface SettingsClientProps {
     userEmail: string;
@@ -52,7 +54,7 @@ interface SettingsClientProps {
     userAvatar: string;
     userId: string;
     isTeacher: boolean;
-    driveConnected: boolean;
+    driveStatus: DriveConnectionStatus;
 }
 
 export function SettingsClient({
@@ -63,14 +65,14 @@ export function SettingsClient({
     userAvatar,
     userId,
     isTeacher,
-    driveConnected,
+    driveStatus,
 }: SettingsClientProps) {
     const [fullName, setFullName] = useState(initialFullName);
     const [googleEmail, setGoogleEmail] = useState(initialGoogleEmail);
     const [isPrivate, setIsPrivate] = useState(initialIsPrivate);
     const isClassroomStudent = userEmail.endsWith("@aula.local");
     const [isPending, startTransition] = useTransition();
-    const [isDriveConnected, setIsDriveConnected] = useState(driveConnected);
+    const [currentDriveStatus, setCurrentDriveStatus] = useState(driveStatus);
     const [isDisconnecting, startDisconnect] = useTransition();
     const { setSegments } = useBreadcrumb();
     const supabase = createClient();
@@ -112,6 +114,9 @@ export function SettingsClient({
         { name: "Servicios Cloud", icon: Server, progress: 0, unlocked: false },
     ];
 
+    const isDriveConnected = currentDriveStatus === DRIVE_CONNECTION_STATUS.CONNECTED;
+    const isDriveInvalid = currentDriveStatus === DRIVE_CONNECTION_STATUS.INVALID;
+
     return (
         <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
             {/* Nav / Header Táctica (Status Bar) */}
@@ -142,6 +147,7 @@ export function SettingsClient({
                         isTeacher={isTeacher}
                         userId={userId}
                         userAvatar={userAvatar}
+                        driveStatus={isTeacher ? currentDriveStatus : undefined}
                     />
                 </div>
             </header>
@@ -408,7 +414,7 @@ export function SettingsClient({
                                                                     toast.error(result.error);
                                                                 } else {
                                                                     toast.success("Drive desconectado.");
-                                                                    setIsDriveConnected(false);
+                                                                    setCurrentDriveStatus(DRIVE_CONNECTION_STATUS.DISCONNECTED);
                                                                 }
                                                             });
                                                         }}
@@ -416,6 +422,47 @@ export function SettingsClient({
                                                     >
                                                         {isDisconnecting ? "Desconectando..." : "Desconectar"}
                                                     </Button>
+                                                </div>
+                                            ) : isDriveInvalid ? (
+                                                <div className="space-y-4 bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl">
+                                                    <div className="flex items-start gap-3 text-amber-400 font-mono text-xs font-bold">
+                                                        <div className="size-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
+                                                            <AlertTriangle className="size-4" />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <p>TOKEN DE GOOGLE DRIVE INVÁLIDO</p>
+                                                            <p className="text-[11px] font-normal text-amber-200/80 leading-relaxed normal-case">
+                                                                La conexión existe en base de datos, pero Google ya no acepta el token. Reconecta Drive para volver a clonar y subir archivos.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center justify-end gap-3">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            disabled={isDisconnecting}
+                                                            onClick={() => {
+                                                                startDisconnect(async () => {
+                                                                    const result = await disconnectDrive();
+                                                                    if (result.error) {
+                                                                        toast.error(result.error);
+                                                                    } else {
+                                                                        toast.success("Token inválido eliminado.");
+                                                                        setCurrentDriveStatus(DRIVE_CONNECTION_STATUS.DISCONNECTED);
+                                                                    }
+                                                                });
+                                                            }}
+                                                            className="border-red-500/30 text-red-400 hover:bg-red-500/10 font-mono text-[10px] uppercase shrink-0"
+                                                        >
+                                                            {isDisconnecting ? "Limpiando..." : "Eliminar conexión rota"}
+                                                        </Button>
+                                                        <a href="/api/drive/authorize" className="block">
+                                                            <Button variant="outline" className="gap-2 border-amber-500/40 text-amber-300 hover:bg-amber-500/10 font-mono text-[10px] tracking-widest uppercase">
+                                                                <HardDrive className="size-4" />
+                                                                Reconectar Drive
+                                                            </Button>
+                                                        </a>
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 <a href="/api/drive/authorize" className="block">

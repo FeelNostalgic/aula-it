@@ -90,6 +90,7 @@ vi.mock("@/lib/google-drive-api", async (importOriginal) => {
     getAuthorizeUrl: vi.fn(),
     exchangeCodeForTokens: vi.fn(),
     getDriveClient: vi.fn(),
+    getDriveConnectionStatus: vi.fn(),
     extractFileIdFromUrl: vi.fn(),
     copyFile: vi.fn(),
     shareFile: vi.fn(),

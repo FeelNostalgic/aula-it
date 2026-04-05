@@ -416,4 +416,50 @@ describe("POST /api/drive/upload", () => {
     const activityFolderCall = createCalls[3]; // root(0), module(1), unit(2), activity(3)
     expect(activityFolderCall[0].requestBody.name).toBe("TCP-IP");
   });
+
+  it("returns JSON 500 instead of an empty response when an unexpected error occurs", async () => {
+    const user = createMockUser();
+    const { client: userClient } = new SupabaseMockBuilder().mockAuth(user).build();
+    vi.mocked(createClient).mockResolvedValue(userClient as any);
+
+    const adminClient = makeAdminClient({
+      stepConfig: { title: "Upload Step", content: { allowedTypes: ["pdf"], maxFileSizeMb: 10, is_group_submission: true }, due_date: null },
+      teacherId: user.id,
+    });
+    vi.mocked(createAdminClient).mockReturnValue(adminClient as any);
+    vi.mocked(getDriveClient).mockImplementation(() => {
+      throw new Error("boom");
+    });
+
+    const file = new File(["pdf-content"], "report.pdf", { type: "application/pdf" });
+    const response = await POST(makeUploadRequest({ file, stepId: "step-1" }));
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({ error: "boom" });
+  });
+
+  it("maps invalid_grant to a reconnect-drive message", async () => {
+    const user = createMockUser();
+    const { client: userClient } = new SupabaseMockBuilder().mockAuth(user).build();
+    vi.mocked(createClient).mockResolvedValue(userClient as any);
+
+    const adminClient = makeAdminClient({
+      stepConfig: { title: "Upload Step", content: { allowedTypes: ["pdf"], maxFileSizeMb: 10, is_group_submission: true }, due_date: null },
+      teacherId: user.id,
+    });
+    vi.mocked(createAdminClient).mockReturnValue(adminClient as any);
+    vi.mocked(getDriveClient).mockImplementation(() => {
+      throw new Error("invalid_grant");
+    });
+
+    const file = new File(["pdf-content"], "report.pdf", { type: "application/pdf" });
+    const response = await POST(makeUploadRequest({ file, stepId: "step-1" }));
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({
+      error: "La conexión de Google Drive del profesor ha caducado o fue revocada. Debe reconectarla en Configuración.",
+    });
+  });
 });

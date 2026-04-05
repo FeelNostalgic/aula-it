@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { ActivitySubmission, QuizContent, QuizStructuredAnswers, SubmissionFile, QuizAttempt } from "@/types/activity";
+import { buildPeerEvaluationLiveNoteFiles } from "@/lib/peer-evaluation-live-notes";
 import { selectQuestionsForAttempt } from "@/lib/quiz-pool-selection";
 import { scoreQuizAttempt } from "@/lib/quiz-core";
 
@@ -581,6 +582,7 @@ export type PeerAssignmentWithTarget = {
     eval_submission?: {
         self_eval_rubric_scores: Record<string, number> | null;
         self_eval_justifications: Record<string, string> | null;
+        files: Record<string, unknown>[] | null;
     } | null;
     target_submission: {
         id: string;
@@ -588,7 +590,7 @@ export type PeerAssignmentWithTarget = {
         student_id: string | null;
         group_id: string | null;
         student?: { full_name: string | null } | null;
-        group?: { name: string } | null;
+        group?: { name: string; color?: string | null } | null;
     } | null;
     target_student?: { full_name: string | null } | null;  // for intra_group mode
 };
@@ -602,6 +604,55 @@ interface PeerAssignmentRow {
     target_student_id: string | null;
     eval_submission_id: string | null;
     target_submission: PeerAssignmentWithTarget["target_submission"];
+}
+
+async function _insertGroupAllAssignments(
+    stepId: string,
+    moduleId: string,
+    admin: ReturnType<typeof createAdminClient>,
+): Promise<void> {
+    const { data: step } = await admin
+        .from("activity_steps")
+        .select("content, parent_step_id")
+        .eq("id", stepId)
+        .single();
+    const content = step?.content as Record<string, unknown> | null;
+    const sourceStepId = ((step as { parent_step_id?: string | null } | null)?.parent_step_id
+        ?? content?.sourceStepId) as string | undefined;
+    if (!sourceStepId) return;
+
+    const { data: groups } = await admin
+        .from("module_groups")
+        .select("id")
+        .eq("module_id", moduleId)
+        .eq("status", "active");
+    const { data: submissions } = await admin
+        .from("activity_submissions")
+        .select("id, group_id")
+        .eq("step_id", sourceStepId)
+        .not("group_id", "is", null);
+
+    const subByGroup = new Map<string, string>(
+        (submissions ?? []).map((submission: any) => [submission.group_id as string, submission.id as string])
+    );
+    const rows: { step_id: string; evaluator_group_id: string; target_submission_id: string }[] = [];
+
+    for (const evaluatorGroup of groups ?? []) {
+        for (const targetGroup of groups ?? []) {
+            if (evaluatorGroup.id === targetGroup.id) continue;
+            const targetSubmissionId = subByGroup.get(targetGroup.id);
+            if (!targetSubmissionId) continue;
+            rows.push({
+                step_id: stepId,
+                evaluator_group_id: evaluatorGroup.id,
+                target_submission_id: targetSubmissionId,
+            });
+        }
+    }
+
+    if (rows.length > 0) {
+        await admin.from("peer_evaluation_assignments").insert(rows).select("id");
+    }
 }
 
 export async function getMyPeerAssignments(
@@ -678,7 +729,7 @@ export async function getMyPeerAssignments(
             .from("peer_evaluation_assignments")
             .select(`
                 id, step_id, evaluator_id, evaluator_group_id, target_submission_id, target_student_id, eval_submission_id,
-                eval_submission:activity_submissions!eval_submission_id(self_eval_rubric_scores, self_eval_justifications)
+                eval_submission:activity_submissions!eval_submission_id(self_eval_rubric_scores, self_eval_justifications, files)
             `)
             .eq("step_id", stepId)
             .eq("evaluator_id", user.id)
@@ -710,14 +761,14 @@ export async function getMyPeerAssignments(
         }
 
         // Build result from group member list — only include members with a real assignment row
-        const intraAssignments: PeerAssignmentWithTarget[] = groupMembers
-            .map((member: any) => {
+        const intraAssignments = groupMembers
+            .map((member: any): PeerAssignmentWithTarget | null => {
                 const a = existingByTarget.get(member.student_id as string);
                 if (!a) return null;
                 return {
                     id: a.id,
                     step_id: stepId,
-                    evaluator_id: user.id,
+                    evaluator_id: user.id ?? null,
                     evaluator_group_id: null,
                     target_submission_id: a.target_submission_id ?? null,
                     target_student_id: member.student_id,
@@ -732,6 +783,18 @@ export async function getMyPeerAssignments(
         return { assignments: intraAssignments };
     }
 
+    if (stepMode === "group" && ((stepRow?.content as any)?.evaluateAllGroups ?? true)) {
+        if (!moduleId) return { assignments: [] };
+        const admin = createAdminClient();
+        const { count } = await admin
+            .from("peer_evaluation_assignments")
+            .select("id", { count: "exact", head: true })
+            .eq("step_id", stepId);
+        if ((count ?? 0) === 0 && groupId) {
+            await _insertGroupAllAssignments(stepId, moduleId, admin);
+        }
+    }
+
     // ── Standard group/individual mode ────────────────────────────────────────
     const adminForQuery = createAdminClient();
     const orFilter = groupId
@@ -742,11 +805,11 @@ export async function getMyPeerAssignments(
         .from("peer_evaluation_assignments")
         .select(`
             id, step_id, evaluator_id, evaluator_group_id, target_submission_id, target_student_id, eval_submission_id,
-            eval_submission:activity_submissions!eval_submission_id(self_eval_rubric_scores, self_eval_justifications),
+            eval_submission:activity_submissions!eval_submission_id(self_eval_rubric_scores, self_eval_justifications, files),
             target_submission:activity_submissions!target_submission_id(
                 id, drive_file_url, student_id, group_id,
                 student:profiles!student_id(full_name),
-                group:module_groups!group_id(name)
+                group:module_groups!group_id(name, color)
             )
         `)
         .eq("step_id", stepId)
@@ -820,7 +883,7 @@ export async function submitPeerEvaluation(
     // Admin client is required: RLS UPDATE policies block student writes on peer-eval rows.
     // Security is guaranteed by the evaluator_id check above.
     const admin = createAdminClient();
-    const filesPayload = qaNotes ? [{ qaNotes }] : null;
+    const filesPayload = buildPeerEvaluationLiveNoteFiles(qaNotes);
     const submissionPayload = {
         self_eval_rubric_scores: rubricScores,
         self_eval_justifications: justifications,

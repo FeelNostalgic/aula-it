@@ -120,6 +120,27 @@ function formatBytes(bytes: number): string {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+async function readResponseJson(response: Response): Promise<Record<string, unknown>> {
+    const text = await response.text();
+    if (!text.trim()) {
+        return {
+            error: response.ok
+                ? "El servidor respondió sin contenido."
+                : `El servidor devolvió ${response.status} ${response.statusText} sin detalle.`,
+        };
+    }
+
+    try {
+        return JSON.parse(text) as Record<string, unknown>;
+    } catch {
+        return {
+            error: response.ok
+                ? "La respuesta del servidor no es JSON válido."
+                : `El servidor devolvió ${response.status} ${response.statusText} con una respuesta inválida.`,
+        };
+    }
+}
+
 function getMimeIcon(mimeType: string | null): LucideIcon {
     if (!mimeType) return File;
     if (mimeType === "application/pdf") return FileText;
@@ -243,13 +264,22 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
                         formData.append("existingDriveFileId", existingIds[0]);
                     }
                     const res = await fetch("/api/drive/upload", { method: "POST", body: formData });
-                    const json = await res.json();
-                    if (!res.ok || json.error) throw new Error(json.error ?? "Error al subir archivo");
+                    const json = await readResponseJson(res);
+                    if (!res.ok || typeof json.error === "string") {
+                        throw new Error(typeof json.error === "string" ? json.error : "Error al subir archivo");
+                    }
+                    const driveFileId = typeof json.driveFileId === "string" ? json.driveFileId : "";
+                    const driveFileUrl = typeof json.driveFileUrl === "string" ? json.driveFileUrl : "";
+                    const driveFileName = typeof json.driveFileName === "string" ? json.driveFileName : "";
+                    const driveMimeType = typeof json.driveMimeType === "string" ? json.driveMimeType : "";
+                    if (!driveFileId || !driveFileUrl || !driveFileName || !driveMimeType) {
+                        throw new Error("La subida no devolvió los metadatos esperados del archivo.");
+                    }
                     return {
-                        driveFileId: json.driveFileId,
-                        driveFileUrl: json.driveFileUrl,
-                        driveFileName: json.driveFileName,
-                        driveMimeType: json.driveMimeType,
+                        driveFileId,
+                        driveFileUrl,
+                        driveFileName,
+                        driveMimeType,
                     } as SubmissionFile;
                 })
             );

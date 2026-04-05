@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect } from "react";
 import {
     Users2, CheckCircle2, ExternalLink, ClipboardList,
     MessageSquare, MessageCircle, ArrowRight, FileText,
-    ChevronLeft, ChevronRight,
+    ChevronLeft, ChevronRight, Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +16,8 @@ import {
     type PeerAssignmentWithTarget,
 } from "@/app/activities/[id]/actions";
 import { urlToPreviewUrl } from "@/lib/google-drive-urls";
+import { buildPeerEvaluationLiveNoteFiles } from "@/lib/peer-evaluation-live-notes";
+import { buildPeerEvaluationDraft } from "@/lib/peer-evaluation-draft";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -96,18 +98,22 @@ export function PeerEvaluationViewer({
     const completedCount = assignments.filter(a => !!a.eval_submission_id).length;
 
     function getTargetName(assignment: PeerAssignmentWithTarget, idx: number) {
+        if (content.mode === "group") {
+            return (assignment.target_submission?.group as any)?.name ?? `Grupo ${idx + 1}`;
+        }
+
         const name = (assignment as any).target_student?.full_name
             ?? (assignment.target_submission?.student as any)?.full_name
-            ?? (assignment.target_submission?.group as any)?.name
             ?? "Alumno";
-        // intra_group always shows real names — anonymous doesn't apply between group members
-        return (content.anonymousEvaluation && content.mode !== "intra_group") ? `Entrega ${idx + 1}` : name;
+
+        return (content.anonymousEvaluation && content.mode === "individual") ? `Entrega ${idx + 1}` : name;
     }
 
     function handleCompleted(
         assignmentId: string,
         submittedScores: Record<string, number>,
         submittedAnswers: Record<string, string>,
+        submittedQaNotes?: string,
     ) {
         setAssignments(prev =>
             prev.map(a => a.id === assignmentId ? {
@@ -116,6 +122,7 @@ export function PeerEvaluationViewer({
                 eval_submission: {
                     self_eval_rubric_scores: submittedScores,
                     self_eval_justifications: submittedAnswers,
+                    files: buildPeerEvaluationLiveNoteFiles(submittedQaNotes) as Record<string, unknown>[] | null,
                 },
             } : a)
         );
@@ -150,6 +157,8 @@ export function PeerEvaluationViewer({
                 {assignments.map((assignment, idx) => {
                     const displayName = getTargetName(assignment, idx);
                     const isCompleted = !!assignment.eval_submission_id;
+                    const isGroupMode = content.mode === "group";
+                    const targetColor = isGroupMode ? assignment.target_submission?.group?.color ?? null : null;
 
                     return (
                         <div
@@ -161,17 +170,30 @@ export function PeerEvaluationViewer({
                                     : "bg-surface-dark border-white/5"
                             )}
                         >
-                            <div className={cn(
-                                "size-8 rounded-full flex items-center justify-center shrink-0 border text-xs font-bold",
-                                isCompleted
-                                    ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
-                                    : "bg-surface border-border/50 text-text-muted"
-                            )}>
-                                {isCompleted ? <CheckCircle2 className="size-4" /> : idx + 1}
-                            </div>
+                            {isGroupMode ? (
+                                <div
+                                    className="size-8 rounded-xl border flex items-center justify-center shrink-0"
+                                    style={targetColor
+                                        ? { backgroundColor: `${targetColor}18`, borderColor: `${targetColor}40`, color: targetColor }
+                                        : { backgroundColor: "rgb(99 102 241 / 0.1)", borderColor: "rgb(99 102 241 / 0.2)", color: "rgb(129 140 248)" }}
+                                >
+                                    <Users className="size-3.5" />
+                                </div>
+                            ) : (
+                                <div className={cn(
+                                    "size-8 rounded-full flex items-center justify-center shrink-0 border text-xs font-bold",
+                                    isCompleted
+                                        ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
+                                        : "bg-surface border-border/50 text-text-muted"
+                                )}>
+                                    {isCompleted ? <CheckCircle2 className="size-4" /> : idx + 1}
+                                </div>
+                            )}
                             <div className="flex-1 min-w-0">
                                 <p className={cn(
-                                    "text-sm font-semibold truncate",
+                                    isGroupMode
+                                        ? "text-sm font-bold uppercase tracking-tight font-mono truncate"
+                                        : "text-sm font-semibold truncate",
                                     isCompleted ? "text-emerald-400" : "text-foreground"
                                 )}>
                                     {displayName}
@@ -216,6 +238,7 @@ export function PeerEvaluationViewer({
             {/* Eval modal */}
             {activeIndex !== null && (
                 <PeerEvalModal
+                    key={assignments[activeIndex].id}
                     assignment={assignments[activeIndex]}
                     assignmentIndex={activeIndex}
                     total={assignments.length}
@@ -229,7 +252,7 @@ export function PeerEvaluationViewer({
                     onCompleted={handleCompleted}
                     allAssignments={content.mode === "intra_group" ? assignments : undefined}
                     onNavigate={content.mode === "intra_group" ? (idx) => setActiveIndex(idx) : undefined}
-                    getTargetName={content.mode === "intra_group" ? getTargetName : undefined}
+                    getTargetName={getTargetName}
                 />
             )}
 
@@ -299,7 +322,7 @@ function PeerEvalModal({
     onPrev: () => void;
     onNext: () => void;
     onClose: () => void;
-    onCompleted: (assignmentId: string, scores: Record<string, number>, answers: Record<string, string>) => void;
+    onCompleted: (assignmentId: string, scores: Record<string, number>, answers: Record<string, string>, qaNotes?: string) => void;
     allAssignments?: PeerAssignmentWithTarget[];
     onNavigate?: (idx: number) => void;
     getTargetName?: (a: PeerAssignmentWithTarget, idx: number) => string;
@@ -314,12 +337,14 @@ function PeerEvalModal({
     const [qaNotes, setQaNotes] = useState("");
     const [isPending, startTransition] = useTransition();
 
-    // Always reset form when switching to a different assignment
+    // Hydrate the draft from the existing submission so "Modificar" starts from
+    // the previously saved evaluation instead of forcing the student to retype everything.
     useEffect(() => {
-        setScores({});
-        setAnswers({});
-        setQaNotes("");
-    }, [assignment.id]);
+        const draft = buildPeerEvaluationDraft(assignment.eval_submission);
+        setScores(draft.scores);
+        setAnswers(draft.answers);
+        setQaNotes(draft.qaNotes);
+    }, [assignment.id, assignment.eval_submission]);
 
     // Keyboard navigation (← →)
     useEffect(() => {
@@ -331,13 +356,12 @@ function PeerEvalModal({
         return () => window.removeEventListener("keydown", onKey);
     }, [hasPrev, hasNext, onPrev, onNext]);
 
-    const targetName = (assignment as any).target_student?.full_name
-        ?? (assignment.target_submission?.student as any)?.full_name
-        ?? (assignment.target_submission?.group as any)?.name
-        ?? "Alumno";
-    const displayName = (content.anonymousEvaluation && content.mode !== "intra_group")
-        ? `Entrega ${assignmentIndex + 1}`
-        : targetName;
+    const displayName = getTargetName
+        ? getTargetName(assignment, assignmentIndex)
+        : ((assignment as any).target_student?.full_name
+            ?? (assignment.target_submission?.student as any)?.full_name
+            ?? (assignment.target_submission?.group as any)?.name
+            ?? "Alumno");
 
     const rawDriveUrl = content.mode !== "intra_group"
         ? assignment.target_submission?.drive_file_url ?? null
@@ -384,7 +408,7 @@ function PeerEvalModal({
                 toast.error(res.error);
             } else {
                 toast.success("Evaluación enviada correctamente.");
-                onCompleted(assignment.id, evalMode === "questions" ? {} : scores, answers);
+                onCompleted(assignment.id, evalMode === "questions" ? {} : scores, answers, qaNotes);
             }
         });
     }
@@ -394,10 +418,10 @@ function PeerEvalModal({
             <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] p-0 flex flex-col gap-0 overflow-hidden"
                 onPointerDownOutside={(e) => e.preventDefault()}
                 onEscapeKeyDown={(e) => e.preventDefault()}>
-                <DialogHeader className="shrink-0 px-6 py-4 border-b border-border-strong">
+                    <DialogHeader className="shrink-0 px-6 py-4 border-b border-border-strong">
                     <DialogTitle className="text-base font-bold flex items-center gap-2">
                         <Users2 className="size-4 text-indigo-400 shrink-0" />
-                        {content.mode === "intra_group" ? "Evaluar compañero" : "Evaluar entrega"}
+                        {content.mode === "intra_group" ? "Evaluar compañero" : content.mode === "group" ? "Evaluar grupo" : "Evaluar entrega"}
                         <span className="text-text-muted font-normal">— {displayName}</span>
 
                     </DialogTitle>
@@ -463,7 +487,7 @@ function PeerEvalModal({
                                         <>
                                             <div className="shrink-0 h-9 flex items-center justify-between px-4 border-b border-border-strong bg-surface">
                                                 <span className="text-xs text-text-muted font-mono uppercase tracking-widest">
-                                                    Entrega del alumno
+                                                    {content.mode === "group" ? "Entrega del grupo" : "Entrega del alumno"}
                                                 </span>
                                                 <Button
                                                     variant="ghost"
@@ -485,7 +509,9 @@ function PeerEvalModal({
                                         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center p-12">
                                             <FileText className="size-12 text-text-muted/20" />
                                             <p className="text-sm text-text-muted">
-                                                Este alumno no ha adjuntado ningún archivo.
+                                                {content.mode === "group"
+                                                    ? "Este grupo no ha adjuntado ningún archivo."
+                                                    : "Este alumno no ha adjuntado ningún archivo."}
                                             </p>
                                         </div>
                                     )}
@@ -516,8 +542,6 @@ function PeerEvalModal({
 
                                     {/* Rubric mode */}
                                     {evalMode === "rubric" && (() => {
-                                        const prevScores = (assignment as any).eval_submission?.self_eval_rubric_scores ?? null;
-                                        const prevJustifications = (assignment as any).eval_submission?.self_eval_justifications ?? null;
                                         return (
                                             <div className="space-y-6">
                                                 <h3 className="text-xs font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
@@ -531,8 +555,6 @@ function PeerEvalModal({
                                                         justification={answers[criterion.id] ?? ""}
                                                         requireJustification={content.requireJustification}
                                                         minLength={content.minJustificationLength ?? 0}
-                                                        prevScore={prevScores?.[criterion.id]}
-                                                        prevJustification={prevJustifications?.[criterion.id]}
                                                         onSelect={pts => setScores(p => ({ ...p, [criterion.id]: pts }))}
                                                         onJustify={text => setAnswers(p => ({ ...p, [criterion.id]: text }))}
                                                     />
@@ -543,7 +565,6 @@ function PeerEvalModal({
 
                                     {/* Questions mode */}
                                     {evalMode === "questions" && (() => {
-                                        const prevAnswers = (assignment as any).eval_submission?.self_eval_justifications ?? null;
                                         return (
                                             <div className="space-y-6">
                                                 <h3 className="text-xs font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
@@ -555,8 +576,6 @@ function PeerEvalModal({
                                                         question={q}
                                                         index={idx}
                                                         answers={answers}
-                                                        prevAnswer={prevAnswers?.[q.id]}
-                                                        prevJustification={prevAnswers?.[`${q.id}:justification`]}
                                                         onChange={(key, val) => setAnswers(p => ({ ...p, [key]: val }))}
                                                     />
                                                 ))}
@@ -628,15 +647,11 @@ function QuestionBlock({
     question,
     index,
     answers,
-    prevAnswer,
-    prevJustification,
     onChange,
 }: {
     question: QuizQuestion;
     index: number;
     answers: Record<string, string>;
-    prevAnswer?: string;
-    prevJustification?: string;
     onChange: (key: string, val: string) => void;
 }) {
     const isLikert = question.type === "likert";
@@ -749,27 +764,6 @@ function QuestionBlock({
                     </div>
                 );
             })()}
-            {prevAnswer && (
-                <PrevAnswerInline answer={prevAnswer} justification={prevJustification} />
-            )}
-        </div>
-    );
-}
-
-// ─── Inline prev-answer accordion (shown below each question / criterion) ─────
-
-function PrevAnswerInline({ answer, justification }: { answer: string; justification?: string }) {
-    return (
-        <div className="mt-2 space-y-1.5">
-            <div className="flex items-start gap-2 px-4 py-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-medium">
-                <span className="shrink-0">Tu respuesta:</span>
-                <span className="font-normal opacity-80">{answer}</span>
-            </div>
-            {justification && (
-                <div className="px-4 py-2 rounded-xl bg-indigo-500/5 border border-indigo-500/10 text-indigo-300/70 text-xs italic">
-                    {justification}
-                </div>
-            )}
         </div>
     );
 }
@@ -778,7 +772,6 @@ function PrevAnswerInline({ answer, justification }: { answer: string; justifica
 
 function CriterionBlock({
     criterion, selected, justification, requireJustification, minLength,
-    prevScore, prevJustification,
     onSelect, onJustify,
 }: {
     criterion: RubricCriteria;
@@ -786,14 +779,9 @@ function CriterionBlock({
     justification: string;
     requireJustification: boolean;
     minLength: number;
-    prevScore?: number;
-    prevJustification?: string;
     onSelect: (pts: number) => void;
     onJustify: (text: string) => void;
 }) {
-    const prevLevel = prevScore !== undefined ? criterion.levels.find(l => l.points === prevScore) : undefined;
-    const prevAnswerText = prevLevel ? `${prevLevel.label} — ${prevScore} pts` : prevScore !== undefined ? `${prevScore} pts` : undefined;
-
     return (
         <div className="space-y-3">
             <div>
@@ -849,9 +837,6 @@ function CriterionBlock({
                         </p>
                     )}
                 </div>
-            )}
-            {prevAnswerText !== undefined && (
-                <PrevAnswerInline answer={prevAnswerText} justification={prevJustification} />
             )}
         </div>
     );

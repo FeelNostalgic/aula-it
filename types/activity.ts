@@ -378,6 +378,7 @@ export type PeerEvaluationContent = {
     nonEvaluatorPenaltyPoints?: number; // descuento si policy = 'grade_penalty'
     // Modo B — Grupos
     evaluateAllGroups?: boolean;        // cada grupo evalúa a todos los demás
+    groupsPerGroup?: number;            // cuántos grupos evalúa cada grupo cuando evaluateAllGroups=false
     individualEvaluatorMode?: boolean;  // false=grupo envía 1 eval; true=cada miembro individualmente
     livePresentationMode?: boolean;     // añade sección Q&A al final de la rúbrica
     // Modo C — Intra-grupo (miembros del grupo se evalúan entre sí)
