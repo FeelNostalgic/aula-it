@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useMemo, useCallback } from "react";
-import { Users2, AlertTriangle, Clock, PlayCircle, Star, Eye, EyeOff, Users, Trash2, Lock, ArrowUp, ArrowDown, ArrowUpDown, CheckCircle2, XCircle, MinusCircle } from "lucide-react";
+import { Users2, AlertTriangle, Clock, PlayCircle, Star, Eye, EyeOff, Users, Trash2, Lock, ArrowUp, ArrowDown, ArrowUpDown, CheckCircle2, XCircle, MinusCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,6 +18,7 @@ import {
     computeEvaluatorReliability,
     togglePeerFeedbackVisible,
     ensureIntraGroupAssignments,
+    bulkValidateNumericAnswers,
 } from "@/app/dashboard/units/[id]/actions";
 import { updateStepActivityClosed } from "@/app/activities/[id]/edit/actions";
 import { PeerEvalReviewModal } from "@/components/dashboard/shared/peer-eval-review-modal";
@@ -55,6 +56,7 @@ type Assignment = {
         group: { name: string } | null;
     } | null;
     target_student: { full_name: string | null } | null;
+    validated_numeric_answers: Record<string, boolean> | null;
     eval_submission: {
         id: string;
         self_eval_rubric_scores: Record<string, number> | null;
@@ -78,6 +80,7 @@ type IntraGroupRow = {
     studentId: string;
     studentName: string;
     groupName: string;
+    groupColor: string | null;
     madeCompleted: number;
     madeTotal: number;
     receivedCompleted: number;
@@ -93,7 +96,7 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle, activit
     const [evalMode, setEvalMode] = useState<"rubric" | "questions">("rubric");
     const [rubric, setRubric] = useState<RubricCriteria[]>([]);
     const [evalQuestions, setEvalQuestions] = useState<QuizQuestion[]>([]);
-    const [groupByStudentId, setGroupByStudentId] = useState<Record<string, { id: string; name: string }>>({});
+    const [groupByStudentId, setGroupByStudentId] = useState<Record<string, { id: string; name: string; color?: string | null }>>({});
     const [loading, setLoading] = useState(true);
     const [confirmReset, setConfirmReset] = useState(false);
     const [closed, setClosed] = useState(isActivityClosed ?? false);
@@ -174,6 +177,7 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle, activit
                 studentId: s.student_id,
                 studentName: s.name,
                 groupName: groupByStudentId[s.student_id]?.name ?? '—',
+                groupColor: groupByStudentId[s.student_id]?.color ?? null,
                 madeCompleted: 0, madeTotal: 0,
                 receivedCompleted: 0, receivedTotal: 0,
                 evaluatorAssignments: [],
@@ -187,6 +191,7 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle, activit
                         studentId: a.evaluator_id,
                         studentName: a.evaluator?.full_name ?? 'Alumno',
                         groupName: groupByStudentId[a.evaluator_id]?.name ?? '—',
+                        groupColor: groupByStudentId[a.evaluator_id]?.color ?? null,
                         madeCompleted: 0, madeTotal: 0,
                         receivedCompleted: 0, receivedTotal: 0,
                         evaluatorAssignments: [],
@@ -204,6 +209,7 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle, activit
                         studentId: a.target_student_id,
                         studentName: a.target_student?.full_name ?? 'Alumno',
                         groupName: groupByStudentId[a.target_student_id]?.name ?? '—',
+                        groupColor: groupByStudentId[a.target_student_id]?.color ?? null,
                         madeCompleted: 0, madeTotal: 0,
                         receivedCompleted: 0, receivedTotal: 0,
                         evaluatorAssignments: [],
@@ -231,6 +237,7 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle, activit
                 ?? "Alumno",
             isOutlier: a.is_outlier,
             reliabilityScore: a.reliability_score,
+            validatedNumericAnswers: a.validated_numeric_answers ?? null,
             evalSubmission: a.eval_submission ?? null,
         }));
     }
@@ -238,6 +245,12 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle, activit
     function handleOutlierToggled(assignmentId: string, newValue: boolean) {
         setAssignments(prev => prev.map(a =>
             a.id === assignmentId ? { ...a, is_outlier: newValue } : a
+        ));
+    }
+
+    function handleQuestionValidated(assignmentId: string, _questionId: string, _validated: boolean, newMap: Record<string, boolean>) {
+        setAssignments(prev => prev.map(a =>
+            a.id === assignmentId ? { ...a, validated_numeric_answers: newMap } : a
         ));
     }
 
@@ -460,6 +473,7 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle, activit
                 rubric={rubric}
                 evalQuestions={evalQuestions}
                 onOutlierToggled={handleOutlierToggled}
+                onQuestionValidated={handleQuestionValidated}
             />
         </div>
     );
@@ -754,7 +768,7 @@ function computeAvgReceivedScore(
     rubric: RubricCriteria[],
     evalQuestions: QuizQuestion[],
 ): number | null {
-    const completed = receivedAssignments.filter(a => a.eval_submission !== null);
+    const completed = receivedAssignments.filter(a => a.eval_submission !== null && !a.is_outlier);
     if (completed.length === 0) return null;
 
     if (evalMode === "rubric") {
@@ -770,13 +784,17 @@ function computeAvgReceivedScore(
         return Math.round(avg * 100) / 100;
     }
 
-    // questions mode: only numeric questions with weight > 0 contribute
+    // questions mode: only numeric questions with weight > 0 contribute.
+    // If requireJustification is true, the answer only counts if the teacher validated it.
     const numericQs = evalQuestions.filter(q => q.type === 'numeric' && (q.points ?? 0) > 0);
     if (numericQs.length === 0) return null;
     const scores = completed.map(a => {
         const answers = a.eval_submission?.self_eval_justifications ?? {};
+        const validated = a.validated_numeric_answers ?? null;
         let weightedSum = 0, totalWeight = 0;
         for (const q of numericQs) {
+            // Skip if question requires justification and hasn't been validated by teacher
+            if ((q as any).requireJustification && validated?.[q.id] !== true) continue;
             const raw = parseFloat(answers[q.id] ?? '');
             if (isNaN(raw)) continue;
             const min = q.numericMin ?? 0, max = q.numericMax ?? 10;
@@ -800,6 +818,7 @@ function IntraGroupTable({ rows, onReview, evalMode, rubric, evalQuestions }: {
 }) {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+    const [isPendingBulkValidate, startBulkValidate] = useTransition();
 
     const columns: ColumnDef<IntraGroupRow>[] = useMemo(() => [
         {
@@ -843,9 +862,23 @@ function IntraGroupTable({ rows, onReview, evalMode, rubric, evalQuestions }: {
         {
             accessorKey: "groupName",
             header: ({ column }) => <SortBtn column={column} label="Grupo" />,
-            cell: ({ row }) => (
-                <span className="text-[11px] font-mono text-text-muted">{row.original.groupName}</span>
-            ),
+            cell: ({ row }) => {
+                const r = row.original;
+                if (r.groupName === '—') return <span className="text-text-muted text-xs">—</span>;
+                return (
+                    <div className="flex items-center gap-2">
+                        <div
+                            className="size-4 rounded-md border shrink-0"
+                            style={r.groupColor
+                                ? { backgroundColor: `${r.groupColor}20`, borderColor: `${r.groupColor}50` }
+                                : { backgroundColor: "rgb(99 102 241 / 0.1)", borderColor: "rgb(99 102 241 / 0.3)" }}
+                        />
+                        <span className="text-[12px] font-bold text-foreground uppercase tracking-tight font-mono truncate">
+                            {r.groupName}
+                        </span>
+                    </div>
+                );
+            },
             size: 140,
         },
         {
@@ -953,6 +986,31 @@ function IntraGroupTable({ rows, onReview, evalMode, rubric, evalQuestions }: {
     });
 
     const selectedCount = Object.keys(rowSelection).length;
+    const selectedRows = table.getSelectedRowModel().rows.map(r => r.original);
+
+    // Numeric questions requiring teacher validation before counting toward avg
+    const validatableQuestionIds = useMemo(() =>
+        evalQuestions
+            .filter(q => q.type === 'numeric' && (q.points ?? 0) > 0 && (q as any).requireJustification)
+            .map(q => q.id),
+    [evalQuestions]);
+
+    function handleBulkValidate() {
+        const assignmentIds = selectedRows
+            .flatMap(r => r.receivedAssignments)
+            .filter(a => a.eval_submission !== null && !a.is_outlier)
+            .map(a => a.id);
+        if (assignmentIds.length === 0 || validatableQuestionIds.length === 0) {
+            toast.error("No hay respuestas numéricas pendientes de validar en la selección.");
+            return;
+        }
+        startBulkValidate(async () => {
+            const res = await bulkValidateNumericAnswers(assignmentIds, validatableQuestionIds, true);
+            if (res.error) { toast.error(res.error); return; }
+            toast.success(`Validadas ${assignmentIds.length} evaluación(es) para ${selectedRows.length} alumno(s).`);
+            setRowSelection({});
+        });
+    }
 
     return (
         <div className="bg-surface border border-border-strong rounded-[2rem] overflow-hidden flex flex-col shadow-xl shadow-black/5">
@@ -962,6 +1020,17 @@ function IntraGroupTable({ rows, onReview, evalMode, rubric, evalQuestions }: {
                         {selectedCount} seleccionado{selectedCount !== 1 ? "s" : ""}
                     </span>
                     <div className="flex-1" />
+                    {validatableQuestionIds.length > 0 && (
+                        <Button
+                            size="sm"
+                            disabled={isPendingBulkValidate}
+                            onClick={handleBulkValidate}
+                            className="h-7 text-[10px] gap-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                        >
+                            <ShieldCheck className="size-3" />
+                            Validar respuestas
+                        </Button>
+                    )}
                     <Button
                         variant="ghost"
                         size="sm"

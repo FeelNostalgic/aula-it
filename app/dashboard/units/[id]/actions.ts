@@ -451,11 +451,15 @@ export type StepSubmissionRow = {
     step_eval_questions: import('@/types/activity').QuizQuestion[] | null;
     step_eval_counts_toward_grade: boolean | null;
     step_eval_weight: number | null;
-    // For deliverable/file_upload rows: populated when a linked self-eval with countsTowardGrade exists
-    linked_self_eval_score?: number | null;   // student's self-eval normalised score (0–10)
-    linked_self_eval_weight?: number | null;  // selfEvalWeight % from the self-eval step content
-    linked_peer_eval_score?: number | null;  // average peer eval normalised score (0–10)
-    linked_peer_eval_weight?: number | null; // peerEvalWeight % from deliverable gradeComposition
+    // For deliverable/file_upload rows: populated when linked eval steps exist
+    linked_self_eval_score?: number | null;          // student's self-eval normalised score (0–10)
+    linked_self_eval_weight?: number | null;         // selfEvalWeight % from the self-eval step content
+    linked_peer_eval_score?: number | null;          // average group peer eval normalised score (0–10)
+    linked_peer_eval_weight?: number | null;         // peerEvalWeight % from deliverable gradeComposition
+    linked_intra_peer_eval_score?: number | null;    // avg intra-group received score (0–10), per student (propagated rows)
+    linked_intra_peer_eval_weight?: number | null;   // intraGroupWeight % from deliverable gradeComposition
+    // For canonical/synthetic group rows: per-student intra-group scores (available before publishing)
+    intra_peer_scores_by_student?: Record<string, { score: number; weight: number }>;
     // Structural fields for nesting in grading view
     parent_step_id?: string | null;
     is_activity_closed?: boolean;
@@ -624,6 +628,8 @@ export async function getUnitStepSubmissions(
     // One row per group per step due to idx_submission_group unique index.
     // Used in the teacher correction table.
     let groupResults: StepSubmissionRow[] = [];
+    // Hoisted to function scope so post-processing blocks (intra-group, peer-eval) can access it.
+    const groupMembersMap: Record<string, { student_id: string; full_name: string | null }[]> = {};
     if (groupStepIds.length > 0) {
         const { data: groupSubs } = await supabase
             .from("activity_submissions")
@@ -631,7 +637,6 @@ export async function getUnitStepSubmissions(
             .in("step_id", groupStepIds)
             .not("group_id", "is", null);
 
-        const groupMembersMap: Record<string, { student_id: string; full_name: string | null }[]> = {};
     if (groupSubs && groupSubs.length > 0) {
             const uniqueGroupIds = [...new Set(groupSubs.map((s: any) => s.group_id).filter(Boolean))] as string[];
 
@@ -696,52 +701,137 @@ export async function getUnitStepSubmissions(
             });
         }
 
-        // For group steps with no submissions yet, add a placeholder so the component
-        // knows it's a group step (isGroupSubmission=true) and shows the correct empty state.
-        const stepsWithGroupSub = new Set(groupResults.map(r => r.step_id));
-        for (const stepId of groupStepIds) {
-            if (stepsWithGroupSub.has(stepId)) continue;
-            const meta = stepMeta[stepId];
-            if (!meta) continue;
-            groupResults.push({
-                id: `virtual:group:${stepId}`,
-                step_id: stepId,
-                step_title: meta.title,
-                step_type: meta.stepType as any,
-                activity_id: meta.activityId,
-                activity_title: meta.activityTitle,
-                student_id: "",
-                student_name: "",
-                student_email: "",
-                drive_file_url: null,
-                drive_file_id: null,
-                files: null,
-                status: "not_submitted",
-                submitted_at: null,
-                delivery_mode: meta.deliveryMode,
-                score: null,
-                feedback: null,
-                graded_at: null,
-                published_at: null,
-                rubric_scores: null,
-                grading_mode: null,
-                step_rubric: meta.rubric ?? [],
-                quiz_content: null,
-                quiz_attempt: null,
-                quiz_attempts: [],
-                group_id: null,
-                is_group_submission: true,
-                synthetic: true,
-                step_is_locked: meta.isLocked,
-                self_eval_rubric_scores: null,
-                self_eval_justifications: null,
-                step_eval_mode: null,
-                step_eval_rubric: null,
-                step_eval_questions: null,
-                step_eval_counts_toward_grade: null,
-                step_eval_weight: null,
-                step_order_index: meta?.orderIndex ?? 0,
-            });
+        // For group steps: add per-group synthetic placeholders for every group that hasn't submitted.
+        // This ensures ALL module groups appear in the teacher table, not just those that submitted.
+        const submittedGroupsByStep = new Map<string, Set<string>>();
+        for (const r of groupResults) {
+            if (r.group_id) {
+                if (!submittedGroupsByStep.has(r.step_id)) submittedGroupsByStep.set(r.step_id, new Set());
+                submittedGroupsByStep.get(r.step_id)!.add(r.group_id);
+            }
+        }
+
+        if (moduleId) {
+            const { data: allModuleGroups } = await supabase
+                .from("module_groups")
+                .select("id, name, color")
+                .eq("module_id", moduleId)
+                .eq("status", "active");
+
+            if (allModuleGroups && allModuleGroups.length > 0) {
+                // Fetch members for groups not already loaded (i.e. those that haven't submitted)
+                const unloadedIds = allModuleGroups.map(g => g.id).filter(id => !groupMembersMap[id]);
+                if (unloadedIds.length > 0) {
+                    const { data: extraMembers } = await supabase
+                        .from("module_group_members")
+                        .select("group_id, student_id, student:profiles(full_name)")
+                        .in("group_id", unloadedIds);
+                    for (const m of extraMembers ?? []) {
+                        if (!groupMembersMap[m.group_id]) groupMembersMap[m.group_id] = [];
+                        groupMembersMap[m.group_id].push({
+                            student_id: m.student_id,
+                            full_name: (m.student as any)?.full_name ?? null,
+                        });
+                    }
+                }
+
+                for (const stepId of groupStepIds) {
+                    const meta = stepMeta[stepId];
+                    if (!meta) continue;
+                    const submittedGroups = submittedGroupsByStep.get(stepId) ?? new Set<string>();
+                    for (const group of allModuleGroups) {
+                        if (submittedGroups.has(group.id)) continue;
+                        groupResults.push({
+                            id: `virtual:group:${stepId}:${group.id}`,
+                            step_id: stepId,
+                            step_title: meta.title,
+                            step_type: meta.stepType as any,
+                            activity_id: meta.activityId,
+                            activity_title: meta.activityTitle,
+                            student_id: "",
+                            student_name: group.name ?? "Grupo",
+                            student_email: "",
+                            drive_file_url: null,
+                            drive_file_id: null,
+                            files: null,
+                            status: "not_submitted",
+                            submitted_at: null,
+                            delivery_mode: meta.deliveryMode,
+                            score: null,
+                            feedback: null,
+                            graded_at: null,
+                            published_at: null,
+                            rubric_scores: null,
+                            grading_mode: null,
+                            step_rubric: meta.rubric ?? [],
+                            quiz_content: null,
+                            quiz_attempt: null,
+                            quiz_attempts: [],
+                            group_id: group.id,
+                            group_name: group.name ?? null,
+                            group_color: (group as any).color ?? null,
+                            group_members: groupMembersMap[group.id] ?? [],
+                            is_group_submission: true,
+                            synthetic: true,
+                            step_is_locked: meta.isLocked,
+                            self_eval_rubric_scores: null,
+                            self_eval_justifications: null,
+                            step_eval_mode: null,
+                            step_eval_rubric: null,
+                            step_eval_questions: null,
+                            step_eval_counts_toward_grade: null,
+                            step_eval_weight: null,
+                            step_order_index: meta?.orderIndex ?? 0,
+                        });
+                    }
+                }
+            }
+        } else {
+            // Fallback (no moduleId): one placeholder per step with zero submissions
+            for (const stepId of groupStepIds) {
+                if (submittedGroupsByStep.has(stepId)) continue;
+                const meta = stepMeta[stepId];
+                if (!meta) continue;
+                groupResults.push({
+                    id: `virtual:group:${stepId}`,
+                    step_id: stepId,
+                    step_title: meta.title,
+                    step_type: meta.stepType as any,
+                    activity_id: meta.activityId,
+                    activity_title: meta.activityTitle,
+                    student_id: "",
+                    student_name: "",
+                    student_email: "",
+                    drive_file_url: null,
+                    drive_file_id: null,
+                    files: null,
+                    status: "not_submitted",
+                    submitted_at: null,
+                    delivery_mode: meta.deliveryMode,
+                    score: null,
+                    feedback: null,
+                    graded_at: null,
+                    published_at: null,
+                    rubric_scores: null,
+                    grading_mode: null,
+                    step_rubric: meta.rubric ?? [],
+                    quiz_content: null,
+                    quiz_attempt: null,
+                    quiz_attempts: [],
+                    group_id: null,
+                    is_group_submission: true,
+                    synthetic: true,
+                    step_is_locked: meta.isLocked,
+                    self_eval_rubric_scores: null,
+                    self_eval_justifications: null,
+                    step_eval_mode: null,
+                    step_eval_rubric: null,
+                    step_eval_questions: null,
+                    step_eval_counts_toward_grade: null,
+                    step_eval_weight: null,
+                    step_order_index: meta?.orderIndex ?? 0,
+                });
+            }
         }
     }
 
@@ -1007,7 +1097,8 @@ export async function getUnitStepSubmissions(
                     questionsAnswersMap[`${row.student_id}:${row.step_id}`] = row.self_eval_justifications as Record<string, string>;
                 }
             }
-            for (const row of results) {
+            // Also cover propagated group rows (per-student copies) — they share the same step_id
+            for (const row of [...results, ...propagatedResults]) {
                 if (row.step_type !== 'deliverable' && row.step_type !== 'file_upload') continue;
                 if (!row.student_id) continue;
                 const seInfo = selfEvalByDeliverable[row.step_id];
@@ -1061,14 +1152,16 @@ export async function getUnitStepSubmissions(
         }
     }
 
-    // Post-process: enrich deliverable/file_upload rows with peer eval average score.
-    // Reads gradeComposition.peerEvalWeight from the deliverable step and averages
-    // the normalised rubric scores of all completed peer eval assignments targeting each submission.
+    // Post-process: enrich deliverable/file_upload rows with group peer eval average score.
+    // "group" mode peer evals: target_submission_id → canonical group submission.
+    // Score propagates to every group member's propagated row.
     {
-        // peerEvalByDeliverable: deliverableStepId → { weight, rubric }
+        // peerEvalByDeliverable: deliverableStepId → { weight, rubric } — only "group" mode
         const peerEvalByDeliverable: Record<string, { weight: number; rubric: any[] }> = {};
         for (const step of steps) {
             if (step.type !== 'peer_evaluation') continue;
+            const c = step.content as any;
+            if (c?.mode === 'intra_group') continue; // handled separately below
             const parentStepId = (step as any).parent_step_id;
             if (!parentStepId) continue;
             const parentStep = steps.find(s => s.id === parentStepId);
@@ -1078,16 +1171,21 @@ export async function getUnitStepSubmissions(
             if (weight === 0) continue;
             peerEvalByDeliverable[parentStepId] = {
                 weight,
-                rubric: (step.content as any)?.rubric ?? [],
+                rubric: c?.rubric ?? [],
             };
         }
 
         if (Object.keys(peerEvalByDeliverable).length > 0) {
-            const relevantSubIds = results
+            // Include both individual AND canonical group submissions as peer-eval targets
+            const indivSubIds = results
                 .filter(r => (r.step_type === 'deliverable' || r.step_type === 'file_upload')
                           && !!peerEvalByDeliverable[r.step_id]
                           && !r.id.startsWith('virtual:'))
                 .map(r => r.id);
+            const groupSubIds = groupResults
+                .filter(r => !!peerEvalByDeliverable[r.step_id] && !r.id.startsWith('virtual:'))
+                .map(r => r.id);
+            const relevantSubIds = [...indivSubIds, ...groupSubIds];
 
             if (relevantSubIds.length > 0) {
                 const { data: peerAssignments } = await supabase
@@ -1096,9 +1194,9 @@ export async function getUnitStepSubmissions(
                     .in('target_submission_id', relevantSubIds)
                     .not('eval_submission_id', 'is', null);
 
-                // Build a map from submission_id to the step_id (to look up rubric)
+                // submission_id → step_id lookup (covers both individual and group)
                 const subToStepId: Record<string, string> = {};
-                for (const row of results) {
+                for (const row of [...results, ...groupResults]) {
                     if (row.step_type !== 'deliverable' && row.step_type !== 'file_upload') continue;
                     if (!peerEvalByDeliverable[row.step_id]) continue;
                     subToStepId[row.id] = row.step_id;
@@ -1121,6 +1219,7 @@ export async function getUnitStepSubmissions(
                     peerScoreAgg[a.target_submission_id].count++;
                 }
 
+                // Assign to individual rows
                 for (const row of results) {
                     if (row.step_type !== 'deliverable' && row.step_type !== 'file_upload') continue;
                     const peInfo = peerEvalByDeliverable[row.step_id];
@@ -1129,6 +1228,190 @@ export async function getUnitStepSubmissions(
                     if (!agg || agg.count === 0) continue;
                     row.linked_peer_eval_score = Math.round((agg.sum / agg.count) * 100) / 100;
                     row.linked_peer_eval_weight = peInfo.weight;
+                }
+
+                // Assign to canonical group rows + propagate to member rows
+                // Build: groupSubId → peer score
+                const groupSubPeerScore: Record<string, { score: number; weight: number }> = {};
+                for (const gr of groupResults) {
+                    const peInfo = peerEvalByDeliverable[gr.step_id];
+                    if (!peInfo) continue;
+                    const agg = peerScoreAgg[gr.id];
+                    if (!agg || agg.count === 0) continue;
+                    const score = Math.round((agg.sum / agg.count) * 100) / 100;
+                    gr.linked_peer_eval_score = score;
+                    gr.linked_peer_eval_weight = peInfo.weight;
+                    if (gr.group_id) groupSubPeerScore[`${gr.group_id}:${gr.step_id}`] = { score, weight: peInfo.weight };
+                }
+
+                // Propagate group peer-eval score to each member's propagated row
+                // Reverse-lookup: student+step → group_id via group_members on canonical rows
+                const studentStepToGroupId: Record<string, string> = {};
+                for (const gr of groupResults) {
+                    if (!gr.group_id) continue;
+                    for (const m of gr.group_members ?? []) {
+                        studentStepToGroupId[`${m.student_id}:${gr.step_id}`] = gr.group_id;
+                    }
+                }
+                for (const row of propagatedResults) {
+                    if (!row.student_id) continue;
+                    const groupId = studentStepToGroupId[`${row.student_id}:${row.step_id}`];
+                    if (!groupId) continue;
+                    const ps = groupSubPeerScore[`${groupId}:${row.step_id}`];
+                    if (!ps) continue;
+                    row.linked_peer_eval_score = ps.score;
+                    row.linked_peer_eval_weight = ps.weight;
+                }
+            }
+        }
+    }
+
+    // Post-process: enrich propagated member rows with intra-group peer eval avg received score.
+    // "intra_group" mode: target_student_id → each member gets a per-student average.
+    {
+        const intraGroupByDeliverable: Record<string, {
+            stepId: string; weight: number; evalMode: string; rubric: any[]; questions: any[];
+        }> = {};
+        for (const step of steps) {
+            if (step.type !== 'peer_evaluation') continue;
+            const c = step.content as any;
+            if (c?.mode !== 'intra_group') continue;
+            const parentStepId = (step as any).parent_step_id;
+            if (!parentStepId) continue;
+            const parentStep = steps.find(s => s.id === parentStepId);
+            if (!parentStep || (parentStep.type !== 'deliverable' && parentStep.type !== 'file_upload')) continue;
+            const gc = (parentStep.content as any)?.gradeComposition;
+            const weight = gc?.intraGroupWeight ?? 0;
+            if (weight === 0) continue;
+            intraGroupByDeliverable[parentStepId] = {
+                stepId: step.id,
+                weight,
+                evalMode: c.evalMode ?? 'rubric',
+                rubric: c.rubric ?? [],
+                questions: c.questions ?? [],
+            };
+        }
+
+        if (Object.keys(intraGroupByDeliverable).length > 0) {
+            // Collect ALL group students (from groupMembersMap which includes all module groups,
+            // not just those with submissions). This ensures scores show even before publishing.
+            const allGroupStudentIds = new Set<string>();
+            for (const members of Object.values(groupMembersMap)) {
+                for (const m of members) allGroupStudentIds.add(m.student_id);
+            }
+            // Also include members listed on canonical/synthetic group rows (safety net)
+            for (const gr of groupResults) {
+                for (const m of gr.group_members ?? []) allGroupStudentIds.add(m.student_id);
+            }
+
+            const targetStudentIds = [...allGroupStudentIds];
+            if (targetStudentIds.length > 0) {
+                const intraStepIds = Object.values(intraGroupByDeliverable).map(v => v.stepId);
+
+                const { data: intraAssignments } = await supabase
+                    .from('peer_evaluation_assignments')
+                    .select('target_student_id, step_id, eval_submission:activity_submissions!eval_submission_id(self_eval_rubric_scores, self_eval_justifications)')
+                    .in('step_id', intraStepIds)
+                    .in('target_student_id', targetStudentIds)
+                    .not('eval_submission_id', 'is', null);
+
+                // student_id + intraStepId → list of completed evaluations received
+                const intraAsgByStudentStep: Record<string, any[]> = {};
+                for (const a of intraAssignments ?? []) {
+                    const key = `${a.target_student_id}:${a.step_id}`;
+                    if (!intraAsgByStudentStep[key]) intraAsgByStudentStep[key] = [];
+                    intraAsgByStudentStep[key].push(a);
+                }
+
+                // Reverse-lookup: student_id + step_id (deliverable) → group row
+                const groupRowByGroupStep: Record<string, StepSubmissionRow> = {};
+                for (const gr of groupResults) {
+                    if (gr.group_id) groupRowByGroupStep[`${gr.group_id}:${gr.step_id}`] = gr;
+                }
+                const studentToGroupKey: Record<string, string> = {}; // `studentId:stepId` → `groupId:stepId`
+                for (const gr of groupResults) {
+                    if (!gr.group_id) continue;
+                    for (const m of gr.group_members ?? []) {
+                        studentToGroupKey[`${m.student_id}:${gr.step_id}`] = `${gr.group_id}:${gr.step_id}`;
+                    }
+                }
+
+                // Also cover students in groups that have no canonical/synthetic row via groupMembersMap
+                // Find step_ids for each intra-group deliverable
+                const deliverableStepIds = Object.keys(intraGroupByDeliverable);
+                for (const [groupId, members] of Object.entries(groupMembersMap)) {
+                    for (const stepId of deliverableStepIds) {
+                        const key = `${groupId}:${stepId}`;
+                        if (!groupRowByGroupStep[key]) continue; // only if we have a group row
+                        for (const m of members) {
+                            const sKey = `${m.student_id}:${stepId}`;
+                            if (!studentToGroupKey[sKey]) studentToGroupKey[sKey] = key;
+                        }
+                    }
+                }
+
+                // Compute per-student avg and store on group rows
+                for (const [compositeKey, assignments] of Object.entries(intraAsgByStudentStep)) {
+                    const [studentId, intraStepId] = compositeKey.split(':');
+                    // Find the deliverable step_id for this intraStepId
+                    const deliverableStepId = Object.entries(intraGroupByDeliverable)
+                        .find(([, v]) => v.stepId === intraStepId)?.[0];
+                    if (!deliverableStepId) continue;
+                    const intraInfo = intraGroupByDeliverable[deliverableStepId];
+
+                    let sum = 0, count = 0;
+                    for (const a of assignments) {
+                        const sub = a.eval_submission;
+                        if (!sub) continue;
+                        if (intraInfo.evalMode === 'rubric') {
+                            const scores = sub.self_eval_rubric_scores as Record<string, number> | null;
+                            if (!scores) continue;
+                            const rubricMax = intraInfo.rubric.reduce((s: number, c: any) =>
+                                s + Math.max(0, ...(c.levels ?? []).map((l: any) => l.points ?? 0)), 0);
+                            if (rubricMax === 0) continue;
+                            const total = Object.values(scores).reduce((a: number, b: number) => a + b, 0);
+                            sum += (total / rubricMax) * 10;
+                            count++;
+                        } else {
+                            const answers = sub.self_eval_justifications as Record<string, string> | null;
+                            if (!answers) continue;
+                            const numericQs = intraInfo.questions.filter((q: any) => q.type === 'numeric' && (q.points ?? 0) > 0);
+                            if (numericQs.length === 0) continue;
+                            let wSum = 0, wTotal = 0;
+                            for (const q of numericQs) {
+                                const raw = parseFloat(answers[q.id] ?? '');
+                                if (isNaN(raw)) continue;
+                                const min = q.numericMin ?? 0, max = q.numericMax ?? 10;
+                                const norm = max > min ? ((raw - min) / (max - min)) * 10 : 5;
+                                wSum += norm * (q.points ?? 1);
+                                wTotal += (q.points ?? 1);
+                            }
+                            if (wTotal === 0) continue;
+                            sum += wSum / wTotal;
+                            count++;
+                        }
+                    }
+
+                    if (count === 0) continue;
+                    const avgScore = Math.round((sum / count) * 100) / 100;
+
+                    // Store on canonical/synthetic group row (available before publishing)
+                    const groupKey = studentToGroupKey[`${studentId}:${deliverableStepId}`];
+                    if (groupKey) {
+                        const gr = groupRowByGroupStep[groupKey];
+                        if (gr) {
+                            if (!gr.intra_peer_scores_by_student) gr.intra_peer_scores_by_student = {};
+                            gr.intra_peer_scores_by_student[studentId] = { score: avgScore, weight: intraInfo.weight };
+                        }
+                    }
+
+                    // Also store on propagated row if it exists (for gradebook compatibility)
+                    for (const row of propagatedResults) {
+                        if (row.student_id === studentId && row.step_id === deliverableStepId) {
+                            row.linked_intra_peer_eval_score = avgScore;
+                            row.linked_intra_peer_eval_weight = intraInfo.weight;
+                        }
+                    }
                 }
             }
         }
@@ -1854,6 +2137,78 @@ export async function setAssignmentOutlier(
 }
 
 /**
+ * Sets the validated state of a specific numeric question answer within an assignment.
+ * Teachers validate numeric answers before they count toward the average received score.
+ * Only applies to numeric questions with requireJustification = true.
+ */
+export async function setQuestionValidation(
+    assignmentId: string,
+    questionId: string,
+    validated: boolean,
+): Promise<{ error?: string; validated_numeric_answers?: Record<string, boolean> }> {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    // Fetch existing validated_numeric_answers
+    const { data: existing, error: fetchErr } = await auth.admin
+        .from("peer_evaluation_assignments")
+        .select("validated_numeric_answers")
+        .eq("id", assignmentId)
+        .single();
+
+    if (fetchErr) return { error: fetchErr.message };
+
+    const current: Record<string, boolean> = (existing?.validated_numeric_answers as any) ?? {};
+    if (validated) {
+        current[questionId] = true;
+    } else {
+        delete current[questionId];
+    }
+
+    const { error } = await auth.admin
+        .from("peer_evaluation_assignments")
+        .update({ validated_numeric_answers: current })
+        .eq("id", assignmentId);
+
+    if (error) return { error: error.message };
+    return { validated_numeric_answers: current };
+}
+
+/**
+ * Bulk-validates (or invalidates) specific numeric question answers across multiple assignments.
+ * Used to approve received scores in intra-group peer eval in one click.
+ */
+export async function bulkValidateNumericAnswers(
+    assignmentIds: string[],
+    questionIds: string[],
+    validated: boolean,
+): Promise<{ error?: string }> {
+    const auth = await requireTeacher();
+    if ("error" in auth) return { error: auth.error };
+
+    const { data: existing, error: fetchErr } = await auth.admin
+        .from("peer_evaluation_assignments")
+        .select("id, validated_numeric_answers")
+        .in("id", assignmentIds);
+
+    if (fetchErr) return { error: fetchErr.message };
+
+    for (const row of existing ?? []) {
+        const current: Record<string, boolean> = (row.validated_numeric_answers as any) ?? {};
+        for (const qId of questionIds) {
+            if (validated) current[qId] = true;
+            else delete current[qId];
+        }
+        await auth.admin
+            .from("peer_evaluation_assignments")
+            .update({ validated_numeric_answers: current })
+            .eq("id", row.id);
+    }
+
+    return {};
+}
+
+/**
  * Private helper — inserts intra-group peer eval assignments.
  * Does NOT check for existing assignments (caller is responsible).
  * Uses the supplied admin client — no auth check.
@@ -2083,7 +2438,7 @@ export async function getPeerEvaluationResults(stepId: string, moduleId?: string
     evalMode?: string;
     rubric?: any[];
     evalQuestions?: any[];
-    groupByStudentId?: Record<string, { id: string; name: string }>;
+    groupByStudentId?: Record<string, { id: string; name: string; color?: string | null }>;
     error?: string;
 }> {
     const auth = await requireTeacher();
@@ -2099,7 +2454,7 @@ export async function getPeerEvaluationResults(stepId: string, moduleId?: string
             .from("peer_evaluation_assignments")
             .select(`
                 id, evaluator_id, evaluator_group_id, target_submission_id, target_student_id, eval_submission_id,
-                reliability_score, is_outlier, calibration_score,
+                reliability_score, is_outlier, calibration_score, validated_numeric_answers,
                 evaluator:profiles!evaluator_id(id, full_name),
                 evaluator_group:module_groups!evaluator_group_id(id, name),
                 target_submission:activity_submissions!target_submission_id(
@@ -2120,7 +2475,7 @@ export async function getPeerEvaluationResults(stepId: string, moduleId?: string
     const mode = content?.mode ?? "individual";
 
     let assignments = data ?? [];
-    let groupByStudentId: Record<string, { id: string; name: string }> = {};
+    let groupByStudentId: Record<string, { id: string; name: string; color?: string | null }> = {};
 
     if (mode === 'intra_group' && assignments.length > 0) {
         // Resolve target_student names
@@ -2152,12 +2507,12 @@ export async function getPeerEvaluationResults(stepId: string, moduleId?: string
         if (groupIds.length > 0) {
             const { data: members } = await auth.admin
                 .from("module_group_members")
-                .select("student_id, group_id, group:module_groups!group_id(id, name)")
+                .select("student_id, group_id, group:module_groups!group_id(id, name, color)")
                 .in("group_id", groupIds);
             for (const m of members ?? []) {
                 const grp = (m as any).group;
                 if (grp && m.student_id) {
-                    groupByStudentId[m.student_id as string] = { id: grp.id, name: grp.name };
+                    groupByStudentId[m.student_id as string] = { id: grp.id, name: grp.name, color: grp.color ?? null };
                 }
             }
         }

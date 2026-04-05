@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
     FileText, CheckCircle2, Clock, Circle, ExternalLink, Copy, Lock, Send, PencilLine,
     ChevronDown, Star, Undo2, BookOpen, Paperclip, CalendarPlus,
-    LayoutGrid, ListFilter, Search, Users, FolderRoot, GraduationCap, ArrowRight,
+    LayoutGrid, ListFilter, Search, Users, User, FolderRoot, GraduationCap, ArrowRight,
     ArrowUp, ArrowDown, ArrowUpDown, Download
 } from "lucide-react";
 import {
@@ -559,6 +559,7 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
     const [sorting, setSorting] = useState<SortingState>([]);
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
     const [extensionDialog, setExtensionDialog] = useState<{ open: boolean; studentIds: string[]; studentNames: string[] }>({ open: false, studentIds: [], studentNames: [] });
+    const [groupViewMode, setGroupViewMode] = useState<'groups' | 'individual'>('groups');
 
     const stats = useMemo(() => {
         if (!stepData?.rows) return { total: 0, pending: 0, graded: 0, published: 0 };
@@ -795,6 +796,256 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
         return rows;
     }, [stepData]);
 
+    // Individual view rows: one row per student across all groups.
+    // Propagated rows carry linked eval scores (self-eval, group peer-eval, intra-group peer-eval)
+    // populated by post-processing in getUnitStepSubmissions.
+    type IndividualRow = {
+        student_id: string;
+        student_name: string;
+        group_id: string;
+        group_name: string | null;
+        group_color: string | null;
+        group_score: number | null;
+        group_status: string;
+        group_published: boolean;
+        linked_self_eval_score: number | null;
+        linked_self_eval_weight: number | null;
+        linked_peer_eval_score: number | null;
+        linked_peer_eval_weight: number | null;
+        linked_intra_peer_eval_score: number | null;
+        linked_intra_peer_eval_weight: number | null;
+    };
+    const individualRows = useMemo((): IndividualRow[] => {
+        if (!stepData?.isGroupSubmission) return [];
+        const allRows = (stepData.rows ?? []) as StepSubmissionRow[];
+        // Include ALL group rows — real AND synthetic — so students from unsubmitted groups appear.
+        // De-dup by group_id+step_id: prefer real (non-synthetic) over synthetic.
+        const groupRowByKey: Record<string, StepSubmissionRow> = {};
+        for (const r of allRows) {
+            if (!r.is_group_submission || !r.group_id) continue;
+            const key = `${r.group_id}:${r.step_id}`;
+            if (!groupRowByKey[key] || !r.synthetic) groupRowByKey[key] = r;
+        }
+        const groupRows = Object.values(groupRowByKey);
+
+        const propagatedByStudent: Record<string, StepSubmissionRow> = {};
+        for (const r of allRows) {
+            if (!r.is_group_submission && !r.synthetic && r.student_id) {
+                propagatedByStudent[r.student_id] = r;
+            }
+        }
+        const seenStudents = new Set<string>();
+        const result: IndividualRow[] = [];
+        for (const gr of groupRows) {
+            for (const member of gr.group_members ?? []) {
+                if (seenStudents.has(member.student_id)) continue;
+                seenStudents.add(member.student_id);
+                const prop = propagatedByStudent[member.student_id];
+                const intraEntry = gr.intra_peer_scores_by_student?.[member.student_id];
+                result.push({
+                    student_id: member.student_id,
+                    student_name: member.full_name ?? "—",
+                    group_id: gr.group_id!,
+                    group_name: gr.group_name ?? null,
+                    group_color: gr.group_color ?? null,
+                    group_score: gr.synthetic ? null : (gr.score ?? null),
+                    group_status: gr.synthetic ? "not_submitted" : gr.status,
+                    group_published: !gr.synthetic && !!gr.published_at,
+                    // Self-eval: from propagated row (computed post-publish) or canonical group row
+                    linked_self_eval_score: prop?.linked_self_eval_score ?? gr.linked_self_eval_score ?? null,
+                    linked_self_eval_weight: prop?.linked_self_eval_weight ?? gr.linked_self_eval_weight ?? null,
+                    // Group peer-eval: same score for all members, from group row
+                    linked_peer_eval_score: prop?.linked_peer_eval_score ?? gr.linked_peer_eval_score ?? null,
+                    linked_peer_eval_weight: prop?.linked_peer_eval_weight ?? gr.linked_peer_eval_weight ?? null,
+                    // Intra-group peer-eval: per-student, from group row's intra_peer_scores_by_student
+                    // (available before publishing, unlike propagated row fields)
+                    linked_intra_peer_eval_score: intraEntry?.score ?? prop?.linked_intra_peer_eval_score ?? null,
+                    linked_intra_peer_eval_weight: intraEntry?.weight ?? prop?.linked_intra_peer_eval_weight ?? null,
+                });
+            }
+        }
+        return result.sort((a, b) => (a.group_name ?? "").localeCompare(b.group_name ?? "") || a.student_name.localeCompare(b.student_name));
+    }, [stepData]);
+
+    const [indivSorting, setIndivSorting] = useState<SortingState>([]);
+    const [indivRowSelection, setIndivRowSelection] = useState<RowSelectionState>({});
+    const hasIndivLinkedSelf = useMemo(() => individualRows.some(r => r.linked_self_eval_score != null), [individualRows]);
+    const hasIndivLinkedPeer = useMemo(() => individualRows.some(r => r.linked_peer_eval_score != null), [individualRows]);
+    const hasIndivLinkedIntra = useMemo(() => individualRows.some(r => r.linked_intra_peer_eval_score != null), [individualRows]);
+
+    const individualColumns = useMemo((): ColumnDef<IndividualRow>[] => [
+        {
+            id: "select",
+            header: ({ table }) => (
+                <Checkbox
+                    checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+                    onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+                    aria-label="Seleccionar todos"
+                    className="border-border-strong"
+                />
+            ),
+            cell: ({ row }) => (
+                <Checkbox
+                    checked={row.getIsSelected()}
+                    onCheckedChange={(v) => row.toggleSelected(!!v)}
+                    aria-label="Seleccionar alumno"
+                    className="border-border-strong"
+                />
+            ),
+            enableSorting: false,
+            size: 48,
+        },
+        {
+            accessorKey: "student_name",
+            header: ({ column }) => <SortableHeader column={column} label="Alumno" />,
+            cell: ({ row }) => {
+                const r = row.original;
+                return (
+                    <div className="flex items-center gap-2.5">
+                        <div className="size-7 rounded-full bg-accent-blue/10 border border-accent-blue/20 flex items-center justify-center text-[10px] font-black text-accent-blue uppercase shrink-0">
+                            {(r.student_name[0] ?? "?").toUpperCase()}
+                        </div>
+                        <span className="text-[13px] font-semibold text-foreground truncate">{r.student_name}</span>
+                    </div>
+                );
+            },
+            size: 200,
+        },
+        {
+            accessorKey: "group_name",
+            header: ({ column }) => <SortableHeader column={column} label="Grupo" />,
+            cell: ({ row }) => {
+                const r = row.original;
+                return (
+                    <div className="flex items-center gap-2">
+                        <div className="size-4 rounded-md border shrink-0"
+                            style={r.group_color ? { backgroundColor: `${r.group_color}20`, borderColor: `${r.group_color}50` }
+                                : { backgroundColor: "rgb(99 102 241 / 0.1)", borderColor: "rgb(99 102 241 / 0.3)" }}
+                        />
+                        <span className="text-[12px] font-bold text-foreground uppercase tracking-tight font-mono truncate">
+                            {r.group_name ?? "—"}
+                        </span>
+                    </div>
+                );
+            },
+            size: 140,
+        },
+        {
+            accessorKey: "group_score",
+            header: ({ column }) => <SortableHeader column={column} label="Nota grupo" />,
+            cell: ({ row }) => {
+                const s = row.original.group_score;
+                if (s == null) return <span className="text-text-muted/20 font-mono text-[10px]">—</span>;
+                return <span className={cn("text-[13px] font-black font-mono", s >= 5 ? "text-foreground" : "text-rose-400")}>{s.toFixed(2)}</span>;
+            },
+            sortingFn: (a, b) => (a.original.group_score ?? -1) - (b.original.group_score ?? -1),
+            size: 110,
+        },
+        ...(hasIndivLinkedSelf ? [{
+            id: "linked_self",
+            header: ({ column }: any) => <SortableHeader column={column} label="Auto" className="text-indigo-400" />,
+            cell: ({ row }: any) => {
+                const s = row.original.linked_self_eval_score;
+                const w = row.original.linked_self_eval_weight;
+                if (s == null) return <span className="text-text-muted/20 font-mono text-[10px]">—</span>;
+                if (w === 0) return <div className="flex flex-col"><span className="text-[11px] font-mono font-bold text-indigo-400">{Math.round(s * 10)}%</span><span className="text-[8px] text-text-muted/40 font-mono">completado</span></div>;
+                return <div className="flex flex-col"><span className="text-[11px] font-mono font-bold text-indigo-400">{s}/10</span>{w != null && <span className="text-[8px] text-text-muted/40 font-mono">{w}%</span>}</div>;
+            },
+            sortingFn: (a: any, b: any) => (a.original.linked_self_eval_score ?? -1) - (b.original.linked_self_eval_score ?? -1),
+            enableSorting: true,
+            size: 80,
+        }] as ColumnDef<IndividualRow>[] : []),
+        ...(hasIndivLinkedPeer ? [{
+            id: "linked_peer",
+            header: ({ column }: any) => <SortableHeader column={column} label="Co-eval" className="text-purple-400" />,
+            cell: ({ row }: any) => {
+                const s = row.original.linked_peer_eval_score;
+                const w = row.original.linked_peer_eval_weight;
+                if (s == null) return <span className="text-text-muted/20 font-mono text-[10px]">—</span>;
+                return <div className="flex flex-col"><span className="text-[11px] font-mono font-bold text-purple-400">{s}/10</span>{w != null && <span className="text-[8px] text-text-muted/40 font-mono">{w}%</span>}</div>;
+            },
+            sortingFn: (a: any, b: any) => (a.original.linked_peer_eval_score ?? -1) - (b.original.linked_peer_eval_score ?? -1),
+            enableSorting: true,
+            size: 90,
+        }] as ColumnDef<IndividualRow>[] : []),
+        ...(hasIndivLinkedIntra ? [{
+            id: "linked_intra",
+            header: ({ column }: any) => <SortableHeader column={column} label="Co-eval intra" className="text-fuchsia-400" />,
+            cell: ({ row }: any) => {
+                const s = row.original.linked_intra_peer_eval_score;
+                const w = row.original.linked_intra_peer_eval_weight;
+                if (s == null) return <span className="text-text-muted/20 font-mono text-[10px]">—</span>;
+                return <div className="flex flex-col"><span className="text-[11px] font-mono font-bold text-fuchsia-400">{s}/10</span>{w != null && <span className="text-[8px] text-text-muted/40 font-mono">{w}%</span>}</div>;
+            },
+            sortingFn: (a: any, b: any) => (a.original.linked_intra_peer_eval_score ?? -1) - (b.original.linked_intra_peer_eval_score ?? -1),
+            enableSorting: true,
+            size: 110,
+        }] as ColumnDef<IndividualRow>[] : []),
+        ...((hasIndivLinkedSelf || hasIndivLinkedPeer || hasIndivLinkedIntra) ? [{
+            id: "weighted_total",
+            header: ({ column }: any) => <SortableHeader column={column} label="⇒ Total" className="text-emerald-400" />,
+            cell: ({ row }: any) => {
+                const r: IndividualRow = row.original;
+                if (r.group_score == null) return <span className="text-text-muted/20 font-mono text-[10px]">—</span>;
+                const selfW = r.linked_self_eval_weight ?? 0;
+                const peerW = r.linked_peer_eval_weight ?? 0;
+                const intraW = r.linked_intra_peer_eval_weight ?? 0;
+                const teacherW = 100 - selfW - peerW - intraW;
+                let total = (teacherW / 100) * r.group_score;
+                if (r.linked_self_eval_score != null) total += (selfW / 100) * r.linked_self_eval_score;
+                if (r.linked_peer_eval_score != null) total += (peerW / 100) * r.linked_peer_eval_score;
+                if (r.linked_intra_peer_eval_score != null) total += (intraW / 100) * r.linked_intra_peer_eval_score;
+                total = Math.round(total * 100) / 100;
+                return <div className="px-2 py-1 rounded-lg border bg-emerald-500/10 border-emerald-500/20 font-mono text-[10px] font-black text-emerald-400 w-fit">{total}/10</div>;
+            },
+            sortingFn: (rowA: any, rowB: any) => {
+                const calc = (r: IndividualRow) => {
+                    if (r.group_score == null) return -1;
+                    const selfW = r.linked_self_eval_weight ?? 0;
+                    const peerW = r.linked_peer_eval_weight ?? 0;
+                    const intraW = r.linked_intra_peer_eval_weight ?? 0;
+                    const teacherW = 100 - selfW - peerW - intraW;
+                    let t = (teacherW / 100) * r.group_score;
+                    if (r.linked_self_eval_score != null) t += (selfW / 100) * r.linked_self_eval_score;
+                    if (r.linked_peer_eval_score != null) t += (peerW / 100) * r.linked_peer_eval_score;
+                    if (r.linked_intra_peer_eval_score != null) t += (intraW / 100) * r.linked_intra_peer_eval_score;
+                    return t;
+                };
+                return calc(rowA.original) - calc(rowB.original);
+            },
+            enableSorting: true,
+            size: 95,
+        }] as ColumnDef<IndividualRow>[] : []),
+        {
+            id: "group_status",
+            accessorFn: (r) => r.group_status,
+            header: ({ column }: any) => <SortableHeader column={column} label="Estado" />,
+            cell: ({ row }: any) => {
+                const r: IndividualRow = row.original;
+                if (r.group_published) return <Badge className="text-[9px] h-5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-black uppercase px-1.5">Publicado</Badge>;
+                if (r.group_status === 'graded') return <Badge className="text-[9px] h-5 bg-amber-500/10 text-amber-400 border border-amber-500/20 font-black uppercase px-1.5">Calificado</Badge>;
+                if (r.group_status === 'submitted') return <Badge className="text-[9px] h-5 bg-blue-500/10 text-blue-400 border border-blue-500/20 font-black uppercase px-1.5">Entregado</Badge>;
+                return <Badge className="text-[9px] h-5 bg-surface-dark text-text-muted border border-border-strong font-black uppercase px-1.5">Sin entrega</Badge>;
+            },
+            sortingFn: (a: any, b: any) => {
+                const order: Record<string, number> = { not_submitted: 0, submitted: 1, graded: 2, published: 3 };
+                return (order[a.original.group_status] ?? 0) - (order[b.original.group_status] ?? 0);
+            },
+            size: 110,
+        },
+    ], [hasIndivLinkedSelf, hasIndivLinkedPeer, hasIndivLinkedIntra]);
+
+    const individualTable = useReactTable({
+        data: individualRows,
+        columns: individualColumns,
+        state: { sorting: indivSorting, rowSelection: indivRowSelection },
+        onSortingChange: setIndivSorting,
+        onRowSelectionChange: setIndivRowSelection,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        getRowId: (row) => `${row.group_id}:${row.student_id}`,
+    });
+
     const table = useReactTable({
         data: tableRows,
         columns,
@@ -813,7 +1064,7 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
         return <PeerEvaluationTeacherView stepId={stepId} moduleId={moduleId} stepTitle={stepData.stepTitle} activityId={activityId} isActivityClosed={stepData.isActivityClosed} students={students ?? []} />;
     }
 
-    const noGroupSubmissionsYet = stepData.isGroupSubmission && tableRows.every((r: StepSubmissionRow) => r.synthetic);
+    const noGroupSubmissionsYet = stepData.isGroupSubmission && tableRows.length === 0;
 
     const selectedRows = table.getSelectedRowModel().rows.map(r => r.original);
     const selectedIdSet = new Set(selectedRows.map(r => r.id));
@@ -873,8 +1124,38 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
                 </div>
             </div>
 
+            {/* Group / Individual view toggle — only visible for group submissions */}
+            {stepData.isGroupSubmission && (
+                <div className="flex items-center gap-1 p-1 bg-surface-dark rounded-xl border border-border-strong self-start">
+                    <button
+                        onClick={() => setGroupViewMode('groups')}
+                        className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all",
+                            groupViewMode === 'groups'
+                                ? "bg-surface text-foreground shadow-sm"
+                                : "text-text-muted hover:text-foreground"
+                        )}
+                    >
+                        <Users className="size-3" />
+                        Grupos
+                    </button>
+                    <button
+                        onClick={() => setGroupViewMode('individual')}
+                        className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all",
+                            groupViewMode === 'individual'
+                                ? "bg-surface text-foreground shadow-sm"
+                                : "text-text-muted hover:text-foreground"
+                        )}
+                    >
+                        <User className="size-3" />
+                        Individual
+                    </button>
+                </div>
+            )}
+
             {/* Bulk action bar */}
-            {selectedRows.length > 0 && (
+            {selectedRows.length > 0 && groupViewMode === 'groups' && (
                 <BulkActionBar
                     selectedIds={selectedIdSet}
                     rows={selectedRows}
@@ -891,8 +1172,8 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
                 />
             )}
 
-            {/* Group step — no submissions yet */}
-            {noGroupSubmissionsYet && (
+            {/* Group step — no submissions and no groups yet */}
+            {noGroupSubmissionsYet && groupViewMode === 'groups' && (
                 <div className="flex flex-col items-center justify-center py-16 gap-3 text-center bg-surface border border-border-strong rounded-[2rem]">
                     <Users className="size-10 text-text-muted/20" />
                     <p className="text-sm font-bold text-foreground">Ningún grupo ha entregado todavía</p>
@@ -900,39 +1181,98 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
                 </div>
             )}
 
-            {/* Submissions Table */}
-            {!noGroupSubmissionsYet && <div className="flex-1 min-h-0 bg-surface border border-border-strong rounded-[2rem] overflow-hidden flex flex-col shadow-xl shadow-black/5">
-                <div className="overflow-auto custom-scrollbar flex-1 rounded-[2rem]">
-                    <Table className="table-fixed">
-                        <TableHeader className="sticky top-0 z-10">
-                            {table.getHeaderGroups().map(headerGroup => (
-                                <TableRow key={headerGroup.id} className="bg-surface-dark/50 border-b border-border-strong hover:bg-surface-dark/50">
-                                    {headerGroup.headers.map(header => (
-                                        <TableHead key={header.id} style={{ width: header.getSize() }}>
-                                            {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                                        </TableHead>
-                                    ))}
-                                </TableRow>
-                            ))}
-                        </TableHeader>
-                        <TableBody>
-                            {table.getRowModel().rows.map(row => (
-                                <TableRow
-                                    key={row.id}
-                                    data-state={row.getIsSelected() ? "selected" : undefined}
-                                    className={cn("group transition-colors odd:bg-muted/60 even:bg-transparent hover:bg-blue-500/10", row.getIsSelected() ? "bg-accent-blue/4" : "")}
-                                >
-                                    {row.getVisibleCells().map(cell => (
-                                        <TableCell key={cell.id}>
-                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                        </TableCell>
-                                    ))}
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+            {/* Submissions Table — Grupos view */}
+            {!noGroupSubmissionsYet && groupViewMode === 'groups' && (
+                <div className="flex-1 min-h-0 bg-surface border border-border-strong rounded-[2rem] overflow-hidden flex flex-col shadow-xl shadow-black/5">
+                    <div className="overflow-auto custom-scrollbar flex-1 rounded-[2rem]">
+                        <Table className="table-fixed">
+                            <TableHeader className="sticky top-0 z-10">
+                                {table.getHeaderGroups().map(headerGroup => (
+                                    <TableRow key={headerGroup.id} className="bg-surface-dark/50 border-b border-border-strong hover:bg-surface-dark/50">
+                                        {headerGroup.headers.map(header => (
+                                            <TableHead key={header.id} style={{ width: header.getSize() }}>
+                                                {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                                            </TableHead>
+                                        ))}
+                                    </TableRow>
+                                ))}
+                            </TableHeader>
+                            <TableBody>
+                                {table.getRowModel().rows.map(row => (
+                                    <TableRow
+                                        key={row.id}
+                                        data-state={row.getIsSelected() ? "selected" : undefined}
+                                        className={cn("group transition-colors odd:bg-muted/60 even:bg-transparent hover:bg-blue-500/10", row.getIsSelected() ? "bg-accent-blue/4" : "")}
+                                    >
+                                        {row.getVisibleCells().map(cell => (
+                                            <TableCell key={cell.id}>
+                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </div>
-            </div>}
+            )}
+
+            {/* Individual view — TanStack table with sortable columns + bulk selection */}
+            {groupViewMode === 'individual' && stepData.isGroupSubmission && (
+                <>
+                    {individualTable.getSelectedRowModel().rows.length > 0 && (
+                        <div className="flex items-center gap-3 px-4 py-2.5 bg-accent-blue/5 border border-accent-blue/20 rounded-2xl">
+                            <span className="text-[11px] font-bold text-accent-blue">
+                                {individualTable.getSelectedRowModel().rows.length} alumnos seleccionados
+                            </span>
+                            <button
+                                onClick={() => individualTable.resetRowSelection()}
+                                className="ml-auto text-[11px] text-text-muted hover:text-foreground transition-colors"
+                            >
+                                Limpiar selección
+                            </button>
+                        </div>
+                    )}
+                    <div className="flex-1 min-h-0 bg-surface border border-border-strong rounded-[2rem] overflow-hidden flex flex-col shadow-xl shadow-black/5">
+                        <div className="overflow-auto custom-scrollbar flex-1 rounded-[2rem]">
+                            <Table className="table-fixed">
+                                <TableHeader className="sticky top-0 z-10">
+                                    {individualTable.getHeaderGroups().map(hg => (
+                                        <TableRow key={hg.id} className="bg-surface-dark/50 border-b border-border-strong hover:bg-surface-dark/50">
+                                            {hg.headers.map(h => (
+                                                <TableHead key={h.id} style={{ width: h.getSize() }}>
+                                                    {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
+                                                </TableHead>
+                                            ))}
+                                        </TableRow>
+                                    ))}
+                                </TableHeader>
+                                <TableBody>
+                                    {individualTable.getRowModel().rows.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={individualColumns.length} className="text-center py-12">
+                                                <p className="text-sm text-text-muted">Los grupos aún no tienen miembros asignados.</p>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : individualTable.getRowModel().rows.map(row => (
+                                        <TableRow
+                                            key={row.id}
+                                            data-state={row.getIsSelected() ? "selected" : undefined}
+                                            className={cn("transition-colors odd:bg-muted/60 even:bg-transparent hover:bg-blue-500/10", row.getIsSelected() ? "bg-accent-blue/4" : "")}
+                                        >
+                                            {row.getVisibleCells().map(cell => (
+                                                <TableCell key={cell.id}>
+                                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                </TableCell>
+                                            ))}
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </div>
+                </>
+            )}
 
             <GradingModal
                 submission={gradingSubmission}

@@ -5,10 +5,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { setAssignmentOutlier } from "@/app/dashboard/units/[id]/actions";
+import { setAssignmentOutlier, setQuestionValidation } from "@/app/dashboard/units/[id]/actions";
 import { RubricCriteria, QuizQuestion } from "@/types/activity";
 import { toast } from "sonner";
-import { CheckCircle2, Clock, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
+import { CheckCircle2, Clock, AlertTriangle, ChevronLeft, ChevronRight, ShieldCheck, ShieldOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type EvalMode = "rubric" | "questions";
@@ -18,6 +18,7 @@ type AssignmentForReview = {
     targetName: string;
     isOutlier: boolean | null;
     reliabilityScore: number | null;
+    validatedNumericAnswers: Record<string, boolean> | null;
     evalSubmission: {
         self_eval_rubric_scores: Record<string, number> | null;
         self_eval_justifications: Record<string, string> | null;
@@ -34,6 +35,7 @@ interface PeerEvalReviewModalProps {
     rubric: RubricCriteria[];
     evalQuestions: QuizQuestion[];
     onOutlierToggled: (assignmentId: string, newValue: boolean) => void;
+    onQuestionValidated?: (assignmentId: string, questionId: string, validated: boolean, newMap: Record<string, boolean>) => void;
 }
 
 export function PeerEvalReviewModal({
@@ -45,9 +47,11 @@ export function PeerEvalReviewModal({
     rubric,
     evalQuestions,
     onOutlierToggled,
+    onQuestionValidated,
 }: PeerEvalReviewModalProps) {
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [isPending, startTransition] = useTransition();
+    const [validatingQuestion, setValidatingQuestion] = useState<string | null>(null);
 
     // Reset selection when modal opens or evaluator changes
     useEffect(() => {
@@ -77,6 +81,16 @@ export function PeerEvalReviewModal({
             onOutlierToggled(selected.id, newValue);
             toast.success(newValue ? "Marcado como outlier." : "Outlier eliminado.");
         });
+    }
+
+    async function handleValidateQuestion(questionId: string, currentlyValidated: boolean) {
+        if (!selected) return;
+        setValidatingQuestion(questionId);
+        const res = await setQuestionValidation(selected.id, questionId, !currentlyValidated);
+        setValidatingQuestion(null);
+        if (res.error) { toast.error(res.error); return; }
+        onQuestionValidated?.(selected.id, questionId, !currentlyValidated, res.validated_numeric_answers ?? {});
+        toast.success(!currentlyValidated ? "Respuesta validada." : "Validación retirada.");
     }
 
     return (
@@ -228,6 +242,9 @@ export function PeerEvalReviewModal({
                                         <QuestionsAnswersPanel
                                             questions={evalQuestions}
                                             answers={selected.evalSubmission.self_eval_justifications ?? {}}
+                                            validatedNumericAnswers={selected.validatedNumericAnswers ?? {}}
+                                            onValidateQuestion={handleValidateQuestion}
+                                            validatingQuestion={validatingQuestion}
                                         />
                                     )}
                                 </>
@@ -326,9 +343,15 @@ function RubricAnswersPanel({
 function QuestionsAnswersPanel({
     questions,
     answers,
+    validatedNumericAnswers,
+    onValidateQuestion,
+    validatingQuestion,
 }: {
     questions: QuizQuestion[];
     answers: Record<string, string>;
+    validatedNumericAnswers: Record<string, boolean>;
+    onValidateQuestion?: (questionId: string, currentlyValidated: boolean) => void;
+    validatingQuestion?: string | null;
 }) {
     if (!questions.length) {
         return (
@@ -342,12 +365,54 @@ function QuestionsAnswersPanel({
         <div className="flex-1 p-6 space-y-5 overflow-y-auto">
             {questions.map((q, idx) => {
                 const answer = answers[q.id] ?? null;
+                const needsValidation = q.type === 'numeric' && (q.points ?? 0) > 0 && (q as any).requireJustification;
+                const isValidated = validatedNumericAnswers[q.id] === true;
+                const isValidating = validatingQuestion === q.id;
+
                 return (
-                    <div key={q.id} className="space-y-2">
-                        <p className="text-xs font-semibold text-foreground">
-                            <span className="text-text-muted/50 font-mono mr-1">{idx + 1}.</span>
-                            {q.text}
-                        </p>
+                    <div key={q.id} className={cn(
+                        "space-y-2 rounded-xl p-3 border transition-colors",
+                        needsValidation
+                            ? isValidated
+                                ? "border-emerald-500/30 bg-emerald-500/5"
+                                : "border-amber-500/20 bg-amber-500/5"
+                            : "border-transparent"
+                    )}>
+                        <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs font-semibold text-foreground">
+                                <span className="text-text-muted/50 font-mono mr-1">{idx + 1}.</span>
+                                {q.text}
+                                {needsValidation && (
+                                    <span className={cn(
+                                        "ml-2 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md border",
+                                        isValidated
+                                            ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
+                                            : "text-amber-400 border-amber-500/30 bg-amber-500/10"
+                                    )}>
+                                        {isValidated ? "Validada" : "Pendiente"}
+                                    </span>
+                                )}
+                            </p>
+                            {needsValidation && answer && onValidateQuestion && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={isValidating}
+                                    onClick={() => onValidateQuestion(q.id, isValidated)}
+                                    className={cn(
+                                        "shrink-0 h-7 text-[10px] gap-1.5 border transition-colors",
+                                        isValidated
+                                            ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10 hover:bg-rose-500/10 hover:text-rose-400 hover:border-rose-500/30"
+                                            : "border-amber-500/30 text-amber-400 bg-amber-500/10 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/30"
+                                    )}
+                                >
+                                    {isValidated
+                                        ? <><ShieldOff className="size-3" />Retirar</>
+                                        : <><ShieldCheck className="size-3" />Validar</>
+                                    }
+                                </Button>
+                            )}
+                        </div>
                         <div className="bg-surface/50 border border-border/30 rounded-xl px-3 py-2">
                             {answer ? (
                                 q.type === 'numeric' ? (
@@ -356,6 +421,9 @@ function QuestionsAnswersPanel({
                                         <span className="text-[10px] text-text-muted/50 font-mono">
                                             [{q.numericMin ?? 0} – {q.numericMax ?? 10}]
                                         </span>
+                                        {(q.points ?? 0) > 0 && (
+                                            <span className="text-[9px] font-mono text-text-muted/50">{q.points}% peso</span>
+                                        )}
                                     </div>
                                 ) : (
                                     <p className="text-xs text-foreground/80">{answer}</p>
