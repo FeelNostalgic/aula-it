@@ -135,7 +135,7 @@ function DroppableGroup({
     onUpdateMaxMembers: (groupId: string, maxMembers: number | null) => void;
     onUpdateColor: (groupId: string, color: string) => void;
 }) {
-    const { setNodeRef, isOver } = useDroppable({ id: group.id });
+    const { setNodeRef, isOver } = useDroppable({ id: group.id, disabled: !canManage });
     const [editing, setEditing] = useState(false);
     const [editName, setEditName] = useState(group.name);
     const [editingMax, setEditingMax] = useState(false);
@@ -609,6 +609,7 @@ export function ModuleGroupsTab({
         groups.flatMap((g) => g.members.map((m) => m.student_id)),
     );
     const unassignedStudents = enrolledStudents.filter((s) => !assignedStudentIds.has(s.id));
+    const isReadOnly = !canManageStudents;
 
     const handleDragStart = useCallback((event: DragStartEvent) => {
         const student = enrolledStudents.find((s) => s.id === event.active.id);
@@ -786,7 +787,7 @@ export function ModuleGroupsTab({
                     <Badge variant="outline" className="border-border-subtle text-text-muted text-[10px] font-mono font-bold">
                         {groups.length}
                     </Badge>
-                    {groups.length > 0 && (
+                    {canManageStudents && groups.length > 0 && (
                         <Badge variant="outline" className="border-border-subtle text-text-muted text-[10px] font-mono">
                             {unassignedStudents.length} sin asignar
                         </Badge>
@@ -852,7 +853,10 @@ export function ModuleGroupsTab({
                     <div className="space-y-1">
                         <h3 className="font-bold text-foreground">No hay grupos creados</h3>
                         <p className="text-xs text-text-muted max-w-sm">
-                            Crea grupos manualmente o usa la auto-asignación para distribuir a los alumnos aleatoriamente.
+                            {canManageStudents
+                                ? "Crea grupos manualmente o usa la auto-asignación para distribuir a los alumnos aleatoriamente."
+                                : "El profesor aún no ha creado grupos para este módulo."
+                            }
                         </p>
                     </div>
                     {canManageStudents && (
@@ -868,6 +872,22 @@ export function ModuleGroupsTab({
                             </Button>
                         </div>
                     )}
+                </div>
+            ) : isReadOnly ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 content-start">
+                    {groups.map((group) => (
+                        <DroppableGroup
+                            key={group.id}
+                            group={group}
+                            enrolledStudents={enrolledStudents}
+                            canManage={false}
+                            onRename={handleRenameGroup}
+                            onDelete={(id) => setDeleteTarget(id)}
+                            onRemoveMember={handleRemoveMember}
+                            onUpdateMaxMembers={handleUpdateMaxMembers}
+                            onUpdateColor={handleUpdateColor}
+                        />
+                    ))}
                 </div>
             ) : (
                 <DndContext

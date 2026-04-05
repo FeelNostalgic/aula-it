@@ -24,6 +24,7 @@ import {
     Trophy,
     ShieldAlert,
     UsersRound,
+    UserRoundCog,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -277,8 +278,9 @@ export function ModuleDetailView({
     const moduleTabs = [
         { value: "dashboard", label: "Dashboard", icon: LayoutGrid, visible: true },
         { value: "ranking", label: "Ranking", icon: Trophy, visible: true },
+        { value: "grupos", label: "Grupos", icon: UsersRound, visible: true },
         { value: "alumnos", label: "Alumnos", icon: GraduationCap, visible: isTeacher },
-        { value: "profesores", label: "Profesores", icon: Users, visible: isTeacher },
+        { value: "profesores", label: "Profesores", icon: UserRoundCog, visible: isTeacher },
         { value: "configuracion", label: "Configuración", icon: Settings, visible: modulePermissions?.canManageModuleSettings !== false },
     ] as const;
     const visibleModuleTabs = moduleTabs.filter((tab) => tab.visible);
@@ -572,6 +574,18 @@ export function ModuleDetailView({
                             canManageStudents={canManageStudents}
                             restrictionMessage={effectiveRole ? getRestrictedActionMessage("canManageStudents", effectiveRole) : null}
                         />
+                    </TabsContent>
+
+                    <TabsContent value="grupos" className="mt-0 space-y-6">
+                        {isTeacher ? (
+                            <ModuleGroupsTab
+                                moduleId={module.id}
+                                enrolledStudents={initialStudents}
+                                canManageStudents={canManageStudents}
+                            />
+                        ) : (
+                            <GroupSelfEnrollmentCard moduleId={module.id} />
+                        )}
                     </TabsContent>
 
                     <TabsContent value="profesores" className="mt-0">
