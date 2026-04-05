@@ -490,7 +490,7 @@ describe("submitDeliverable", () => {
     expect(result).toEqual({ error: "El plazo de entrega ha finalizado." });
   });
 
-  it("upserts submission with correct conflict target on success", async () => {
+  it("inserts submission and returns data when no previous row exists", async () => {
     const user = createMockUser();
     const submission = createMockSubmission({
       student_id: user.id,
@@ -502,9 +502,11 @@ describe("submitDeliverable", () => {
     const { client } = new SupabaseMockBuilder()
       .mockAuth(user)
       .mockQuery("activity_steps", { data: { due_date: FUTURE_DATE }, error: null })
-      .mockUpsert("activity_submissions", { data: submission, error: null })
+      .mockQuery("activity_submissions", { data: null, error: null })
+      .mockInsert("activity_submissions", { data: submission, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await submitDeliverable(STEP_ID, VALID_DRIVE_URL, ACTIVITY_ID);
 
@@ -517,12 +519,14 @@ describe("submitDeliverable", () => {
     const { client } = new SupabaseMockBuilder()
       .mockAuth(user)
       .mockQuery("activity_steps", { data: { due_date: null }, error: null })
-      .mockUpsert("activity_submissions", {
+      .mockQuery("activity_submissions", { data: null, error: null })
+      .mockInsert("activity_submissions", {
         data: null,
         error: { message: "unique constraint violation" },
       })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await submitDeliverable(STEP_ID, VALID_DRIVE_URL, ACTIVITY_ID);
 
@@ -609,9 +613,11 @@ describe("submitFileUpload", () => {
     const { client } = new SupabaseMockBuilder()
       .mockAuth(user)
       .mockQuery("activity_steps", { data: { due_date: null }, error: null })
-      .mockUpsert("activity_submissions", { data: submission, error: null })
+      .mockQuery("activity_submissions", { data: null, error: null })
+      .mockInsert("activity_submissions", { data: submission, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await submitFileUpload(
       STEP_ID,
@@ -671,9 +677,11 @@ describe("submitFileUploadMulti", () => {
     const { client } = new SupabaseMockBuilder()
       .mockAuth(user)
       .mockQuery("activity_steps", { data: { due_date: null }, error: null })
-      .mockUpsert("activity_submissions", { data: submission, error: null })
+      .mockQuery("activity_submissions", { data: null, error: null })
+      .mockInsert("activity_submissions", { data: submission, error: null })
       .build();
     vi_createClient.mockResolvedValue(client as any);
+    vi_createAdminClient.mockReturnValue(client as any);
 
     const result = await submitFileUploadMulti(STEP_ID, ACTIVITY_ID, files);
 
