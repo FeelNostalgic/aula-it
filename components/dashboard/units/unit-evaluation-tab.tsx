@@ -542,7 +542,15 @@ function ChallengeAccordion({ id, index, data, selectedStepId, onSelectStep, isO
     );
 }
 
-function SortableHeader({ column, label, className }: { column: Column<StepSubmissionRow, unknown>; label: string; className?: string }) {
+function SortableHeader<TData extends object>({
+    column,
+    label,
+    className,
+}: {
+    column: Column<TData, unknown>;
+    label: string;
+    className?: string;
+}) {
     return (
         <button className={cn("flex items-center gap-1 cursor-pointer select-none uppercase tracking-wider text-[11px] font-mono font-medium", className)} onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
             {label}

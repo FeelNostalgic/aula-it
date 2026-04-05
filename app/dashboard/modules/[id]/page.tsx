@@ -11,7 +11,7 @@ interface ModulePageProps {
 // Force dynamic to ensure data is always fresh after revalidations
 export const dynamic = "force-dynamic";
 
-export default async function ModulePage({ params }: { params: { id: string } }) {
+export default async function ModulePage({ params }: ModulePageProps) {
     const { id } = await params;
     const supabase = await createClient();
     const admin = createAdminClient();

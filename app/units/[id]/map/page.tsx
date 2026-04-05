@@ -4,11 +4,13 @@ import { notFound, redirect } from "next/navigation";
 import MapClient from "./client";
 import { getUnitAccess } from "@/lib/module-access";
 
+interface UnitMapPageProps {
+    params: Promise<{ id: string }>;
+}
+
 export default async function UnitMapPage({
     params,
-}: {
-    params: { id: string };
-}) {
+}: UnitMapPageProps) {
     const supabase = await createClient();
     const admin = createAdminClient();
     const { id } = await params;
