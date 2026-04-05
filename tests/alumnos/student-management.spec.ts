@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { LoginPage } from "../auth/login-page";
 import { getSupabaseAdmin, generateTestEmail } from "../helpers";
+import { StudentManagementPage } from "./student-management-page";
 
 test.describe.configure({ mode: "serial" });
 
@@ -60,20 +61,22 @@ test.describe("Student Management (/alumnos)", () => {
 
     test("teacher can navigate to /alumnos page", async ({ page }) => {
         const loginPage = new LoginPage(page);
+        const studentManagementPage = new StudentManagementPage(page);
         await loginPage.loginTeacher(teacherEmail, password);
         await page.waitForURL(/\/dashboard/, { timeout: 15000 });
 
-        await page.goto("/alumnos");
+        await studentManagementPage.goto();
         await expect(page).toHaveURL(/\/alumnos/, { timeout: 10000 });
         await expect(page.locator("h1, h2").filter({ hasText: /alumnos|students/i }).first()).toBeVisible({ timeout: 5000 });
     });
 
     test("teacher can list created students", async ({ page }) => {
         const loginPage = new LoginPage(page);
+        const studentManagementPage = new StudentManagementPage(page);
         await loginPage.loginTeacher(teacherEmail, password);
         await page.waitForURL(/\/dashboard/, { timeout: 15000 });
 
-        await page.goto("/alumnos");
+        await studentManagementPage.goto();
         await expect(page).toHaveURL(/\/alumnos/, { timeout: 10000 });
 
         // The page should load and show the student table (may be empty or have students)

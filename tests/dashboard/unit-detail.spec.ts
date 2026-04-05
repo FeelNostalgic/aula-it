@@ -224,7 +224,8 @@ test.describe("Unit Detail (Creador del Mapa)", () => {
 
             // Verify visually updated to PUBLICADO in the Badge
             await expect(page.getByText("PUBLICADO").first()).toBeVisible();
-            await expect(page.getByRole("heading", { name: "U.D.1 Intro Modificada" })).toBeVisible();
+            await expect(unitDetailPage.titleInput).toHaveValue("U.D.1 Intro Modificada");
+            await expect(page.locator("header")).toContainText("U.D.1 Intro Modificada");
         }
     );
 });

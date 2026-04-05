@@ -57,7 +57,13 @@ export function UnitNavigationRail({ items, footerItems = [], className }: UnitN
                                                 : "text-text-muted hover:bg-accent/10 hover:text-foreground"
                                         )}
                                     >
-                                        <Link href={item.href}>
+                                        <Link
+                                            href={item.href}
+                                            aria-label={item.label}
+                                            title={item.label}
+                                            data-state={isActive ? "active" : "inactive"}
+                                            aria-current={isActive ? "page" : undefined}
+                                        >
                                             <Icon className="size-5" />
                                             {isActive && (
                                                 <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-accent-blue shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
@@ -83,6 +89,9 @@ export function UnitNavigationRail({ items, footerItems = [], className }: UnitN
                                             <button
                                                 type="button"
                                                 onClick={item.onClick}
+                                                aria-label={item.label}
+                                                title={item.label}
+                                                data-state={item.active ? "active" : "inactive"}
                                                 className={cn(
                                                     "relative flex size-10 items-center justify-center rounded-xl transition-all duration-300",
                                                     item.active

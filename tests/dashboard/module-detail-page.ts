@@ -23,9 +23,9 @@ export class ModuleDetailPage extends BasePage {
         this.addStudentsButton = page.getByRole('button', { name: 'MATRICULAR ALUMNO', exact: true });
         this.unitCards = page.locator('[class*="bg-surface-dark"][class*="border-border-subtle"]').filter({ has: page.locator("h3") });
         this.emptyState = page.locator('text=No hay unidades registradas');
-        this.tabDashboard = page.getByRole("tab", { name: 'DASHBOARD', exact: true });
-        this.tabAlumnos = page.getByRole("tab", { name: 'ALUMNOS', exact: true });
-        this.tabConfiguracion = page.getByRole("tab", { name: 'CONFIGURACIÓN', exact: true });
+        this.tabDashboard = page.getByRole("tab", { name: /dashboard/i });
+        this.tabAlumnos = page.getByRole("tab", { name: /alumnos/i });
+        this.tabConfiguracion = page.getByRole("tab", { name: /configuraci.n/i });
         this.viewModeGrid = page.getByRole("button", { name: "Grid", exact: true });
         this.viewModeList = page.getByRole("button", { name: "Lista", exact: true });
     }

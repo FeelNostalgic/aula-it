@@ -168,8 +168,8 @@ test.describe("Student Activity Flow", () => {
         await page.waitForURL(/\/activities\//, { timeout: 15000 });
         await page.waitForLoadState("networkidle");
 
-        // StudentPreview renders "Estructura de Misión" sidebar
-        await expect(page.getByRole("heading", { name: "Estructura de Misión" })).toBeVisible({ timeout: 10000 });
+        // StudentPreview sidebar now renders "Fases"
+        await expect(page.getByRole("heading", { name: "Fases" })).toBeVisible({ timeout: 10000 });
 
         // The phase is listed in the sidebar
         await expect(page.locator(`h3:has-text("Phase 1")`)).toBeVisible({ timeout: 10000 });

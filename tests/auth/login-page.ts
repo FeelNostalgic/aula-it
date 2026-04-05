@@ -27,6 +27,10 @@ export class LoginPage extends BasePage {
         await this.loginButton.click();
     }
 
+    async loginAdmin(email: string, pass: string) {
+        await this.loginTeacher(email, pass);
+    }
+
     async gotoTeacherLogin() {
         await this.goto("/login/teacher");
     }

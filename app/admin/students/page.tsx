@@ -3,7 +3,15 @@ import { getAdminStudents } from "./actions";
 import { getAllModulesWithTeachers } from "../enrollment/actions";
 import { AdminStudentsPanel } from "./admin-students-panel";
 
-export default async function AdminStudentsPage() {
+interface AdminStudentsPageProps {
+  searchParams: Promise<{
+    tab?: string;
+  }>;
+}
+
+export default async function AdminStudentsPage({ searchParams }: AdminStudentsPageProps) {
+  const { tab } = await searchParams;
+  const initialTab = tab === "crear" ? "crear" : "alumnos";
   const [{ students, error }, { modules }] = await Promise.all([
     getAdminStudents(),
     getAllModulesWithTeachers(),
@@ -25,6 +33,7 @@ export default async function AdminStudentsPage() {
         initialStudents={students ?? []}
         fetchError={error}
         initialModules={modules ?? []}
+        initialTab={initialTab}
       />
     </div>
   );

@@ -307,7 +307,7 @@ export function ModuleDetailView({
     return (
         <div className="-mx-24 -my-8 flex min-h-[calc(100vh-68px)] bg-background">
             <aside className="w-[60px] shrink-0 self-stretch border-r border-border/50 bg-background">
-                <div className="flex h-full flex-col items-center gap-3 py-4">
+                <div className="flex h-full flex-col items-center gap-3 py-4" role="tablist" aria-orientation="vertical">
                     <TooltipProvider>
                         {visibleModuleTabs.map((tab) => {
                             const TabIcon = tab.icon;
@@ -320,6 +320,10 @@ export function ModuleDetailView({
                                             type="button"
                                             variant="ghost"
                                             size="icon"
+                                            role="tab"
+                                            aria-label={tab.label}
+                                            aria-selected={isActive}
+                                            data-state={isActive ? "active" : "inactive"}
                                             onClick={() => setActiveTab(tab.value)}
                                             className={cn(
                                                 "relative size-10 rounded-xl transition-all duration-300",

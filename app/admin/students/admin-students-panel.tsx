@@ -126,9 +126,15 @@ interface Props {
   initialStudents: ClassroomStudent[];
   fetchError?: string;
   initialModules: AdminModule[];
+  initialTab?: "crear" | "alumnos";
 }
 
-export function AdminStudentsPanel({ initialStudents, fetchError, initialModules }: Props) {
+export function AdminStudentsPanel({
+  initialStudents,
+  fetchError,
+  initialModules,
+  initialTab = "alumnos",
+}: Props) {
   const { setSegments } = useBreadcrumb();
   useEffect(() => {
     setSegments([{ label: "Alumnos" }]);
@@ -496,7 +502,7 @@ export function AdminStudentsPanel({ initialStudents, fetchError, initialModules
 
   return (
     <>
-      <Tabs defaultValue="alumnos" className="space-y-6">
+      <Tabs defaultValue={initialTab} className="space-y-6">
         <div className="flex items-center justify-start border-b border-border/40 font-mono text-sm tracking-tighter">
           <TabsList className="bg-transparent h-auto p-0 gap-8">
             <TabsTrigger value="crear" className={TAB_TRIGGER_CLASS}>Crear cuentas</TabsTrigger>

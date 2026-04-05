@@ -1,5 +1,5 @@
 import { BasePage } from "../base-page";
-import { Page } from "@playwright/test";
+import { expect, Page } from "@playwright/test";
 
 export class AdminStudentManagementPage extends BasePage {
     constructor(page: Page) {
@@ -7,23 +7,23 @@ export class AdminStudentManagementPage extends BasePage {
     }
 
     async goto() {
-        await super.goto("/admin/students");
+        await this.page.goto("/admin/students", { waitUntil: "domcontentloaded", timeout: 60000 });
     }
 
     async openCreateTab() {
-        await this.page.locator('[role="tab"]').filter({ hasText: /crear cuentas/i }).click();
+        await this.page.goto("/admin/students?tab=crear", { waitUntil: "domcontentloaded", timeout: 60000 });
+        await expect(this.page.getByRole("tab", { name: /crear cuentas/i })).toHaveAttribute("aria-selected", "true");
     }
 
     async fillCreateForm(prefix: string, count: number, password: string) {
-        // Open prefix combobox (target the one inside the creation form only)
-        const combobox = this.page.locator('form [role="combobox"]').first();
-        await combobox.click({ force: true });
-        const prefixInput = this.page.locator('input[placeholder="Buscar prefijo..."]');
-        await prefixInput.fill(prefix);
-        await prefixInput.press("Escape");
-
+        await this.page.locator('input[name="prefix"]').evaluate((element, value) => {
+            const input = element as HTMLInputElement;
+            input.value = value as string;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+        }, prefix);
         await this.page.locator('input#count').fill(String(count));
-        await this.page.locator('input#password').fill(password);
+        await this.page.getByLabel("Contraseña inicial").fill(password);
     }
 
     async submitCreateForm() {
