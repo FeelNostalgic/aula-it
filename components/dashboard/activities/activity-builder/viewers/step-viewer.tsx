@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import { ResourceIcon } from "@/components/dashboard/shared/resource-icon";
 import { toSlidesDownloadUrl, toDriveDownloadUrl } from "@/lib/google-drive-urls";
 import { selectQuestionsForAttempt } from "@/lib/quiz-pool-selection";
-import { buildQuestionReview, getQuestionType, getQuizAttemptQuestions, QUIZ_QUESTION_TYPE } from "@/lib/quiz-core";
+import { buildQuestionReview, getQuestionType, getQuizAttemptQuestions, isQuizQuestionAnswered, QUIZ_QUESTION_TYPE } from "@/lib/quiz-core";
 import { QuizQuestionAnswerField } from "../quiz/quiz-question-answer-field";
 
 interface StepViewerProps {
@@ -487,6 +487,11 @@ function BuiltinQuizViewer({
     const totalPages = qpp ? Math.ceil(displayQuestions.length / qpp) : 1;
     const paginatedQuestions = qpp ? displayQuestions.slice(currentPage * qpp, (currentPage + 1) * qpp) : displayQuestions;
     const isLastPage = currentPage >= totalPages - 1;
+    const unansweredRequiredQuestions = displayQuestions.filter(question =>
+        question.isRequired
+        && !isQuizQuestionAnswered(question, { answers: selectedAnswers, shortAnswers, structuredAnswers })
+    );
+    const hasUnansweredRequiredQuestions = unansweredRequiredQuestions.length > 0;
 
     function toggleOption(qId: string, optId: string, singleSelect: boolean) {
         setSelectedAnswers(prev => {
@@ -528,6 +533,14 @@ function BuiltinQuizViewer({
 
     function handleSubmit() {
         if (!stepId || !activityId) return;
+        if (hasUnansweredRequiredQuestions) {
+            const firstQuestionIndex = displayQuestions.findIndex(question => question.id === unansweredRequiredQuestions[0]?.id);
+            toast.error(`Responde las preguntas obligatorias antes de enviar. Falta la ${firstQuestionIndex + 1}.`);
+            if (qpp && firstQuestionIndex >= 0) {
+                setCurrentPage(Math.floor(firstQuestionIndex / qpp));
+            }
+            return;
+        }
         startTransition(async () => {
             const result = await submitQuizAttempt(stepId, activityId, selectedAnswers, shortAnswers, structuredAnswers, content);
             if (result.error) {
@@ -880,6 +893,11 @@ function BuiltinQuizViewer({
                                         {globalIdx + 1}
                                     </span>
                                     <h3 className="text-xl font-bold text-foreground leading-tight mt-0.5">{q.text}</h3>
+                                    {q.isRequired && (
+                                        <span className="mt-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-amber-300">
+                                            Obligatoria
+                                        </span>
+                                    )}
                                 </div>
                                 <span className="text-xs font-mono text-text-muted shrink-0 mt-1">{q.points ?? 1} pt{(q.points ?? 1) !== 1 ? 's' : ''}</span>
                             </div>
@@ -923,16 +941,21 @@ function BuiltinQuizViewer({
                 )}
 
                 {isLastPage && (
-                    <div className="flex justify-center pt-8">
+                    <div className="flex flex-col items-center justify-center gap-2 pt-8">
                         <Button
                             onClick={() => setShowConfirm(true)}
-                            disabled={isPending || !stepId || !activityId || isPreview || isClosed}
+                            disabled={isPending || !stepId || !activityId || isPreview || isClosed || hasUnansweredRequiredQuestions}
                             className="bg-emerald-500 hover:bg-emerald-600 text-white px-10 h-12 text-base font-bold rounded-full shadow-lg shadow-emerald-500/20"
                         >
                             {isPending ? "Enviando..." : isExamActive ? "Entregar Examen" : "Enviar Cuestionario"}
                         </Button>
+                        {hasUnansweredRequiredQuestions && (
+                            <p className="text-center text-xs text-amber-400/80">
+                                Faltan {unansweredRequiredQuestions.length} pregunta{unansweredRequiredQuestions.length === 1 ? "" : "s"} obligatoria{unansweredRequiredQuestions.length === 1 ? "" : "s"}.
+                            </p>
+                        )}
                         {isPreview && (
-                            <p className="text-xs text-amber-400/80 text-center mt-2">No disponible en vista previa</p>
+                            <p className="text-center text-xs text-amber-400/80">No disponible en vista previa</p>
                         )}
                     </div>
                 )}

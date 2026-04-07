@@ -12,6 +12,7 @@ import { getQuestionBanks, createQuestionBank, updateQuestionBank, deleteQuestio
 import { createDefaultQuizQuestion, convertQuestionToType, getQuestionType, QUIZ_QUESTION_TYPE, supportsClassicOptions } from "@/lib/quiz-core";
 import { cn } from "@/lib/utils";
 import { StructuredQuestionFields } from "../quiz/structured-question-fields";
+import { LikertQuestionConfig } from "../quiz/likert-question-config";
 import {
     DndContext, closestCenter, KeyboardSensor, PointerSensor,
     useSensor, useSensors, DragEndEvent,
@@ -35,6 +36,7 @@ const QUESTION_TYPES: { value: QuizQuestionType; label: string }[] = [
     { value: 'multiple_choice', label: 'Opción múltiple' },
     { value: 'true_false', label: 'Verdadero/Falso' },
     { value: 'short_answer', label: 'Respuesta corta' },
+    { value: 'likert', label: 'Likert' },
     { value: 'fill_in_the_blank_dropdown', label: 'Texto con huecos' },
     { value: 'table_drag_drop', label: 'Tabla drag & drop' },
     { value: 'matching_pairs', label: 'Emparejar' },
@@ -393,13 +395,28 @@ export function QuestionBankManagerDialog({
                                                         </button>
                                                     ))}
                                                 </div>
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className="text-xs text-text-muted">Puntos:</span>
-                                                    <Input type="number" min={0} step={0.5}
-                                                        value={q.points ?? 1}
-                                                        onChange={(e) => updateQuestion(selectedBank, q.id, { points: Number(e.target.value) })}
-                                                        className="w-16 h-7 text-xs font-mono bg-surface border-border text-center px-1" />
-                                                </div>
+                                                {qType === QUIZ_QUESTION_TYPE.LIKERT ? (
+                                                    <span className="text-xs text-text-muted rounded-md border border-border/30 bg-surface px-2 py-1">
+                                                        Sin puntuación
+                                                    </span>
+                                                ) : (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-xs text-text-muted">Puntos:</span>
+                                                        <Input type="number" min={0} step={0.5}
+                                                            value={q.points ?? 1}
+                                                            onChange={(e) => updateQuestion(selectedBank, q.id, { points: Number(e.target.value) })}
+                                                            className="w-16 h-7 text-xs font-mono bg-surface border-border text-center px-1" />
+                                                    </div>
+                                                )}
+                                                <label className="flex items-center gap-1.5 rounded-md border border-border/30 bg-surface px-2 py-1 text-xs font-medium text-text-muted">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!q.isRequired}
+                                                        onChange={(e) => updateQuestion(selectedBank, q.id, { isRequired: e.target.checked || undefined })}
+                                                        className="size-3.5 accent-accent-blue"
+                                                    />
+                                                    Obligatoria
+                                                </label>
                                             </div>
 
                                             {/* Options with DnD */}
@@ -446,7 +463,14 @@ export function QuestionBankManagerDialog({
                                                 </div>
                                             )}
 
-                                            {!supportsClassicOptions(q) && qType !== QUIZ_QUESTION_TYPE.SHORT_ANSWER && (
+                                            {qType === QUIZ_QUESTION_TYPE.LIKERT && (
+                                                <LikertQuestionConfig
+                                                    question={q}
+                                                    onUpdate={(updates) => updateQuestion(selectedBank, q.id, updates)}
+                                                />
+                                            )}
+
+                                            {!supportsClassicOptions(q) && qType !== QUIZ_QUESTION_TYPE.SHORT_ANSWER && qType !== QUIZ_QUESTION_TYPE.LIKERT && (
                                                 <StructuredQuestionFields
                                                     question={q}
                                                     onUpdate={(updates) => updateQuestion(selectedBank, q.id, updates)}

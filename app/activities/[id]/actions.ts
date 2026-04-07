@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { ActivitySubmission, QuizContent, QuizStructuredAnswers, SubmissionFile, QuizAttempt } from "@/types/activity";
 import { buildPeerEvaluationLiveNoteFiles } from "@/lib/peer-evaluation-live-notes";
 import { selectQuestionsForAttempt } from "@/lib/quiz-pool-selection";
-import { scoreQuizAttempt } from "@/lib/quiz-core";
+import { isQuizQuestionAnswered, scoreQuizAttempt } from "@/lib/quiz-core";
 
 const DRIVE_URL_REGEX = /^https:\/\/(docs|drive|sheets|slides|forms)\.google\.com\//;
 
@@ -403,6 +403,15 @@ export async function submitQuizAttempt(
         },
         !!content.penalizeWrongAnswers,
     );
+
+    const missingRequiredQuestion = resolvedQuestions.find(question =>
+        question.isRequired
+        && !isQuizQuestionAnswered(question, { answers, shortAnswers, structuredAnswers })
+    );
+    if (missingRequiredQuestion) {
+        return { error: `La pregunta "${missingRequiredQuestion.text || "obligatoria"}" es obligatoria.` };
+    }
+
     const pointsEarned = scoreSummary.pointsEarned;
     const pointsTotal = scoreSummary.pointsTotal;
 

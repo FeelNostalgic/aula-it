@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ActivityStepWithClientState, FileUploadContent, AllowedFileType, GradeComposition, PeerEvaluationContent, RubricCriteria } from "@/types/activity";
+import { ActivityStepWithClientState, FileUploadContent, AllowedFileType, GradeComposition, PeerEvaluationContent, QuizContent, RubricCriteria } from "@/types/activity";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { updateStepContent, updateStepDueDate } from "@/app/activities/[id]/edit/actions";
@@ -51,6 +51,13 @@ function utcToLocalInputValue(isoUtc: string): string {
 interface FileUploadEditorProps {
     step: ActivityStepWithClientState;
     onUpdate: (updated: ActivityStepWithClientState) => void;
+}
+
+function isBuiltInQuizChild(step: ActivityStepWithClientState) {
+    if (step.type !== "quiz") return false;
+    const quizContent = step.content as Partial<QuizContent> | null | undefined;
+    const mode = quizContent?.quizMode ?? (quizContent?.googleFormUrl ? "google_form" : "builtin");
+    return mode === "builtin";
 }
 
 export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
@@ -337,17 +344,26 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                         const selfEvalChild = children.find(c => c.type === "self_evaluation");
                         const peerEvalChild = children.find(c => c.type === "peer_evaluation" && (c.content as PeerEvaluationContent)?.mode !== "intra_group");
                         const intraGroupChild = children.find(c => c.type === "peer_evaluation" && (c.content as PeerEvaluationContent)?.mode === "intra_group");
+                        const quizChild = children.find(isBuiltInQuizChild);
                         const showIntraGroup = !!content.is_group_submission && !!intraGroupChild;
 
-                        if (!selfEvalChild && !peerEvalChild && !showIntraGroup) return null;
+                        if (!selfEvalChild && !peerEvalChild && !showIntraGroup && !quizChild) return null;
 
-                        const comp: GradeComposition = content.gradeComposition ?? { selfEvalWeight: 0, peerEvalWeight: 0, intraGroupWeight: 0 };
-                        const totalAssigned = comp.selfEvalWeight + comp.peerEvalWeight + (showIntraGroup ? comp.intraGroupWeight : 0);
+                        const comp: GradeComposition = content.gradeComposition ?? { selfEvalWeight: 0, peerEvalWeight: 0, intraGroupWeight: 0, quizWeight: 0 };
+                        const effectiveSelfW = selfEvalChild ? comp.selfEvalWeight : 0;
+                        const effectivePeerW = peerEvalChild ? comp.peerEvalWeight : 0;
+                        const effectiveIntraW = showIntraGroup ? comp.intraGroupWeight : 0;
+                        const effectiveQuizW = quizChild ? (comp.quizWeight ?? 0) : 0;
+                        const totalAssigned = effectiveSelfW + effectivePeerW + effectiveIntraW + effectiveQuizW;
                         const teacherWeight = Math.max(0, 100 - totalAssigned);
 
                         const updateComp = (field: keyof GradeComposition, value: number) => {
                             const newComp = { ...comp, [field]: value };
-                            const newTotal = newComp.selfEvalWeight + newComp.peerEvalWeight + (showIntraGroup ? newComp.intraGroupWeight : 0);
+                            const newTotal =
+                                (selfEvalChild ? newComp.selfEvalWeight : 0)
+                                + (peerEvalChild ? newComp.peerEvalWeight : 0)
+                                + (showIntraGroup ? newComp.intraGroupWeight : 0)
+                                + (quizChild ? (newComp.quizWeight ?? 0) : 0);
                             if (newTotal > 100) return;
                             saveContent({ ...content, gradeComposition: newComp });
                         };
@@ -384,7 +400,7 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                                             <input
                                                 type="range"
                                                 min={0}
-                                                max={100 - comp.peerEvalWeight - (showIntraGroup ? comp.intraGroupWeight : 0)}
+                                                max={100 - effectivePeerW - effectiveIntraW - effectiveQuizW}
                                                 value={comp.selfEvalWeight}
                                                 onChange={e => updateComp("selfEvalWeight", Number(e.target.value))}
                                                 className="flex-1 accent-accent-blue"
@@ -400,7 +416,7 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                                             <input
                                                 type="range"
                                                 min={0}
-                                                max={100 - comp.selfEvalWeight - (showIntraGroup ? comp.intraGroupWeight : 0)}
+                                                max={100 - effectiveSelfW - effectiveIntraW - effectiveQuizW}
                                                 value={comp.peerEvalWeight}
                                                 onChange={e => updateComp("peerEvalWeight", Number(e.target.value))}
                                                 className="flex-1 accent-accent-blue"
@@ -416,12 +432,27 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                                             <input
                                                 type="range"
                                                 min={0}
-                                                max={100 - comp.selfEvalWeight - comp.peerEvalWeight}
+                                                max={100 - effectiveSelfW - effectivePeerW - effectiveQuizW}
                                                 value={comp.intraGroupWeight}
                                                 onChange={e => updateComp("intraGroupWeight", Number(e.target.value))}
                                                 className="flex-1 accent-accent-blue"
                                             />
                                             <span className="text-sm font-mono text-foreground w-10 text-right">{comp.intraGroupWeight}%</span>
+                                        </div>
+                                    )}
+
+                                    {quizChild && (
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm text-foreground w-36 shrink-0">Cuestionario</span>
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={100 - effectiveSelfW - effectivePeerW - effectiveIntraW}
+                                                value={comp.quizWeight ?? 0}
+                                                onChange={e => updateComp("quizWeight", Number(e.target.value))}
+                                                className="flex-1 accent-accent-blue"
+                                            />
+                                            <span className="text-sm font-mono text-foreground w-10 text-right">{comp.quizWeight ?? 0}%</span>
                                         </div>
                                     )}
                                 </div>

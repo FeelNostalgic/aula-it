@@ -83,7 +83,7 @@ export default async function EvaluacionPage({
             const steps = Array.isArray(phase.activity_steps) ? phase.activity_steps : [];
             steps.forEach((step: any) => {
                 totalXp += (step.xp || 0);
-                // Skip nested self_eval / peer_eval — their weight is baked into the parent deliverable
+                // Skip nested eval/quiz steps — their weight is baked into the parent deliverable
                 if (EVALUABLE_TYPES.includes(step.type) && !step.parent_step_id) {
                     evaluableSteps.push({
                         id: step.id,

@@ -1,6 +1,6 @@
 import type { ActivityPhaseWithSteps, ActivityStepWithClientState } from "@/types/activity";
 
-const EVAL_STEP_TYPES = ['self_evaluation', 'peer_evaluation'] as const;
+const EVAL_STEP_TYPES = ['self_evaluation', 'peer_evaluation', 'quiz'] as const;
 const PARENT_STEP_TYPES = ['deliverable', 'file_upload'] as const;
 
 export interface FlatStep {

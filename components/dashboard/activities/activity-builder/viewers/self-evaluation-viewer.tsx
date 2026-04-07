@@ -14,6 +14,7 @@ import { SelfEvaluationContent, ActivitySubmission, RubricCriteria, criteriaMaxP
 import { submitSelfEvaluation } from "@/app/activities/[id]/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { EvaluationQuestionResponse } from "../quiz/evaluation-question-response";
 
 interface SelfEvaluationViewerProps {
     content: SelfEvaluationContent;
@@ -25,7 +26,6 @@ interface SelfEvaluationViewerProps {
     isPreview?: boolean;
     isClosed?: boolean;
 }
-
 export function SelfEvaluationViewer({
     content,
     stepId,
@@ -189,15 +189,16 @@ export function SelfEvaluationViewer({
                             <MessageSquare className="size-4" /> Reflexión
                         </h3>
                         {questions.map((q, idx) => (
-                            <QuestionBlock
+                            <EvaluationQuestionResponse
                                 key={q.id}
                                 question={q}
                                 index={idx}
                                 answer={answers[q.id] ?? ""}
                                 justification={answers[`${q.id}:justification`] ?? ""}
                                 readOnly={hasSubmitted || !!isPreview || !!isClosed}
-                                onAnswer={(v) => !hasSubmitted && !isPreview && !isClosed && setAnswers(prev => ({ ...prev, [q.id]: v }))}
-                                onJustification={(v) => !hasSubmitted && !isPreview && !isClosed && setAnswers(prev => ({ ...prev, [`${q.id}:justification`]: v }))}
+                                surfaceClassName="bg-surface border-border/50"
+                                onAnswer={(value) => !hasSubmitted && !isPreview && !isClosed && setAnswers(prev => ({ ...prev, [q.id]: value }))}
+                                onJustification={(value) => !hasSubmitted && !isPreview && !isClosed && setAnswers(prev => ({ ...prev, [`${q.id}:justification`]: value }))}
                             />
                         ))}
                     </div>
@@ -234,7 +235,6 @@ export function SelfEvaluationViewer({
         </div>
     );
 }
-
 // ─── Sub-component: criterion block (rubric mode) ─────────────────────────────
 
 function CriterionBlock({
@@ -310,147 +310,6 @@ function CriterionBlock({
                     {minLen > 0 && !readOnly && (
                         <p className={cn("text-[10px] text-right", showWarning ? "text-amber-400" : "text-text-muted/50")}>
                             {charCount}/{minLen} caracteres mínimos
-                        </p>
-                    )}
-                </div>
-            )}
-        </div>
-    );
-}
-
-// ─── Sub-component: question block (questions mode — short_answer + likert) ──
-
-function QuestionBlock({
-    question,
-    index,
-    answer,
-    justification,
-    readOnly,
-    onAnswer,
-    onJustification,
-}: {
-    question: QuizQuestion;
-    index: number;
-    answer: string;
-    justification: string;
-    readOnly: boolean;
-    onAnswer: (v: string) => void;
-    onJustification: (v: string) => void;
-}) {
-    const isLikert = question.type === 'likert';
-    const isNumeric = question.type === 'numeric';
-    const scale = question.likertScale ?? 5;
-    const labels = question.likertLabels ?? [];
-    const charCount = answer.trim().length;
-    const justificationCharCount = justification.trim().length;
-    const minLength = question.minLength ?? 0;
-    const showMinLengthWarning = !isLikert && !isNumeric && !readOnly && minLength > 0 && charCount > 0 && charCount < minLength;
-    const showJustificationWarning = isLikert && question.requireJustification && !readOnly && minLength > 0 && justificationCharCount > 0 && justificationCharCount < minLength;
-
-    return (
-        <div className="space-y-2">
-            <div>
-                <p className="text-sm font-semibold text-foreground">
-                    <span className="text-text-muted font-normal mr-1">{index + 1}.</span>
-                    {question.text}
-                </p>
-                {question.explanation && (
-                    <p className="text-xs text-text-muted mt-0.5">{question.explanation}</p>
-                )}
-            </div>
-
-            {isNumeric ? (
-                <div className="flex items-center gap-3">
-                    <input
-                        type="number"
-                        min={question.numericMin ?? 0}
-                        max={question.numericMax ?? 10}
-                        step="0.01"
-                        value={answer}
-                        onChange={(e) => !readOnly && onAnswer(e.target.value)}
-                        readOnly={readOnly}
-                        placeholder={`${question.numericMin ?? 0} – ${question.numericMax ?? 10}`}
-                        className={cn(
-                            "h-10 w-32 rounded-xl border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-indigo-500",
-                            readOnly && "cursor-default opacity-80"
-                        )}
-                    />
-                    <span className="text-xs text-text-muted">
-                        Rango: {question.numericMin ?? 0} – {question.numericMax ?? 10}
-                    </span>
-                </div>
-            ) : isLikert ? (
-                <div className="space-y-2">
-                    <div className={cn("grid gap-1.5", scale <= 5 ? "grid-cols-5" : "grid-cols-7")}>
-                        {Array.from({ length: scale }, (_, i) => {
-                            const val = String(i + 1);
-                            const isSelected = answer === val;
-                            const label = labels[i] ?? val;
-                            return (
-                                <button
-                                    key={val}
-                                    disabled={readOnly}
-                                    onClick={() => !readOnly && onAnswer(val)}
-                                    className={cn(
-                                        "flex flex-col items-center gap-1 p-2 rounded-xl border text-center transition-colors",
-                                        isSelected
-                                            ? "bg-indigo-500/15 border-indigo-500/40 ring-1 ring-indigo-500/40"
-                                            : "bg-surface border-border/50 hover:bg-surface-dark",
-                                        readOnly && "cursor-default"
-                                    )}
-                                >
-                                    <span className={cn("text-xs font-bold", isSelected ? "text-indigo-400" : "text-foreground")}>{val}</span>
-                                    {label !== val && (
-                                        <span className={cn("text-[9px] leading-tight", isSelected ? "text-indigo-400" : "text-text-muted")}>{label}</span>
-                                    )}
-                                    {isSelected && <CheckCircle2 className="size-3 text-indigo-400 shrink-0" />}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    {question.requireJustification && (
-                        <div className="space-y-1">
-                            <Textarea
-                                value={justification}
-                                onChange={(e) => !readOnly && onJustification(e.target.value)}
-                                readOnly={readOnly}
-                                placeholder="Justifica tu respuesta (obligatorio)..."
-                                className={cn(
-                                    "resize-none text-sm min-h-[72px] bg-surface border-border/50",
-                                    readOnly && "cursor-default opacity-80",
-                                    showJustificationWarning && "border-amber-500/50"
-                                )}
-                            />
-                            {minLength > 0 && !readOnly && (
-                                <p className={cn(
-                                    "text-[10px] text-right",
-                                    showJustificationWarning ? "text-amber-400" : "text-text-muted/50"
-                                )}>
-                                    {justificationCharCount}/{minLength} caracteres mínimos
-                                </p>
-                            )}
-                        </div>
-                    )}
-                </div>
-            ) : (
-                <div className="space-y-1">
-                    <Textarea
-                        value={answer}
-                        onChange={(e) => !readOnly && onAnswer(e.target.value)}
-                        readOnly={readOnly}
-                        placeholder="Escribe tu respuesta..."
-                        className={cn(
-                            "resize-none text-sm min-h-[96px] bg-surface border-border/50",
-                            readOnly && "cursor-default opacity-80",
-                            showMinLengthWarning && "border-amber-500/50"
-                        )}
-                    />
-                    {minLength > 0 && !readOnly && (
-                        <p className={cn(
-                            "text-[10px] text-right",
-                            showMinLengthWarning ? "text-amber-400" : "text-text-muted/50"
-                        )}>
-                            {charCount}/{minLength} caracteres mínimos
                         </p>
                     )}
                 </div>

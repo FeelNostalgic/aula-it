@@ -39,6 +39,34 @@ export async function POST(request: NextRequest) {
         const expectedParentStepId = parentStepId ?? null;
         const expectedPhaseId = phaseId;
 
+        if (parentStepId) {
+            if (!await verifyTeacherOwnsStep(parentStepId, user.id)) {
+                return NextResponse.json({ error: "No autorizado para vincular con ese paso padre." }, { status: 403 });
+            }
+
+            const [{ data: childStep }, { data: parentStep }] = await Promise.all([
+                admin.from("activity_steps").select("id, type, content").eq("id", stepId).single(),
+                admin.from("activity_steps").select("id, type").eq("id", parentStepId).single(),
+            ]);
+
+            const childType = childStep?.type;
+            const parentType = parentStep?.type;
+            const allowedChildTypes = new Set(["self_evaluation", "peer_evaluation", "quiz"]);
+            const allowedParentTypes = new Set(["deliverable", "file_upload"]);
+
+            if (!allowedChildTypes.has(childType ?? "") || !allowedParentTypes.has(parentType ?? "")) {
+                return NextResponse.json({ error: "Solo se pueden anidar evaluaciones o cuestionarios bajo entregables." }, { status: 400 });
+            }
+
+            if (childType === "quiz") {
+                const quizContent = childStep?.content as { quizMode?: string; googleFormUrl?: string | null } | null;
+                const quizMode = quizContent?.quizMode ?? (quizContent?.googleFormUrl ? "google_form" : "builtin");
+                if (quizMode === "google_form") {
+                    return NextResponse.json({ error: "Solo se puede anidar un cuestionario built-in. Google Form debe quedarse como paso independiente." }, { status: 400 });
+                }
+            }
+        }
+
         const updates: { parent_step_id: string | null; phase_id?: string } = {
             parent_step_id: parentStepId ?? null,
         };

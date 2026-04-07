@@ -20,6 +20,7 @@ import { buildPeerEvaluationLiveNoteFiles } from "@/lib/peer-evaluation-live-not
 import { buildPeerEvaluationDraft } from "@/lib/peer-evaluation-draft";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { EvaluationQuestionResponse } from "../quiz/evaluation-question-response";
 
 interface PeerEvaluationViewerProps {
     content: PeerEvaluationContent;
@@ -203,9 +204,18 @@ export function PeerEvaluationViewer({
                                 </p>
                             </div>
                             {isClosed ? (
-                                <span className="text-xs text-text-muted/50 shrink-0">
-                                    {isCompleted ? "Enviada" : "Cerrado"}
-                                </span>
+                                isCompleted ? (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setActiveIndex(idx)}
+                                        className="gap-2 border-border/50 text-text-muted hover:text-foreground"
+                                    >
+                                        Ver
+                                    </Button>
+                                ) : (
+                                    <span className="text-xs text-text-muted/50 shrink-0">Cerrado</span>
+                                )
                             ) : isCompleted ? (
                                 <div className="flex items-center gap-2 shrink-0">
                                     <span className="text-xs text-emerald-400/60 flex items-center gap-1">
@@ -253,6 +263,7 @@ export function PeerEvaluationViewer({
                     allAssignments={content.mode === "intra_group" ? assignments : undefined}
                     onNavigate={content.mode === "intra_group" ? (idx) => setActiveIndex(idx) : undefined}
                     getTargetName={getTargetName}
+                    isClosed={!!isClosed}
                 />
             )}
 
@@ -311,6 +322,7 @@ function PeerEvalModal({
     allAssignments,
     onNavigate,
     getTargetName,
+    isClosed,
 }: {
     assignment: PeerAssignmentWithTarget;
     assignmentIndex: number;
@@ -326,6 +338,7 @@ function PeerEvalModal({
     allAssignments?: PeerAssignmentWithTarget[];
     onNavigate?: (idx: number) => void;
     getTargetName?: (a: PeerAssignmentWithTarget, idx: number) => string;
+    isClosed: boolean;
 }) {
     const evalMode = content.evalMode ?? "rubric";
     const rubric = content.rubric ?? [];
@@ -392,7 +405,7 @@ function PeerEvalModal({
             const minLen = content.minJustificationLength ?? 0;
             return text.trim().length >= (minLen > 0 ? minLen : 1);
         });
-    const canSubmit = allScored && allAnswered && allJustified;
+    const canSubmit = allScored && allAnswered && allJustified && !isClosed;
 
     function handleSubmit() {
         startTransition(async () => {
@@ -536,7 +549,9 @@ function PeerEvalModal({
                                     {isCompleted && (
                                         <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
                                             <CheckCircle2 className="size-3.5 shrink-0" />
-                                            Evaluación enviada — puedes modificarla hasta que el profesor cierre la actividad.
+                                            {isClosed
+                                                ? "Evaluación enviada — la actividad está cerrada y solo puedes verla."
+                                                : "Evaluación enviada — puedes modificarla hasta que el profesor cierre la actividad."}
                                         </div>
                                     )}
 
@@ -555,8 +570,9 @@ function PeerEvalModal({
                                                         justification={answers[criterion.id] ?? ""}
                                                         requireJustification={content.requireJustification}
                                                         minLength={content.minJustificationLength ?? 0}
-                                                        onSelect={pts => setScores(p => ({ ...p, [criterion.id]: pts }))}
-                                                        onJustify={text => setAnswers(p => ({ ...p, [criterion.id]: text }))}
+                                                        readOnly={isClosed}
+                                                        onSelect={pts => !isClosed && setScores(p => ({ ...p, [criterion.id]: pts }))}
+                                                        onJustify={text => !isClosed && setAnswers(p => ({ ...p, [criterion.id]: text }))}
                                                     />
                                                 ))}
                                             </div>
@@ -571,12 +587,16 @@ function PeerEvalModal({
                                                     <MessageSquare className="size-3.5" /> Preguntas de evaluación
                                                 </h3>
                                                 {questions.map((q, idx) => (
-                                                    <QuestionBlock
+                                                    <EvaluationQuestionResponse
                                                         key={q.id}
                                                         question={q}
                                                         index={idx}
-                                                        answers={answers}
-                                                        onChange={(key, val) => setAnswers(p => ({ ...p, [key]: val }))}
+                                                        answer={answers[q.id] ?? ""}
+                                                        justification={answers[`${q.id}:justification`] ?? ""}
+                                                        readOnly={isClosed}
+                                                        surfaceClassName="bg-surface-dark border-border-strong"
+                                                        onAnswer={(value) => !isClosed && setAnswers(p => ({ ...p, [q.id]: value }))}
+                                                        onJustification={(value) => !isClosed && setAnswers(p => ({ ...p, [`${q.id}:justification`]: value }))}
                                                     />
                                                 ))}
                                             </div>
@@ -591,9 +611,10 @@ function PeerEvalModal({
                                             </h3>
                                             <Textarea
                                                 value={qaNotes}
-                                                onChange={e => setQaNotes(e.target.value)}
+                                                onChange={e => !isClosed && setQaNotes(e.target.value)}
+                                                readOnly={isClosed}
                                                 placeholder="Preguntas realizadas, respuestas destacadas, observaciones..."
-                                                className="resize-none text-sm min-h-[96px] bg-surface-dark border-border-strong"
+                                                className={cn("resize-none text-sm min-h-[96px] bg-surface-dark border-border-strong", isClosed && "cursor-default opacity-80")}
                                             />
                                         </div>
                                     )}
@@ -624,14 +645,20 @@ function PeerEvalModal({
                                         </Button>
                                     </div>
                                 )}
-                                <Button
-                                    onClick={handleSubmit}
-                                    disabled={!canSubmit || isPending}
-                                    className="flex-1 gap-2"
-                                >
-                                    <CheckCircle2 className="size-4" />
-                                    {isPending ? "Guardando..." : isCompleted ? "Guardar cambios" : "Enviar evaluación"}
-                                </Button>
+                                {isClosed ? (
+                                    <Button onClick={onClose} variant="outline" className="flex-1 border-border-strong">
+                                        Cerrar
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        onClick={handleSubmit}
+                                        disabled={!canSubmit || isPending}
+                                        className="flex-1 gap-2"
+                                    >
+                                        <CheckCircle2 className="size-4" />
+                                        {isPending ? "Guardando..." : isCompleted ? "Guardar cambios" : "Enviar evaluación"}
+                                    </Button>
+                                )}
                             </div>
                         </div>
                     </ResizablePanel>
@@ -641,137 +668,11 @@ function PeerEvalModal({
     );
 }
 
-// ─── Question block ───────────────────────────────────────────────────────────
-
-function QuestionBlock({
-    question,
-    index,
-    answers,
-    onChange,
-}: {
-    question: QuizQuestion;
-    index: number;
-    answers: Record<string, string>;
-    onChange: (key: string, val: string) => void;
-}) {
-    const isLikert = question.type === "likert";
-    const isNumeric = question.type === "numeric";
-    const scale = question.likertScale ?? 5;
-    const labels = question.likertLabels ?? [];
-
-    return (
-        <div className="space-y-2">
-            <div>
-                <p className="text-sm font-semibold text-foreground">
-                    <span className="text-text-muted font-normal mr-1">{index + 1}.</span>
-                    {question.text}
-                </p>
-                {question.explanation && (
-                    <p className="text-xs text-text-muted mt-0.5">{question.explanation}</p>
-                )}
-            </div>
-            {isNumeric ? (
-                <div className="space-y-1">
-                    <div className="flex items-center gap-3">
-                        <input
-                            type="number"
-                            min={question.numericMin ?? 0}
-                            max={question.numericMax ?? 10}
-                            step="0.01"
-                            value={answers[question.id] ?? ""}
-                            onChange={(e) => onChange(question.id, e.target.value)}
-                            placeholder={`${question.numericMin ?? 0} – ${question.numericMax ?? 10}`}
-                            className="h-10 w-32 rounded-xl border border-border-strong bg-surface-dark px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                        <span className="text-xs text-text-muted">
-                            Rango: {question.numericMin ?? 0} – {question.numericMax ?? 10}
-                        </span>
-                    </div>
-                </div>
-            ) : isLikert ? (
-                <div className="space-y-2">
-                    <div className={cn("grid gap-1.5", scale <= 5 ? "grid-cols-5" : "grid-cols-7")}>
-                        {Array.from({ length: scale }, (_, i) => {
-                            const val = String(i + 1);
-                            const isSelected = answers[question.id] === val;
-                            const label = labels[i] ?? val;
-                            return (
-                                <button
-                                    key={val}
-                                    onClick={() => onChange(question.id, val)}
-                                    className={cn(
-                                        "flex flex-col items-center gap-1 p-2 rounded-xl border text-center transition-colors",
-                                        isSelected
-                                            ? "bg-indigo-500/15 border-indigo-500/40 ring-1 ring-indigo-500/40"
-                                            : "bg-surface-dark border-border-strong hover:bg-surface"
-                                    )}
-                                >
-                                    <span className={cn("text-xs font-bold", isSelected ? "text-indigo-400" : "text-foreground")}>{val}</span>
-                                    {label !== val && (
-                                        <span className={cn("text-[9px] leading-tight", isSelected ? "text-indigo-400" : "text-text-muted")}>{label}</span>
-                                    )}
-                                    {isSelected && <CheckCircle2 className="size-3 text-indigo-400 shrink-0" />}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    {question.requireJustification && (() => {
-                        const justVal = answers[`${question.id}:justification`] ?? "";
-                        const justCount = justVal.trim().length;
-                        const minLen = question.minLength ?? 0;
-                        const showWarn = minLen > 0 && justCount > 0 && justCount < minLen;
-                        return (
-                            <div className="space-y-1">
-                                <Textarea
-                                    value={justVal}
-                                    onChange={(e) => onChange(`${question.id}:justification`, e.target.value)}
-                                    placeholder="Justifica tu respuesta (obligatorio)..."
-                                    className={cn(
-                                        "resize-none text-sm min-h-[72px] bg-surface-dark border-border-strong",
-                                        showWarn && "border-amber-500/50"
-                                    )}
-                                />
-                                {minLen > 0 && (
-                                    <p className={cn("text-[10px] text-right", showWarn ? "text-amber-400" : "text-text-muted/50")}>
-                                        {justCount}/{minLen} caracteres mínimos
-                                    </p>
-                                )}
-                            </div>
-                        );
-                    })()}
-                </div>
-            ) : (() => {
-                const ansVal = answers[question.id] ?? "";
-                const ansCount = ansVal.trim().length;
-                const minLen = question.minLength ?? 0;
-                const showWarn = minLen > 0 && ansCount > 0 && ansCount < minLen;
-                return (
-                    <div className="space-y-1">
-                        <Textarea
-                            value={ansVal}
-                            onChange={(e) => onChange(question.id, e.target.value)}
-                            placeholder="Escribe tu respuesta..."
-                            className={cn(
-                                "resize-none text-sm min-h-[96px] bg-surface-dark border-border-strong",
-                                showWarn && "border-amber-500/50"
-                            )}
-                        />
-                        {minLen > 0 && (
-                            <p className={cn("text-[10px] text-right", showWarn ? "text-amber-400" : "text-text-muted/50")}>
-                                {ansCount}/{minLen} caracteres mínimos
-                            </p>
-                        )}
-                    </div>
-                );
-            })()}
-        </div>
-    );
-}
-
 // ─── Criterion block ──────────────────────────────────────────────────────────
 
 function CriterionBlock({
     criterion, selected, justification, requireJustification, minLength,
+    readOnly,
     onSelect, onJustify,
 }: {
     criterion: RubricCriteria;
@@ -779,6 +680,7 @@ function CriterionBlock({
     justification: string;
     requireJustification: boolean;
     minLength: number;
+    readOnly: boolean;
     onSelect: (pts: number) => void;
     onJustify: (text: string) => void;
 }) {
@@ -794,12 +696,14 @@ function CriterionBlock({
                     return (
                         <button
                             key={level.id}
+                            disabled={readOnly}
                             onClick={() => onSelect(level.points)}
                             className={cn(
                                 "p-2.5 border rounded-xl text-left transition-colors",
                                 isSelected
                                     ? "bg-indigo-500/15 border-indigo-500/40 ring-1 ring-indigo-500/40"
-                                    : "bg-surface-dark border-border-strong hover:bg-surface"
+                                    : "bg-surface-dark border-border-strong hover:bg-surface",
+                                readOnly && "cursor-default"
                             )}
                         >
                             <div className="flex items-center justify-between gap-1">
@@ -817,6 +721,7 @@ function CriterionBlock({
                     <Textarea
                         value={justification}
                         onChange={e => onJustify(e.target.value)}
+                        readOnly={readOnly}
                         placeholder={
                             requireJustification
                                 ? `Justificación obligatoria${minLength > 0 ? ` (mínimo ${minLength} caracteres)` : ""}...`
@@ -824,6 +729,7 @@ function CriterionBlock({
                         }
                         className={cn(
                             "resize-none text-sm min-h-[72px] bg-surface-dark border-border-strong",
+                            readOnly && "cursor-default opacity-80",
                             requireJustification && minLength > 0 && justification.length > 0 && justification.length < minLength
                                 && "border-amber-500/40"
                         )}

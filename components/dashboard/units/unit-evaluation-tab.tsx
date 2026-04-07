@@ -589,6 +589,10 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
         (stepData?.rows ?? []).some((r: StepSubmissionRow) => r.linked_peer_eval_score != null),
     [stepData]);
 
+    const hasLinkedQuiz = useMemo(() =>
+        (stepData?.rows ?? []).some((r: StepSubmissionRow) => r.linked_quiz_score != null),
+    [stepData]);
+
     const columns: ColumnDef<StepSubmissionRow>[] = useMemo(() => [
         {
             id: "select",
@@ -721,7 +725,25 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
             enableSorting: true,
             size: 85,
         }] as ColumnDef<StepSubmissionRow>[] : []),
-        ...((hasLinkedSelf || hasLinkedPeer) ? [{
+        ...(hasLinkedQuiz ? [{
+            id: "linked_quiz",
+            header: ({ column }: { column: any }) => <SortableHeader column={column} label="Quiz" className="text-sky-400" />,
+            cell: ({ row }: { row: any }) => {
+                const s = row.original.linked_quiz_score;
+                const w = row.original.linked_quiz_weight;
+                if (s == null) return <span className="text-text-muted/20 font-mono text-[10px]">—</span>;
+                return (
+                    <div className="flex flex-col">
+                        <span className="text-[11px] font-mono font-bold text-sky-400">{s}/10</span>
+                        {w != null && <span className="text-[8px] text-text-muted/40 font-mono">{w}%</span>}
+                    </div>
+                );
+            },
+            sortingFn: (rowA: any, rowB: any) => (rowA.original.linked_quiz_score ?? -1) - (rowB.original.linked_quiz_score ?? -1),
+            enableSorting: true,
+            size: 75,
+        }] as ColumnDef<StepSubmissionRow>[] : []),
+        ...((hasLinkedSelf || hasLinkedPeer || hasLinkedQuiz) ? [{
             id: "weighted_total",
             header: ({ column }: { column: any }) => <SortableHeader column={column} label="⇒ Total" className="text-emerald-400" />,
             cell: ({ row }: { row: any }) => {
@@ -730,10 +752,15 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
                 if (teacherScore == null) return <span className="text-text-muted/20 font-mono text-[10px]">—</span>;
                 const selfW = r.linked_self_eval_weight ?? 0;
                 const peerW = r.linked_peer_eval_weight ?? 0;
-                const teacherW = 100 - selfW - peerW;
+                const quizW = r.linked_quiz_weight ?? 0;
+                const effectiveSelfW = r.linked_self_eval_score != null ? selfW : 0;
+                const effectivePeerW = r.linked_peer_eval_score != null ? peerW : 0;
+                const effectiveQuizW = r.linked_quiz_score != null ? quizW : 0;
+                const teacherW = 100 - effectiveSelfW - effectivePeerW - effectiveQuizW;
                 let total = (teacherW / 100) * teacherScore;
-                if (r.linked_self_eval_score != null) total += (selfW / 100) * r.linked_self_eval_score;
-                if (r.linked_peer_eval_score != null) total += (peerW / 100) * r.linked_peer_eval_score;
+                if (r.linked_self_eval_score != null) total += (effectiveSelfW / 100) * r.linked_self_eval_score;
+                if (r.linked_peer_eval_score != null) total += (effectivePeerW / 100) * r.linked_peer_eval_score;
+                if (r.linked_quiz_score != null) total += (effectiveQuizW / 100) * r.linked_quiz_score;
                 total = Math.round(total * 100) / 100;
                 return (
                     <div className="px-2 py-1 rounded-lg border bg-emerald-500/10 border-emerald-500/20 font-mono text-[10px] font-black text-emerald-400 w-fit">
@@ -746,10 +773,15 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
                     if (r.score == null) return -1;
                     const selfW = r.linked_self_eval_weight ?? 0;
                     const peerW = r.linked_peer_eval_weight ?? 0;
-                    const teacherW = 100 - selfW - peerW;
+                    const quizW = r.linked_quiz_weight ?? 0;
+                    const effectiveSelfW = r.linked_self_eval_score != null ? selfW : 0;
+                    const effectivePeerW = r.linked_peer_eval_score != null ? peerW : 0;
+                    const effectiveQuizW = r.linked_quiz_score != null ? quizW : 0;
+                    const teacherW = 100 - effectiveSelfW - effectivePeerW - effectiveQuizW;
                     let t = (teacherW / 100) * r.score;
-                    if (r.linked_self_eval_score != null) t += (selfW / 100) * r.linked_self_eval_score;
-                    if (r.linked_peer_eval_score != null) t += (peerW / 100) * r.linked_peer_eval_score;
+                    if (r.linked_self_eval_score != null) t += (effectiveSelfW / 100) * r.linked_self_eval_score;
+                    if (r.linked_peer_eval_score != null) t += (effectivePeerW / 100) * r.linked_peer_eval_score;
+                    if (r.linked_quiz_score != null) t += (effectiveQuizW / 100) * r.linked_quiz_score;
                     return t;
                 };
                 return total(rowA.original) - total(rowB.original);
@@ -792,7 +824,7 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
             }} onPropagate={onRefetchSubmissions} />,
             enableSorting: false,
         },
-    ], [allSubmissions, onSubmissionsChange, stepData, onRefetchSubmissions, hasLinkedSelf, hasLinkedPeer]);
+    ], [allSubmissions, onSubmissionsChange, stepData, onRefetchSubmissions, hasLinkedSelf, hasLinkedPeer, hasLinkedQuiz]);
 
     // For group steps: only show canonical group rows (is_group_submission === true).
     // Virtual student rows and propagated member rows are excluded from the correction table.
@@ -822,6 +854,8 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
         linked_peer_eval_weight: number | null;
         linked_intra_peer_eval_score: number | null;
         linked_intra_peer_eval_weight: number | null;
+        linked_quiz_score: number | null;
+        linked_quiz_weight: number | null;
     };
     const individualRows = useMemo((): IndividualRow[] => {
         if (!stepData?.isGroupSubmission) return [];
@@ -869,6 +903,8 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
                     // (available before publishing, unlike propagated row fields)
                     linked_intra_peer_eval_score: intraEntry?.score ?? prop?.linked_intra_peer_eval_score ?? null,
                     linked_intra_peer_eval_weight: intraEntry?.weight ?? prop?.linked_intra_peer_eval_weight ?? null,
+                    linked_quiz_score: prop?.linked_quiz_score ?? gr.linked_quiz_score ?? null,
+                    linked_quiz_weight: prop?.linked_quiz_weight ?? gr.linked_quiz_weight ?? null,
                 });
             }
         }
@@ -880,6 +916,7 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
     const hasIndivLinkedSelf = useMemo(() => individualRows.some(r => r.linked_self_eval_score != null), [individualRows]);
     const hasIndivLinkedPeer = useMemo(() => individualRows.some(r => r.linked_peer_eval_score != null), [individualRows]);
     const hasIndivLinkedIntra = useMemo(() => individualRows.some(r => r.linked_intra_peer_eval_score != null), [individualRows]);
+    const hasIndivLinkedQuiz = useMemo(() => individualRows.some(r => r.linked_quiz_score != null), [individualRows]);
 
     const individualColumns = useMemo((): ColumnDef<IndividualRow>[] => [
         {
@@ -989,7 +1026,20 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
             enableSorting: true,
             size: 110,
         }] as ColumnDef<IndividualRow>[] : []),
-        ...((hasIndivLinkedSelf || hasIndivLinkedPeer || hasIndivLinkedIntra) ? [{
+        ...(hasIndivLinkedQuiz ? [{
+            id: "linked_quiz",
+            header: ({ column }: any) => <SortableHeader column={column} label="Quiz" className="text-sky-400" />,
+            cell: ({ row }: any) => {
+                const s = row.original.linked_quiz_score;
+                const w = row.original.linked_quiz_weight;
+                if (s == null) return <span className="text-text-muted/20 font-mono text-[10px]">—</span>;
+                return <div className="flex flex-col"><span className="text-[11px] font-mono font-bold text-sky-400">{s}/10</span>{w != null && <span className="text-[8px] text-text-muted/40 font-mono">{w}%</span>}</div>;
+            },
+            sortingFn: (a: any, b: any) => (a.original.linked_quiz_score ?? -1) - (b.original.linked_quiz_score ?? -1),
+            enableSorting: true,
+            size: 80,
+        }] as ColumnDef<IndividualRow>[] : []),
+        ...((hasIndivLinkedSelf || hasIndivLinkedPeer || hasIndivLinkedIntra || hasIndivLinkedQuiz) ? [{
             id: "weighted_total",
             header: ({ column }: any) => <SortableHeader column={column} label="⇒ Total" className="text-emerald-400" />,
             cell: ({ row }: any) => {
@@ -998,11 +1048,17 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
                 const selfW = r.linked_self_eval_weight ?? 0;
                 const peerW = r.linked_peer_eval_weight ?? 0;
                 const intraW = r.linked_intra_peer_eval_weight ?? 0;
-                const teacherW = 100 - selfW - peerW - intraW;
+                const quizW = r.linked_quiz_weight ?? 0;
+                const effectiveSelfW = r.linked_self_eval_score != null ? selfW : 0;
+                const effectivePeerW = r.linked_peer_eval_score != null ? peerW : 0;
+                const effectiveIntraW = r.linked_intra_peer_eval_score != null ? intraW : 0;
+                const effectiveQuizW = r.linked_quiz_score != null ? quizW : 0;
+                const teacherW = 100 - effectiveSelfW - effectivePeerW - effectiveIntraW - effectiveQuizW;
                 let total = (teacherW / 100) * r.group_score;
-                if (r.linked_self_eval_score != null) total += (selfW / 100) * r.linked_self_eval_score;
-                if (r.linked_peer_eval_score != null) total += (peerW / 100) * r.linked_peer_eval_score;
-                if (r.linked_intra_peer_eval_score != null) total += (intraW / 100) * r.linked_intra_peer_eval_score;
+                if (r.linked_self_eval_score != null) total += (effectiveSelfW / 100) * r.linked_self_eval_score;
+                if (r.linked_peer_eval_score != null) total += (effectivePeerW / 100) * r.linked_peer_eval_score;
+                if (r.linked_intra_peer_eval_score != null) total += (effectiveIntraW / 100) * r.linked_intra_peer_eval_score;
+                if (r.linked_quiz_score != null) total += (effectiveQuizW / 100) * r.linked_quiz_score;
                 total = Math.round(total * 100) / 100;
                 return <div className="px-2 py-1 rounded-lg border bg-emerald-500/10 border-emerald-500/20 font-mono text-[10px] font-black text-emerald-400 w-fit">{total}/10</div>;
             },
@@ -1012,11 +1068,17 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
                     const selfW = r.linked_self_eval_weight ?? 0;
                     const peerW = r.linked_peer_eval_weight ?? 0;
                     const intraW = r.linked_intra_peer_eval_weight ?? 0;
-                    const teacherW = 100 - selfW - peerW - intraW;
+                    const quizW = r.linked_quiz_weight ?? 0;
+                    const effectiveSelfW = r.linked_self_eval_score != null ? selfW : 0;
+                    const effectivePeerW = r.linked_peer_eval_score != null ? peerW : 0;
+                    const effectiveIntraW = r.linked_intra_peer_eval_score != null ? intraW : 0;
+                    const effectiveQuizW = r.linked_quiz_score != null ? quizW : 0;
+                    const teacherW = 100 - effectiveSelfW - effectivePeerW - effectiveIntraW - effectiveQuizW;
                     let t = (teacherW / 100) * r.group_score;
-                    if (r.linked_self_eval_score != null) t += (selfW / 100) * r.linked_self_eval_score;
-                    if (r.linked_peer_eval_score != null) t += (peerW / 100) * r.linked_peer_eval_score;
-                    if (r.linked_intra_peer_eval_score != null) t += (intraW / 100) * r.linked_intra_peer_eval_score;
+                    if (r.linked_self_eval_score != null) t += (effectiveSelfW / 100) * r.linked_self_eval_score;
+                    if (r.linked_peer_eval_score != null) t += (effectivePeerW / 100) * r.linked_peer_eval_score;
+                    if (r.linked_intra_peer_eval_score != null) t += (effectiveIntraW / 100) * r.linked_intra_peer_eval_score;
+                    if (r.linked_quiz_score != null) t += (effectiveQuizW / 100) * r.linked_quiz_score;
                     return t;
                 };
                 return calc(rowA.original) - calc(rowB.original);
@@ -1041,7 +1103,7 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
             },
             size: 110,
         },
-    ], [hasIndivLinkedSelf, hasIndivLinkedPeer, hasIndivLinkedIntra]);
+    ], [hasIndivLinkedSelf, hasIndivLinkedPeer, hasIndivLinkedIntra, hasIndivLinkedQuiz]);
 
     const individualTable = useReactTable({
         data: individualRows,

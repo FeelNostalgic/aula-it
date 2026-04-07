@@ -458,6 +458,8 @@ export type StepSubmissionRow = {
     linked_peer_eval_weight?: number | null;         // peerEvalWeight % from deliverable gradeComposition
     linked_intra_peer_eval_score?: number | null;    // avg intra-group received score (0–10), per student (propagated rows)
     linked_intra_peer_eval_weight?: number | null;   // intraGroupWeight % from deliverable gradeComposition
+    linked_quiz_score?: number | null;               // nested built-in quiz score (0–10)
+    linked_quiz_weight?: number | null;              // quizWeight % from deliverable gradeComposition
     // For canonical/synthetic group rows: per-student intra-group scores (available before publishing)
     intra_peer_scores_by_student?: Record<string, { score: number; weight: number }>;
     // Structural fields for nesting in grading view
@@ -619,6 +621,8 @@ export async function getUnitStepSubmissions(
                 step_eval_questions: null,
                 step_eval_counts_toward_grade: null,
                 step_eval_weight: null,
+                parent_step_id: meta?.parentStepId ?? null,
+                is_activity_closed: meta?.isActivityClosed ?? false,
                 step_order_index: meta?.orderIndex ?? 0,
             };
         });
@@ -696,6 +700,8 @@ export async function getUnitStepSubmissions(
                     step_eval_questions: null,
                     step_eval_counts_toward_grade: null,
                     step_eval_weight: null,
+                    parent_step_id: meta?.parentStepId ?? null,
+                    is_activity_closed: meta?.isActivityClosed ?? false,
                     step_order_index: meta?.orderIndex ?? 0,
                 };
             });
@@ -781,6 +787,8 @@ export async function getUnitStepSubmissions(
                             step_eval_questions: null,
                             step_eval_counts_toward_grade: null,
                             step_eval_weight: null,
+                            parent_step_id: meta.parentStepId ?? null,
+                            is_activity_closed: meta.isActivityClosed ?? false,
                             step_order_index: meta?.orderIndex ?? 0,
                         });
                     }
@@ -829,6 +837,8 @@ export async function getUnitStepSubmissions(
                     step_eval_questions: null,
                     step_eval_counts_toward_grade: null,
                     step_eval_weight: null,
+                    parent_step_id: meta.parentStepId ?? null,
+                    is_activity_closed: meta.isActivityClosed ?? false,
                     step_order_index: meta?.orderIndex ?? 0,
                 });
             }
@@ -894,6 +904,8 @@ export async function getUnitStepSubmissions(
             step_eval_questions: null,
             step_eval_counts_toward_grade: null,
             step_eval_weight: null,
+            parent_step_id: meta?.parentStepId ?? null,
+            is_activity_closed: meta?.isActivityClosed ?? false,
             step_order_index: meta?.orderIndex ?? 0,
         };
     });
@@ -944,6 +956,8 @@ export async function getUnitStepSubmissions(
                     step_eval_questions: null,
                     step_eval_counts_toward_grade: null,
                     step_eval_weight: null,
+                    parent_step_id: meta.parentStepId ?? null,
+                    is_activity_closed: meta.isActivityClosed ?? false,
                     step_order_index: meta.orderIndex ?? 0,
                 });
             }
@@ -1417,6 +1431,59 @@ export async function getUnitStepSubmissions(
         }
     }
 
+    // Post-process: enrich deliverable/file_upload rows with nested built-in quiz score.
+    // Nested Google Forms are intentionally ignored: only built-in quizzes can be embedded.
+    {
+        const nestedQuizByParent: Record<string, { stepId: string; weight: number }> = {};
+        for (const step of steps) {
+            if (step.type !== 'quiz') continue;
+            const parentStepId = (step as any).parent_step_id as string | null;
+            if (!parentStepId) continue;
+            const parentStep = steps.find(s => s.id === parentStepId);
+            if (!parentStep || (parentStep.type !== 'deliverable' && parentStep.type !== 'file_upload')) continue;
+
+            const quizContent = step.content as { quizMode?: string; googleFormUrl?: string | null } | null;
+            const quizMode = quizContent?.quizMode ?? (quizContent?.googleFormUrl ? 'google_form' : 'builtin');
+            if (quizMode !== 'builtin') continue;
+
+            const gc = (parentStep.content as any)?.gradeComposition;
+            const weight = gc?.quizWeight ?? 0;
+            if (weight === 0) continue;
+            nestedQuizByParent[parentStepId] = { stepId: step.id, weight };
+        }
+
+        if (Object.keys(nestedQuizByParent).length > 0) {
+            const quizScoreByStudentStep: Record<string, number> = {};
+            for (const row of results) {
+                if (row.step_type !== 'quiz') continue;
+                if (!row.student_id || row.score == null) continue;
+                quizScoreByStudentStep[`${row.student_id}:${row.step_id}`] = row.score;
+            }
+
+            for (const row of [...results, ...propagatedResults]) {
+                if (row.step_type !== 'deliverable' && row.step_type !== 'file_upload') continue;
+                if (!row.student_id) continue;
+                const quizInfo = nestedQuizByParent[row.step_id];
+                if (!quizInfo) continue;
+                const score = quizScoreByStudentStep[`${row.student_id}:${quizInfo.stepId}`];
+                if (score == null) continue;
+                row.linked_quiz_score = score;
+                row.linked_quiz_weight = quizInfo.weight;
+            }
+
+            for (const gr of groupResults) {
+                const quizInfo = nestedQuizByParent[gr.step_id];
+                if (!quizInfo) continue;
+                const memberScores = (gr.group_members ?? [])
+                    .map(member => quizScoreByStudentStep[`${member.student_id}:${quizInfo.stepId}`])
+                    .filter((score): score is number => score != null);
+                if (memberScores.length === 0) continue;
+                gr.linked_quiz_score = Math.round((memberScores.reduce((a, b) => a + b, 0) / memberScores.length) * 100) / 100;
+                gr.linked_quiz_weight = quizInfo.weight;
+            }
+        }
+    }
+
     // Step 5b: Virtual placeholder rows for peer_evaluation steps only (still uses specialized teacher view)
     const peerEvalStepIds = steps.filter(s => s.type === 'peer_evaluation').map(s => s.id);
     const evalPlaceholders: StepSubmissionRow[] = [];
@@ -1633,15 +1700,15 @@ export async function publishSubmissionGrade(submissionId: string) {
             }
         } else if (step?.type === 'deliverable' || step?.type === 'file_upload') {
             const delivContent = step.content as any;
-            const gradeComp = delivContent?.gradeComposition as { selfEvalWeight: number; peerEvalWeight: number; intraGroupWeight: number } | undefined;
+            const gradeComp = delivContent?.gradeComposition as { selfEvalWeight: number; peerEvalWeight: number; intraGroupWeight: number; quizWeight?: number } | undefined;
             const teacherScore = sub.score ?? 0;
 
-            if (gradeComp && (gradeComp.selfEvalWeight > 0 || gradeComp.peerEvalWeight > 0 || gradeComp.intraGroupWeight > 0)) {
+            if (gradeComp && (gradeComp.selfEvalWeight > 0 || gradeComp.peerEvalWeight > 0 || gradeComp.intraGroupWeight > 0 || (gradeComp.quizWeight ?? 0) > 0)) {
                 // ── B-NEW: 360° formula using gradeComposition from children ──
                 const selfW = gradeComp.selfEvalWeight / 100;
                 const peerW = gradeComp.peerEvalWeight / 100;
                 const intraW = gradeComp.intraGroupWeight / 100;
-                const teacherW = 1 - selfW - peerW - intraW;
+                const quizW = (gradeComp.quizWeight ?? 0) / 100;
 
                 // Fetch all child steps of this deliverable
                 const { data: children } = await auth.admin
@@ -1652,6 +1719,12 @@ export async function publishSubmissionGrade(submissionId: string) {
                 const selfEvalChild = (children ?? []).find((c: any) => c.type === "self_evaluation");
                 const peerEvalChild = (children ?? []).find((c: any) => c.type === "peer_evaluation" && (c.content as any)?.mode !== "intra_group");
                 const intraGroupChild = (children ?? []).find((c: any) => c.type === "peer_evaluation" && (c.content as any)?.mode === "intra_group");
+                const quizChild = (children ?? []).find((c: any) => {
+                    if (c.type !== "quiz") return false;
+                    const quizContent = c.content as { quizMode?: string; googleFormUrl?: string | null } | null;
+                    const quizMode = quizContent?.quizMode ?? (quizContent?.googleFormUrl ? "google_form" : "builtin");
+                    return quizMode === "builtin";
+                });
 
                 // Helper: compute normalized rubric score for a submission's self_eval_rubric_scores
                 function computeNormalizedScore(rubricScores: Record<string, number>, rubric: any[]): number | null {
@@ -1768,17 +1841,31 @@ export async function publishSubmissionGrade(submissionId: string) {
                     }
                 }
 
+                let quizScore: number | null = null;
+                if (quizChild && quizW > 0) {
+                    const { data: quizSub } = await auth.admin
+                        .from("activity_submissions")
+                        .select("score")
+                        .eq("student_id", sub.student_id)
+                        .eq("step_id", quizChild.id)
+                        .not("score", "is", null)
+                        .maybeSingle();
+                    quizScore = quizSub?.score ?? null;
+                }
+
                 // Compute weighted final score. If a child score is missing, redistribute its weight to teacher.
                 let effectiveSelfW = selfScore !== null ? selfW : 0;
                 let effectivePeerW = peerScore !== null ? peerW : 0;
                 let effectiveIntraW = intraScore !== null ? intraW : 0;
-                const effectiveTeacherW = 1 - effectiveSelfW - effectivePeerW - effectiveIntraW;
+                let effectiveQuizW = quizScore !== null ? quizW : 0;
+                const effectiveTeacherW = 1 - effectiveSelfW - effectivePeerW - effectiveIntraW - effectiveQuizW;
 
                 const finalScore = Math.round(
                     (effectiveTeacherW * teacherScore
                      + effectiveSelfW * (selfScore ?? 0)
                      + effectivePeerW * (peerScore ?? 0)
                      + effectiveIntraW * (intraScore ?? 0)
+                     + effectiveQuizW * (quizScore ?? 0)
                     ) * 100
                 ) / 100;
 

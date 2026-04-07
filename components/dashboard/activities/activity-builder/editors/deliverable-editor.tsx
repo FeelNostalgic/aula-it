@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ActivityStepWithClientState, DeliverableContent, DeliveryMode, GradeComposition, PeerEvaluationContent, RubricCriteria } from "@/types/activity";
+import { ActivityStepWithClientState, DeliverableContent, DeliveryMode, GradeComposition, PeerEvaluationContent, QuizContent, RubricCriteria } from "@/types/activity";
 import { Input } from "@/components/ui/input";
 import { updateStepContent, updateStepDueDate } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
@@ -27,6 +27,13 @@ interface DeliverableEditorProps {
     step: ActivityStepWithClientState;
     onUpdate: (updated: ActivityStepWithClientState) => void;
     activityId?: string;
+}
+
+function isBuiltInQuizChild(step: ActivityStepWithClientState) {
+    if (step.type !== "quiz") return false;
+    const quizContent = step.content as Partial<QuizContent> | null | undefined;
+    const mode = quizContent?.quizMode ?? (quizContent?.googleFormUrl ? "google_form" : "builtin");
+    return mode === "builtin";
 }
 
 export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEditorProps) {
@@ -445,9 +452,10 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                         const selfEvalChild = children.find(c => c.type === "self_evaluation");
                         const peerEvalChild = children.find(c => c.type === "peer_evaluation" && (c.content as PeerEvaluationContent)?.mode !== "intra_group");
                         const intraGroupChild = children.find(c => c.type === "peer_evaluation" && (c.content as PeerEvaluationContent)?.mode === "intra_group");
+                        const quizChild = children.find(isBuiltInQuizChild);
                         const showIntraGroup = !!content.is_group_submission && !!intraGroupChild;
 
-                        if (!selfEvalChild && !peerEvalChild && !showIntraGroup) return null;
+                        if (!selfEvalChild && !peerEvalChild && !showIntraGroup && !quizChild) return null;
 
                         // Questions-mode self-evals are completion gates unless they have numeric questions with points > 0
                         const selfEvalIsQuestions = selfEvalChild && (selfEvalChild.content as any)?.evalMode === 'questions';
@@ -461,15 +469,21 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                             ((intraGroupChild!.content as any)?.questions ?? []).some((q: any) => q.type === 'numeric' && (q.points ?? 0) > 0);
                         const showIntraGroupSlider = showIntraGroup && (!intraGroupIsQuestions || intraGroupHasNumericWithWeight);
 
-                        const comp: GradeComposition = content.gradeComposition ?? { selfEvalWeight: 0, peerEvalWeight: 0, intraGroupWeight: 0 };
+                        const comp: GradeComposition = content.gradeComposition ?? { selfEvalWeight: 0, peerEvalWeight: 0, intraGroupWeight: 0, quizWeight: 0 };
                         const effectiveSelfW = showSelfEvalSlider ? comp.selfEvalWeight : 0;
+                        const effectivePeerW = peerEvalChild ? comp.peerEvalWeight : 0;
                         const effectiveIntraW = showIntraGroupSlider ? comp.intraGroupWeight : 0;
-                        const totalAssigned = effectiveSelfW + comp.peerEvalWeight + effectiveIntraW;
+                        const effectiveQuizW = quizChild ? (comp.quizWeight ?? 0) : 0;
+                        const totalAssigned = effectiveSelfW + effectivePeerW + effectiveIntraW + effectiveQuizW;
                         const teacherWeight = Math.max(0, 100 - totalAssigned);
 
                         const updateComp = (field: keyof GradeComposition, value: number) => {
                             const newComp = { ...comp, [field]: value };
-                            const newTotal = (showSelfEvalSlider ? newComp.selfEvalWeight : 0) + newComp.peerEvalWeight + (showIntraGroupSlider ? newComp.intraGroupWeight : 0);
+                            const newTotal =
+                                (showSelfEvalSlider ? newComp.selfEvalWeight : 0)
+                                + (peerEvalChild ? newComp.peerEvalWeight : 0)
+                                + (showIntraGroupSlider ? newComp.intraGroupWeight : 0)
+                                + (quizChild ? (newComp.quizWeight ?? 0) : 0);
                             if (newTotal > 100) return;
                             const newContent = { ...content, gradeComposition: newComp };
                             setContent(newContent);
@@ -524,7 +538,7 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                                                 <input
                                                     type="range"
                                                     min={0}
-                                                    max={100 - comp.peerEvalWeight - effectiveIntraW}
+                                                    max={100 - effectivePeerW - effectiveIntraW - effectiveQuizW}
                                                     value={comp.selfEvalWeight}
                                                     onChange={e => updateComp("selfEvalWeight", Number(e.target.value))}
                                                     className="flex-1 accent-accent-blue"
@@ -541,7 +555,7 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                                             <input
                                                 type="range"
                                                 min={0}
-                                                max={100 - effectiveSelfW - effectiveIntraW}
+                                                max={100 - effectiveSelfW - effectiveIntraW - effectiveQuizW}
                                                 value={comp.peerEvalWeight}
                                                 onChange={e => updateComp("peerEvalWeight", Number(e.target.value))}
                                                 className="flex-1 accent-accent-blue"
@@ -566,7 +580,7 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                                                 <input
                                                     type="range"
                                                     min={0}
-                                                    max={100 - effectiveSelfW - comp.peerEvalWeight}
+                                                    max={100 - effectiveSelfW - effectivePeerW - effectiveQuizW}
                                                     value={comp.intraGroupWeight}
                                                     onChange={e => updateComp("intraGroupWeight", Number(e.target.value))}
                                                     className="flex-1 accent-accent-blue"
@@ -574,6 +588,21 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                                                 <span className="text-sm font-mono text-foreground w-10 text-right">{comp.intraGroupWeight}%</span>
                                             </div>
                                         )
+                                    )}
+
+                                    {quizChild && (
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm text-foreground w-36 shrink-0">Cuestionario</span>
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={100 - effectiveSelfW - effectivePeerW - effectiveIntraW}
+                                                value={comp.quizWeight ?? 0}
+                                                onChange={e => updateComp("quizWeight", Number(e.target.value))}
+                                                className="flex-1 accent-accent-blue"
+                                            />
+                                            <span className="text-sm font-mono text-foreground w-10 text-right">{comp.quizWeight ?? 0}%</span>
+                                        </div>
                                     )}
                                 </div>
                             </div>

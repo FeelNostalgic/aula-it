@@ -104,8 +104,14 @@ interface MissionBuilderSidebarProps {
 }
 
 
-const EVAL_STEP_TYPES = ['self_evaluation', 'peer_evaluation'] as const;
+const EVAL_STEP_TYPES = ['self_evaluation', 'peer_evaluation', 'quiz'] as const;
 const PARENT_STEP_TYPES = ['deliverable', 'file_upload'] as const;
+
+function isGoogleFormQuizStep(step: ActivityStep | ActivityStepWithClientState) {
+    if (step.type !== "quiz") return false;
+    const content = step.content as { quizMode?: string; googleFormUrl?: string | null } | null | undefined;
+    return content?.quizMode === "google_form" || !!content?.googleFormUrl;
+}
 
 function ensureClientStep(step: ActivityStep | ActivityStepWithClientState): ActivityStepWithClientState {
     return {
@@ -899,6 +905,12 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
     const handleNestStep = async (evalStepId: string, parentStepId: string, targetPhaseId: string) => {
         const targetPhase = phases.find(p => p.id === targetPhaseId) ?? phases.find(p => p.steps.some(s => s.id === parentStepId));
         if (!targetPhase) return;
+
+        const rootStepToNest = phases.flatMap(p => p.steps).find(step => step.id === evalStepId);
+        if (rootStepToNest && isGoogleFormQuizStep(rootStepToNest)) {
+            toast.error("Solo se puede anidar un cuestionario built-in. Google Form debe quedarse como paso independiente.");
+            return;
+        }
 
         setPhases(prev => {
             let evalStep: ActivityStepWithClientState | null = null;

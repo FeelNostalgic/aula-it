@@ -18,6 +18,23 @@ import { buildQuestionReview, getQuestionType, QUIZ_QUESTION_TYPE } from "@/lib/
 
 type GradingMode = 'score' | 'rubric' | 'complete';
 
+function buildWeightedPreview(submission: StepSubmissionRow | null, teacherScore: number) {
+    if (!submission) return null;
+    const entries = [
+        { label: "auto", weight: submission.linked_self_eval_weight ?? 0, score: submission.linked_self_eval_score ?? null },
+        { label: "co", weight: submission.linked_peer_eval_weight ?? 0, score: submission.linked_peer_eval_score ?? null },
+        { label: "quiz", weight: submission.linked_quiz_weight ?? 0, score: submission.linked_quiz_score ?? null },
+    ].filter((entry): entry is { label: string; weight: number; score: number } => entry.score != null && entry.weight > 0);
+
+    if (entries.length === 0) return null;
+    const teacherWeight = 100 - entries.reduce((sum, entry) => sum + entry.weight, 0);
+    const total = Math.round((
+        (teacherWeight / 100) * teacherScore
+        + entries.reduce((sum, entry) => sum + (entry.weight / 100) * entry.score, 0)
+    ) * 100) / 100;
+    return { entries, teacherWeight, total };
+}
+
 interface GradingModalProps {
     submission: StepSubmissionRow | null;
     rubric?: RubricCriteria[];
@@ -407,27 +424,20 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                                         />
                                         <p className="text-xs text-text-muted">Déjalo vacío para no asignar nota numérica.</p>
                                         {/* Weighted formula preview */}
-                                        {submission?.linked_self_eval_score != null && score !== "" && (() => {
-                                            const selfW = submission!.linked_self_eval_weight ?? 0;
-                                            const selfS = submission!.linked_self_eval_score!;
-                                            const peerW = submission!.linked_peer_eval_weight ?? 0;
-                                            const peerS = submission!.linked_peer_eval_score ?? null;
-                                            const teacherW = 100 - selfW - peerW;
+                                        {(submission?.linked_self_eval_score != null || submission?.linked_peer_eval_score != null || submission?.linked_quiz_score != null) && score !== "" && (() => {
                                             const teacherS = parseFloat(score);
                                             if (isNaN(teacherS)) return null;
-                                            let total = (teacherW / 100) * teacherS + (selfW / 100) * selfS;
-                                            if (peerS != null) total += (peerW / 100) * peerS;
-                                            total = Math.round(total * 100) / 100;
+                                            const preview = buildWeightedPreview(submission, teacherS);
+                                            if (!preview) return null;
                                             return (
                                                 <div className="flex items-start gap-2.5 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-200">
                                                     <UserCheck className="size-3.5 shrink-0 text-indigo-400 mt-0.5" />
                                                     <div>
                                                         <p className="font-semibold text-indigo-300 mb-0.5">Nota ponderada 360°</p>
                                                         <p className="font-mono">
-                                                            {teacherW}%×{teacherS}
-                                                            {selfW > 0 && ` + ${selfW}%×${selfS}(auto)`}
-                                                            {peerS != null && peerW > 0 && ` + ${peerW}%×${peerS}(co)`}
-                                                            {" = "}<span className="font-bold text-white">{total}</span>/10
+                                                            {preview.teacherWeight}%×{teacherS}
+                                                            {preview.entries.map(entry => ` + ${entry.weight}%×${entry.score}(${entry.label})`).join("")}
+                                                            {" = "}<span className="font-bold text-white">{preview.total}</span>/10
                                                         </p>
                                                     </div>
                                                 </div>
@@ -461,26 +471,19 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                                                         )}
                                                     </span>
                                                 </div>
-                                                {submission?.linked_self_eval_score != null && rubricMax > 0 && (() => {
-                                                    const selfW = submission!.linked_self_eval_weight ?? 0;
-                                                    const selfS = submission!.linked_self_eval_score!;
-                                                    const peerW = submission!.linked_peer_eval_weight ?? 0;
-                                                    const peerS = submission!.linked_peer_eval_score ?? null;
-                                                    const teacherW = 100 - selfW - peerW;
+                                                {(submission?.linked_self_eval_score != null || submission?.linked_peer_eval_score != null || submission?.linked_quiz_score != null) && rubricMax > 0 && (() => {
                                                     const teacherS = Math.round((rubricTotal / rubricMax) * 10 * 100) / 100;
-                                                    let total = (teacherW / 100) * teacherS + (selfW / 100) * selfS;
-                                                    if (peerS != null) total += (peerW / 100) * peerS;
-                                                    total = Math.round(total * 100) / 100;
+                                                    const preview = buildWeightedPreview(submission, teacherS);
+                                                    if (!preview) return null;
                                                     return (
                                                         <div className="flex items-start gap-2.5 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-200">
                                                             <UserCheck className="size-3.5 shrink-0 text-indigo-400 mt-0.5" />
                                                             <div>
                                                                 <p className="font-semibold text-indigo-300 mb-0.5">Nota ponderada 360°</p>
                                                                 <p className="font-mono">
-                                                                    {teacherW}%×{teacherS}
-                                                                    {selfW > 0 && ` + ${selfW}%×${selfS}(auto)`}
-                                                                    {peerS != null && peerW > 0 && ` + ${peerW}%×${peerS}(co)`}
-                                                                    {" = "}<span className="font-bold text-white">{total}</span>/10
+                                                                    {preview.teacherWeight}%×{teacherS}
+                                                                    {preview.entries.map(entry => ` + ${entry.weight}%×${entry.score}(${entry.label})`).join("")}
+                                                                    {" = "}<span className="font-bold text-white">{preview.total}</span>/10
                                                                 </p>
                                                             </div>
                                                         </div>
@@ -717,11 +720,13 @@ function QuizAttemptPanel({
                                     <p className="text-sm font-semibold text-foreground leading-snug">{q.text}</p>
                                 </div>
                                 <span className="text-xs font-mono text-text-muted shrink-0">
-                                    {qType !== QUIZ_QUESTION_TYPE.SHORT_ANSWER
-                                    ? `${ptsEarned}/${review.pointsTotal}pts`
-                                    : shortAnswerScores[q.id] != null
-                                        ? `${shortAnswerScores[q.id]}/${review.pointsTotal}pts`
-                                        : `?/${review.pointsTotal}pts`}
+                                    {review.pointsTotal === 0
+                                        ? "Sin nota"
+                                        : qType !== QUIZ_QUESTION_TYPE.SHORT_ANSWER
+                                            ? `${ptsEarned}/${review.pointsTotal}pts`
+                                            : shortAnswerScores[q.id] != null
+                                                ? `${shortAnswerScores[q.id]}/${review.pointsTotal}pts`
+                                                : `?/${review.pointsTotal}pts`}
                                 </span>
                             </div>
 

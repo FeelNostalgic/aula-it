@@ -83,7 +83,8 @@ export type GradeComposition = {
     selfEvalWeight: number;       // % de nota de la self_evaluation hijo (0–100)
     peerEvalWeight: number;       // % de nota del peer_evaluation hijo individual/group (0–100)
     intraGroupWeight: number;     // % de nota del peer_evaluation hijo intra_group (0–100)
-    // teacherWeight = 100 - selfEvalWeight - peerEvalWeight - intraGroupWeight (implícito)
+    quizWeight?: number;          // % de nota del quiz hijo built-in (0–100)
+    // teacherWeight = 100 - selfEvalWeight - peerEvalWeight - intraGroupWeight - quizWeight (implícito)
 };
 
 export type DeliverableContent = {
@@ -229,12 +230,15 @@ export type QuizQuestion = {
     points: number;           // default: 1; for 'numeric' in peer_eval: grade weight (0 = no grade)
     explanation?: string;     // shown after submission if showCorrectAnswers
     poolId?: string;          // if set, question belongs to a pool; undefined = always shown
+    isRequired?: boolean;     // if true, the student must answer before submitting the quiz
     // short_answer / likert specific
     minLength?: number;           // minimum character count for valid answer
     requireJustification?: boolean; // likert: requires a text justification alongside scale selection
     // likert specific
-    likertScale?: number;         // number of levels: 3, 5 (default), or 7
-    likertLabels?: string[];      // labels per level, length must match likertScale
+    likertScale?: number;         // @deprecated — usa likertMin/likertMax
+    likertMin?: number;           // minimum integer value shown to the student (default 1)
+    likertMax?: number;           // maximum integer value shown to the student (default likertScale ?? 5)
+    likertLabels?: string[];      // labels per value from likertMin to likertMax
     // numeric specific
     numericMin?: number;          // minimum value (default 0)
     numericMax?: number;          // maximum value (default 10)

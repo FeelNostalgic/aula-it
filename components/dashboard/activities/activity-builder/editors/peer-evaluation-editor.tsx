@@ -27,6 +27,7 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { generatePeerAssignments, deletePeerAssignments, getPeerEvaluationResults } from "@/app/dashboard/units/[id]/actions";
+import { LikertQuestionConfig } from "../quiz/likert-question-config";
 
 interface PeerEvaluationEditorProps {
     step: ActivityStepWithClientState;
@@ -853,28 +854,11 @@ function SortablePeerEvalQuestion({ q, idx, onUpdate, onRemove }: SortablePeerEv
 
                 {q.type === 'likert' && (
                     <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-4">
-                            <div>
-                                <p className="text-sm text-foreground font-medium">Niveles de la escala</p>
-                                <p className="text-xs text-text-muted mt-0.5">Número de opciones.</p>
-                            </div>
-                            <div className="flex gap-1 p-0.5 bg-surface rounded-lg border border-border/30">
-                                {[3, 5, 7].map(n => (
-                                    <button
-                                        key={n}
-                                        onClick={() => onUpdate(q.id, { likertScale: n })}
-                                        className={cn(
-                                            "px-3 py-1 rounded-md text-xs font-medium transition-colors",
-                                            (q.likertScale ?? 5) === n
-                                                ? "bg-accent-blue/15 text-accent-blue"
-                                                : "text-text-muted hover:text-foreground"
-                                        )}
-                                    >
-                                        {n}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                        <LikertQuestionConfig
+                            question={q}
+                            onUpdate={(updates) => onUpdate(q.id, updates)}
+                            className="pl-0"
+                        />
                         <div className="flex items-center justify-between gap-4">
                             <div>
                                 <p className="text-sm text-foreground font-medium">Justificación obligatoria</p>

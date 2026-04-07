@@ -124,6 +124,32 @@ describe("submitQuizAttempt", () => {
     expect(result).toEqual({ error: "Máximo de intentos alcanzado (2)." });
   });
 
+  it("returns error when a required question is unanswered", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-1",
+          type: "multiple_choice",
+          text: "What is 2+2?",
+          options: [
+            { id: "opt-1", text: "3", isCorrect: false },
+            { id: "opt-2", text: "4", isCorrect: true },
+          ],
+          points: 1,
+          isRequired: true,
+        },
+      ],
+    });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+    );
+
+    const result = await submitQuizAttempt("step-1", "activity-1", {}, {}, {}, content);
+
+    expect(result).toEqual({ error: 'La pregunta "What is 2+2?" es obligatoria.' });
+  });
+
   it("auto-scores correctly without penalization (correct answer)", async () => {
     // q-1 has 1 point, opt-2 is correct
     const content = createMockQuizContent({ penalizeWrongAnswers: false });

@@ -23,6 +23,8 @@ export const QUIZ_QUESTION_TYPE = {
     MULTIPLE_CHOICE: "multiple_choice",
     TRUE_FALSE: "true_false",
     SHORT_ANSWER: "short_answer",
+    LIKERT: "likert",
+    NUMERIC: "numeric",
     FILL_IN_THE_BLANK_DROPDOWN: "fill_in_the_blank_dropdown",
     TABLE_DRAG_DROP: "table_drag_drop",
     MATCHING_PAIRS: "matching_pairs",
@@ -242,6 +244,86 @@ export function supportsClassicOptions(question: QuizQuestion) {
     return type === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE || type === QUIZ_QUESTION_TYPE.TRUE_FALSE;
 }
 
+export function isQuizQuestionAnswered(question: QuizQuestion, input: QuizStructuredAttemptInput) {
+    const questionType = getQuestionType(question);
+
+    if (questionType === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE || questionType === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
+        return (input.answers[question.id] ?? []).length > 0;
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.SHORT_ANSWER || questionType === QUIZ_QUESTION_TYPE.LIKERT) {
+        return (input.shortAnswers[question.id] ?? "").trim().length > 0;
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.NUMERIC) {
+        const rawValue = (input.shortAnswers[question.id] ?? "").trim();
+        if (!rawValue) return false;
+        const numericValue = Number(rawValue);
+        if (!Number.isFinite(numericValue)) return false;
+        const min = question.numericMin ?? 0;
+        const max = question.numericMax ?? 10;
+        return numericValue >= min && numericValue <= max;
+    }
+
+    const structuredAnswer = input.structuredAnswers[question.id];
+    if (!structuredAnswer) return false;
+
+    if (questionType === QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN) {
+        if (structuredAnswer.kind !== QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN) return false;
+        const blanks = question.dropdownBlanks ?? [];
+        return blanks.length > 0 && blanks.every(blank => !!structuredAnswer.blanks[blank.id]);
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP) {
+        if (structuredAnswer.kind !== QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP) return false;
+        const cells = question.tableCells ?? [];
+        return cells.length > 0 && cells.every(cell => !!structuredAnswer.placements[cell.id]);
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.MATCHING_PAIRS) {
+        if (structuredAnswer.kind !== QUIZ_QUESTION_TYPE.MATCHING_PAIRS) return false;
+        const prompts = question.matchingPrompts ?? [];
+        return prompts.length > 0 && prompts.every(prompt => !!structuredAnswer.matches[prompt.id]);
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.ORDERING_SEQUENCE) {
+        if (structuredAnswer.kind !== QUIZ_QUESTION_TYPE.ORDERING_SEQUENCE) return false;
+        const itemIds = (question.orderingItems ?? []).map(item => item.id);
+        return itemIds.length > 0
+            && structuredAnswer.orderedItemIds.length === itemIds.length
+            && itemIds.every(itemId => structuredAnswer.orderedItemIds.includes(itemId));
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP) {
+        if (structuredAnswer.kind !== QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP) return false;
+        const items = question.categoryItems ?? [];
+        return items.length > 0 && items.every(item => !!structuredAnswer.assignments[item.id]);
+    }
+
+    return false;
+}
+
+export function getLikertRange(question: QuizQuestion) {
+    const min = Number.isFinite(question.likertMin) ? Number(question.likertMin) : 1;
+    const legacyMax = question.likertScale ?? 5;
+    const max = Number.isFinite(question.likertMax) ? Number(question.likertMax) : legacyMax;
+    const normalizedMin = Math.trunc(Math.min(min, max));
+    const normalizedMax = Math.trunc(Math.max(min, max));
+    return {
+        min: normalizedMin,
+        max: normalizedMax,
+        values: Array.from({ length: normalizedMax - normalizedMin + 1 }, (_, index) => normalizedMin + index),
+    };
+}
+
+export function getLikertLabel(question: QuizQuestion, value: number | string) {
+    const parsedValue = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(parsedValue)) return "Sin respuesta";
+    const { min } = getLikertRange(question);
+    const index = Math.trunc(parsedValue) - min;
+    return question.likertLabels?.[index] || String(parsedValue);
+}
+
 export function getGroupStatsAvailability(content: QuizContent): GroupStatsAvailability {
     if (content.quizMode === "google_form") {
         return { enabled: false, reason: "Las estadísticas grupales solo aplican al quiz built-in." };
@@ -300,6 +382,28 @@ export function convertQuestionToType(question: QuizQuestion, type: QuizQuestion
         return {
             ...baseQuestion,
             options: [],
+        };
+    }
+
+    if (type === QUIZ_QUESTION_TYPE.LIKERT) {
+        return {
+            ...baseQuestion,
+            options: [],
+            points: 0,
+            likertMin: question.likertMin ?? 1,
+            likertMax: question.likertMax ?? question.likertScale ?? 5,
+            likertScale: undefined,
+            likertLabels: question.likertLabels,
+        };
+    }
+
+    if (type === QUIZ_QUESTION_TYPE.NUMERIC) {
+        return {
+            ...baseQuestion,
+            options: [],
+            points: 0,
+            numericMin: question.numericMin ?? 0,
+            numericMax: question.numericMax ?? 10,
         };
     }
 
@@ -471,6 +575,14 @@ export function scoreQuizQuestion(
         };
     }
 
+    if (questionType === QUIZ_QUESTION_TYPE.LIKERT || questionType === QUIZ_QUESTION_TYPE.NUMERIC) {
+        return {
+            pointsEarned: 0,
+            pointsTotal: 0,
+            needsManualReview: false,
+        };
+    }
+
     if (questionType === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE || questionType === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
         const selectedIds = input.answers[question.id] ?? [];
         return {
@@ -536,6 +648,54 @@ export function buildQuestionReview(
             isAutoGraded: false,
             pointsEarned: null,
             pointsTotal: questionPoints,
+            rows: [
+                {
+                    id: question.id,
+                    label: "Respuesta",
+                    value: attempt.short_answers[question.id] || "Sin respuesta",
+                    isCorrect: null,
+                },
+            ],
+        };
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.LIKERT) {
+        const rawAnswer = attempt.short_answers[question.id] ?? "";
+        const justification = attempt.short_answers[`${question.id}:justification`] ?? "";
+        const answerLabel = rawAnswer ? getLikertLabel(question, rawAnswer) : "Sin respuesta";
+        const rows: QuizQuestionReviewRow[] = [
+            {
+                id: question.id,
+                label: "Respuesta",
+                value: rawAnswer ? `${rawAnswer} - ${answerLabel}` : "Sin respuesta",
+                isCorrect: null,
+            },
+        ];
+        if (justification.trim()) {
+            rows.push({
+                id: `${question.id}:justification`,
+                label: "Justificación",
+                value: justification,
+                isCorrect: null,
+            });
+        }
+        return {
+            questionId: question.id,
+            questionType,
+            isAutoGraded: true,
+            pointsEarned: 0,
+            pointsTotal: 0,
+            rows,
+        };
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.NUMERIC) {
+        return {
+            questionId: question.id,
+            questionType,
+            isAutoGraded: true,
+            pointsEarned: 0,
+            pointsTotal: 0,
             rows: [
                 {
                     id: question.id,

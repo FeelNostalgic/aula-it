@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ActivityStepWithClientState, QuizContent, QuizMode, QuestionBank, QuizQuestion, QuizQuestionType } from "@/types/activity";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toFormEmbedUrl, GOOGLE_MIME } from "@/lib/google-drive-urls";
 import { StructuredQuestionFields } from "../quiz/structured-question-fields";
 import { QuizStatsPanel } from "../quiz/quiz-stats-panel";
+import { LikertQuestionConfig } from "../quiz/likert-question-config";
 import {
     DndContext,
     closestCenter,
@@ -52,6 +53,7 @@ const QUESTION_TYPES: { value: QuizQuestionType; label: string }[] = [
     { value: 'multiple_choice', label: 'Opción múltiple' },
     { value: 'true_false', label: 'Verdadero/Falso' },
     { value: 'short_answer', label: 'Respuesta corta' },
+    { value: 'likert', label: 'Likert' },
     { value: 'fill_in_the_blank_dropdown', label: 'Texto con huecos' },
     { value: 'table_drag_drop', label: 'Tabla drag & drop' },
     { value: 'matching_pairs', label: 'Emparejar' },
@@ -60,10 +62,18 @@ const QUESTION_TYPES: { value: QuizQuestionType; label: string }[] = [
 ];
 
 export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
-    const getInitialContent = (content: any): QuizContent => {
+    const isNestedQuiz = !!step.parent_step_id;
+
+    const getInitialContent = (rawContent: unknown): QuizContent => {
+        const content = rawContent && typeof rawContent === "object"
+            ? rawContent as Partial<QuizContent>
+            : null;
         if (!content) return { questions: [], passingScore: 80, showCorrectAnswers: true };
         return {
             ...content,
+            quizMode: isNestedQuiz ? "builtin" : content.quizMode,
+            googleFormUrl: isNestedQuiz ? undefined : content.googleFormUrl,
+            questions: content.questions ?? [],
             showCorrectAnswers: content.showCorrectAnswers ?? true,
             penalizeWrongAnswers: content.penalizeWrongAnswers ?? false,
             randomizeQuestions: content.randomizeQuestions ?? false,
@@ -85,7 +95,7 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
 
     useEffect(() => {
         setContent(getInitialContent(step.content));
-    }, [step.id, step.content]);
+    }, [step.id, step.content, step.parent_step_id]);
 
     const saveToServer = (newContent: QuizContent) => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -98,9 +108,12 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
     };
 
     const handleUpdate = (newContent: QuizContent) => {
-        const nextContent = getGroupStatsAvailability(newContent).enabled
-            ? newContent
-            : { ...newContent, saveQuestionStats: false };
+        const normalizedContent: QuizContent = isNestedQuiz
+            ? { ...newContent, quizMode: "builtin", googleFormUrl: undefined }
+            : newContent;
+        const nextContent = getGroupStatsAvailability(normalizedContent).enabled
+            ? normalizedContent
+            : { ...normalizedContent, saveQuestionStats: false };
         setContent(nextContent);
         onUpdate({ ...step, content: nextContent });
         saveToServer(nextContent);
@@ -200,7 +213,7 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
         }
     };
 
-    const effectiveMode: QuizMode = content.quizMode ?? (content.googleFormUrl ? 'google_form' : 'builtin');
+    const effectiveMode: QuizMode = isNestedQuiz ? 'builtin' : content.quizMode ?? (content.googleFormUrl ? 'google_form' : 'builtin');
     const statsAvailability = getGroupStatsAvailability(content);
 
     const tabTriggerClass = "h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none";
@@ -445,18 +458,22 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                             </button>
                             <button
                                 onClick={() => handleUpdate({ ...content, quizMode: 'google_form' })}
+                                disabled={isNestedQuiz}
                                 className={cn(
                                     "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
                                     effectiveMode === 'google_form'
                                         ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
-                                        : "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark"
+                                        : "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark",
+                                    isNestedQuiz && "cursor-not-allowed opacity-50 hover:text-text-muted hover:bg-surface"
                                 )}
                             >
                                 Google Form
                             </button>
                         </div>
                         <p className="text-xs text-text-muted/70">
-                            {effectiveMode === 'builtin'
+                            {isNestedQuiz
+                                ? "Este cuestionario está anidado en una entrega, por eso solo puede usar el modo built-in."
+                                : effectiveMode === 'builtin'
                                 ? "El cuestionario se construye con el editor de preguntas integrado."
                                 : "Se incrusta un formulario de Google Forms. Las respuestas se gestionan en Google."}
                         </p>
@@ -647,13 +664,28 @@ function SortableQuestion({
                         </button>
                     ))}
                 </div>
-                <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-text-muted">Puntos:</span>
-                    <Input type="number" min={0} step={0.5}
-                        value={q.points ?? 1}
-                        onChange={(e) => onUpdate(q.id, { points: Number(e.target.value) })}
-                        className="w-16 h-7 text-xs font-mono bg-surface border-border text-center px-1" />
-                </div>
+                {qType === QUIZ_QUESTION_TYPE.LIKERT ? (
+                    <span className="text-xs text-text-muted rounded-md border border-border/30 bg-surface px-2 py-1">
+                        Sin puntuación
+                    </span>
+                ) : (
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-text-muted">Puntos:</span>
+                        <Input type="number" min={0} step={0.5}
+                            value={q.points ?? 1}
+                            onChange={(e) => onUpdate(q.id, { points: Number(e.target.value) })}
+                            className="w-16 h-7 text-xs font-mono bg-surface border-border text-center px-1" />
+                    </div>
+                )}
+                <label className="flex items-center gap-1.5 rounded-md border border-border/30 bg-surface px-2 py-1 text-xs font-medium text-text-muted">
+                    <input
+                        type="checkbox"
+                        checked={!!q.isRequired}
+                        onChange={(e) => onUpdate(q.id, { isRequired: e.target.checked || undefined })}
+                        className="size-3.5 accent-accent-blue"
+                    />
+                    Obligatoria
+                </label>
             </div>
 
             {/* Options with DnD */}
@@ -701,7 +733,14 @@ function SortableQuestion({
                 </div>
             )}
 
-            {!supportsClassicOptions(q) && qType !== QUIZ_QUESTION_TYPE.SHORT_ANSWER && (
+            {qType === QUIZ_QUESTION_TYPE.LIKERT && (
+                <LikertQuestionConfig
+                    question={q}
+                    onUpdate={(updates) => onUpdate(q.id, updates)}
+                />
+            )}
+
+            {!supportsClassicOptions(q) && qType !== QUIZ_QUESTION_TYPE.SHORT_ANSWER && qType !== QUIZ_QUESTION_TYPE.LIKERT && (
                 <StructuredQuestionFields
                     question={q}
                     onUpdate={(updates) => onUpdate(q.id, updates)}

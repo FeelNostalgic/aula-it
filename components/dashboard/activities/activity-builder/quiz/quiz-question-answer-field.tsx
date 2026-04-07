@@ -28,9 +28,9 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { getQuestionType, QUIZ_QUESTION_TYPE } from "@/lib/quiz-core";
+import { getLikertLabel, getLikertRange, getQuestionType, QUIZ_QUESTION_TYPE } from "@/lib/quiz-core";
 import type { QuizOrderingItem, QuizQuestion, QuizStructuredAnswers, QuizStructuredQuestionAnswer } from "@/types/activity";
-import { Circle, GripVertical, X } from "lucide-react";
+import { CheckCircle2, Circle, GripVertical, X } from "lucide-react";
 
 type QuizQuestionAnswerFieldProps = {
     question: QuizQuestion;
@@ -591,6 +591,82 @@ function CategorizationAnswer({
     );
 }
 
+function LikertAnswer({
+    question,
+    shortAnswers,
+    onShortAnswerChange,
+}: Pick<QuizQuestionAnswerFieldProps, "question" | "shortAnswers" | "onShortAnswerChange">) {
+    const { values } = getLikertRange(question);
+    const selectedValue = shortAnswers[question.id] ?? "";
+    const justificationKey = `${question.id}:justification`;
+    const justification = shortAnswers[justificationKey] ?? "";
+    const columnsClass = values.length <= 5 ? "grid-cols-5" : values.length <= 7 ? "grid-cols-7" : "grid-cols-4 sm:grid-cols-6 lg:grid-cols-8";
+
+    return (
+        <div className="space-y-3 pl-12">
+            <div className={cn("grid gap-2", columnsClass)}>
+                {values.map((value) => {
+                    const rawValue = String(value);
+                    const isSelected = selectedValue === rawValue;
+                    const label = getLikertLabel(question, value);
+                    return (
+                        <button
+                            key={rawValue}
+                            type="button"
+                            onClick={() => onShortAnswerChange(question.id, isSelected ? "" : rawValue)}
+                            className={cn(
+                                "flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border p-2 text-center transition-colors",
+                                isSelected
+                                    ? "border-accent-blue/50 bg-accent-blue/10 text-accent-blue ring-1 ring-accent-blue/40"
+                                    : "border-border/50 bg-background text-foreground hover:border-accent-blue/30 hover:bg-surface-light",
+                            )}
+                        >
+                            <span className="text-sm font-black">{value}</span>
+                            {label !== rawValue && (
+                                <span className={cn("text-[11px] font-semibold leading-snug", isSelected ? "text-white" : "text-foreground/85")}>{label}</span>
+                            )}
+                            {isSelected && <CheckCircle2 className="size-3.5 shrink-0" />}
+                        </button>
+                    );
+                })}
+            </div>
+            {question.requireJustification && (
+                <Textarea
+                    value={justification}
+                    onChange={(event) => onShortAnswerChange(justificationKey, event.target.value)}
+                    placeholder="Justifica tu respuesta..."
+                    rows={3}
+                    className="resize-none border-border/50 bg-background/50 text-sm"
+                />
+            )}
+        </div>
+    );
+}
+
+function NumericAnswer({
+    question,
+    shortAnswers,
+    onShortAnswerChange,
+}: Pick<QuizQuestionAnswerFieldProps, "question" | "shortAnswers" | "onShortAnswerChange">) {
+    return (
+        <div className="pl-12 flex items-center gap-3">
+            <input
+                type="number"
+                min={question.numericMin ?? 0}
+                max={question.numericMax ?? 10}
+                step="0.01"
+                value={shortAnswers[question.id] ?? ""}
+                onChange={(event) => onShortAnswerChange(question.id, event.target.value)}
+                placeholder={`${question.numericMin ?? 0} - ${question.numericMax ?? 10}`}
+                className="h-10 w-32 rounded-xl border border-border/50 bg-background/50 px-3 text-center text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent-blue"
+            />
+            <span className="text-xs text-text-muted">
+                Rango: {question.numericMin ?? 0} - {question.numericMax ?? 10}
+            </span>
+        </div>
+    );
+}
+
 export function QuizQuestionAnswerField(props: QuizQuestionAnswerFieldProps) {
     const questionType = getQuestionType(props.question);
     const correctCount = props.question.options.filter((option) => option.isCorrect).length;
@@ -608,6 +684,14 @@ export function QuizQuestionAnswerField(props: QuizQuestionAnswerFieldProps) {
                 />
             </div>
         );
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.LIKERT) {
+        return <LikertAnswer question={props.question} shortAnswers={props.shortAnswers} onShortAnswerChange={props.onShortAnswerChange} />;
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.NUMERIC) {
+        return <NumericAnswer question={props.question} shortAnswers={props.shortAnswers} onShortAnswerChange={props.onShortAnswerChange} />;
     }
 
     if (questionType === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE || questionType === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
