@@ -3,6 +3,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { notFound, redirect } from "next/navigation";
 import MapClient from "./client";
 import { getUnitAccess } from "@/lib/module-access";
+import { MAP_ROUTE_TYPE, toActivityNodeId, toFlowNodeId } from "@/types/unit-map";
 
 interface UnitMapPageProps {
     params: Promise<{ id: string }>;
@@ -38,24 +39,59 @@ export default async function UnitMapPage({
     const dataClient = role === "teacher" ? admin : supabase;
 
     // Fetch Unit Data
-    const { data: unit } = await dataClient
+    const { data: unit, error: unitError } = await dataClient
         .from("units")
         .select(`
             *,
-            module:modules(id, name),
-            activity_connections (
+            module:modules(id, name)
+        `)
+        .eq("id", id)
+        .single();
+
+    if (unitError || !unit) {
+        console.error("Error loading unit map page:", unitError);
+        notFound();
+    }
+
+    const { data: connectionRows, error: connectionError } = await dataClient
+        .from("activity_connections")
+        .select(`
+            id,
+            source_activity_id,
+            target_activity_id,
+            source_map_node_id,
+            target_map_node_id,
+            source_handle,
+            target_handle,
+            route_label,
+            route_type
+        `)
+        .eq("unit_id", id);
+
+    const { data: legacyConnectionRows, error: legacyConnectionError } = connectionError
+        ? await dataClient
+            .from("activity_connections")
+            .select(`
                 id,
                 source_activity_id,
                 target_activity_id,
                 source_handle,
                 target_handle
-            )
-        `)
-        .eq("id", id)
-        .single();
+            `)
+            .eq("unit_id", id)
+        : { data: null, error: null };
 
-    if (!unit) {
-        notFound();
+    if (connectionError && legacyConnectionError) {
+        console.error("Error loading map connections:", connectionError, legacyConnectionError);
+    }
+
+    const { data: flowNodeRows, error: flowNodeError } = await dataClient
+        .from("unit_map_nodes")
+        .select("id, unit_id, type, label, description, position_x, position_y")
+        .eq("unit_id", id);
+
+    if (flowNodeError) {
+        console.warn("Map flow nodes could not be loaded. Has the latest migration been applied?", flowNodeError);
     }
 
     // Fetch Activities for this unit
@@ -116,17 +152,27 @@ export default async function UnitMapPage({
         : { data: [] };
 
     // Map connections format for React Flow
-    const mapConnections = (unit.activity_connections || []).map((conn: any) => ({
-        id: conn.id,
-        source: conn.source_activity_id,
-        target: conn.target_activity_id,
-        sourceHandle: conn.source_handle,
-        targetHandle: conn.target_handle
-    }));
+    const rawConnectionRows = connectionError ? (legacyConnectionRows || []) : (connectionRows || []);
+    const mapConnections = rawConnectionRows
+        .flatMap((conn: any) => {
+            const source = conn.source_map_node_id ? toFlowNodeId(conn.source_map_node_id) : conn.source_activity_id ? toActivityNodeId(conn.source_activity_id) : null;
+            const target = conn.target_map_node_id ? toFlowNodeId(conn.target_map_node_id) : conn.target_activity_id ? toActivityNodeId(conn.target_activity_id) : null;
+            if (!source || !target) return [];
+            return [{
+                id: conn.id,
+                source,
+                target,
+                sourceHandle: conn.source_handle,
+                targetHandle: conn.target_handle,
+                label: conn.route_label ?? null,
+                routeType: conn.route_type ?? MAP_ROUTE_TYPE.REQUIRED,
+            }];
+        });
 
     const unitWithConnections = {
         ...unit,
-        map_connections: mapConnections
+        map_connections: mapConnections,
+        map_nodes: flowNodeError ? [] : flowNodeRows || [],
     };
 
     const activitiesWithPosition = (activities || []).map(a => ({

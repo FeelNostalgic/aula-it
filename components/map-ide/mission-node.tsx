@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 
 export type MissionNodeData = {
     label: string;
+    activityId?: string;
     status: 'published' | 'active' | 'blocked' | 'draft';
     type: string;
     xp: number;
@@ -37,6 +38,7 @@ export type MissionNode = Node<MissionNodeData, 'mission'>;
 
 const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
     const { status, label, logo_url, title_position = 'down', unitId, role, editingMode, onHandleClick, canEditContent = true } = data;
+    const activityId = data.activityId ?? id;
 
     const handleClick = (handleId: string) => (e: React.MouseEvent) => {
         if (!editingMode) return;
@@ -100,7 +102,7 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
             data.onTitlePositionChange(nextPosition);
         }
 
-        const result = await updateActivityTitlePosition(id, nextPosition, unitId);
+        const result = await updateActivityTitlePosition(activityId, nextPosition, unitId);
         if (!result.success) {
             toast.error("Error al mover el título");
             // Revertimos cambio local si falla el servidor
@@ -110,10 +112,10 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
         } else {
             toast.success("Título movido");
         }
-    }, [id, title_position, unitId, data]);
+    }, [activityId, title_position, unitId, data]);
 
     const openActivity = () => {
-        const path = canEditContent ? `/activities/${id}/edit` : `/activities/${id}`;
+        const path = canEditContent ? `/activities/${activityId}/edit` : `/activities/${activityId}`;
         window.open(path, '_blank');
     };
 

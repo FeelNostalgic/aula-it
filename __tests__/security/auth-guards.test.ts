@@ -37,6 +37,11 @@ import {
   deleteActivityConnection,
   removeActivityFromMap,
   updateActivityTitlePosition,
+  createUnitMapNode,
+  updateUnitMapNode,
+  deleteUnitMapNode,
+  updateMapConnection,
+  updateMapLayoutPositions,
 } from "@/components/map-ide/actions";
 
 // Guarded actions
@@ -163,6 +168,70 @@ describe("Auth Guard Audit", () => {
       vi_createClient.mockResolvedValue(client as any);
 
       const result = await updateActivityTitlePosition("activity-1", "bottom", "unit-1");
+
+      expect(result).toEqual({ success: false, error: "No autenticado." });
+    });
+
+    it("createUnitMapNode — rejects unauthenticated request", async () => {
+      const { client } = new SupabaseMockBuilder()
+        .mockAuthError("session expired")
+        .build();
+      vi_createClient.mockResolvedValue(client as any);
+
+      const result = await createUnitMapNode("unit-1", "branch", "Bifurcación", 50, 75);
+
+      expect(result).toEqual({ success: false, error: "No autenticado." });
+    });
+
+    it("updateUnitMapNode — rejects unauthenticated request", async () => {
+      const { client } = new SupabaseMockBuilder()
+        .mockAuthError("session expired")
+        .build();
+      vi_createClient.mockResolvedValue(client as any);
+
+      const result = await updateUnitMapNode("node-1", "unit-1", {
+        type: "branch",
+        label: "Bifurcación",
+        description: null,
+      });
+
+      expect(result).toEqual({ success: false, error: "No autenticado." });
+    });
+
+    it("deleteUnitMapNode — rejects unauthenticated request", async () => {
+      const { client } = new SupabaseMockBuilder()
+        .mockAuthError("session expired")
+        .build();
+      vi_createClient.mockResolvedValue(client as any);
+
+      const result = await deleteUnitMapNode("node-1", "unit-1");
+
+      expect(result).toEqual({ success: false, error: "No autenticado." });
+    });
+
+    it("updateMapConnection — rejects unauthenticated request", async () => {
+      const { client } = new SupabaseMockBuilder()
+        .mockAuthError("session expired")
+        .build();
+      vi_createClient.mockResolvedValue(client as any);
+
+      const result = await updateMapConnection("connection-1", "unit-1", {
+        label: null,
+        routeType: "required",
+      });
+
+      expect(result).toEqual({ success: false, error: "No autenticado." });
+    });
+
+    it("updateMapLayoutPositions — rejects unauthenticated request", async () => {
+      const { client } = new SupabaseMockBuilder()
+        .mockAuthError("session expired")
+        .build();
+      vi_createClient.mockResolvedValue(client as any);
+
+      const result = await updateMapLayoutPositions("unit-1", [
+        { id: "flow:node-1", x: 10, y: 20 },
+      ]);
 
       expect(result).toEqual({ success: false, error: "No autenticado." });
     });

@@ -11,7 +11,10 @@ import {
     Gamepad2,
     HelpCircle,
     Info,
-    Trash2
+    GitBranch,
+    GitMerge,
+    Flag,
+    Play
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { CreateActivityDialog } from '@/components/dashboard/activities/create-activity-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { getModuleRoleLabel, getModuleRoleTooltip, type ModuleCollaboratorRole, type ModulePermissions } from '@/lib/module-collaborator-defs';
+import { MAP_NODE_TYPE, type MapNodeType } from '@/types/unit-map';
 
 interface TeacherSidebarProps {
     unit: any;
@@ -31,6 +35,12 @@ interface TeacherSidebarProps {
 
 export function TeacherSidebar({ unit, activities, onAddActivity, moduleRole, modulePermissions }: TeacherSidebarProps) {
     const canEditMap = modulePermissions?.canEditModuleContent ?? true;
+    const flowNodeOptions: Array<{ type: MapNodeType; label: string; description: string; icon: React.ReactNode }> = [
+        { type: MAP_NODE_TYPE.START, label: "Inicio", description: "Marca el arranque del recorrido", icon: <Play className="size-4 text-accent-green" /> },
+        { type: MAP_NODE_TYPE.BRANCH, label: "Bifurcación", description: "Abre caminos alternativos", icon: <GitBranch className="size-4 text-accent-amber" /> },
+        { type: MAP_NODE_TYPE.MERGE, label: "Unión", description: "Reúne ramas del mapa", icon: <GitMerge className="size-4 text-pink-300" /> },
+        { type: MAP_NODE_TYPE.END, label: "Fin", description: "Cierra una ruta", icon: <Flag className="size-4 text-accent-red" /> },
+    ];
 
     // Draggable item for React Flow (DND implementation)
     const onDragStart = (event: React.DragEvent, activity: any) => {
@@ -39,6 +49,19 @@ export function TeacherSidebar({ unit, activities, onAddActivity, moduleRole, mo
             return;
         }
         event.dataTransfer.setData('application/reactflow', JSON.stringify(activity));
+        event.dataTransfer.effectAllowed = 'move';
+    };
+
+    const onFlowNodeDragStart = (event: React.DragEvent, option: { type: MapNodeType; label: string; description: string }) => {
+        if (!canEditMap) {
+            event.preventDefault();
+            return;
+        }
+        event.dataTransfer.setData('application/aula-map-flow-node', JSON.stringify({
+            type: option.type,
+            label: option.label,
+            description: option.description,
+        }));
         event.dataTransfer.effectAllowed = 'move';
     };
 
@@ -106,6 +129,42 @@ export function TeacherSidebar({ unit, activities, onAddActivity, moduleRole, mo
 
             {/* List of Available Activities */}
             <div className="flex-1 overflow-y-auto custom-scrollbar p-4 lg:p-6 space-y-4">
+                {canEditMap && (
+                    <div className="space-y-3">
+                        <div className="space-y-1 px-2">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                Nodos de flujo
+                            </div>
+                            <p className="text-[11px] font-semibold text-foreground/70 dark:text-white/70 leading-relaxed italic">
+                                Úsalos para bifurcar, unir o explicar rutas sin crear retos falsos.
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2">
+                            {flowNodeOptions.map((option) => (
+                                <div
+                                    key={option.type}
+                                    draggable
+                                    onDragStart={(event) => onFlowNodeDragStart(event, option)}
+                                    className="group bg-surface/60 border border-border/50 hover:border-accent-blue/40 rounded-xl p-3 flex items-center gap-3 transition-all hover:bg-muted/60 cursor-grab active:cursor-grabbing"
+                                >
+                                    <div className="shrink-0 size-9 rounded-lg bg-background border border-border flex items-center justify-center transition-colors group-hover:border-accent-blue/20">
+                                        {option.icon}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="text-xs font-bold text-foreground truncate group-hover:text-accent-blue transition-colors">
+                                            {option.label}
+                                        </h4>
+                                        <p className="text-[11px] font-semibold leading-snug text-foreground/75 dark:text-white/75 group-hover:text-foreground dark:group-hover:text-white transition-colors">
+                                            {option.description}
+                                        </p>
+                                    </div>
+                                    <GripVertical className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 <div className="space-y-1 mb-6">
                     <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-2">
                         Retos Disponibles
