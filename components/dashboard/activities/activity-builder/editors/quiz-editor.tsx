@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { updateStepContent, getQuestionBanks, updateStepLockdown } from "@/app/activities/[id]/edit/actions";
 import { QuestionBankManagerDialog } from "./question-bank-manager";
-import { StepConfigSection, ConfigSection, ConfigToggle } from "./step-config-section";
+import { ConfigSection, ConfigSectionsToolbar, ConfigToggle, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { toast } from "sonner";
 import { Plus, Trash2, CheckCircle2, Circle, HardDrive, ExternalLink, BarChart2, AlignLeft, GripVertical, Layers, FileUp } from "lucide-react";
 import { GoogleFormCsvImport } from "./google-form-csv-import";
@@ -215,6 +215,14 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
 
     const effectiveMode: QuizMode = isNestedQuiz ? 'builtin' : content.quizMode ?? (content.googleFormUrl ? 'google_form' : 'builtin');
     const statsAvailability = getGroupStatsAvailability(content);
+    const configSectionIds = [
+        "experience",
+        "completion-mode",
+        "quiz-mode",
+        "exam-mode",
+        ...(effectiveMode === "builtin" ? ["evaluation", "results", "randomness", "presentation"] : []),
+    ];
+    const sectionState = useConfigSectionState(step.id, configSectionIds);
 
     const tabTriggerClass = "h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none";
 
@@ -440,10 +448,19 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
             <TabsContent value="configuracion" className="mt-0 flex-1 min-h-0 overflow-y-auto">
                 <div className="max-w-2xl mx-auto p-8 space-y-4 pb-16">
                     {/* Step-level: XP + completion mode */}
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} />
+                    <ConfigSectionsToolbar
+                        allSectionsOpen={sectionState.allSectionsOpen}
+                        onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
+                    />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
 
                     {/* Quiz mode selector — global config */}
-                    <ConfigSection title="Modo del cuestionario">
+                    <ConfigSection
+                        title="Modo del cuestionario"
+                        sectionId="quiz-mode"
+                        open={sectionState.isSectionOpen("quiz-mode")}
+                        onToggle={() => sectionState.toggleSection("quiz-mode")}
+                    >
                         <div className="flex gap-2">
                             <button
                                 onClick={() => handleUpdate({ ...content, quizMode: 'builtin' })}
@@ -480,7 +497,12 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                     </ConfigSection>
 
                     {/* Exam mode (lockdown) */}
-                    <ConfigSection title="Modo Examen">
+                    <ConfigSection
+                        title="Modo Examen"
+                        sectionId="exam-mode"
+                        open={sectionState.isSectionOpen("exam-mode")}
+                        onToggle={() => sectionState.toggleSection("exam-mode")}
+                    >
                         <ConfigToggle
                             checked={!!step.is_lockdown}
                             onChange={async (v) => {
@@ -499,7 +521,12 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                     {/* Built-in only settings */}
                     {effectiveMode === 'builtin' && (
                         <>
-                            <ConfigSection title="Evaluación">
+                            <ConfigSection
+                                title="Evaluación"
+                                sectionId="evaluation"
+                                open={sectionState.isSectionOpen("evaluation")}
+                                onToggle={() => sectionState.toggleSection("evaluation")}
+                            >
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1.5">
                                         <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Nota mínima para aprobar (%)</label>
@@ -526,7 +553,12 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                                 />
                             </ConfigSection>
 
-                            <ConfigSection title="Resultados">
+                            <ConfigSection
+                                title="Resultados"
+                                sectionId="results"
+                                open={sectionState.isSectionOpen("results")}
+                                onToggle={() => sectionState.toggleSection("results")}
+                            >
                                 <ConfigToggle
                                     checked={!!content.showCorrectAnswers}
                                     onChange={(v) => handleUpdate({ ...content, showCorrectAnswers: v })}
@@ -557,7 +589,12 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                                 </label>
                             </ConfigSection>
 
-                            <ConfigSection title="Aleatoriedad">
+                            <ConfigSection
+                                title="Aleatoriedad"
+                                sectionId="randomness"
+                                open={sectionState.isSectionOpen("randomness")}
+                                onToggle={() => sectionState.toggleSection("randomness")}
+                            >
                                 <ConfigToggle
                                     checked={!!content.randomizeQuestions}
                                     onChange={(v) => handleUpdate({ ...content, randomizeQuestions: v })}
@@ -572,7 +609,12 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                                 />
                             </ConfigSection>
 
-                            <ConfigSection title="Presentación">
+                            <ConfigSection
+                                title="Presentación"
+                                sectionId="presentation"
+                                open={sectionState.isSectionOpen("presentation")}
+                                onToggle={() => sectionState.toggleSection("presentation")}
+                            >
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Preguntas por página</label>
                                     <Input

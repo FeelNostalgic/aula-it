@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { ListChecks, Users, User, MessageSquare, Plus, Trash2, GripVertical, PanelRightClose, PanelRightOpen, Link2, CheckCircle2, Clock, Hash } from "lucide-react";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StepConfigSection } from "./step-config-section";
+import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { cn } from "@/lib/utils";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
@@ -68,7 +68,6 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
     );
     const [isSaving, setIsSaving] = useState(false);
     const [rubricModalOpen, setRubricModalOpen] = useState(false);
-    const [antiGamingOpen, setAntiGamingOpen] = useState(false);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
     const [isPending, startTransition] = useTransition();
     const [isGenerating, setIsGenerating] = useState(false);
@@ -137,6 +136,20 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
     const parentStep = step.parent_step_id
         ? (phases ?? []).flatMap(p => p.steps).find(s => s.id === step.parent_step_id) ?? null
         : null;
+    const showManualManagement = !!moduleId && content.mode !== "intra_group" && !(content.mode === "group" && content.evaluateAllGroups);
+    const configSectionIds = [
+        "experience",
+        "completion-mode",
+        "mode",
+        "parent-step",
+        "evaluation-mode",
+        ...(evalMode === "rubric" ? ["rubric"] : []),
+        ...(content.mode === "individual" ? ["distribution-individual", "integrity"] : []),
+        ...(content.mode === "group" ? ["distribution-groups"] : []),
+        ...(content.mode === "intra_group" ? ["distribution-intra-group"] : []),
+        ...(showManualManagement ? ["management"] : []),
+    ];
+    const sectionState = useConfigSectionState(step.id, configSectionIds);
 
     const tabTriggerClass = "h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none";
 
@@ -226,7 +239,11 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                         <p className="text-sm text-text-muted mt-1">Los alumnos evalúan los trabajos de sus compañeros con la rúbrica que configures.</p>
                     </div>
 
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} />
+                    <ConfigSectionsToolbar
+                        allSectionsOpen={sectionState.allSectionsOpen}
+                        onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
+                    />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
 
                     {/* Mode selector */}
                     {(() => {
@@ -238,11 +255,13 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                 ? ["individual"]
                                 : ["individual", "group", "intra_group"];
                         return (
-                            <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                                <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Modo</span>
-                                </div>
-                                <div className="p-5 space-y-3">
+                            <ConfigSection
+                                title="Modo"
+                                sectionId="mode"
+                                open={sectionState.isSectionOpen("mode")}
+                                onToggle={() => sectionState.toggleSection("mode")}
+                                contentClassName="space-y-3"
+                            >
                                     <div className="flex gap-2 flex-wrap">
                                         {(["individual", "group", "intra_group"] as PeerEvaluationMode[]).map(m => {
                                             const isAllowed = allowedModes.includes(m);
@@ -270,21 +289,21 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                     <p className="text-xs text-text-muted">
                                         {content.mode === "individual"
                                             ? "Cada alumno evalúa trabajos de N compañeros asignados aleatoriamente."
-                                            : content.mode === "group"
+                                        : content.mode === "group"
                                                 ? "Los grupos se evalúan entre sí."
                                                 : "Los miembros de cada grupo se evalúan entre sí — mide contribución individual."}
                                     </p>
-                                </div>
-                            </div>
+                            </ConfigSection>
                         );
                     })()}
 
                     {/* Parent step indicator */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Entregable Vinculado</span>
-                        </div>
-                        <div className="p-5">
+                    <ConfigSection
+                        title="Entregable Vinculado"
+                        sectionId="parent-step"
+                        open={sectionState.isSectionOpen("parent-step")}
+                        onToggle={() => sectionState.toggleSection("parent-step")}
+                    >
                             {parentStep ? (
                                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-blue/10 border border-accent-blue/20 text-accent-blue text-sm">
                                     <Link2 className="size-3.5 shrink-0" />
@@ -298,15 +317,16 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                     }
                                 </p>
                             )}
-                        </div>
-                    </div>
+                    </ConfigSection>
 
                     {/* Eval mode selector */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Modo de Evaluación</span>
-                        </div>
-                        <div className="p-5 space-y-3">
+                    <ConfigSection
+                        title="Modo de Evaluación"
+                        sectionId="evaluation-mode"
+                        open={sectionState.isSectionOpen("evaluation-mode")}
+                        onToggle={() => sectionState.toggleSection("evaluation-mode")}
+                        contentClassName="space-y-3"
+                    >
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => save({ ...content, evalMode: "rubric" })}
@@ -338,17 +358,17 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                     ? "Los evaluadores puntúan niveles por criterio con justificación opcional."
                                     : "Los evaluadores responden preguntas abiertas. Sin puntuación numérica — mide reflexión y feedback cualitativo."}
                             </p>
-                        </div>
-                    </div>
+                    </ConfigSection>
 
                     {/* Rubric — only in rubric mode */}
                     {evalMode === "rubric" && (
                         <>
-                            <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                                <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Rúbrica</span>
-                                </div>
-                                <div className="p-5">
+                            <ConfigSection
+                                title="Rúbrica"
+                                sectionId="rubric"
+                                open={sectionState.isSectionOpen("rubric")}
+                                onToggle={() => sectionState.toggleSection("rubric")}
+                            >
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -360,8 +380,7 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                             ? `Editar rúbrica (${content.rubric!.length} ${content.rubric!.length === 1 ? "criterio" : "criterios"})`
                                             : "Configurar rúbrica"}
                                     </Button>
-                                </div>
-                            </div>
+                            </ConfigSection>
                             <RubricBuilderModal
                                 rubric={content.rubric ?? []}
                                 open={rubricModalOpen}
@@ -381,11 +400,12 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
 
                     {/* Mode-specific settings */}
                     {content.mode === "individual" && (
-                        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Distribución (Individual)</span>
-                            </div>
-                            <div className="p-5 space-y-4">
+                        <ConfigSection
+                            title="Distribución (Individual)"
+                            sectionId="distribution-individual"
+                            open={sectionState.isSectionOpen("distribution-individual")}
+                            onToggle={() => sectionState.toggleSection("distribution-individual")}
+                        >
                                 {/* N evaluations per student */}
                                 <div className="flex items-center justify-between gap-4">
                                     <div>
@@ -439,16 +459,16 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                     value={!!content.peerFeedbackVisibleToStudents}
                                     onChange={(v) => save({ ...content, peerFeedbackVisibleToStudents: v })}
                                 />
-                            </div>
-                        </div>
+                        </ConfigSection>
                     )}
 
                     {content.mode === "group" && (
-                        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Distribución (Grupos)</span>
-                            </div>
-                            <div className="p-5 space-y-4">
+                        <ConfigSection
+                            title="Distribución (Grupos)"
+                            sectionId="distribution-groups"
+                            open={sectionState.isSectionOpen("distribution-groups")}
+                            onToggle={() => sectionState.toggleSection("distribution-groups")}
+                        >
                                 <Toggle
                                     label="Evalúa a todos los grupos"
                                     description="Cada grupo evalúa a todos los demás grupos."
@@ -501,16 +521,16 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                         />
                                     </div>
                                 )}
-                            </div>
-                        </div>
+                        </ConfigSection>
                     )}
 
                     {content.mode === "intra_group" && (
-                        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Distribución (Entre miembros)</span>
-                            </div>
-                            <div className="p-5 space-y-4">
+                        <ConfigSection
+                            title="Distribución (Entre miembros)"
+                            sectionId="distribution-intra-group"
+                            open={sectionState.isSectionOpen("distribution-intra-group")}
+                            onToggle={() => sectionState.toggleSection("distribution-intra-group")}
+                        >
                                 <Toggle
                                     label="Justificación obligatoria"
                                     description="El evaluador debe escribir un texto por criterio."
@@ -531,22 +551,18 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                         />
                                     </div>
                                 )}
-                            </div>
-                        </div>
+                        </ConfigSection>
                     )}
 
                     {/* Anti-gaming section (individual mode only) */}
                     {content.mode === "individual" && (
-                        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                            <button
-                                className="w-full px-5 py-3 flex items-center justify-between text-xs font-bold text-text-muted uppercase tracking-widest hover:bg-white/2 transition-colors"
-                                onClick={() => setAntiGamingOpen(v => !v)}
-                            >
-                                <span>Integridad de la evaluación</span>
-                                <span className="text-[10px] normal-case font-normal">{antiGamingOpen ? "Ocultar ▲" : "Mostrar ▼"}</span>
-                            </button>
-                            {antiGamingOpen && (
-                                <div className="p-5 border-t border-white/5 space-y-5">
+                        <ConfigSection
+                            title="Integridad de la evaluación"
+                            sectionId="integrity"
+                            open={sectionState.isSectionOpen("integrity")}
+                            onToggle={() => sectionState.toggleSection("integrity")}
+                            contentClassName="space-y-5"
+                        >
                                     {/* Outlier sensitivity */}
                                     <div className="space-y-2">
                                         <p className="text-sm font-semibold text-foreground">Sensibilidad a outliers</p>
@@ -607,9 +623,7 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                             </div>
                                         )}
                                     </div>
-                                </div>
-                            )}
-                        </div>
+                        </ConfigSection>
                     )}
 
                     {/* Gestión — generate assignments (hidden for intra_group — auto-generated) */}
@@ -622,10 +636,14 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                         </div>
                     )}
 
-                    {moduleId && content.mode !== 'intra_group' && !(content.mode === 'group' && content.evaluateAllGroups) && (
-                        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2 flex items-center justify-between gap-2">
-                                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Gestión</span>
+                    {showManualManagement && moduleId && (
+                        <ConfigSection
+                            title="Gestión"
+                            sectionId="management"
+                            open={sectionState.isSectionOpen("management")}
+                            onToggle={() => sectionState.toggleSection("management")}
+                            contentClassName="space-y-3"
+                            headerRight={
                                 <div className="flex items-center gap-1.5">
                                     {gestionAssignments.length > 0 && (
                                         <Button
@@ -683,8 +701,8 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                         Generar asignaciones
                                     </Button>
                                 </div>
-                            </div>
-                            <div className="p-5 space-y-3">
+                            }
+                        >
                                 {gestionLoading ? (
                                     <div className="flex items-center gap-2 text-xs text-text-muted py-2">
                                         <span className="size-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
@@ -716,8 +734,7 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                         })}
                                     </div>
                                 )}
-                            </div>
-                        </div>
+                        </ConfigSection>
                     )}
                 </div>
             </TabsContent>

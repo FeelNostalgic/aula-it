@@ -11,7 +11,7 @@ import { AnimationPlayer } from "@/components/animations/animation-player";
 import { ArpAnimation } from "@/components/animations/arp-animation";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StepConfigSection } from "./step-config-section";
+import { ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 
 // Map slug → component for preview
 const previewMap: Record<string, React.ComponentType> = {
@@ -28,6 +28,8 @@ export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
     const [content, setContent] = useState<AnimationContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const configSectionIds = ["experience", "completion-mode"];
+    const sectionState = useConfigSectionState(step.id, configSectionIds);
 
     useEffect(() => {
         const newContent = (step.content as AnimationContent) || { componentUrl: "" };
@@ -183,7 +185,11 @@ export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
                         <h3 className="text-lg font-bold text-foreground">Configuración de la actividad</h3>
                         <p className="text-sm text-text-muted mt-1">Ajusta la experiencia y el modo de completado de esta animación.</p>
                     </div>
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} />
+                    <ConfigSectionsToolbar
+                        allSectionsOpen={sectionState.allSectionsOpen}
+                        onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
+                    />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
                 </div>
             </TabsContent>
         </Tabs>

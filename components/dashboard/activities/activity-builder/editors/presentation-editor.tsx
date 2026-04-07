@@ -11,7 +11,7 @@ import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toEmbedUrl, GOOGLE_MIME } from "@/lib/google-drive-urls";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StepConfigSection } from "./step-config-section";
+import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 
 interface PresentationEditorProps {
     step: ActivityStepWithClientState;
@@ -28,6 +28,8 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
 
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
+    const configSectionIds = ["experience", "completion-mode", "teacher-notes"];
+    const sectionState = useConfigSectionState(step.id, configSectionIds);
 
     useEffect(() => {
         const content = (step.content as PresentationContent) || defaultContent;
@@ -176,25 +178,29 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
                         <p className="text-sm text-text-muted mt-1">Ajusta la experiencia, el modo de completado y las notas del profesor.</p>
                     </div>
 
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} />
+                    <ConfigSectionsToolbar
+                        allSectionsOpen={sectionState.allSectionsOpen}
+                        onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
+                    />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
 
                     {/* Teacher notes */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/[0.02]">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Notas del Profesor</span>
-                        </div>
-                        <div className="p-5">
-                            <p className="text-xs text-text-muted mb-3">
-                                Anotaciones o guion para esta presentación. Solo visibles para ti.
-                            </p>
-                            <Textarea
-                                value={notes}
-                                onChange={(e) => handleNotesChange(e.target.value)}
-                                placeholder="Puntos clave a mencionar, tiempo estimado por slide..."
-                                className="bg-surface border-border/50 resize-none h-40 font-mono text-xs"
-                            />
-                        </div>
-                    </div>
+                    <ConfigSection
+                        title="Notas del Profesor"
+                        sectionId="teacher-notes"
+                        open={sectionState.isSectionOpen("teacher-notes")}
+                        onToggle={() => sectionState.toggleSection("teacher-notes")}
+                    >
+                        <p className="text-xs text-text-muted">
+                            Anotaciones o guion para esta presentación. Solo visibles para ti.
+                        </p>
+                        <Textarea
+                            value={notes}
+                            onChange={(e) => handleNotesChange(e.target.value)}
+                            placeholder="Puntos clave a mencionar, tiempo estimado por slide..."
+                            className="bg-surface border-border/50 resize-none h-40 font-mono text-xs"
+                        />
+                    </ConfigSection>
                 </div>
             </TabsContent>
         </Tabs>

@@ -14,7 +14,7 @@ import rehypeKatex from "rehype-katex";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StepConfigSection } from "./step-config-section";
+import { ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 
 interface TheoryEditorProps {
     step: ActivityStepWithClientState;
@@ -27,6 +27,8 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
     const [isSaving, setIsSaving] = useState(false);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const configSectionIds = ["experience", "completion-mode"];
+    const sectionState = useConfigSectionState(step.id, configSectionIds);
 
     useEffect(() => {
         const newContent = (step.content as TheoryContent) || { markdown: "" };
@@ -146,7 +148,11 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
                         <h3 className="text-lg font-bold text-foreground">Configuración de la actividad</h3>
                         <p className="text-sm text-text-muted mt-1">Ajusta la experiencia y el modo de completado de esta actividad.</p>
                     </div>
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} />
+                    <ConfigSectionsToolbar
+                        allSectionsOpen={sectionState.allSectionsOpen}
+                        onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
+                    />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
                 </div>
             </TabsContent>
         </Tabs>

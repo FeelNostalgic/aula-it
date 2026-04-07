@@ -17,7 +17,7 @@ import rehypeKatex from "rehype-katex";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StepConfigSection } from "./step-config-section";
+import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 
 const ALLOWED_TYPE_OPTIONS: { value: AllowedFileType; label: string }[] = [
     { value: 'pdf', label: 'PDF' },
@@ -53,7 +53,7 @@ interface FileUploadEditorProps {
     onUpdate: (updated: ActivityStepWithClientState) => void;
 }
 
-function isBuiltInQuizChild(step: ActivityStepWithClientState) {
+function isBuiltInQuizChild(step: { type: string; content: unknown }) {
     if (step.type !== "quiz") return false;
     const quizContent = step.content as Partial<QuizContent> | null | undefined;
     const mode = quizContent?.quizMode ?? (quizContent?.googleFormUrl ? "google_form" : "builtin");
@@ -130,6 +130,26 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
     const handleRubricChange = (newRubric: RubricCriteria[]) => {
         saveContent({ ...content, rubric: newRubric });
     };
+
+    const gradeChildren = step.children ?? [];
+    const hasGradeCompositionSection = gradeChildren.some(child => {
+        if (child.type === "self_evaluation") return true;
+        if (child.type === "quiz") return isBuiltInQuizChild(child);
+        if (child.type !== "peer_evaluation") return false;
+        const peerContent = child.content as PeerEvaluationContent | null | undefined;
+        return peerContent?.mode !== "intra_group" || !!content.is_group_submission;
+    });
+    const configSectionIds = [
+        "experience",
+        "completion-mode",
+        "group-submission",
+        "allowed-types",
+        "limits",
+        "rubric",
+        ...(hasGradeCompositionSection ? ["weighting"] : []),
+        "due-date",
+    ];
+    const sectionState = useConfigSectionState(step.id, configSectionIds);
 
     const tabTriggerClass = "h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none";
 
@@ -210,14 +230,20 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                         <p className="text-sm text-text-muted mt-1">El alumno sube archivos directamente a tu Drive.</p>
                     </div>
 
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} />
+                    <ConfigSectionsToolbar
+                        allSectionsOpen={sectionState.allSectionsOpen}
+                        onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
+                    />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
 
                     {/* Group submission toggle */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Entrega Grupal</span>
-                        </div>
-                        <div className="p-5 flex items-center justify-between gap-4">
+                    <ConfigSection
+                        title="Entrega Grupal"
+                        sectionId="group-submission"
+                        open={sectionState.isSectionOpen("group-submission")}
+                        onToggle={() => sectionState.toggleSection("group-submission")}
+                        contentClassName="flex items-center justify-between gap-4"
+                    >
                             <div className="flex items-center gap-3">
                                 <Users className="size-4 text-text-muted shrink-0" />
                                 <div>
@@ -243,15 +269,15 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                                     )}
                                 />
                             </button>
-                        </div>
-                    </div>
+                    </ConfigSection>
 
                     {/* Tipos de archivo */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Tipos de archivo permitidos</span>
-                        </div>
-                        <div className="p-5">
+                    <ConfigSection
+                        title="Tipos de archivo permitidos"
+                        sectionId="allowed-types"
+                        open={sectionState.isSectionOpen("allowed-types")}
+                        onToggle={() => sectionState.toggleSection("allowed-types")}
+                    >
                             <div className="flex flex-wrap gap-2">
                                 {ALLOWED_TYPE_OPTIONS.map(opt => {
                                     const active = content.allowedTypes?.includes(opt.value) ?? false;
@@ -271,15 +297,16 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                                     );
                                 })}
                             </div>
-                        </div>
-                    </div>
+                    </ConfigSection>
 
                     {/* Límites */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Límites</span>
-                        </div>
-                        <div className="p-5 flex flex-wrap gap-6">
+                    <ConfigSection
+                        title="Límites"
+                        sectionId="limits"
+                        open={sectionState.isSectionOpen("limits")}
+                        onToggle={() => sectionState.toggleSection("limits")}
+                        contentClassName="flex flex-wrap gap-6"
+                    >
                             <div className="space-y-1.5">
                                 <label className="text-sm font-semibold text-foreground">Tamaño máximo</label>
                                 <div className="flex items-center gap-2">
@@ -318,15 +345,15 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                                     className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent-blue"
                                 />
                             </div>
-                        </div>
-                    </div>
+                    </ConfigSection>
 
                     {/* Rúbrica */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Rúbrica</span>
-                        </div>
-                        <div className="p-5">
+                    <ConfigSection
+                        title="Rúbrica"
+                        sectionId="rubric"
+                        open={sectionState.isSectionOpen("rubric")}
+                        onToggle={() => sectionState.toggleSection("rubric")}
+                    >
                             <Button variant="outline" size="sm" onClick={() => setRubricModalOpen(true)}
                                 className="h-8 text-xs gap-1.5 border-border/50 text-text-muted hover:text-foreground">
                                 <ListChecks className="size-3.5" />
@@ -334,8 +361,7 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                                     ? `Editar rúbrica (${content.rubric!.length} ${content.rubric!.length === 1 ? "criterio" : "criterios"})`
                                     : "Configurar rúbrica"}
                             </Button>
-                        </div>
-                    </div>
+                    </ConfigSection>
                     <RubricBuilderModal rubric={content.rubric ?? []} open={rubricModalOpen} onClose={() => setRubricModalOpen(false)} onChange={handleRubricChange} />
 
                     {/* Ponderación 360° — solo si hay hijos de evaluación */}
@@ -369,16 +395,18 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                         };
 
                         return (
-                            <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                                <div className="px-5 py-2.5 border-b border-white/5 bg-white/2 flex items-center justify-between">
-                                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest flex items-center gap-1.5">
-                                        <Scale className="size-3" /> Ponderación (360°)
-                                    </span>
+                            <ConfigSection
+                                title={<span className="flex items-center gap-1.5"><Scale className="size-3" /> Ponderación (360°)</span>}
+                                sectionId="weighting"
+                                open={sectionState.isSectionOpen("weighting")}
+                                onToggle={() => sectionState.toggleSection("weighting")}
+                                contentClassName="space-y-3"
+                                headerRight={
                                     <span className={cn("text-xs font-mono", totalAssigned > 100 ? "text-red-400" : "text-text-muted")}>
                                         Profesor: {teacherWeight}%
                                     </span>
-                                </div>
-                                <div className="p-5 space-y-3">
+                                }
+                            >
                                     <p className="text-xs text-text-muted">Cuánto pesa cada evaluación en la nota final. El porcentaje del profesor es el residuo.</p>
 
                                     {/* Profesor — read-only residual */}
@@ -455,17 +483,18 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                                             <span className="text-sm font-mono text-foreground w-10 text-right">{comp.quizWeight ?? 0}%</span>
                                         </div>
                                     )}
-                                </div>
-                            </div>
+                            </ConfigSection>
                         );
                     })()}
 
                     {/* Fecha límite */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Fecha Límite</span>
-                        </div>
-                        <div className="p-5 space-y-2">
+                    <ConfigSection
+                        title="Fecha Límite"
+                        sectionId="due-date"
+                        open={sectionState.isSectionOpen("due-date")}
+                        onToggle={() => sectionState.toggleSection("due-date")}
+                        contentClassName="space-y-2"
+                    >
                             <div className="flex items-center gap-2">
                                 <input type="datetime-local"
                                     value={dueDate ? utcToLocalInputValue(dueDate) : ""}
@@ -480,8 +509,7 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                                 )}
                             </div>
                             <p className="text-xs text-text-muted">El alumno no podrá entregar pasada esta fecha.</p>
-                        </div>
-                    </div>
+                    </ConfigSection>
                 </div>
             </TabsContent>
         </Tabs>

@@ -28,7 +28,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StepConfigSection } from "./step-config-section";
+import { ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 
 interface ResourceEditorProps {
     step: ActivityStepWithClientState;
@@ -41,6 +41,8 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
     const [isSaving, setIsSaving] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
+    const configSectionIds = ["experience", "completion-mode"];
+    const sectionState = useConfigSectionState(step.id, configSectionIds);
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -201,7 +203,11 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
                         <h3 className="text-lg font-bold text-foreground">Configuración de la actividad</h3>
                         <p className="text-sm text-text-muted mt-1">Ajusta la experiencia y el modo de completado de este bloque de recursos.</p>
                     </div>
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} />
+                    <ConfigSectionsToolbar
+                        allSectionsOpen={sectionState.allSectionsOpen}
+                        onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
+                    />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
                 </div>
             </TabsContent>
         </Tabs>
@@ -316,4 +322,3 @@ function SortableResourceItem({ item, updateItem, removeItem }: SortableResource
         </div>
     );
 }
-

@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { ListChecks, MessageSquare, Plus, Trash2, PanelRightClose, PanelRightOpen, AlignLeft, GripVertical, Link2, Hash } from "lucide-react";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StepConfigSection } from "./step-config-section";
+import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { cn } from "@/lib/utils";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
@@ -70,6 +70,15 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
 
     const evalMode = content.evalMode ?? "rubric";
     const questions = content.questions ?? [];
+    const configSectionIds = [
+        "experience",
+        "completion-mode",
+        "evaluation-mode",
+        ...(evalMode === "rubric" ? ["rubric"] : []),
+        "parent-step",
+        ...(evalMode === "rubric" ? ["options"] : []),
+    ];
+    const sectionState = useConfigSectionState(step.id, configSectionIds);
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -187,14 +196,20 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
                         <p className="text-sm text-text-muted mt-1">El alumno se evalúa con la rúbrica o las preguntas que configures aquí.</p>
                     </div>
 
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} />
+                    <ConfigSectionsToolbar
+                        allSectionsOpen={sectionState.allSectionsOpen}
+                        onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
+                    />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
 
                     {/* Eval mode selector */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Modo de Evaluación</span>
-                        </div>
-                        <div className="p-5 space-y-3">
+                    <ConfigSection
+                        title="Modo de Evaluación"
+                        sectionId="evaluation-mode"
+                        open={sectionState.isSectionOpen("evaluation-mode")}
+                        onToggle={() => sectionState.toggleSection("evaluation-mode")}
+                        contentClassName="space-y-3"
+                    >
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => save({ ...content, evalMode: "rubric" })}
@@ -226,17 +241,17 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
                                     ? "El alumno selecciona un nivel por criterio y opcionalmente justifica su elección."
                                     : "El alumno responde preguntas abiertas. Sin puntuación numérica — mide esfuerzo y reflexión."}
                             </p>
-                        </div>
-                    </div>
+                    </ConfigSection>
 
                     {/* Rubric section — only in rubric mode */}
                     {evalMode === "rubric" && (
                         <>
-                            <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                                <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Rúbrica</span>
-                                </div>
-                                <div className="p-5">
+                            <ConfigSection
+                                title="Rúbrica"
+                                sectionId="rubric"
+                                open={sectionState.isSectionOpen("rubric")}
+                                onToggle={() => sectionState.toggleSection("rubric")}
+                            >
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -248,8 +263,7 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
                                             ? `Editar rúbrica (${content.rubric!.length} ${content.rubric!.length === 1 ? "criterio" : "criterios"})`
                                             : "Configurar rúbrica"}
                                     </Button>
-                                </div>
-                            </div>
+                            </ConfigSection>
                             <RubricBuilderModal
                                 rubric={content.rubric ?? []}
                                 open={rubricModalOpen}
@@ -273,11 +287,12 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
                             ? (phases ?? []).flatMap(p => p.steps).find(s => s.id === step.parent_step_id) ?? null
                             : null;
                         return (
-                            <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                                <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Entregable Vinculado</span>
-                                </div>
-                                <div className="p-5">
+                            <ConfigSection
+                                title="Entregable Vinculado"
+                                sectionId="parent-step"
+                                open={sectionState.isSectionOpen("parent-step")}
+                                onToggle={() => sectionState.toggleSection("parent-step")}
+                            >
                                     {parentStep ? (
                                         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-blue/10 border border-accent-blue/20 text-accent-blue text-sm">
                                             <Link2 className="size-3.5 shrink-0" />
@@ -288,18 +303,18 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
                                             Arrastra este paso bajo un <span className="font-semibold text-foreground">Entregable</span> o <span className="font-semibold text-foreground">Subida de Archivos</span> en el constructor de actividad para vincularlo.
                                         </p>
                                     )}
-                                </div>
-                            </div>
+                            </ConfigSection>
                         );
                     })()}
 
                     {/* Options — only relevant in rubric mode */}
                     {evalMode === "rubric" && (
-                        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Opciones</span>
-                            </div>
-                            <div className="p-5 space-y-4">
+                        <ConfigSection
+                            title="Opciones"
+                            sectionId="options"
+                            open={sectionState.isSectionOpen("options")}
+                            onToggle={() => sectionState.toggleSection("options")}
+                        >
                                 {/* Require justification */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between gap-4">
@@ -328,8 +343,7 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
                                     )}
                                 </div>
 
-                            </div>
-                        </div>
+                        </ConfigSection>
                     )}
                 </div>
             </TabsContent>

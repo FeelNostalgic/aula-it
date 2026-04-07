@@ -21,7 +21,7 @@ import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StepConfigSection } from "./step-config-section";
+import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 
 interface DeliverableEditorProps {
     step: ActivityStepWithClientState;
@@ -29,7 +29,7 @@ interface DeliverableEditorProps {
     activityId?: string;
 }
 
-function isBuiltInQuizChild(step: ActivityStepWithClientState) {
+function isBuiltInQuizChild(step: { type: string; content: unknown }) {
     if (step.type !== "quiz") return false;
     const quizContent = step.content as Partial<QuizContent> | null | undefined;
     const mode = quizContent?.quizMode ?? (quizContent?.googleFormUrl ? "google_form" : "builtin");
@@ -174,6 +174,25 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
     };
 
     const deliveryMode: DeliveryMode = content.deliveryMode ?? "manual";
+    const gradeChildren = step.children ?? [];
+    const hasGradeCompositionSection = gradeChildren.some(child => {
+        if (child.type === "self_evaluation") return true;
+        if (child.type === "quiz") return isBuiltInQuizChild(child);
+        if (child.type !== "peer_evaluation") return false;
+        const peerContent = child.content as PeerEvaluationContent | null | undefined;
+        return peerContent?.mode !== "intra_group" || !!content.is_group_submission;
+    });
+    const configSectionIds = [
+        "experience",
+        "completion-mode",
+        "delivery-mode",
+        "group-submission",
+        "template",
+        "rubric",
+        ...(hasGradeCompositionSection ? ["weighting"] : []),
+        "due-date",
+    ];
+    const sectionState = useConfigSectionState(step.id, configSectionIds);
 
     return (
         <Tabs defaultValue="instrucciones" className="flex flex-col h-full w-full bg-background">
@@ -271,14 +290,20 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                     </div>
 
                     {/* Step-level: XP + completion mode */}
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} />
+                    <ConfigSectionsToolbar
+                        allSectionsOpen={sectionState.allSectionsOpen}
+                        onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
+                    />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
 
                     {/* Delivery mode */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Modo de entrega</span>
-                        </div>
-                        <div className="p-5 space-y-3">
+                    <ConfigSection
+                        title="Modo de entrega"
+                        sectionId="delivery-mode"
+                        open={sectionState.isSectionOpen("delivery-mode")}
+                        onToggle={() => sectionState.toggleSection("delivery-mode")}
+                        contentClassName="space-y-3"
+                    >
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => handleDeliveryModeChange("manual")}
@@ -342,15 +367,16 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                                     )}
                                 </div>
                             )}
-                        </div>
-                    </div>
+                    </ConfigSection>
 
                     {/* Group submission toggle */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Entrega Grupal</span>
-                        </div>
-                        <div className="p-5 flex items-center justify-between gap-4">
+                    <ConfigSection
+                        title="Entrega Grupal"
+                        sectionId="group-submission"
+                        open={sectionState.isSectionOpen("group-submission")}
+                        onToggle={() => sectionState.toggleSection("group-submission")}
+                        contentClassName="flex items-center justify-between gap-4"
+                    >
                             <div className="flex items-center gap-3">
                                 <Users className="size-4 text-text-muted shrink-0" />
                                 <div>
@@ -376,15 +402,16 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                                     )}
                                 />
                             </button>
-                        </div>
-                    </div>
+                    </ConfigSection>
 
                     {/* Template URL */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Plantilla (Opcional)</span>
-                        </div>
-                        <div className="p-5 space-y-3">
+                    <ConfigSection
+                        title="Plantilla (Opcional)"
+                        sectionId="template"
+                        open={sectionState.isSectionOpen("template")}
+                        onToggle={() => sectionState.toggleSection("template")}
+                        contentClassName="space-y-3"
+                    >
                             <p className="text-xs text-text-muted">Enlace a Google Docs, Packet Tracer, o repositorio de inicio.</p>
                             <div className="flex gap-2">
                                 <Input
@@ -417,15 +444,15 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                                     </Button>
                                 )}
                             </div>
-                        </div>
-                    </div>
+                    </ConfigSection>
 
                     {/* Rubric */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Rúbrica</span>
-                        </div>
-                        <div className="p-5">
+                    <ConfigSection
+                        title="Rúbrica"
+                        sectionId="rubric"
+                        open={sectionState.isSectionOpen("rubric")}
+                        onToggle={() => sectionState.toggleSection("rubric")}
+                    >
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -437,8 +464,7 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                                     ? `Editar rúbrica (${content.rubric!.length} ${content.rubric!.length === 1 ? "criterio" : "criterios"})`
                                     : "Configurar rúbrica"}
                             </Button>
-                        </div>
-                    </div>
+                    </ConfigSection>
                     <RubricBuilderModal
                         rubric={content.rubric ?? []}
                         open={rubricModalOpen}
@@ -498,16 +524,18 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                         };
 
                         return (
-                            <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                                <div className="px-5 py-2.5 border-b border-white/5 bg-white/2 flex items-center justify-between">
-                                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest flex items-center gap-1.5">
-                                        <Scale className="size-3" /> Ponderación (360°)
-                                    </span>
+                            <ConfigSection
+                                title={<span className="flex items-center gap-1.5"><Scale className="size-3" /> Ponderación (360°)</span>}
+                                sectionId="weighting"
+                                open={sectionState.isSectionOpen("weighting")}
+                                onToggle={() => sectionState.toggleSection("weighting")}
+                                contentClassName="space-y-3"
+                                headerRight={
                                     <span className={cn("text-xs font-mono", totalAssigned > 100 ? "text-red-400" : "text-text-muted")}>
                                         Profesor: {teacherWeight}%
                                     </span>
-                                </div>
-                                <div className="p-5 space-y-3">
+                                }
+                            >
                                     <p className="text-xs text-text-muted">Cuánto pesa cada evaluación en la nota final. El porcentaje del profesor es el residuo.</p>
 
                                     {/* Profesor — read-only residual */}
@@ -604,17 +632,18 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                                             <span className="text-sm font-mono text-foreground w-10 text-right">{comp.quizWeight ?? 0}%</span>
                                         </div>
                                     )}
-                                </div>
-                            </div>
+                            </ConfigSection>
                         );
                     })()}
 
                     {/* Due date */}
-                    <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-                        <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                            <span className="text-xs font-bold text-text-muted uppercase tracking-widest">Fecha Límite</span>
-                        </div>
-                        <div className="p-5 space-y-2">
+                    <ConfigSection
+                        title="Fecha Límite"
+                        sectionId="due-date"
+                        open={sectionState.isSectionOpen("due-date")}
+                        onToggle={() => sectionState.toggleSection("due-date")}
+                        contentClassName="space-y-2"
+                    >
                             <div className="flex items-center gap-2">
                                 <input
                                     type="datetime-local"
@@ -634,8 +663,7 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                                 )}
                             </div>
                             <p className="text-xs text-text-muted">El alumno no podrá entregar pasada esta fecha.</p>
-                        </div>
-                    </div>
+                    </ConfigSection>
                 </div>
             </TabsContent>
         </Tabs>

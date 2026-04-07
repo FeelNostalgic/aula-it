@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { ActivityStepWithClientState, CompletionMode } from "@/types/activity";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Zap, HelpCircle, Minus, ClipboardCheck, Eye } from "lucide-react";
+import { Zap, HelpCircle, Minus, ClipboardCheck, Eye, ChevronDown } from "lucide-react";
 import { updateStepXp, updateStepCompletionMode } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
     Tooltip,
     TooltipContent,
@@ -18,15 +19,137 @@ import {
 // Shared UI primitives (used by quiz-editor and other editors)
 // ---------------------------------------------------------------------------
 
-export function ConfigSection({ title, children }: { title: string; children: React.ReactNode }) {
+export interface ConfigSectionState {
+    isSectionOpen: (sectionId: string) => boolean;
+    toggleSection: (sectionId: string) => void;
+}
+
+function readStoredSections(storageKey: string): Record<string, boolean> {
+    if (typeof window === "undefined") return {};
+    try {
+        const raw = localStorage.getItem(storageKey);
+        return raw ? JSON.parse(raw) as Record<string, boolean> : {};
+    } catch {
+        return {};
+    }
+}
+
+export function useConfigSectionState(stepId: string, sectionIds: string[]) {
+    const storageKey = `aula-it:activity-step:${stepId}:config-sections`;
+    const activeStorageKeyRef = useRef(storageKey);
+    const visibleKey = sectionIds.join("|");
+    const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => readStoredSections(storageKey));
+
+    useEffect(() => {
+        activeStorageKeyRef.current = storageKey;
+        setOpenSections(readStoredSections(storageKey));
+    }, [storageKey]);
+
+    useEffect(() => {
+        setOpenSections(prev => {
+            let changed = false;
+            const next = { ...prev };
+            for (const sectionId of sectionIds) {
+                if (next[sectionId] === undefined) {
+                    next[sectionId] = true;
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+    }, [visibleKey]);
+
+    useEffect(() => {
+        if (activeStorageKeyRef.current !== storageKey) return;
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(openSections));
+        } catch {}
+    }, [storageKey, openSections]);
+
+    const isSectionOpen = (sectionId: string) => openSections[sectionId] ?? true;
+    const toggleSection = (sectionId: string) => {
+        setOpenSections(prev => ({ ...prev, [sectionId]: !(prev[sectionId] ?? true) }));
+    };
+    const setAllSectionsOpen = (open: boolean) => {
+        setOpenSections(prev => {
+            const next = { ...prev };
+            for (const sectionId of sectionIds) next[sectionId] = open;
+            return next;
+        });
+    };
+    const allSectionsOpen = sectionIds.length > 0 && sectionIds.every(sectionId => isSectionOpen(sectionId));
+
+    return { isSectionOpen, toggleSection, setAllSectionsOpen, allSectionsOpen };
+}
+
+export function ConfigSectionsToolbar({
+    allSectionsOpen,
+    onToggleAll,
+}: {
+    allSectionsOpen: boolean;
+    onToggleAll: () => void;
+}) {
     return (
-        <div className="rounded-xl border border-white/5 bg-surface-dark overflow-hidden">
-            <div className="px-5 py-2.5 border-b border-white/5 bg-white/2">
-                <span className="text-xs font-bold text-text-muted uppercase tracking-widest">{title}</span>
+        <div className="flex justify-end">
+            <button
+                type="button"
+                onClick={onToggleAll}
+                className="rounded-md border border-border/50 bg-surface px-3 py-1.5 text-xs font-semibold text-text-muted transition-colors hover:bg-surface-dark hover:text-foreground"
+            >
+                {allSectionsOpen ? "Colapsar todo" : "Abrir todo"}
+            </button>
+        </div>
+    );
+}
+
+export function ConfigSection({
+    title,
+    children,
+    sectionId,
+    open = true,
+    onToggle,
+    headerRight,
+    contentClassName,
+}: {
+    title: ReactNode;
+    children: ReactNode;
+    sectionId?: string;
+    open?: boolean;
+    onToggle?: () => void;
+    headerRight?: ReactNode;
+    contentClassName?: string;
+}) {
+    const panelId = sectionId ? `config-section-${sectionId}` : undefined;
+    const titleNode = (
+        <span className="text-xs font-bold text-foreground uppercase tracking-widest">{title}</span>
+    );
+
+    return (
+        <div className="overflow-hidden rounded-xl border border-white/5 bg-surface-dark shadow-sm">
+            <div className="flex items-center gap-3 border-b border-border/50 bg-surface/70 px-5 py-3">
+                {onToggle ? (
+                    <button
+                        type="button"
+                        onClick={onToggle}
+                        aria-expanded={open}
+                        aria-controls={panelId}
+                        className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+                    >
+                        {titleNode}
+                        <ChevronDown className={cn("size-4 shrink-0 text-text-muted transition-transform", !open && "-rotate-90")} />
+                    </button>
+                ) : (
+                    <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                        {titleNode}
+                    </div>
+                )}
+                {headerRight && <div className="shrink-0">{headerRight}</div>}
             </div>
-            <div className="p-5 space-y-4">
-                {children}
-            </div>
+            {open && (
+                <div id={panelId} className={cn("p-5", contentClassName ?? "space-y-4")}>
+                    {children}
+                </div>
+            )}
         </div>
     );
 }
@@ -64,9 +187,10 @@ export function ConfigToggle({
 interface StepConfigSectionProps {
     step: ActivityStepWithClientState;
     onUpdateStep: (updated: ActivityStepWithClientState) => void;
+    sectionState?: ConfigSectionState;
 }
 
-export function StepConfigSection({ step, onUpdateStep }: StepConfigSectionProps) {
+export function StepConfigSection({ step, onUpdateStep, sectionState }: StepConfigSectionProps) {
     const [xp, setXp] = useState<string>(step.xp?.toString() || "0");
     const [completionMode, setCompletionMode] = useState<CompletionMode>(step.completion_mode ?? "none");
     const xpTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -103,7 +227,12 @@ export function StepConfigSection({ step, onUpdateStep }: StepConfigSectionProps
 
     return (
         <>
-            <ConfigSection title="Experiencia">
+            <ConfigSection
+                title="Experiencia"
+                sectionId="experience"
+                open={sectionState?.isSectionOpen("experience")}
+                onToggle={sectionState ? () => sectionState.toggleSection("experience") : undefined}
+            >
                 <div className="flex items-center gap-3">
                     <Zap className={`size-4 shrink-0 ${xpNum > 500 ? "text-accent-amber" : xpNum > 0 ? "text-accent-blue" : "text-text-muted/40"}`} />
                     <Input
@@ -150,7 +279,12 @@ export function StepConfigSection({ step, onUpdateStep }: StepConfigSectionProps
                 </div>
             </ConfigSection>
 
-            <ConfigSection title="Modo de Completado">
+            <ConfigSection
+                title="Modo de Completado"
+                sectionId="completion-mode"
+                open={sectionState?.isSectionOpen("completion-mode")}
+                onToggle={sectionState ? () => sectionState.toggleSection("completion-mode") : undefined}
+            >
                 <div className="flex flex-wrap gap-2">
                     <Button
                         size="sm"
