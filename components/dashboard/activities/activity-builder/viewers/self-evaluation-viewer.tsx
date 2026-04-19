@@ -106,6 +106,18 @@ export function SelfEvaluationViewer({
 
     return (
         <div className="max-w-4xl mx-auto space-y-8">
+            {/* Submitted message */}
+            {hasSubmitted && (
+                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium">
+                    <CheckCircle2 className="size-4 shrink-0" />
+                    {isPublished
+                        ? (evalMode === "rubric"
+                            ? "Autoevaluación publicada. Ya puedes ver tu nota comparativa abajo."
+                            : "Autoevaluación completada.")
+                        : "Autoevaluación enviada. El profesor la revisará pronto."}
+                </div>
+            )}
+
             {/* Instructions */}
             {content.instructionsMarkdown && (
                 <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-4">
@@ -226,12 +238,11 @@ export function SelfEvaluationViewer({
             {hasSubmitted && (
                 <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium">
                     <CheckCircle2 className="size-4 shrink-0" />
-                    Autoevaluación enviada.{" "}
                     {isPublished
                         ? (evalMode === "rubric"
-                            ? "Ya puedes ver tu nota comparativa arriba."
-                            : "Ya ha sido revisada y publicada.")
-                        : "El profesor la revisará pronto."}
+                            ? "Autoevaluación publicada. Ya puedes ver tu nota comparativa abajo."
+                            : "Autoevaluación completada.")
+                        : "Autoevaluación enviada. El profesor la revisará pronto."}
                 </div>
             )}
         </div>
