@@ -24,7 +24,7 @@ export default async function AdminStudentsPage({ searchParams }: AdminStudentsP
           <Users className="size-5 text-primary" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-foreground">Gestión de Alumnos</h1>
+          <h1 className="text-xl font-bold text-foreground">Gestión de alumnos</h1>
           <p className="text-xs text-muted-foreground font-mono">Creación de cuentas y gestión completa de alumnos</p>
         </div>
       </div>

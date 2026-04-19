@@ -1,5 +1,7 @@
 "use client";
 
+import { APP_VERSION, APP_STATUS } from "@/lib/version";
+
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import {
@@ -113,12 +115,11 @@ export function UserNav({ userEmail, userName, isTeacher, isAdmin, userId, userA
 
     return (
         <div className="flex items-center gap-4">
-            {/* Notification Bell */}
-            <div className="relative cursor-pointer hover:opacity-80 transition-opacity">
-                <Bell className="size-5 text-muted-foreground" />
-                <div className="absolute top-0 right-0 size-2 bg-primary rounded-full border-2 border-background" />
+            {/*App version */}
+            <div className="hidden md:flex bg-muted/30 px-2 py-1 rounded text-[10px] uppercase font-mono tracking-widest text-muted-foreground border border-border/50">
+               BUILD_ID: {APP_VERSION} ({APP_STATUS})
             </div>
-
+            
             {/* Vertical Separator */}
             <Separator orientation="vertical" className="h-6 bg-border/50" />
 
