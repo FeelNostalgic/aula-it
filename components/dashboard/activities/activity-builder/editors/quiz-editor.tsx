@@ -17,6 +17,7 @@ import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toFormEmbedUrl, GOOGLE_MIME } from "@/lib/google-drive-urls";
 import { StructuredQuestionFields } from "../quiz/structured-question-fields";
 import { QuizStatsPanel } from "../quiz/quiz-stats-panel";
+import { QuizResponsesPanel } from "../quiz/quiz-responses-panel";
 import { LikertQuestionConfig } from "../quiz/likert-question-config";
 import {
     DndContext,
@@ -39,6 +40,8 @@ import { CSS } from "@dnd-kit/utilities";
 interface QuizEditorProps {
     step: ActivityStepWithClientState;
     onUpdate: (updated: ActivityStepWithClientState) => void;
+    activityId?: string;
+    moduleId?: string;
 }
 
 // onUpdate serves double duty: content updates AND step-level updates (XP, completion)
@@ -61,7 +64,7 @@ const QUESTION_TYPES: { value: QuizQuestionType; label: string }[] = [
     { value: 'categorization_drag_drop', label: 'Clasificar' },
 ];
 
-export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
+export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorProps) {
     const isNestedQuiz = !!step.parent_step_id;
 
     const getInitialContent = (rawContent: unknown): QuizContent => {
@@ -244,6 +247,9 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                     )}
                     {effectiveMode === 'builtin' && (
                         <TabsTrigger value="stats" className={tabTriggerClass}>Stats</TabsTrigger>
+                    )}
+                    {effectiveMode === 'builtin' && (
+                        <TabsTrigger value="respuestas" className={tabTriggerClass}>Respuestas</TabsTrigger>
                     )}
                     <TabsTrigger value="configuracion" className={tabTriggerClass}>Configuración</TabsTrigger>
                 </TabsList>
@@ -440,6 +446,18 @@ export function QuizEditor({ step, onUpdate }: QuizEditorProps) {
                         stepId={step.id}
                         content={content}
                         visible={activeTab === "stats"}
+                    />
+                </div>
+            </TabsContent>
+
+            <TabsContent value="respuestas" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <div className="w-full max-w-7xl mx-auto p-6 sm:p-8 pb-16">
+                    <QuizResponsesPanel
+                        stepId={step.id}
+                        activityId={activityId}
+                        moduleId={moduleId}
+                        content={content}
+                        visible={activeTab === "respuestas"}
                     />
                 </div>
             </TabsContent>

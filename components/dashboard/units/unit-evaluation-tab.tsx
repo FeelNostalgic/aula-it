@@ -34,6 +34,7 @@ import { criteriaMaxPoints } from "@/types/activity";
 import { cn } from "@/lib/utils";
 import { updateStepActivityClosed } from "@/app/activities/[id]/edit/actions";
 import { exportGradesAsCSV } from "@/lib/export-grades";
+import { exportQuizResponsesAsCSV } from "@/lib/export-quiz-responses";
 import { toast } from "sonner";
 import { GradingModal } from "@/components/dashboard/shared/grading-modal";
 import { PeerEvaluationTeacherView } from "@/components/dashboard/units/peer-evaluation-teacher-view";
@@ -559,7 +560,7 @@ function SortableHeader<TData extends object>({
     );
 }
 
-function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmissionsChange, allSubmissions, onRefetchSubmissions, students }: {
+export function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmissionsChange, allSubmissions, onRefetchSubmissions, students }: {
     stepId: string, activityId: string, moduleId: string, stepData: any, onSubmissionsChange: (rows: StepSubmissionRow[]) => void, allSubmissions: StepSubmissionRow[], onRefetchSubmissions?: () => void, students?: { student_id: string; name: string }[]
 }) {
     const [gradingState, setGradingState] = useState<{ rows: StepSubmissionRow[]; index: number } | null>(null);
@@ -592,6 +593,49 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
     const hasLinkedQuiz = useMemo(() =>
         (stepData?.rows ?? []).some((r: StepSubmissionRow) => r.linked_quiz_score != null),
     [stepData]);
+
+    const effectiveQuizContent = useMemo(() => {
+        if (!stepData) return null;
+        return stepData.quizContent ?? (stepData.rows as StepSubmissionRow[] | undefined)?.find((row) => row.quiz_content)?.quiz_content ?? null;
+    }, [stepData]);
+
+    const isBuiltInQuizStep = useMemo(() => {
+        if (!stepData || stepData.stepType !== "quiz") return false;
+        return (effectiveQuizContent?.quizMode ?? "builtin") !== "google_form";
+    }, [effectiveQuizContent, stepData]);
+
+    const attemptNumbers = useMemo(() => {
+        if (!isBuiltInQuizStep) return [] as number[];
+        const numbers = new Set<number>();
+        for (const row of (stepData?.rows ?? []) as StepSubmissionRow[]) {
+            if (row.quiz_attempts?.length) {
+                row.quiz_attempts.forEach((attempt) => numbers.add(attempt.attempt_number));
+            } else if (row.quiz_attempt) {
+                numbers.add(row.quiz_attempt.attempt_number);
+            }
+        }
+        return [...numbers].sort((a, b) => a - b);
+    }, [isBuiltInQuizStep, stepData]);
+
+    const [selectedAttemptNumber, setSelectedAttemptNumber] = useState<string>("");
+    useEffect(() => {
+        const latestAttempt = attemptNumbers.length > 0 ? String(attemptNumbers[attemptNumbers.length - 1]) : "";
+        setSelectedAttemptNumber(latestAttempt);
+    }, [attemptNumbers, stepId]);
+
+    function handleExportQuizResponses() {
+        if (!isBuiltInQuizStep) return;
+        if (!selectedAttemptNumber) {
+            toast.error("Selecciona un intento para exportar.");
+            return;
+        }
+        exportQuizResponsesAsCSV({
+            stepTitle: stepData.stepTitle ?? "quiz",
+            rows: stepData.rows ?? [],
+            quizContent: effectiveQuizContent,
+            attemptNumber: Number(selectedAttemptNumber),
+        });
+    }
 
     const columns: ColumnDef<StepSubmissionRow>[] = useMemo(() => [
         {
@@ -1178,6 +1222,36 @@ function CorrectionDetail({ stepId, activityId, moduleId, stepData, onSubmission
                 <div className="flex items-center gap-2 relative z-10">
                     {stepData.deliveryMode === "teacher_copy" && (
                         <DistributeButton stepId={stepId} activityId={activityId} />
+                    )}
+                    {isBuiltInQuizStep && (
+                        <>
+                            <select
+                                value={selectedAttemptNumber}
+                                onChange={(event) => setSelectedAttemptNumber(event.target.value)}
+                                className="h-9 rounded-lg border border-border-strong bg-surface px-2 text-[10px] font-black uppercase tracking-tight text-foreground focus:outline-none focus:ring-1 focus:ring-accent-blue/40"
+                                aria-label="Intento para exportar respuestas"
+                            >
+                                {attemptNumbers.length === 0 ? (
+                                    <option value="">Sin intentos</option>
+                                ) : (
+                                    attemptNumbers.map((attemptNumber) => (
+                                        <option key={attemptNumber} value={String(attemptNumber)}>
+                                            Intento {attemptNumber}
+                                        </option>
+                                    ))
+                                )}
+                            </select>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleExportQuizResponses}
+                                disabled={!selectedAttemptNumber}
+                                className="h-9 text-[10px] font-black uppercase gap-2 border-accent-blue/20 text-accent-blue hover:bg-accent-blue/10"
+                            >
+                                <Download className="size-3.5" />
+                                Descargar CSV
+                            </Button>
+                        </>
                     )}
                     <LockButton stepId={stepId} deliveryMode={stepData.deliveryMode} initialLocked={stepData.isLocked} />
                     <PublishAllButton

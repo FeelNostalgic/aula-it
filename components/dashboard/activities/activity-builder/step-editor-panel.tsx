@@ -116,7 +116,7 @@ export function StepEditorPanel({ step, onUpdateStep, activityId, phases, module
                 {step.type === "deliverable" && <DeliverableEditor step={step} onUpdate={onUpdateStep} activityId={activityId} />}
                 {step.type === "file_upload" && <FileUploadEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === "animation" && <AnimationEditor step={step} onUpdate={onUpdateStep} />}
-                {step.type === "quiz" && <QuizEditor step={step} onUpdate={onUpdateStep} />}
+                {step.type === "quiz" && <QuizEditor step={step} onUpdate={onUpdateStep} activityId={activityId} moduleId={moduleId} />}
                 {step.type === "presentation" && <PresentationEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === "resource" && <ResourceEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === "self_evaluation" && <SelfEvaluationEditor step={step} onUpdate={onUpdateStep} phases={phases} />}

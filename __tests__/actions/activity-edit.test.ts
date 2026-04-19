@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { getUnitStepSubmissions } from "@/app/dashboard/units/[id]/actions";
 import {
   verifyTeacherOwnsActivity,
   verifyTeacherOwnsPhase,
@@ -31,6 +32,7 @@ import {
   updateStepLock,
   updateStepXp,
   updateStepCompletionMode,
+  getQuizStepResponsesContext,
 } from "@/app/activities/[id]/edit/actions";
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
@@ -41,11 +43,16 @@ vi.mock("@/lib/authorization", () => ({
   verifyTeacherOwnsStep: vi.fn(),
 }));
 
+vi.mock("@/app/dashboard/units/[id]/actions", () => ({
+  getUnitStepSubmissions: vi.fn(),
+}));
+
 const vi_createClient = vi.mocked(createClient);
 const vi_createAdminClient = vi.mocked(createAdminClient);
 const vi_verifyOwnsActivity = vi.mocked(verifyTeacherOwnsActivity);
 const vi_verifyOwnsPhase = vi.mocked(verifyTeacherOwnsPhase);
 const vi_verifyOwnsStep = vi.mocked(verifyTeacherOwnsStep);
+const vi_getUnitStepSubmissions = vi.mocked(getUnitStepSubmissions);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -700,5 +707,94 @@ describe("updateStepCompletionMode", () => {
     const result = await updateStepCompletionMode("step-1", "required");
 
     expect(result).toEqual({ data: step });
+  });
+});
+
+// ─── getQuizStepResponsesContext ─────────────────────────────────────────────
+
+describe("getQuizStepResponsesContext", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder().mockAuth(null).build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await getQuizStepResponsesContext("step-1", "activity-1", "module-1");
+
+    expect(result).toEqual({ error: "No autenticado." });
+  });
+
+  it("returns error when teacher does not own the step", async () => {
+    const user = createMockUser();
+    const { client } = new SupabaseMockBuilder().mockAuth(user).build();
+    vi_createClient.mockResolvedValue(client as any);
+    vi_verifyOwnsStep.mockResolvedValue(false);
+
+    const result = await getQuizStepResponsesContext("step-1", "activity-1", "module-1");
+
+    expect(result).toEqual({ error: "Sin permisos." });
+  });
+
+  it("returns error when step is not quiz", async () => {
+    const user = createMockUser();
+    setupAuthAndAdmin(
+      user,
+      new SupabaseMockBuilder().mockQuery("activity_steps", {
+        data: { id: "step-1", type: "deliverable" },
+        error: null,
+      })
+    );
+    vi_verifyOwnsStep.mockResolvedValue(true);
+
+    const result = await getQuizStepResponsesContext("step-1", "activity-1", "module-1");
+
+    expect(result).toEqual({ error: "El paso no es un cuestionario." });
+  });
+
+  it("returns context with students and filtered rows", async () => {
+    const user = createMockUser();
+    setupAuthAndAdmin(
+      user,
+      new SupabaseMockBuilder()
+        .mockQuery("activity_steps", {
+          data: {
+            id: "step-1",
+            title: "Quiz final",
+            type: "quiz",
+            content: { quizMode: "builtin", questions: [] },
+            is_locked: false,
+            is_activity_closed: false,
+            parent_step_id: null,
+            order_index: 2,
+          },
+          error: null,
+        })
+        .mockQuery("module_enrollments", {
+          data: [
+            { student_id: "stu-2", student: { full_name: "Berta" } },
+            { student_id: "stu-1", student: { full_name: "Ana" } },
+          ],
+          error: null,
+        })
+    );
+    vi_verifyOwnsStep.mockResolvedValue(true);
+    vi_getUnitStepSubmissions.mockResolvedValue({
+      data: [
+        { id: "sub-1", step_id: "step-1" },
+        { id: "sub-2", step_id: "step-2" },
+      ],
+    } as any);
+
+    const result = await getQuizStepResponsesContext("step-1", "activity-1", "module-1");
+
+    expect(result.error).toBeUndefined();
+    expect(vi_getUnitStepSubmissions).toHaveBeenCalledWith(
+      ["activity-1"],
+      [
+        { student_id: "stu-1", name: "Ana" },
+        { student_id: "stu-2", name: "Berta" },
+      ]
+    );
+    expect(result.context?.rows).toHaveLength(1);
+    expect(result.context?.rows[0].step_id).toBe("step-1");
+    expect(result.context?.stepData.stepTitle).toBe("Quiz final");
   });
 });

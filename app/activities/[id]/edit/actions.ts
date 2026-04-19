@@ -9,6 +9,7 @@ import { extractGoogleFileId } from "@/lib/google-drive-urls";
 import { setFormAcceptingResponses } from "@/lib/google-forms-api";
 import { getDriveClient, updateFilePermissionRole } from "@/lib/google-drive-api";
 import { normalizeNestedActivityPhases } from "@/lib/activity-step-tree";
+import { getUnitStepSubmissions, type StepSubmissionRow } from "@/app/dashboard/units/[id]/actions";
 
 type RubricCriterionLibraryVisibility = "private" | "public";
 
@@ -1195,4 +1196,80 @@ export async function getQuizStatsAttempts(stepId: string) {
     }));
 
     return { attempts };
+}
+
+type QuizStepResponsesContext = {
+    stepData: {
+        stepTitle: string;
+        stepType: string;
+        orderIndex: number;
+        deliveryMode: "manual" | "teacher_copy" | undefined;
+        isLocked: boolean;
+        isGroupSubmission: boolean;
+        parentStepId: string | null;
+        isActivityClosed: boolean;
+        quizContent: any;
+    };
+    students: Array<{ student_id: string; name: string }>;
+    rows: StepSubmissionRow[];
+};
+
+export async function getQuizStepResponsesContext(
+    stepId: string,
+    activityId: string,
+    moduleId: string,
+): Promise<{ context?: QuizStepResponsesContext; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
+
+    const admin = createAdminClient();
+
+    const { data: step, error: stepError } = await admin
+        .from("activity_steps")
+        .select("id, title, type, content, is_locked, is_activity_closed, parent_step_id, order_index")
+        .eq("id", stepId)
+        .maybeSingle();
+
+    if (stepError || !step) return { error: "No se pudo cargar el paso." };
+    if (step.type !== "quiz") return { error: "El paso no es un cuestionario." };
+
+    const { data: enrollments, error: enrollmentsError } = await admin
+        .from("module_enrollments")
+        .select("student_id, student:profiles(full_name)")
+        .eq("module_id", moduleId);
+
+    if (enrollmentsError) return { error: enrollmentsError.message };
+
+    const students = (enrollments ?? [])
+        .map((enrollment: any) => ({
+            student_id: enrollment.student_id,
+            name: enrollment.student?.full_name ?? "Sin nombre",
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, "es"));
+
+    const submissionsResult = await getUnitStepSubmissions([activityId], students);
+    if (submissionsResult.error) return { error: submissionsResult.error };
+
+    const rows = (submissionsResult.data ?? []).filter((row) => row.step_id === stepId);
+    const stepContent = (step.content ?? {}) as any;
+
+    return {
+        context: {
+            stepData: {
+                stepTitle: step.title,
+                stepType: step.type,
+                orderIndex: step.order_index ?? 0,
+                deliveryMode: stepContent.deliveryMode,
+                isLocked: step.is_locked ?? false,
+                isGroupSubmission: stepContent.is_group_submission === true,
+                parentStepId: step.parent_step_id ?? null,
+                isActivityClosed: step.is_activity_closed ?? false,
+                quizContent: stepContent,
+            },
+            students,
+            rows,
+        },
+    };
 }
