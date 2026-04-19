@@ -12,9 +12,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
     const { id: unitId } = await params;
     const admin = createAdminClient();
-    const { data: unit } = await admin.from("units").select("title").eq("id", unitId).single();
+    const { data: unit } = await admin.from("units").select("name").eq("id", unitId).single();
     return {
-        title: unit?.title || "Unidad",
+        title: unit?.name || "Unidad",
     };
 }
 

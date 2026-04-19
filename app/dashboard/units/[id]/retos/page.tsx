@@ -20,7 +20,7 @@ export async function generateMetadata({
         .single();
 
     return {
-        title: unit ? `Retos | ${unit.name}` : "Retos",
+        title: unit ? `${unit.name}` : "Retos",
     };
 }
 
