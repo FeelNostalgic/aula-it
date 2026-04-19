@@ -29,6 +29,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { generatePeerAssignments, deletePeerAssignments, getPeerEvaluationResults } from "@/app/dashboard/units/[id]/actions";
 import { LikertQuestionConfig } from "../quiz/likert-question-config";
 import { useStepEditorTab } from "./use-step-editor-tab";
+import { StepVisibilityTab } from "./step-visibility-tab";
 
 interface PeerEvaluationEditorProps {
     step: ActivityStepWithClientState;
@@ -108,8 +109,8 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
     const questions = content.questions ?? [];
     const availableTabs = useMemo(
         () => evalMode === "questions"
-            ? ["instrucciones", "configuracion", "preguntas"]
-            : ["instrucciones", "configuracion"],
+            ? ["instrucciones", "configuracion", "preguntas", "visibilidad"]
+            : ["instrucciones", "configuracion", "visibilidad"],
         [evalMode],
     );
     const { activeTab, setActiveTab } = useStepEditorTab(step.id, "configuracion", availableTabs);
@@ -172,6 +173,7 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                             Preguntas {questions.length > 0 && <span className="ml-1 text-[9px] font-bold bg-accent-blue/20 text-accent-blue px-1.5 py-0.5 rounded-full">{questions.length}</span>}
                         </TabsTrigger>
                     )}
+                    <TabsTrigger value="visibilidad" className={tabTriggerClass}>Visibilidad</TabsTrigger>
                 </TabsList>
                 <div className="ml-auto">
                     {isSaving
@@ -788,6 +790,10 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                         </div>
                     )}
                 </div>
+            </TabsContent>
+
+            <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <StepVisibilityTab step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} />
             </TabsContent>
         </Tabs>
     );

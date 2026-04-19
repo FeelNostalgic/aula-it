@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { useStepEditorTab } from "./use-step-editor-tab";
+import { StepVisibilityTab } from "./step-visibility-tab";
 
 // Map slug → component for preview
 const previewMap: Record<string, React.ComponentType> = {
@@ -26,7 +27,7 @@ interface AnimationEditorProps {
 
 export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
     const defaultContent = (step.content as AnimationContent) || { componentUrl: "", animationSlug: undefined };
-    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "animacion", ["animacion", "configuracion"]);
+    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "animacion", ["animacion", "configuracion", "visibilidad"]);
     const [content, setContent] = useState<AnimationContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -76,6 +77,7 @@ export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
                 <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">
                     <TabsTrigger value="animacion" className={tabTriggerClass}>Animación</TabsTrigger>
                     <TabsTrigger value="configuracion" className={tabTriggerClass}>Configuración</TabsTrigger>
+                    <TabsTrigger value="visibilidad" className={tabTriggerClass}>Visibilidad</TabsTrigger>
                 </TabsList>
                 <div className="ml-auto">
                     {isSaving ? (
@@ -193,6 +195,10 @@ export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
                     />
                     <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
                 </div>
+            </TabsContent>
+
+            <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <StepVisibilityTab step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} />
             </TabsContent>
         </Tabs>
     );

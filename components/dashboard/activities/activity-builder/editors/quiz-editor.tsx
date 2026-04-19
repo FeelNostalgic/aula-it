@@ -20,6 +20,7 @@ import { QuizStatsPanel } from "../quiz/quiz-stats-panel";
 import { QuizResponsesPanel } from "../quiz/quiz-responses-panel";
 import { LikertQuestionConfig } from "../quiz/likert-question-config";
 import { useStepEditorTab } from "./use-step-editor-tab";
+import { StepVisibilityTab } from "./step-visibility-tab";
 import {
     DndContext,
     closestCenter,
@@ -214,8 +215,8 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
 
     const effectiveMode: QuizMode = isNestedQuiz ? 'builtin' : content.quizMode ?? (content.googleFormUrl ? 'google_form' : 'builtin');
     const availableTabs = effectiveMode === "builtin"
-        ? ["contenido", "pools", "stats", "respuestas", "configuracion"]
-        : ["contenido", "configuracion"];
+        ? ["contenido", "pools", "stats", "respuestas", "configuracion", "visibilidad"]
+        : ["contenido", "configuracion", "visibilidad"];
     const { activeTab, setActiveTab } = useStepEditorTab(step.id, "contenido", availableTabs);
     const statsAvailability = getGroupStatsAvailability(content);
     const configSectionIds = [
@@ -252,6 +253,7 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
                         <TabsTrigger value="respuestas" className={tabTriggerClass}>Respuestas</TabsTrigger>
                     )}
                     <TabsTrigger value="configuracion" className={tabTriggerClass}>Configuración</TabsTrigger>
+                    <TabsTrigger value="visibilidad" className={tabTriggerClass}>Visibilidad</TabsTrigger>
                 </TabsList>
                 <div className="ml-auto">
                     {isSaving
@@ -649,6 +651,10 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
                         </>
                     )}
                 </div>
+            </TabsContent>
+
+            <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <StepVisibilityTab step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} />
             </TabsContent>
 
             <GoogleFormCsvImport

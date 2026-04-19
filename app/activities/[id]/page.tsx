@@ -5,6 +5,7 @@ import { StudentActivityClient } from "./client";
 import { getStudentSubmissionsForActivity } from "./actions";
 import { getActivityAccess } from "@/lib/module-access";
 import { normalizeNestedActivityPhases } from "@/lib/activity-step-tree";
+import { filterPhasesByStepAudience } from "@/lib/activity-step-audience";
 
 export default async function ActivityPage({
     params,
@@ -91,6 +92,39 @@ export default async function ActivityPage({
         earnedBadgeIds = studentBadges?.map((badge: any) => badge.badge_id) || [];
     }
 
+    // Fetch student's group name + color for this module (used to show group badge in viewers)
+    let studentGroupId: string | null = null;
+    let studentGroupName: string | null = null;
+    let studentGroupColor: string | null = null;
+    if (!isTeacher && activity.unit?.module_id) {
+        const admin = createAdminClient();
+        const moduleId = activity.unit.module_id;
+        const { data: moduleGroups } = await admin
+            .from("module_groups")
+            .select("id")
+            .eq("module_id", moduleId)
+            .eq("status", "active");
+        const groupIds = (moduleGroups ?? []).map((g: any) => g.id);
+        if (groupIds.length > 0) {
+            const { data: memberRow } = await admin
+                .from("module_group_members")
+                .select("group_id, group:module_groups(name, color)")
+                .eq("student_id", user.id)
+                .in("group_id", groupIds)
+                .maybeSingle();
+            studentGroupId = memberRow?.group_id ?? null;
+            studentGroupName = (memberRow?.group as any)?.name ?? null;
+            studentGroupColor = (memberRow?.group as any)?.color ?? null;
+        }
+    }
+
+    if (!isTeacher) {
+        initialPhases = filterPhasesByStepAudience(initialPhases as any, {
+            studentId: user.id,
+            groupId: studentGroupId,
+        });
+    }
+
     const allStepIds = initialPhases.flatMap((phase: any) =>
         (phase.steps || []).flatMap((step: any) => [step.id, ...((step.children ?? []).map((child: any) => child.id))]),
     );
@@ -129,30 +163,6 @@ export default async function ActivityPage({
         }
     }
 
-    // Fetch student's group name + color for this module (used to show group badge in viewers)
-    let studentGroupName: string | null = null;
-    let studentGroupColor: string | null = null;
-    if (!isTeacher && activity.unit?.module_id) {
-        const admin = createAdminClient();
-        const moduleId = activity.unit.module_id;
-        const { data: moduleGroups } = await admin
-            .from("module_groups")
-            .select("id")
-            .eq("module_id", moduleId)
-            .eq("status", "active");
-        const groupIds = (moduleGroups ?? []).map((g: any) => g.id);
-        if (groupIds.length > 0) {
-            const { data: memberRow } = await admin
-                .from("module_group_members")
-                .select("group:module_groups(name, color)")
-                .eq("student_id", user.id)
-                .in("group_id", groupIds)
-                .maybeSingle();
-            studentGroupName = (memberRow?.group as any)?.name ?? null;
-            studentGroupColor = (memberRow?.group as any)?.color ?? null;
-        }
-    }
-
     let viewsMap: Record<string, boolean> = {};
     if (!isTeacher && allStepIds.length > 0) {
         const { data: views } = await supabase
@@ -179,6 +189,7 @@ export default async function ActivityPage({
             classBadges={classBadges || []}
             earnedBadgeIds={earnedBadgeIds}
             readOnly={isReadOnlyTeacher}
+            groupId={studentGroupId}
             groupName={studentGroupName}
             groupColor={studentGroupColor}
         />

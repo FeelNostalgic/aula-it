@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { StepSubmissionsPanel, STEP_SUBMISSIONS_PANEL_TYPES } from "@/components/dashboard/activities/activity-builder/step-submissions-panel";
 import { useStepEditorTab } from "./use-step-editor-tab";
+import { StepVisibilityTab } from "./step-visibility-tab";
 
 const ALLOWED_TYPE_OPTIONS: { value: AllowedFileType; label: string }[] = [
     { value: 'pdf', label: 'PDF' },
@@ -71,7 +72,7 @@ export function FileUploadEditor({ step, onUpdate, activityId, moduleId }: FileU
         maxFileSizeMb: 10,
         maxFiles: 1,
     };
-    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "instrucciones", ["instrucciones", "configuracion", "entregas"]);
+    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "instrucciones", ["instrucciones", "configuracion", "entregas", "visibilidad"]);
     const initCustom = initCustomSizeState(defaultContent.maxFileSizeMb);
     const [content, setContent] = useState<FileUploadContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
@@ -166,6 +167,7 @@ export function FileUploadEditor({ step, onUpdate, activityId, moduleId }: FileU
                     <TabsTrigger value="instrucciones" className={tabTriggerClass}>Instrucciones</TabsTrigger>
                     <TabsTrigger value="configuracion" className={tabTriggerClass}>Configuración</TabsTrigger>
                     <TabsTrigger value="entregas" className={tabTriggerClass}>Entregas</TabsTrigger>
+                    <TabsTrigger value="visibilidad" className={tabTriggerClass}>Visibilidad</TabsTrigger>
                 </TabsList>
                 <div className="ml-auto">
                     {isSaving ? (
@@ -532,6 +534,9 @@ export function FileUploadEditor({ step, onUpdate, activityId, moduleId }: FileU
                             <p className="text-xs text-text-muted">El alumno no podrá entregar pasada esta fecha.</p>
                     </ConfigSection>
                 </div>
+            </TabsContent>
+            <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <StepVisibilityTab step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} />
             </TabsContent>
         </Tabs>
     );

@@ -4,11 +4,12 @@ import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { verifyTeacherOwnsActivity, verifyTeacherOwnsPhase, verifyTeacherOwnsStep } from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
-import { ActivityPhase, ActivityStep, ActivityStepType, CompletionMode, RubricCriteria, RubricLevel } from "@/types/activity";
+import { ActivityPhase, ActivityStep, ActivityStepType, CompletionMode, RubricCriteria, RubricLevel, STEP_AUDIENCE_MODE, type StepAudienceMode } from "@/types/activity";
 import { extractGoogleFileId } from "@/lib/google-drive-urls";
 import { setFormAcceptingResponses } from "@/lib/google-forms-api";
 import { getDriveClient, updateFilePermissionRole } from "@/lib/google-drive-api";
 import { normalizeNestedActivityPhases } from "@/lib/activity-step-tree";
+import { normalizeStepAudience } from "@/lib/activity-step-audience";
 import { getUnitStepSubmissions, type StepSubmissionRow } from "@/app/dashboard/units/[id]/actions";
 
 type RubricCriterionLibraryVisibility = "private" | "public";
@@ -121,7 +122,11 @@ export async function createStep(phaseId: string, title: string, type: ActivityS
             title,
             type,
             content: defaultContent,
-            order_index: orderIndex
+            order_index: orderIndex,
+            audience_mode: STEP_AUDIENCE_MODE.ALL,
+            visible_student_ids: [],
+            visible_group_ids: [],
+            inherit_audience_from_parent: false,
         })
         .select()
         .single();
@@ -290,6 +295,10 @@ export async function duplicateStep(stepId: string) {
         completion_mode: (originalStep as any).completion_mode ?? null,
         xp: (originalStep as any).xp ?? null,
         parent_step_id: (originalStep as any).parent_step_id ?? null,
+        audience_mode: (originalStep as any).audience_mode ?? STEP_AUDIENCE_MODE.ALL,
+        visible_student_ids: (originalStep as any).visible_student_ids ?? [],
+        visible_group_ids: (originalStep as any).visible_group_ids ?? [],
+        inherit_audience_from_parent: (originalStep as any).inherit_audience_from_parent ?? false,
     };
 
     const { data: insertedStep, error: insertError } = await admin
@@ -349,6 +358,10 @@ export async function duplicateStep(stepId: string) {
             completion_mode: child.completion_mode ?? null,
             xp: child.xp ?? null,
             parent_step_id: insertedStep.id,
+            audience_mode: child.audience_mode ?? STEP_AUDIENCE_MODE.ALL,
+            visible_student_ids: child.visible_student_ids ?? [],
+            visible_group_ids: child.visible_group_ids ?? [],
+            inherit_audience_from_parent: child.inherit_audience_from_parent ?? false,
         }));
         await admin.from("activity_steps").insert(childPayloads);
     }
@@ -472,6 +485,265 @@ export async function updateStepVisibility(stepId: string, isVisible: boolean) {
         console.error("Error updating step visibility:", error);
         return { error: error.message };
     }
+    return { data };
+}
+
+const UUID_VALUE_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function sanitizeUuidList(values: string[] | null | undefined): string[] {
+    if (!Array.isArray(values)) return [];
+    return Array.from(
+        new Set(
+            values
+                .filter((value): value is string => typeof value === "string")
+                .map((value) => value.trim())
+                .filter((value) => UUID_VALUE_REGEX.test(value)),
+        ),
+    );
+}
+
+export type StepAudienceContextRow = {
+    id: string;
+    title: string;
+    parentStepId: string | null;
+    audienceMode: StepAudienceMode;
+    visibleStudentIds: string[];
+    visibleGroupIds: string[];
+    inheritFromParent: boolean;
+};
+
+export type StepAudienceContextStudent = {
+    id: string;
+    name: string;
+    groupId: string | null;
+    groupName: string | null;
+    groupColor: string | null;
+};
+
+export type StepAudienceContextGroup = {
+    id: string;
+    name: string;
+    color: string | null;
+    memberCount: number;
+};
+
+export type StepAudienceContextPayload = {
+    step: StepAudienceContextRow;
+    parentStep: StepAudienceContextRow | null;
+    students: StepAudienceContextStudent[];
+    groups: StepAudienceContextGroup[];
+};
+
+export async function getStepAudienceContext(stepId: string): Promise<{ context?: StepAudienceContextPayload; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
+
+    const admin = createAdminClient();
+    const { data: step, error: stepError } = await admin
+        .from("activity_steps")
+        .select(`
+            id,
+            title,
+            parent_step_id,
+            audience_mode,
+            visible_student_ids,
+            visible_group_ids,
+            inherit_audience_from_parent,
+            phase:activity_phases!inner(
+                activity:activities!inner(
+                    unit:units!inner(module_id)
+                )
+            )
+        `)
+        .eq("id", stepId)
+        .maybeSingle();
+
+    if (stepError || !step) return { error: stepError?.message ?? "No se encontró el paso." };
+
+    const moduleId = (step as any)?.phase?.activity?.unit?.module_id as string | undefined;
+    if (!moduleId) return { error: "No se pudo resolver el módulo del paso." };
+
+    let parentStep: any = null;
+    if ((step as any).parent_step_id) {
+        const { data: parent } = await admin
+            .from("activity_steps")
+            .select("id, title, parent_step_id, audience_mode, visible_student_ids, visible_group_ids, inherit_audience_from_parent")
+            .eq("id", (step as any).parent_step_id)
+            .maybeSingle();
+        parentStep = parent ?? null;
+    }
+
+    const { data: enrollments, error: enrollmentsError } = await admin
+        .from("module_enrollments")
+        .select("student_id, student:profiles(full_name)")
+        .eq("module_id", moduleId);
+
+    if (enrollmentsError) return { error: enrollmentsError.message };
+
+    const { data: groups, error: groupsError } = await admin
+        .from("module_groups")
+        .select("id, name, color")
+        .eq("module_id", moduleId)
+        .eq("status", "active")
+        .order("name", { ascending: true });
+
+    if (groupsError) return { error: groupsError.message };
+
+    const groupIds = (groups ?? []).map((group: any) => group.id as string);
+
+    let memberships: Array<{ group_id: string; student_id: string }> = [];
+    if (groupIds.length > 0) {
+        const { data: membershipRows, error: membershipsError } = await admin
+            .from("module_group_members")
+            .select("group_id, student_id")
+            .in("group_id", groupIds);
+        if (membershipsError) return { error: membershipsError.message };
+        memberships = (membershipRows ?? []) as Array<{ group_id: string; student_id: string }>;
+    }
+
+    const groupById = new Map((groups ?? []).map((group: any) => [group.id as string, group]));
+    const firstGroupByStudent = new Map<string, string>();
+    const memberCountByGroup = new Map<string, number>();
+    for (const row of memberships) {
+        if (!firstGroupByStudent.has(row.student_id)) firstGroupByStudent.set(row.student_id, row.group_id);
+        memberCountByGroup.set(row.group_id, (memberCountByGroup.get(row.group_id) ?? 0) + 1);
+    }
+
+    const students: StepAudienceContextStudent[] = (enrollments ?? [])
+        .map((enrollment: any) => {
+            const groupId = firstGroupByStudent.get(enrollment.student_id) ?? null;
+            const group = groupId ? groupById.get(groupId) : null;
+            return {
+                id: enrollment.student_id as string,
+                name: enrollment.student?.full_name ?? "Sin nombre",
+                groupId,
+                groupName: group?.name ?? null,
+                groupColor: group?.color ?? null,
+            };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name, "es"));
+
+    const normalizedStepAudience = normalizeStepAudience(step as any);
+    const contextStep: StepAudienceContextRow = {
+        id: (step as any).id,
+        title: (step as any).title,
+        parentStepId: (step as any).parent_step_id ?? null,
+        audienceMode: normalizedStepAudience.mode,
+        visibleStudentIds: normalizedStepAudience.visibleStudentIds,
+        visibleGroupIds: normalizedStepAudience.visibleGroupIds,
+        inheritFromParent: normalizedStepAudience.inheritFromParent,
+    };
+
+    const contextParent: StepAudienceContextRow | null = parentStep
+        ? (() => {
+            const normalizedParentAudience = normalizeStepAudience(parentStep as any);
+            return {
+                id: parentStep.id,
+                title: parentStep.title,
+                parentStepId: parentStep.parent_step_id ?? null,
+                audienceMode: normalizedParentAudience.mode,
+                visibleStudentIds: normalizedParentAudience.visibleStudentIds,
+                visibleGroupIds: normalizedParentAudience.visibleGroupIds,
+                inheritFromParent: normalizedParentAudience.inheritFromParent,
+            };
+        })()
+        : null;
+
+    const contextGroups: StepAudienceContextGroup[] = (groups ?? []).map((group: any) => ({
+        id: group.id,
+        name: group.name,
+        color: group.color ?? null,
+        memberCount: memberCountByGroup.get(group.id) ?? 0,
+    }));
+
+    return {
+        context: {
+            step: contextStep,
+            parentStep: contextParent,
+            students,
+            groups: contextGroups,
+        },
+    };
+}
+
+export async function updateStepAudience(
+    stepId: string,
+    audienceMode: StepAudienceMode,
+    visibleStudentIds: string[],
+    visibleGroupIds: string[],
+    inheritFromParent: boolean,
+) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
+
+    const admin = createAdminClient();
+    const { data: step, error: stepError } = await admin
+        .from("activity_steps")
+        .select(`
+            id,
+            parent_step_id,
+            phase:activity_phases!inner(
+                activity:activities!inner(
+                    id,
+                    unit:units!inner(module_id)
+                )
+            )
+        `)
+        .eq("id", stepId)
+        .maybeSingle();
+
+    if (stepError || !step) return { error: stepError?.message ?? "No se encontró el paso." };
+
+    const moduleId = (step as any)?.phase?.activity?.unit?.module_id as string | undefined;
+    const activityId = (step as any)?.phase?.activity?.id as string | undefined;
+    if (!moduleId) return { error: "No se pudo resolver el módulo del paso." };
+
+    const sanitizedStudentIds = sanitizeUuidList(visibleStudentIds);
+    const sanitizedGroupIds = sanitizeUuidList(visibleGroupIds);
+
+    const { data: enrollments, error: enrollmentsError } = await admin
+        .from("module_enrollments")
+        .select("student_id")
+        .eq("module_id", moduleId);
+    if (enrollmentsError) return { error: enrollmentsError.message };
+
+    const { data: groups, error: groupsError } = await admin
+        .from("module_groups")
+        .select("id")
+        .eq("module_id", moduleId)
+        .eq("status", "active");
+    if (groupsError) return { error: groupsError.message };
+
+    const enrolledStudentIds = new Set((enrollments ?? []).map((enrollment: any) => enrollment.student_id as string));
+    const activeGroupIds = new Set((groups ?? []).map((group: any) => group.id as string));
+
+    const validStudentIds = sanitizedStudentIds.filter((id) => enrolledStudentIds.has(id));
+    const validGroupIds = sanitizedGroupIds.filter((id) => activeGroupIds.has(id));
+
+    const normalizedMode = audienceMode === STEP_AUDIENCE_MODE.RESTRICTED
+        ? STEP_AUDIENCE_MODE.RESTRICTED
+        : STEP_AUDIENCE_MODE.ALL;
+
+    const normalizedInherit = Boolean((step as any).parent_step_id) && inheritFromParent === true;
+
+    const { data, error } = await admin
+        .from("activity_steps")
+        .update({
+            audience_mode: normalizedMode,
+            visible_student_ids: validStudentIds,
+            visible_group_ids: validGroupIds,
+            inherit_audience_from_parent: normalizedInherit,
+        })
+        .eq("id", stepId)
+        .select()
+        .single();
+
+    if (error) return { error: error.message };
+    if (activityId) revalidatePath(`/activities/${activityId}/edit`);
     return { data };
 }
 

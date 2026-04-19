@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { StepSubmissionsPanel, STEP_SUBMISSIONS_PANEL_TYPES } from "@/components/dashboard/activities/activity-builder/step-submissions-panel";
 import { useStepEditorTab } from "./use-step-editor-tab";
+import { StepVisibilityTab } from "./step-visibility-tab";
 
 interface DeliverableEditorProps {
     step: ActivityStepWithClientState;
@@ -41,7 +42,7 @@ function isBuiltInQuizChild(step: { type: string; content: unknown }) {
 
 export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: DeliverableEditorProps) {
     const defaultContent = (step.content as DeliverableContent) || { templateUrl: "", instructionsMarkdown: "", deliveryMode: "manual" };
-    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "instrucciones", ["instrucciones", "configuracion", "entregas"]);
+    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "instrucciones", ["instrucciones", "configuracion", "entregas", "visibilidad"]);
     const [content, setContent] = useState<DeliverableContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
@@ -220,6 +221,12 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
                         className="h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
                     >
                         Entregas
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="visibilidad"
+                        className="h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                    >
+                        Visibilidad
                     </TabsTrigger>
                 </TabsList>
 
@@ -690,6 +697,9 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
                             <p className="text-xs text-text-muted">El alumno no podrá entregar pasada esta fecha.</p>
                     </ConfigSection>
                 </div>
+            </TabsContent>
+            <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <StepVisibilityTab step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} />
             </TabsContent>
         </Tabs>
     );

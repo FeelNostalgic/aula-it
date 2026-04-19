@@ -14,6 +14,7 @@ import { StepViewer } from "./viewers/step-viewer";
 import { markStepViewed } from "@/app/activities/[id]/actions";
 import { DashboardBreadcrumb } from "@/components/dashboard/layout/dashboard-breadcrumb";
 import { UserNav } from "@/components/dashboard/layout/user-nav";
+import { buildStepLookupFromPhases, isStepVisibleForStudent } from "@/lib/activity-step-audience";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
@@ -32,6 +33,7 @@ interface StudentPreviewProps {
     isPreview?: boolean;
     classBadges?: any[];
     earnedBadgeIds?: string[];
+    groupId?: string | null;
     groupName?: string | null;
     groupColor?: string | null;
 }
@@ -166,13 +168,23 @@ function SortableTab({
     );
 }
 
-export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, viewsMap, googleEmail, isPreview = false, classBadges, earnedBadgeIds, groupName, groupColor }: StudentPreviewProps) {
+export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, viewsMap, googleEmail, isPreview = false, classBadges, earnedBadgeIds, groupId, groupName, groupColor }: StudentPreviewProps) {
+    const stepLookup = useMemo(() => buildStepLookupFromPhases(phases), [phases]);
+    const audienceContext = useMemo(
+        () => ({
+            studentId: user?.id ?? null,
+            groupId: groupId ?? null,
+            bypassAudience: isPreview,
+        }),
+        [groupId, isPreview, user?.id],
+    );
+
     const allSteps = useMemo(() => {
         return phases.flatMap(p => p.steps
-            .filter(s => s.is_visible !== false)
-            .flatMap((s: any) => [s, ...(s.children ?? []).filter((c: any) => c.is_visible !== false)])
+            .filter((s: any) => isStepVisibleForStudent(s, audienceContext, stepLookup))
+            .flatMap((s: any) => [s, ...(s.children ?? []).filter((c: any) => isStepVisibleForStudent(c, audienceContext, stepLookup))])
         );
-    }, [phases]);
+    }, [audienceContext, phases, stepLookup]);
     const accessibleSteps = useMemo(() => {
         return allSteps.filter((step) => !step.is_locked);
     }, [allSteps]);
@@ -188,11 +200,11 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
     const [localViews, setLocalViews] = useState<Record<string, boolean>>(viewsMap ?? {});
     const [markingViewed, setMarkingViewed] = useState(false);
 
-    // Restore persisted tab state after mount (SSR-safe: never runs on server)
+    // Restore persisted tab state when visible step tree changes.
     useEffect(() => {
         const allIds = phases.flatMap((p) => p.steps
-            .filter((s: any) => s.is_visible !== false && !s.is_locked)
-            .flatMap((s: any) => [s.id, ...(s.children ?? []).filter((c: any) => c.is_visible !== false && !c.is_locked).map((c: any) => c.id)])
+            .filter((s: any) => isStepVisibleForStudent(s, audienceContext, stepLookup) && !s.is_locked)
+            .flatMap((s: any) => [s.id, ...(s.children ?? []).filter((c: any) => isStepVisibleForStudent(c, audienceContext, stepLookup) && !c.is_locked).map((c: any) => c.id)])
         );
         try {
             const savedTab = localStorage.getItem(`aula-it:activity-view:${activity.id}:selected-tab`);
@@ -201,8 +213,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
             const validTabs = (savedTabs as string[]).filter((id) => allIds.includes(id));
             if (validTabs.length > 0) setOpenStepIds(validTabs);
         } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // intentionally empty — read localStorage once on mount
+    }, [activity.id, audienceContext, phases, stepLookup]); // intentionally load when visible tree changes
 
     useEffect(() => {
         localStorage.setItem(`aula-it:activity-view:${activity.id}:open-tabs`, JSON.stringify(openStepIds));
@@ -368,7 +379,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                     <div className="flex-1 overflow-y-auto p-3 space-y-4">
                         {phases.map(phase => {
                             const isExpanded = !collapsedPhases.includes(phase.id);
-                            const visibleSteps = phase.steps.filter(s => s.is_visible !== false);
+                            const visibleSteps = phase.steps.filter((s: any) => isStepVisibleForStudent(s, audienceContext, stepLookup));
 
                             return (
                                 <div key={phase.id} className="flex flex-col mb-4">
@@ -400,7 +411,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                 visibleSteps.map((step: any) => {
                                                     const isActive = selectedStepId === step.id;
                                                     const isLocked = step.is_locked;
-                                                    const visibleChildren = (step.children ?? []).filter((c: any) => c.is_visible !== false);
+                                                    const visibleChildren = (step.children ?? []).filter((c: any) => isStepVisibleForStudent(c, audienceContext, stepLookup));
                                                     return (
                                                         <div key={step.id}>
                                                             <div

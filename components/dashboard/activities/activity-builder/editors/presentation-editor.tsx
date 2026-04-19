@@ -13,6 +13,7 @@ import { toEmbedUrl, GOOGLE_MIME } from "@/lib/google-drive-urls";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { useStepEditorTab } from "./use-step-editor-tab";
+import { StepVisibilityTab } from "./step-visibility-tab";
 
 interface PresentationEditorProps {
     step: ActivityStepWithClientState;
@@ -22,7 +23,7 @@ interface PresentationEditorProps {
 export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) {
     const defaultContent: PresentationContent = { slidesUrl: "", notes: "" };
     const initialContent = (step.content as PresentationContent) || defaultContent;
-    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "presentacion", ["presentacion", "configuracion"]);
+    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "presentacion", ["presentacion", "configuracion", "visibilidad"]);
 
     const [slidesUrl, setSlidesUrl] = useState(initialContent.slidesUrl || "");
     const [notes, setNotes] = useState(initialContent.notes || "");
@@ -98,6 +99,12 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
                         className="h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
                     >
                         Configuración
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="visibilidad"
+                        className="h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                    >
+                        Visibilidad
                     </TabsTrigger>
                 </TabsList>
 
@@ -204,6 +211,10 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
                         />
                     </ConfigSection>
                 </div>
+            </TabsContent>
+
+            <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <StepVisibilityTab step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} />
             </TabsContent>
         </Tabs>
     );

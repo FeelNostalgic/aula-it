@@ -16,6 +16,7 @@ import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { useStepEditorTab } from "./use-step-editor-tab";
+import { StepVisibilityTab } from "./step-visibility-tab";
 
 interface TheoryEditorProps {
     step: ActivityStepWithClientState;
@@ -24,7 +25,7 @@ interface TheoryEditorProps {
 
 export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
     const defaultContent = (step.content as TheoryContent) || { markdown: "" };
-    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "contenido", ["contenido", "configuracion"]);
+    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "contenido", ["contenido", "configuracion", "visibilidad"]);
     const [content, setContent] = useState<TheoryContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
@@ -69,6 +70,12 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
                         className="h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
                     >
                         Configuración
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="visibilidad"
+                        className="h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                    >
+                        Visibilidad
                     </TabsTrigger>
                 </TabsList>
 
@@ -156,6 +163,10 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
                     />
                     <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
                 </div>
+            </TabsContent>
+
+            <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <StepVisibilityTab step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} />
             </TabsContent>
         </Tabs>
     );

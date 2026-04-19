@@ -24,6 +24,13 @@ export type ActivityStepType =
 
 export type CompletionMode = 'none' | 'required' | 'viewable';
 
+export const STEP_AUDIENCE_MODE = {
+    ALL: "all",
+    RESTRICTED: "restricted",
+} as const;
+
+export type StepAudienceMode = (typeof STEP_AUDIENCE_MODE)[keyof typeof STEP_AUDIENCE_MODE];
+
 // Definición de un Paso, que pertenece a una Fase
 export type ActivityStep = {
     id: string;
@@ -39,6 +46,10 @@ export type ActivityStep = {
     due_date?: string | null;
     xp?: number;
     completion_mode?: CompletionMode;
+    audience_mode?: StepAudienceMode;
+    visible_student_ids?: string[];
+    visible_group_ids?: string[];
+    inherit_audience_from_parent?: boolean;
     parent_step_id?: string | null;   // si set, este paso es hijo del paso padre indicado
     children?: ActivityStep[];        // populated client-side; sólo self_evaluation y peer_evaluation
     created_at: string;

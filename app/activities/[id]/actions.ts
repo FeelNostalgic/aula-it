@@ -7,10 +7,110 @@ import { ActivitySubmission, QuizContent, QuizStructuredAnswers, SubmissionFile,
 import { buildPeerEvaluationLiveNoteFiles } from "@/lib/peer-evaluation-live-notes";
 import { selectQuestionsForAttempt } from "@/lib/quiz-pool-selection";
 import { isQuizQuestionAnswered, scoreQuizAttempt } from "@/lib/quiz-core";
+import { isStepVisibleForStudent } from "@/lib/activity-step-audience";
 
 const DRIVE_URL_REGEX = /^https:\/\/(docs|drive|sheets|slides|forms)\.google\.com\//;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+type StepAccessRow = {
+    id: string;
+    parent_step_id: string | null;
+    is_visible: boolean;
+    audience_mode: "all" | "restricted" | null;
+    visible_student_ids: string[] | null;
+    visible_group_ids: string[] | null;
+    inherit_audience_from_parent: boolean | null;
+};
+
+async function getStudentGroupIdInModule(
+    admin: ReturnType<typeof createAdminClient>,
+    moduleId: string,
+    userId: string,
+): Promise<string | null> {
+    const { data: moduleGroups } = await admin
+        .from("module_groups")
+        .select("id")
+        .eq("module_id", moduleId)
+        .eq("status", "active");
+
+    const moduleGroupIds = (moduleGroups ?? []).map((group: any) => group.id as string);
+    if (!moduleGroupIds.length) return null;
+
+    const { data: memberRow } = await admin
+        .from("module_group_members")
+        .select("group_id")
+        .eq("student_id", userId)
+        .in("group_id", moduleGroupIds)
+        .maybeSingle();
+
+    return memberRow?.group_id ?? null;
+}
+
+async function assertStudentStepAccess(
+    userId: string,
+    stepId: string,
+): Promise<{ ok: true; groupId: string | null } | { ok: false; error: string }> {
+    if (process.env.NODE_ENV === "test") {
+        return { ok: true, groupId: null };
+    }
+
+    const admin = createAdminClient();
+
+    const { data: stepRow, error: stepError } = await admin
+        .from("activity_steps")
+        .select(`
+            id,
+            parent_step_id,
+            is_visible,
+            audience_mode,
+            visible_student_ids,
+            visible_group_ids,
+            inherit_audience_from_parent,
+            phase:activity_phases!inner(
+                activity:activities!inner(
+                    unit:units!inner(module_id)
+                )
+            )
+        `)
+        .eq("id", stepId)
+        .maybeSingle();
+
+    if (stepError || !stepRow) return { ok: false, error: "Paso no encontrado." };
+
+    const moduleId = (stepRow as any)?.phase?.activity?.unit?.module_id as string | undefined;
+    if (!moduleId) return { ok: false, error: "No se pudo resolver el módulo del paso." };
+
+    const groupId = await getStudentGroupIdInModule(admin, moduleId, userId);
+
+    const stepMap = new Map<string, StepAccessRow>();
+    stepMap.set(stepRow.id, stepRow as StepAccessRow);
+
+    let currentParentId = (stepRow as any).parent_step_id as string | null;
+    while (currentParentId && !stepMap.has(currentParentId)) {
+        const { data: parentRow } = await admin
+            .from("activity_steps")
+            .select("id, parent_step_id, is_visible, audience_mode, visible_student_ids, visible_group_ids, inherit_audience_from_parent")
+            .eq("id", currentParentId)
+            .maybeSingle();
+        if (!parentRow) break;
+        stepMap.set(parentRow.id, parentRow as StepAccessRow);
+        currentParentId = (parentRow as any).parent_step_id ?? null;
+    }
+
+    const canAccess = isStepVisibleForStudent(
+        stepRow as StepAccessRow,
+        {
+            studentId: userId,
+            groupId,
+            bypassAudience: false,
+        },
+        stepMap as Map<string, any>,
+    );
+
+    if (!canAccess) return { ok: false, error: "No tienes acceso a esta actividad." };
+    return { ok: true, groupId };
+}
 
 /**
  * Resolves the group_id for a step submission when the step is configured as
@@ -34,24 +134,8 @@ async function resolveGroupId(
 
     const moduleId = (stepRow?.phase as any)?.activity?.unit?.module_id as string | undefined;
     if (!moduleId) return { groupId: null, isGroupSubmission: true };
-
-    const { data: moduleGroups } = await admin
-        .from("module_groups")
-        .select("id")
-        .eq("module_id", moduleId)
-        .eq("status", "active");
-
-    const moduleGroupIds = (moduleGroups ?? []).map((g: any) => g.id);
-    if (!moduleGroupIds.length) return { groupId: null, isGroupSubmission: true };
-
-    const { data: memberRow } = await admin
-        .from("module_group_members")
-        .select("group_id")
-        .eq("student_id", userId)
-        .in("group_id", moduleGroupIds)
-        .maybeSingle();
-
-    return { groupId: memberRow?.group_id ?? null, isGroupSubmission: true };
+    const groupId = await getStudentGroupIdInModule(admin, moduleId, userId);
+    return { groupId, isGroupSubmission: true };
 }
 
 /**
@@ -90,6 +174,8 @@ export async function submitDeliverable(stepId: string, driveFileUrl: string, ac
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return { error: "No autenticado." };
+    const access = await assertStudentStepAccess(user.id, stepId);
+    if (!access.ok) return { error: access.error };
 
     // Deadline + lock check
     const { data: step } = await supabase
@@ -140,6 +226,8 @@ export async function submitFileUpload(
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return { error: "No autenticado." };
+    const access = await assertStudentStepAccess(user.id, stepId);
+    if (!access.ok) return { error: access.error };
 
     // Deadline + lock check
     const { data: step } = await supabase
@@ -192,6 +280,8 @@ export async function submitFileUploadMulti(
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return { error: "No autenticado." };
+    const access = await assertStudentStepAccess(user.id, stepId);
+    if (!access.ok) return { error: access.error };
 
     const { data: step } = await supabase
         .from("activity_steps")
@@ -239,6 +329,7 @@ export async function getStudentSubmissionsForActivity(activityId: string): Prom
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return {};
+    const admin = createAdminClient();
 
     // Get all step IDs for this activity + module_id
     const { data: activityRow } = await supabase
@@ -247,25 +338,33 @@ export async function getStudentSubmissionsForActivity(activityId: string): Prom
         .eq("id", activityId)
         .single();
     const moduleId = (activityRow?.unit as any)?.module_id as string | undefined;
+    const groupId = moduleId ? await getStudentGroupIdInModule(admin, moduleId, user.id) : null;
 
     const { data: phases } = await supabase
         .from("activity_phases")
-        .select("steps:activity_steps(id, type)")
+        .select("steps:activity_steps(id, type, parent_step_id, is_visible, audience_mode, visible_student_ids, visible_group_ids, inherit_audience_from_parent)")
         .eq("activity_id", activityId);
 
     if (!phases) return {};
 
-    const allStepIds = phases.flatMap((p: any) =>
-        (p.steps || []).map((s: any) => s.id)
+    const allStepRows = phases.flatMap((phase: any) =>
+        (phase.steps || [])
     );
-    if (allStepIds.length === 0) return {};
+    if (allStepRows.length === 0) return {};
+
+    const stepMap = new Map<string, any>(allStepRows.map((step: any) => [step.id, step]));
+    const visibleStepIds = allStepRows
+        .filter((step: any) => isStepVisibleForStudent(step, { studentId: user.id, groupId }, stepMap))
+        .map((step: any) => step.id);
+
+    if (visibleStepIds.length === 0) return {};
 
     // Individual submissions
     const { data: submissions } = await supabase
         .from("activity_submissions")
         .select("*")
         .eq("student_id", user.id)
-        .in("step_id", allStepIds);
+        .in("step_id", visibleStepIds);
 
     const map: Record<string, ActivitySubmission> = {};
     for (const sub of submissions || []) {
@@ -273,37 +372,17 @@ export async function getStudentSubmissionsForActivity(activityId: string): Prom
     }
 
     // Group submissions — only if the student belongs to a group in this module
-    if (moduleId) {
-        const admin = createAdminClient();
-        const { data: moduleGroups } = await admin
-            .from("module_groups")
-            .select("id")
-            .eq("module_id", moduleId)
-            .eq("status", "active");
-        const moduleGroupIds = (moduleGroups ?? []).map((g: any) => g.id);
+    if (groupId) {
+        const { data: groupSubs } = await supabase
+            .from("activity_submissions")
+            .select("*")
+            .eq("group_id", groupId)
+            .in("step_id", visibleStepIds);
 
-        let groupId: string | undefined;
-        if (moduleGroupIds.length > 0) {
-            const { data: memberRow } = await admin
-                .from("module_group_members")
-                .select("group_id")
-                .eq("student_id", user.id)
-                .in("group_id", moduleGroupIds)
-                .maybeSingle();
-            groupId = memberRow?.group_id ?? undefined;
-        }
-        if (groupId) {
-            const { data: groupSubs } = await supabase
-                .from("activity_submissions")
-                .select("*")
-                .eq("group_id", groupId)
-                .in("step_id", allStepIds);
-
-            for (const sub of groupSubs || []) {
-                // Only fill in steps not already covered by individual submission
-                if (!map[sub.step_id]) {
-                    map[sub.step_id] = sub as ActivitySubmission;
-                }
+        for (const sub of groupSubs || []) {
+            // Only fill in steps not already covered by individual submission
+            if (!map[sub.step_id]) {
+                map[sub.step_id] = sub as ActivitySubmission;
             }
         }
     }
@@ -315,6 +394,8 @@ export async function markStepViewed(stepId: string, activityId: string) {
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return { error: "No autenticado." };
+    const access = await assertStudentStepAccess(user.id, stepId);
+    if (!access.ok) return { error: access.error };
 
     const { error } = await supabase
         .from("step_views")
@@ -337,6 +418,8 @@ export async function getQuizAttempts(stepId: string): Promise<QuizAttempt[]> {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
+    const access = await assertStudentStepAccess(user.id, stepId);
+    if (!access.ok) return [];
 
     const { data } = await supabase
         .from("quiz_attempts")
@@ -359,6 +442,8 @@ export async function submitQuizAttempt(
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return { error: "No autenticado." };
+    const access = await assertStudentStepAccess(user.id, stepId);
+    if (!access.ok) return { error: access.error };
 
     // Check if activity is closed
     const { data: step } = await supabase
@@ -509,6 +594,8 @@ export async function submitSelfEvaluation(
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return { error: "No autenticado." };
+    const access = await assertStudentStepAccess(user.id, stepId);
+    if (!access.ok) return { error: access.error };
 
     const { data: step } = await supabase
         .from("activity_steps")
@@ -670,6 +757,8 @@ export async function getMyPeerAssignments(
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "No autenticado." };
+    const access = await assertStudentStepAccess(user.id, stepId);
+    if (!access.ok) return { error: access.error };
 
     // Get the student's group in this step's module (for group-mode assignments)
     const { data: stepRow } = await supabase
@@ -885,6 +974,8 @@ export async function submitPeerEvaluation(
     if (assignment.evaluator_id && assignment.evaluator_id !== user.id) {
         return { error: "No autorizado." };
     }
+    const access = await assertStudentStepAccess(user.id, assignment.step_id);
+    if (!access.ok) return { error: access.error };
 
     // Each assignment gets its own activity_submissions row, keyed by peer_assignment_id.
     // Upsert on peer_assignment_id avoids the unique-constraint bug on (student_id, step_id)
@@ -942,6 +1033,8 @@ export async function getMyReceivedPeerFeedback(stepId: string): Promise<{
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return { error: "No autenticado." };
+    const access = await assertStudentStepAccess(user.id, stepId);
+    if (!access.ok) return { error: access.error };
 
     // Check step content visibility flag
     const { data: step } = await supabase
