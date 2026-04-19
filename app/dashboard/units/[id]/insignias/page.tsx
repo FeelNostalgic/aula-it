@@ -3,6 +3,26 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { redirect } from "next/navigation";
 import { BadgesPageWrapper } from "./badges-page-wrapper";
 import { getUnitAccess } from "@/lib/module-access";
+import { Metadata } from "next";
+
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+    const { id } = await params;
+    const admin = createAdminClient();
+    const { data: unit } = await admin
+        .from("units")
+        .select("name")
+        .eq("id", id)
+        .single();
+
+    return {
+        title: unit ? `Insignias | ${unit.name}` : "Insignias",
+    };
+}
+
 
 export default async function InsigniasPage({
     params,

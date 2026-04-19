@@ -1,6 +1,11 @@
 import { listTeachers } from "../actions";
 import { TeacherPanel } from "../teacher-panel";
 import { Shield } from "lucide-react";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "Gestión de profesores",
+};
 
 export default async function AdminTeachersPage() {
   const { teachers, error } = await listTeachers();

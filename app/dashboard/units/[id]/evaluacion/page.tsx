@@ -3,6 +3,26 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { redirect } from "next/navigation";
 import { UnitEvaluationTab } from "@/components/dashboard/units/unit-evaluation-tab";
 import { getUnitAccess } from "@/lib/module-access";
+import { Metadata } from "next";
+
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+    const { id } = await params;
+    const admin = createAdminClient();
+    const { data: unit } = await admin
+        .from("units")
+        .select("name")
+        .eq("id", id)
+        .single();
+
+    return {
+        title: unit ? `Evaluación | ${unit.name}` : "Evaluación",
+    };
+}
+
 
 export default async function EvaluacionPage({
     params,

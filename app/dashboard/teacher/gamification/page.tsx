@@ -3,6 +3,11 @@ import { redirect } from "next/navigation";
 import { Trophy, Target } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "Gamificación",
+};
 
 export default async function TeacherGamificationPage() {
     const supabase = await createClient();

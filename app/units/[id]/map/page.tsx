@@ -4,6 +4,25 @@ import { notFound, redirect } from "next/navigation";
 import MapClient from "./client";
 import { getUnitAccess } from "@/lib/module-access";
 import { MAP_ROUTE_TYPE, toActivityNodeId, toFlowNodeId } from "@/types/unit-map";
+import { Metadata } from "next";
+
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+    const { id } = await params;
+    const admin = createAdminClient();
+    const { data: unit } = await admin
+        .from("units")
+        .select("name")
+        .eq("id", id)
+        .single();
+
+    return {
+        title: unit ? `Mapa | ${unit.name}` : "Mapa",
+    };
+}
 
 interface UnitMapPageProps {
     params: Promise<{ id: string }>;

@@ -2,6 +2,19 @@ import { notFound } from "next/navigation"
 import { animationRegistry } from "@/lib/animations/registry"
 import { AnimationPlayer } from "@/components/animations/animation-player"
 import { ArpAnimation } from "@/components/animations/arp-animation"
+import { Metadata } from "next";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const meta = animationRegistry.find((a) => a.slug === slug);
+  return {
+    title: meta ? `Animación: ${meta.title}` : "Animación",
+  };
+}
 
 const animationMap = {
   arp: ArpAnimation,

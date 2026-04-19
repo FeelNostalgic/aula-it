@@ -3,6 +3,21 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { redirect } from "next/navigation";
 import { UnitDetailView } from "@/components/dashboard/units/unit-detail-view";
 import { getUnitAccess } from "@/lib/module-access";
+import { Metadata } from "next";
+
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+    const { id: unitId } = await params;
+    const admin = createAdminClient();
+    const { data: unit } = await admin.from("units").select("title").eq("id", unitId).single();
+    return {
+        title: unit?.title || "Unidad",
+    };
+}
+
 
 export default async function UnitPage({
     params,

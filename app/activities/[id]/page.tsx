@@ -6,6 +6,21 @@ import { getStudentSubmissionsForActivity } from "./actions";
 import { getActivityAccess } from "@/lib/module-access";
 import { normalizeNestedActivityPhases } from "@/lib/activity-step-tree";
 import { filterPhasesByStepAudience } from "@/lib/activity-step-audience";
+import { Metadata } from "next";
+
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+    const { id } = await params;
+    const admin = createAdminClient();
+    const { data: activity } = await admin.from("activities").select("title").eq("id", id).single();
+    return {
+        title: activity?.title || "Actividad",
+    };
+}
+
 
 export default async function ActivityPage({
     params,

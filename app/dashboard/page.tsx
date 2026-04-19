@@ -4,6 +4,12 @@ import { StudentDashboard } from "@/components/dashboard/shared/student-dashboar
 import { TeacherDashboard } from "@/components/dashboard/shared/teacher-dashboard";
 import { redirect } from "next/navigation";
 import { MODULE_COLLABORATOR_ROLE, type ModuleCollaboratorRole } from "@/lib/module-collaborator-defs";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Dashboard",
+};
+
 
 export default async function DashboardPage() {
   const supabase = await createClient();

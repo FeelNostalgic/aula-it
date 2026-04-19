@@ -2,6 +2,11 @@ import { BookOpen } from "lucide-react";
 import { getAllModulesWithTeachers, getAllTeachers } from "./actions";
 import { getAdminStudents } from "../students/actions";
 import { AdminEnrollmentPanel } from "./admin-enrollment-panel";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "Gestión de matrículas",
+};
 
 export default async function AdminEnrollmentPage() {
   const [{ modules, error: modulesError }, { teachers }, { students }] = await Promise.all([

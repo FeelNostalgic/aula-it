@@ -1,4 +1,25 @@
+import { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { createAdminClient } from "@/utils/supabase/admin";
+
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+    const { id } = await params;
+    const admin = createAdminClient();
+    const { data: unit } = await admin
+        .from("units")
+        .select("name")
+        .eq("id", id)
+        .single();
+
+    return {
+        title: unit ? `Calificaciones | ${unit.name}` : "Calificaciones",
+    };
+}
+
 import { createClient } from "@/utils/supabase/server";
 import type { RubricCriteria } from "@/types/activity";
 import { StudentUnitGradesPage } from "@/components/dashboard/units/student-unit-grades-page";

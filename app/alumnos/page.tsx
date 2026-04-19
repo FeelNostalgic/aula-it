@@ -1,5 +1,11 @@
 import { getClassroomStudents, getTeacherModules } from "./actions";
 import { AlumnosClientPanel } from "./alumnos-client-panel";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Gestión de alumnos",
+};
+
 
 export default async function GestionAlumnosPage() {
   const [{ students, error }, { modules }] = await Promise.all([

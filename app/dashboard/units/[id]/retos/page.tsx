@@ -4,8 +4,28 @@ import { redirect } from "next/navigation";
 import { UnitActivitiesTab } from "@/components/dashboard/activities/unit-activities-tab";
 import { UnitActivitiesWrapper } from "./activities-wrapper";
 import { getUnitAccess } from "@/lib/module-access";
+import { Metadata } from "next";
+
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+    const { id } = await params;
+    const admin = createAdminClient();
+    const { data: unit } = await admin
+        .from("units")
+        .select("name")
+        .eq("id", id)
+        .single();
+
+    return {
+        title: unit ? `Retos | ${unit.name}` : "Retos",
+    };
+}
 
 export default async function RetosPage({
+
     params,
 }: {
     params: Promise<{ id: string }>;

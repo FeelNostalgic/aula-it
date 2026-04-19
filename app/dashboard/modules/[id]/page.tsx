@@ -3,6 +3,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { redirect, notFound } from "next/navigation";
 import { ModuleDetailView } from "@/components/dashboard/modules/module-detail-view";
 import { getModuleAccess } from "@/lib/module-access";
+import { Metadata } from "next";
 
 interface ModulePageProps {
     params: Promise<{ id: string }>;
@@ -10,6 +11,16 @@ interface ModulePageProps {
 
 // Force dynamic to ensure data is always fresh after revalidations
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: ModulePageProps): Promise<Metadata> {
+    const { id } = await params;
+    const admin = createAdminClient();
+    const { data: module } = await admin.from("modules").select("name").eq("id", id).single();
+    return {
+        title: module?.name || "Módulo",
+    };
+}
+
 
 export default async function ModulePage({ params }: ModulePageProps) {
     const { id } = await params;

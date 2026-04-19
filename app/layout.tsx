@@ -13,9 +13,13 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Aula IT | Learning Dashboard",
-  description: "High-performance command center for IT students",
+  title: {
+    default: "Aula IT",
+    template: "%s | Aula IT",
+  },
+  description: "LMS for IT students",
 };
+
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";

@@ -1,6 +1,11 @@
 import Link from "next/link"
 import { animationRegistry } from "@/lib/animations/registry"
 import { Network } from "lucide-react"
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "Animaciones",
+};
 
 export default function AnimationsIndexPage() {
   return (

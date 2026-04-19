@@ -4,6 +4,25 @@ import { redirect } from "next/navigation";
 import { UnitResourcesTab } from "@/components/dashboard/units/unit-resources-tab";
 import { getUnitAccess } from "@/lib/module-access";
 import { StudentUnitResourcesPage } from "@/components/dashboard/units/student-unit-resources-page";
+import { Metadata } from "next";
+
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+    const { id } = await params;
+    const admin = createAdminClient();
+    const { data: unit } = await admin
+        .from("units")
+        .select("name")
+        .eq("id", id)
+        .single();
+
+    return {
+        title: unit ? `Recursos | ${unit.name}` : "Recursos",
+    };
+}
 
 export default async function RecursosPage({
     params,

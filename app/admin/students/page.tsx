@@ -2,6 +2,11 @@ import { Users } from "lucide-react";
 import { getAdminStudents } from "./actions";
 import { getAllModulesWithTeachers } from "../enrollment/actions";
 import { AdminStudentsPanel } from "./admin-students-panel";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "Gestión de alumnos (Admin)",
+};
 
 interface AdminStudentsPageProps {
   searchParams: Promise<{

@@ -6,6 +6,11 @@ import { BreadcrumbProvider } from "@/components/dashboard/layout/breadcrumb-con
 import { DRIVE_CONNECTION_STATUS, type DriveConnectionStatus } from "@/lib/drive-connection-status";
 import { DRIVE_STORAGE_MODE, normalizeDriveStorageSettings } from "@/lib/drive-storage-settings";
 import { getDriveClient, getDriveConnectionStatus, resolveDriveStorageRootFolderMetadata } from "@/lib/google-drive-api";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "Ajustes de perfil",
+};
 
 export default async function SettingsPage() {
     const supabase = await createClient();
