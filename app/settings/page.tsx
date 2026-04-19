@@ -9,7 +9,7 @@ import { getDriveClient, getDriveConnectionStatus, resolveDriveStorageRootFolder
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-    title: "Ajustes de perfil",
+    title: "Perfil",
 };
 
 export default async function SettingsPage() {
@@ -19,15 +19,62 @@ export default async function SettingsPage() {
 
     const { data: profile } = await supabase
         .from("profiles")
-        .select("role, full_name, google_email, is_private")
+        .select("role, full_name, google_email, is_private, global_xp, streak_days")
         .eq("id", user.id)
         .single();
 
     const userAvatar = user.user_metadata?.avatar_url || "";
-    // Format ID: Take last 8 chars of UUID and uppercase it for a "tactical" look
-    const userId = `ID: ${user.id.slice(-8).toUpperCase()}`;
-
     const isTeacher = profile?.role === "teacher";
+
+    // Fetch student-only stats (only for students)
+    let earnedBadgesCount = 0;
+    let activeSubmissionsCount = 0;
+    let badges: {
+        id: string;
+        name: string;
+        description: string | null;
+        iconUrl: string | null;
+        unlocked: boolean;
+        progress: number;
+    }[] = [];
+
+    if (!isTeacher) {
+        const admin = createAdminClient();
+
+        const [{ count: badgeCount }, { count: submissionsCount }, { data: allClassBadges }, { data: earnedStudentBadges }] = await Promise.all([
+            admin
+                .from("student_badges")
+                .select("*", { count: "exact", head: true })
+                .eq("student_id", user.id),
+            admin
+                .from("activity_submissions")
+                .select("*", { count: "exact", head: true })
+                .eq("student_id", user.id)
+                .neq("status", "graded"),
+            admin
+                .from("class_badges")
+                .select("id, title, description, icon_url")
+                .eq("is_hidden", false),
+            admin
+                .from("student_badges")
+                .select("badge_id")
+                .eq("student_id", user.id),
+        ]);
+
+        earnedBadgesCount = badgeCount ?? 0;
+        activeSubmissionsCount = submissionsCount ?? 0;
+        
+        const earnedSet = new Set((earnedStudentBadges ?? []).map(b => b.badge_id));
+        
+        badges = (allClassBadges ?? []).map(cb => ({
+            id: cb.id,
+            name: cb.title,
+            description: cb.description,
+            iconUrl: cb.icon_url,
+            unlocked: earnedSet.has(cb.id),
+            progress: earnedSet.has(cb.id) ? 100 : 0, // In the future, this can be calculated from conditions
+        }));
+    }
 
     // Check Drive connection status for teachers
     let driveStatus: DriveConnectionStatus = DRIVE_CONNECTION_STATUS.DISCONNECTED;
@@ -81,6 +128,11 @@ export default async function SettingsPage() {
                 isTeacher={isTeacher}
                 driveStatus={driveStatus}
                 driveStorageSettings={driveStorageSettings}
+                globalXp={profile?.global_xp ?? 0}
+                streakDays={profile?.streak_days ?? 0}
+                earnedBadgesCount={earnedBadgesCount}
+                activeSubmissionsCount={activeSubmissionsCount}
+                badges={badges}
             />
         </BreadcrumbProvider>
     );
