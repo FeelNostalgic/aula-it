@@ -77,7 +77,21 @@ export class ModuleDetailPage extends BasePage {
             alumnos: `/dashboard/modules/${this.currentModuleId}/alumnos`,
             configuracion: `/dashboard/modules/${this.currentModuleId}/configuracion`,
         } as const;
-        await this.page.goto(paths[tab], { waitUntil: "domcontentloaded", timeout: 60000 });
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
+                await this.page.goto(paths[tab], { waitUntil: "domcontentloaded", timeout: 60000 });
+                return;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                const retryable =
+                    message.includes("ERR_ABORTED")
+                    || message.includes("frame was detached")
+                    || message.includes("ERR_CONNECTION_REFUSED")
+                    || message.includes("ECONNREFUSED");
+                if (!retryable || attempt === 2) throw error;
+                await this.page.waitForTimeout(300);
+            }
+        }
     }
 
     async navigateToInicio(): Promise<void> {

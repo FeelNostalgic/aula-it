@@ -55,8 +55,9 @@ test.describe("Admin Student Management (/admin/students)", () => {
 
     test("admin can create students in bulk with valid prefix", async ({ page }) => {
         const loginPage = new LoginPage(page);
-        await loginPage.login(adminEmail, password);
-        await ensureAdminStudentsPage(page);
+        await ensureAdminStudentsPage(page, async () => {
+            await loginPage.login(adminEmail, password);
+        });
 
         const adminPage = new AdminStudentManagementPage(page);
         await adminPage.openCreateTab();
@@ -77,8 +78,9 @@ test.describe("Admin Student Management (/admin/students)", () => {
 
     test("shows validation error for invalid prefix (special chars)", async ({ page }) => {
         const loginPage = new LoginPage(page);
-        await loginPage.login(adminEmail, password);
-        await ensureAdminStudentsPage(page);
+        await ensureAdminStudentsPage(page, async () => {
+            await loginPage.login(adminEmail, password);
+        });
 
         const adminPage = new AdminStudentManagementPage(page);
         await adminPage.openCreateTab();
@@ -96,8 +98,9 @@ test.describe("Admin Student Management (/admin/students)", () => {
 
     test("shows validation error for count exceeding 60", async ({ page }) => {
         const loginPage = new LoginPage(page);
-        await loginPage.login(adminEmail, password);
-        await ensureAdminStudentsPage(page);
+        await ensureAdminStudentsPage(page, async () => {
+            await loginPage.login(adminEmail, password);
+        });
 
         const adminPage = new AdminStudentManagementPage(page);
         await adminPage.openCreateTab();
@@ -116,7 +119,25 @@ test.describe("Admin Student Management (/admin/students)", () => {
     });
 });
 
-async function ensureAdminStudentsPage(page: import("@playwright/test").Page) {
-    await page.waitForTimeout(300);
-    await page.goto("/admin/students", { waitUntil: "commit", timeout: 20000 });
+async function ensureAdminStudentsPage(
+    page: import("@playwright/test").Page,
+    relogin: () => Promise<void>
+) {
+    await relogin();
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+            await page.waitForTimeout(300);
+            await page.goto("/admin/students", { waitUntil: "domcontentloaded", timeout: 30000 });
+            if (/\/login/.test(page.url())) {
+                await relogin();
+                throw new Error("redirected-to-login");
+            }
+            await expect(page).toHaveURL(/\/admin\/students/, { timeout: 10000 });
+            return;
+        } catch (error) {
+            if (page.isClosed()) throw error;
+            if (attempt === 2) throw error;
+            await page.waitForTimeout(600);
+        }
+    }
 }

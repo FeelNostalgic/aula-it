@@ -63,7 +63,7 @@ test.describe("Student Management (/alumnos)", () => {
         const loginPage = new LoginPage(page);
         const studentManagementPage = new StudentManagementPage(page);
         await loginPage.loginTeacher(teacherEmail, password);
-        await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+        await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
 
         await studentManagementPage.goto();
         await expect(page).toHaveURL(/\/alumnos/, { timeout: 10000 });
@@ -74,7 +74,7 @@ test.describe("Student Management (/alumnos)", () => {
         const loginPage = new LoginPage(page);
         const studentManagementPage = new StudentManagementPage(page);
         await loginPage.loginTeacher(teacherEmail, password);
-        await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+        await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
 
         await studentManagementPage.goto();
         await expect(page).toHaveURL(/\/alumnos/, { timeout: 10000 });

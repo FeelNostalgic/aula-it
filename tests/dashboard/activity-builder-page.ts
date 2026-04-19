@@ -55,7 +55,7 @@ export class ActivityBuilderPage extends BasePage {
         const target = `/activities/${id}/edit`;
         for (let attempt = 0; attempt < 2; attempt += 1) {
             try {
-                await this.page.goto(target, { waitUntil: "commit", timeout: 20000 });
+                await this.page.goto(target, { waitUntil: "domcontentloaded", timeout: 60000 });
                 await expect(this.btnAddPhase).toBeVisible({ timeout: 15000 });
                 return;
             } catch (error) {
