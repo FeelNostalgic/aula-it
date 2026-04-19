@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
-import { getDriveClient, getOrCreateFolder } from "@/lib/google-drive-api";
+import { normalizeDriveStorageSettings } from "@/lib/drive-storage-settings";
+import { getDriveClient, getOrCreateFolder, resolveDriveStorageRootFolderId } from "@/lib/google-drive-api";
 import { AllowedFileType } from "@/types/activity";
 import { Readable } from "stream";
+
+const GOOGLE_DRIVE_SHARED_OPTIONS = {
+    supportsAllDrives: true,
+} as const;
 
 const ALLOWED_MIME_MAP: Record<AllowedFileType, string[]> = {
     pdf: ["application/pdf"],
@@ -157,6 +162,10 @@ export async function POST(request: NextRequest) {
             .eq("id", user.id)
             .single();
         const studentName = profile?.full_name ?? user.id.slice(-8);
+        const isGroupSubmission = stepContent?.is_group_submission === true;
+        const moduleId = module?.id as string | undefined;
+        let groupFolderName: string | null = null;
+        let groupId: string | null = null;
 
         const { data: tokenRow } = await admin
             .from("teacher_drive_tokens")
@@ -172,11 +181,38 @@ export async function POST(request: NextRequest) {
         }
 
         const driveClient = getDriveClient(tokenRow.refresh_token);
+        const { data: appSettingsRow } = await admin
+            .from("app_settings")
+            .select("drive_storage_mode, drive_root_folder_id, drive_root_folder_name, drive_root_folder_url")
+            .eq("teacher_id", teacherId)
+            .maybeSingle();
+        const driveStorageSettings = normalizeDriveStorageSettings(appSettingsRow);
+
+        if (isGroupSubmission && moduleId) {
+            const { data: moduleGroups } = await admin
+                .from("module_groups")
+                .select("id")
+                .eq("module_id", moduleId)
+                .eq("status", "active");
+            const groupIds = (moduleGroups ?? []).map((group: { id: string }) => group.id);
+
+            if (groupIds.length > 0) {
+                const { data: memberRow } = await admin
+                    .from("module_group_members")
+                    .select("group_id, group:module_groups!group_id(name)")
+                    .eq("student_id", user.id)
+                    .in("group_id", groupIds)
+                    .maybeSingle();
+
+                groupId = memberRow?.group_id ?? null;
+                groupFolderName = (memberRow?.group as { name?: string } | null)?.name?.trim() ?? null;
+            }
+        }
 
         // Delete previous file if re-submitting
         if (existingDriveFileId) {
             try {
-                await driveClient.files.delete({ fileId: existingDriveFileId });
+                await driveClient.files.delete({ ...GOOGLE_DRIVE_SHARED_OPTIONS, fileId: existingDriveFileId });
             } catch (err: any) {
                 if (err?.code !== 404 && err?.status !== 404) {
                     console.warn("Drive delete warning:", err?.message);
@@ -185,13 +221,17 @@ export async function POST(request: NextRequest) {
         }
 
         // Folder structure:
-        // Aula-it Entregas / {módulo} / {unidad} / {reto} / {actividad} / {alumno}
-        const rootFolderId     = await getOrCreateFolder(driveClient, null,            "Aula-it Entregas");
+        // root / {módulo} / {unidad} / {reto} / {actividad} / {alumno|grupo}
+        const rootFolderId     = await resolveDriveStorageRootFolderId(driveClient, driveStorageSettings);
         const moduleFolderId   = await getOrCreateFolder(driveClient, rootFolderId,    moduleName);
         const unitFolderId     = await getOrCreateFolder(driveClient, moduleFolderId,  unitName);
         const activityFolderId = await getOrCreateFolder(driveClient, unitFolderId,    activityTitle);
         const stepFolderId     = await getOrCreateFolder(driveClient, activityFolderId, step.title ?? "Paso");
-        const studentFolderId  = await getOrCreateFolder(driveClient, stepFolderId,    studentName);
+        const submissionFolderId = await getOrCreateFolder(
+            driveClient,
+            stepFolderId,
+            groupFolderName || studentName
+        );
 
         // Upload to Drive preserving original filename
         const arrayBuffer = await file.arrayBuffer();
@@ -199,9 +239,10 @@ export async function POST(request: NextRequest) {
         const stream = Readable.from(buffer);
 
         const uploaded = await driveClient.files.create({
+            ...GOOGLE_DRIVE_SHARED_OPTIONS,
             requestBody: {
                 name: file.name,
-                parents: [studentFolderId],
+                parents: [submissionFolderId],
             },
             media: {
                 mimeType: file.type || "application/octet-stream",
@@ -222,6 +263,7 @@ export async function POST(request: NextRequest) {
         // Make file accessible to anyone with the link (student can open via URL)
         try {
             await driveClient.permissions.create({
+                ...GOOGLE_DRIVE_SHARED_OPTIONS,
                 fileId: driveFileId,
                 requestBody: { type: "anyone", role: "reader" },
                 fields: "id",
@@ -232,42 +274,25 @@ export async function POST(request: NextRequest) {
         }
 
         // For group submissions: also share with each group member's google_email
-        const isGroupSubmission = stepContent?.is_group_submission === true;
-        const moduleId = module?.id as string | undefined;
-        if (isGroupSubmission && moduleId) {
+        if (isGroupSubmission && groupId) {
             try {
-                const { data: moduleGroups } = await admin
-                    .from("module_groups")
-                    .select("id")
-                    .eq("module_id", moduleId)
-                    .eq("status", "active");
-                const groupIds = (moduleGroups ?? []).map((group: any) => group.id);
-                if (groupIds.length > 0) {
-                    const { data: memberRow } = await admin
-                        .from("module_group_members")
-                        .select("group_id")
-                        .eq("student_id", user.id)
-                        .in("group_id", groupIds)
-                        .maybeSingle();
-                    if (memberRow?.group_id) {
-                        const { data: members } = await admin
-                            .from("module_group_members")
-                            .select("student:profiles!student_id(google_email)")
-                            .eq("group_id", memberRow.group_id);
-                        for (const member of members ?? []) {
-                            const email = (member.student as { google_email?: string | null } | null)?.google_email;
-                            if (!email) continue;
-                            try {
-                                await driveClient.permissions.create({
-                                    fileId: driveFileId,
-                                    requestBody: { type: "user", role: "reader", emailAddress: email },
-                                    fields: "id",
-                                    sendNotificationEmail: false,
-                                });
-                            } catch {
-                                // ignore per-member errors (e.g. invalid email)
-                            }
-                        }
+                const { data: members } = await admin
+                    .from("module_group_members")
+                    .select("student:profiles!student_id(google_email)")
+                    .eq("group_id", groupId);
+                for (const member of members ?? []) {
+                    const email = (member.student as { google_email?: string | null } | null)?.google_email;
+                    if (!email) continue;
+                    try {
+                        await driveClient.permissions.create({
+                            ...GOOGLE_DRIVE_SHARED_OPTIONS,
+                            fileId: driveFileId,
+                            requestBody: { type: "user", role: "reader", emailAddress: email },
+                            fields: "id",
+                            sendNotificationEmail: false,
+                        });
+                    } catch {
+                        // ignore per-member errors (e.g. invalid email)
                     }
                 }
             } catch (err) {

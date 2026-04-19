@@ -57,6 +57,9 @@ function makeDriveClient(overrides: {
       }),
       delete: vi.fn().mockImplementation(overrides.deleteImpl ?? (() => Promise.resolve())),
     },
+    permissions: {
+      create: vi.fn().mockResolvedValue({ data: { id: "perm-1" } }),
+    },
   };
 }
 
@@ -80,20 +83,28 @@ const DEFAULT_FOLDER_IDS = [
 function makeAdminClient(opts: {
   stepConfig: { title: string; content: object; due_date: string | null };
   teacherId: string;
+  moduleId?: string;
   moduleName?: string;
   unitName?: string;
   activityTitle?: string;
   studentName?: string;
   refreshToken?: string;
+  groupId?: string;
+  groupName?: string;
+  groupMemberEmails?: string[];
 }) {
   const {
     stepConfig,
     teacherId,
+    moduleId = "module-1",
     moduleName = "Test Module",
     unitName = "Test Unit",
     activityTitle = "Test Activity",
     studentName = "Alice",
     refreshToken = "mock-refresh-token",
+    groupId,
+    groupName,
+    groupMemberEmails = [],
   } = opts;
 
   const responses: Record<string, unknown[]> = {
@@ -103,20 +114,34 @@ function makeAdminClient(opts: {
           ...stepConfig,
           phase: {
             activity: {
-              title: activityTitle,
-              unit: {
-                name: unitName,
-                module: { name: moduleName, teacher_id: teacherId },
-              },
-            },
-          },
+                              title: activityTitle,
+                              unit: {
+                                name: unitName,
+                                module: { id: moduleId, name: moduleName, teacher_id: teacherId },
+                              },
+                            },
+                          },
         },
         error: null,
       },
     ],
     profiles: [{ data: { full_name: studentName }, error: null }],
     teacher_drive_tokens: [{ data: { refresh_token: refreshToken }, error: null }],
+    app_settings: [{ data: null, error: null }],
   };
+
+  if (groupId && groupName) {
+    responses["module_groups"] = [{ data: [{ id: groupId }], error: null }];
+    responses["module_group_members"] = [
+      { data: { group_id: groupId, group: { name: groupName } }, error: null },
+      {
+        data: groupMemberEmails.map((email) => ({
+          student: { google_email: email },
+        })),
+        error: null,
+      },
+    ];
+  }
 
   const callCounts: Record<string, number> = {};
 
@@ -331,7 +356,7 @@ describe("POST /api/drive/upload", () => {
 
     expect(response.status).toBe(200);
     expect(body.driveFileId).toBe("new-upload-id");
-    expect(deleteMock).toHaveBeenCalledWith({ fileId: "old-file-id" });
+    expect(deleteMock).toHaveBeenCalledWith({ fileId: "old-file-id", supportsAllDrives: true });
   });
 
   it("uploads to Drive and returns file metadata on success", async () => {
@@ -415,6 +440,44 @@ describe("POST /api/drive/upload", () => {
     const createCalls = (driveClient.files.create as ReturnType<typeof vi.fn>).mock.calls;
     const activityFolderCall = createCalls[3]; // root(0), module(1), unit(2), activity(3)
     expect(activityFolderCall[0].requestBody.name).toBe("TCP-IP");
+  });
+
+  it("uses the group name instead of the student name for group submission folders", async () => {
+    const user = createMockUser();
+    const { client: userClient } = new SupabaseMockBuilder().mockAuth(user).build();
+    vi.mocked(createClient).mockResolvedValue(userClient as any);
+
+    const adminClient = makeAdminClient({
+      stepConfig: { title: "Upload Step", content: { allowedTypes: ["pdf"], maxFileSizeMb: 10, is_group_submission: true }, due_date: null },
+      teacherId: user.id,
+      studentName: "Alice",
+      groupId: "group-1",
+      groupName: "Equipo DHCP",
+      groupMemberEmails: ["alice@school.com", "bob@school.com"],
+    });
+    vi.mocked(createAdminClient).mockReturnValue(adminClient as any);
+
+    const driveClient = makeDriveClient({
+      listResult: [],
+      createIdResults: [
+        ...DEFAULT_FOLDER_IDS,
+        {
+          id: "group-file-id",
+          webViewLink: "https://drive.google.com/file/d/group-file-id/view",
+          name: "report.pdf",
+          mimeType: "application/pdf",
+        },
+      ],
+    });
+    vi.mocked(getDriveClient).mockReturnValue(driveClient as any);
+
+    const file = new File(["pdf-content"], "report.pdf", { type: "application/pdf" });
+    const response = await POST(makeUploadRequest({ file, stepId: "step-1" }));
+
+    expect(response.status).toBe(200);
+    const createCalls = (driveClient.files.create as ReturnType<typeof vi.fn>).mock.calls;
+    const groupFolderCall = createCalls[5];
+    expect(groupFolderCall[0].requestBody.name).toBe("Equipo DHCP");
   });
 
   it("returns JSON 500 instead of an empty response when an unexpected error occurs", async () => {

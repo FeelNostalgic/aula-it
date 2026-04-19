@@ -115,6 +115,9 @@ describe("DELETE /api/drive/delete", () => {
 
     expect(response.status).toBe(200);
     expect(body).toEqual({ success: true });
-    expect(driveDeleteMock).toHaveBeenCalledWith({ fileId: "file-123" });
+    expect(driveDeleteMock).toHaveBeenCalledWith({
+      fileId: "file-123",
+      supportsAllDrives: true,
+    });
   });
 });

@@ -1,12 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getDriveClient, getDriveFolderMetadata } from "@/lib/google-drive-api";
 import { SupabaseMockBuilder } from "../helpers/supabase-mock";
 import { createMockUser, createMockProfile } from "../helpers/fixtures";
-import { disconnectDrive, updateProfile } from "@/app/settings/actions";
+import { disconnectDrive, saveDriveStorageSettings, updateProfile } from "@/app/settings/actions";
+import { DRIVE_STORAGE_MODE } from "@/lib/drive-storage-settings";
 
 const vi_createClient = vi.mocked(createClient);
 const vi_revalidatePath = vi.mocked(revalidatePath);
+const vi_getDriveClient = vi.mocked(getDriveClient);
+const vi_getDriveFolderMetadata = vi.mocked(getDriveFolderMetadata);
 
 // ─── disconnectDrive ──────────────────────────────────────────────────────────
 
@@ -125,5 +129,84 @@ describe("updateProfile", () => {
     });
 
     expect(result).toEqual({ error: "row-level security violation" });
+  });
+});
+
+// ─── saveDriveStorageSettings ────────────────────────────────────────────────
+
+describe("saveDriveStorageSettings", () => {
+  it("returns error when user is not authenticated", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(null)
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await saveDriveStorageSettings({ mode: DRIVE_STORAGE_MODE.AUTO_ROOT });
+
+    expect(result).toEqual({ error: "No autenticado." });
+  });
+
+  it("stores automatic root mode for teachers", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", {
+        data: createMockProfile({ role: "teacher" }),
+        error: null,
+      })
+      .mockUpsert("app_settings", { data: null, error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const result = await saveDriveStorageSettings({ mode: DRIVE_STORAGE_MODE.AUTO_ROOT });
+
+    expect(result).toEqual({
+      success: true,
+      settings: {
+        mode: DRIVE_STORAGE_MODE.AUTO_ROOT,
+        folderId: null,
+        folderName: null,
+        folderUrl: null,
+      },
+    });
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/settings");
+  });
+
+  it("validates and stores a custom folder", async () => {
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .mockQuery("profiles", {
+        data: createMockProfile({ role: "teacher" }),
+        error: null,
+      })
+      .mockQuery("teacher_drive_tokens", {
+        data: { refresh_token: "refresh-xyz" },
+        error: null,
+      })
+      .mockUpsert("app_settings", { data: null, error: null })
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+    vi_getDriveClient.mockReturnValue({ files: {} } as any);
+    vi_getDriveFolderMetadata.mockResolvedValue({
+      id: "folder-123",
+      name: "Entregas Centro",
+      url: "https://drive.google.com/drive/folders/folder-123",
+    });
+
+    const result = await saveDriveStorageSettings({
+      mode: DRIVE_STORAGE_MODE.CUSTOM_FOLDER,
+      folderId: "folder-123",
+    });
+
+    expect(result).toEqual({
+      success: true,
+      settings: {
+        mode: DRIVE_STORAGE_MODE.CUSTOM_FOLDER,
+        folderId: "folder-123",
+        folderName: "Entregas Centro",
+        folderUrl: "https://drive.google.com/drive/folders/folder-123",
+      },
+    });
+    expect(vi_getDriveFolderMetadata).toHaveBeenCalledWith({ files: {} }, "folder-123");
+    expect(vi_revalidatePath).toHaveBeenCalledWith("/settings");
   });
 });

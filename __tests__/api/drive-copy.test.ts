@@ -189,7 +189,7 @@ describe("POST /api/drive/copy", () => {
         data: [
           {
             student_id: "student-1",
-            student: { id: "student-1", full_name: "Alice", google_email: "alice@gmail.com" },
+            student: { id: "student-1", full_name: "Alice", google_email: "alice@school.com" },
           },
           {
             student_id: "student-2",
@@ -225,7 +225,7 @@ describe("POST /api/drive/copy", () => {
     expect(body.copied).toBe(1);
     expect(body.skipped).toBe(1); // student-2 has no google_email
     expect(body.errors).toHaveLength(0);
-    expect(copyFile).toHaveBeenCalledWith(fakeClient, "template-id", "[Alice] Entregable");
-    expect(shareFile).toHaveBeenCalledWith(fakeClient, "new-file-id", "alice@gmail.com", "writer");
+    expect(copyFile).toHaveBeenCalledWith(fakeClient, "template-id", "[Alice] Entregable", "folder-id");
+    expect(shareFile).toHaveBeenCalledWith(fakeClient, "new-file-id", "alice@school.com", "writer");
   });
 });

@@ -124,7 +124,10 @@ describe("DELETE /api/drive/delete-bulk", () => {
     expect(body).toEqual({ success: true });
     expect(driveDeleteMock).toHaveBeenCalledTimes(3);
     for (const id of fileIds) {
-      expect(driveDeleteMock).toHaveBeenCalledWith({ fileId: id });
+      expect(driveDeleteMock).toHaveBeenCalledWith({
+        fileId: id,
+        supportsAllDrives: true,
+      });
     }
   });
 });

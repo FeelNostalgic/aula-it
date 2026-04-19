@@ -25,6 +25,8 @@ export interface PickerOptions {
     title?: string;
     externalAccessToken?: string; // Skip OAuth flow when provided (server-side token)
     autoShareAll?: boolean; // Auto-share all file types (not just images). Use for unit resources.
+    selectFolders?: boolean;
+    includeSharedDrives?: boolean;
 }
 
 /**
@@ -142,6 +144,7 @@ export function useGoogleDrivePicker() {
                 const createDocsView = (label: string, ownedByMe: boolean) => {
                     const view = new google.picker.DocsView(google.picker.ViewId.DOCS)
                         .setIncludeFolders(true)
+                        .setSelectFolderEnabled(!!options?.selectFolders)
                         .setOwnedByMe(ownedByMe)
                         .setLabel(label);
                     
@@ -153,10 +156,21 @@ export function useGoogleDrivePicker() {
                     return view;
                 };
 
+                const createSharedDrivesView = () => {
+                    return new google.picker.DocsView(google.picker.ViewId.DOCS)
+                        .setEnableDrives(true)
+                        .setIncludeFolders(true)
+                        .setSelectFolderEnabled(!!options?.selectFolders)
+                        .setLabel("Unidades compartidas");
+                };
+
                 const myDriveView = createDocsView("Mi unidad", true);
                 const sharedView = createDocsView("Compartidos conmigo", false);
                 const recentView = new google.picker.DocsView(google.picker.ViewId.RECENTLY_PICKED)
                     .setLabel("Recientes");
+                if (options?.selectFolders) {
+                    recentView.setIncludeFolders(true);
+                }
                 if (options?.mimeTypes?.length) {
                     recentView.setMimeTypes(options.mimeTypes.join(","));
                 }
@@ -168,8 +182,15 @@ export function useGoogleDrivePicker() {
                     .addView(myDriveView)
                     .addView(sharedView)
                     .addView(recentView)
-                    .addView(new google.picker.DocsUploadView())
                     .setTitle(options?.title || "Seleccionar archivos de Google Drive");
+
+                if (!options?.selectFolders) {
+                    builder.addView(new google.picker.DocsUploadView());
+                }
+
+                if (options?.includeSharedDrives) {
+                    builder.addView(createSharedDrivesView());
+                }
 
                 if (options?.multiSelect !== false) {
                     builder.enableFeature(google.picker.Feature.MULTISELECT_ENABLED);
@@ -182,20 +203,32 @@ export function useGoogleDrivePicker() {
                         console.log("Picker callback data:", data);
 
                         if (data.action === google.picker.Action.PICKED || data.action === 'picked') {
-                            // Filter out folders from final selection if mimeTypes are specified
-                            const validDocs = options?.mimeTypes?.length
-                                ? data.docs.filter((doc: any) => 
-                                    options.mimeTypes?.some(type => {
-                                        if (type.endsWith("/*")) {
-                                            return doc.mimeType?.startsWith(type.replace("/*", ""));
-                                        }
-                                        return doc.mimeType === type;
-                                    })
-                                )
-                                : data.docs;
+                            const isFolderSelection = !!options?.selectFolders;
+                            const validDocs = data.docs.filter((doc: any) => {
+                                const mimeType = typeof doc.mimeType === "string" ? doc.mimeType : "";
+
+                                if (isFolderSelection) {
+                                    return mimeType === "application/vnd.google-apps.folder";
+                                }
+
+                                if (!options?.mimeTypes?.length) {
+                                    return mimeType !== "application/vnd.google-apps.folder";
+                                }
+
+                                return options.mimeTypes.some(type => {
+                                    if (type.endsWith("/*")) {
+                                        return mimeType.startsWith(type.replace("/*", ""));
+                                    }
+                                    return mimeType === type;
+                                });
+                            });
 
                             if (validDocs.length === 0 && data.docs.length > 0) {
-                                toast.error("Por favor, selecciona archivos del tipo permitido, no carpetas.");
+                                toast.error(
+                                    isFolderSelection
+                                        ? "Selecciona una carpeta válida de Google Drive."
+                                        : "Por favor, selecciona archivos del tipo permitido, no carpetas."
+                                );
                                 return; // Keep picker open if nothing valid was picked
                             }
 
@@ -203,16 +236,18 @@ export function useGoogleDrivePicker() {
                                 id: doc.id,
                                 name: doc.name,
                                 mimeType: doc.mimeType,
-                                url: doc.mimeType?.startsWith("image/")
+                                url: doc.mimeType === "application/vnd.google-apps.folder"
+                                    ? `https://drive.google.com/drive/folders/${doc.id}`
+                                    : doc.mimeType?.startsWith("image/")
                                     ? `/api/drive-image?id=${doc.id}`
                                     : doc.url,
                                 iconUrl: doc.iconUrl,
-                                lastEditedUtc: doc.lastEditedUtc,
+                                lastEditedUtc: typeof doc.lastEditedUtc === "number" ? doc.lastEditedUtc : 0,
                             }));
 
                             // Auto-share selected files. Always shares images (required for proxy).
                             // When autoShareAll=true, also shares non-image files (e.g. PDFs/videos in unit resources).
-                            if (options?.externalAccessToken || accessTokenRef.current) {
+                            if (!isFolderSelection && (options?.externalAccessToken || accessTokenRef.current)) {
                                 const tokenToUse = options?.externalAccessToken || accessTokenRef.current;
                                 if (tokenToUse) {
                                     const filesToShare = files.filter((f) => options?.autoShareAll || f.mimeType?.startsWith("image/"));

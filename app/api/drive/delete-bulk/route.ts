@@ -3,6 +3,10 @@ import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { getDriveClient } from "@/lib/google-drive-api";
 
+const GOOGLE_DRIVE_SHARED_OPTIONS = {
+    supportsAllDrives: true,
+} as const;
+
 export async function DELETE(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -47,7 +51,7 @@ export async function DELETE(request: NextRequest) {
 
     await Promise.all(
         driveFileIds.map(fileId =>
-            driveClient.files.delete({ fileId }).catch((err: any) => {
+            driveClient.files.delete({ ...GOOGLE_DRIVE_SHARED_OPTIONS, fileId }).catch((err: any) => {
                 if (err?.code !== 404 && err?.status !== 404) {
                     console.error(`Drive delete error for ${fileId}:`, err?.message);
                 }

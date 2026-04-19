@@ -27,8 +27,8 @@ export function getDriveConnectionStatusMeta(status: DriveConnectionStatus | nul
 
     if (status === DRIVE_CONNECTION_STATUS.INVALID) {
         return {
-            title: "Google Drive caducado",
-            description: "La conexión ha caducado o fue revocada. Reconcéctala en Configuración para restaurar copias y subidas.",
+            title: "Google Drive no autorizado",
+            description: "La conexión fue revocada, expiró por políticas de Google o ya no es válida. Reconcéctala en Configuración para restaurar copias y subidas.",
         };
     }
 

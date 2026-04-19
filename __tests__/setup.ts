@@ -97,6 +97,7 @@ vi.mock("@/lib/google-drive-api", async (importOriginal) => {
     listPermissions: vi.fn(),
     removePermission: vi.fn(),
     updateFilePermissionRole: vi.fn(),
+    getDriveFolderMetadata: vi.fn(),
   };
 });
 

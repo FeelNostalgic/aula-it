@@ -65,6 +65,7 @@ declare namespace google {
 
         class DocsView {
             constructor(viewId?: ViewId);
+            setEnableDrives(enabled: boolean): DocsView;
             setIncludeFolders(include: boolean): DocsView;
             setSelectFolderEnabled(enabled: boolean): DocsView;
             setMimeTypes(mimeTypes: string): DocsView;

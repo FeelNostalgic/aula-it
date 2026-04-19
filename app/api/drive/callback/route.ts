@@ -14,18 +14,34 @@ export async function GET(request: NextRequest) {
     try {
         const tokens = await exchangeCodeForTokens(code, new URL(request.url).origin);
 
-        if (!tokens.access_token || !tokens.refresh_token || !tokens.expiry_date) {
+        if (!tokens.access_token || !tokens.expiry_date) {
             return NextResponse.redirect(new URL("/dashboard?drive=error", request.url));
         }
 
         const supabase = createAdminClient();
+        let refreshToken = tokens.refresh_token ?? null;
+
+        if (!refreshToken) {
+            const { data: existingTokenRow } = await supabase
+                .from("teacher_drive_tokens")
+                .select("refresh_token")
+                .eq("teacher_id", teacherId)
+                .maybeSingle();
+
+            refreshToken = existingTokenRow?.refresh_token ?? null;
+        }
+
+        if (!refreshToken) {
+            return NextResponse.redirect(new URL("/dashboard?drive=error", request.url));
+        }
+
         const { error } = await supabase
             .from("teacher_drive_tokens")
             .upsert(
                 {
                     teacher_id: teacherId,
                     access_token: tokens.access_token,
-                    refresh_token: tokens.refresh_token,
+                    refresh_token: refreshToken,
                     expires_at: new Date(tokens.expiry_date).toISOString(),
                 },
                 { onConflict: "teacher_id" }

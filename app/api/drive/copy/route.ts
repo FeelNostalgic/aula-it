@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { verifyTeacherOwnsActivity } from "@/lib/authorization";
+import { normalizeDriveStorageSettings } from "@/lib/drive-storage-settings";
 import {
-    getDriveClient,
-    extractFileIdFromUrl,
     copyFile,
-    shareFile,
+    extractFileIdFromUrl,
+    getDriveClient,
     getOrCreateFolder,
+    resolveDriveStorageRootFolderId,
+    shareFile,
 } from "@/lib/google-drive-api";
 
 export async function POST(request: NextRequest) {
@@ -105,9 +107,15 @@ export async function POST(request: NextRequest) {
     const isGroupSubmission = (stepData.content as any)?.is_group_submission === true;
 
     const driveClient = getDriveClient(tokenRow.refresh_token);
+    const { data: appSettingsRow } = await admin
+        .from("app_settings")
+        .select("drive_storage_mode, drive_root_folder_id, drive_root_folder_name, drive_root_folder_url")
+        .eq("teacher_id", ownerTeacherId)
+        .maybeSingle();
+    const driveStorageSettings = normalizeDriveStorageSettings(appSettingsRow);
 
-    // Build folder structure: Aula-it Entregas / {module} / {unit} / {reto} / {step}
-    const rootFolderId   = await getOrCreateFolder(driveClient, null,          "Aula-it Entregas");
+    // Build folder structure: root / {module} / {unit} / {reto} / {step}
+    const rootFolderId   = await resolveDriveStorageRootFolderId(driveClient, driveStorageSettings);
     const moduleFolderId = await getOrCreateFolder(driveClient, rootFolderId,  moduleName);
     const unitFolderId   = await getOrCreateFolder(driveClient, moduleFolderId, unitName);
     const retoFolderId   = await getOrCreateFolder(driveClient, unitFolderId,  activityTitle);
@@ -150,20 +158,13 @@ export async function POST(request: NextRequest) {
             const members = (group as any).members ?? [];
             const memberEmails: string[] = members
                 .map((m: any) => m.profile?.google_email as string | null)
-                .filter((e: string | null): e is string => !!e && e.toLowerCase().endsWith("@gmail.com"));
+                .filter((e: string | null): e is string => typeof e === "string" && e.trim().length > 0);
 
             if (memberEmails.length === 0) { skipped++; continue; }
 
             try {
                 const copyTitle = `[${group.name}] ${stepTitle}`;
-                const { id: newFileId, webViewLink } = await copyFile(driveClient, fileId, copyTitle);
-
-                await driveClient.files.update({
-                    fileId: newFileId,
-                    addParents: stepFolderId,
-                    removeParents: "root",
-                    fields: "id",
-                });
+                const { id: newFileId, webViewLink } = await copyFile(driveClient, fileId, copyTitle, stepFolderId);
 
                 for (const email of memberEmails) {
                     await shareFile(driveClient, newFileId, email, "writer");
@@ -220,7 +221,7 @@ export async function POST(request: NextRequest) {
             const student = enrollment.student as any;
             const googleEmail = student?.google_email as string | null;
 
-            if (!googleEmail || !googleEmail.toLowerCase().endsWith("@gmail.com")) {
+            if (!googleEmail?.trim()) {
                 skipped++; continue;
             }
             if (studentsWithCopy.has(enrollment.student_id)) {
@@ -229,14 +230,7 @@ export async function POST(request: NextRequest) {
 
             try {
                 const copyTitle = `[${student.full_name ?? googleEmail}] ${stepTitle}`;
-                const { id: newFileId, webViewLink } = await copyFile(driveClient, fileId, copyTitle);
-
-                await driveClient.files.update({
-                    fileId: newFileId,
-                    addParents: stepFolderId,
-                    removeParents: "root",
-                    fields: "id",
-                });
+                const { id: newFileId, webViewLink } = await copyFile(driveClient, fileId, copyTitle, stepFolderId);
 
                 await shareFile(driveClient, newFileId, googleEmail, "writer");
 

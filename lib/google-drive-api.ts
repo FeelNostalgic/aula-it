@@ -1,7 +1,27 @@
 import { google } from "googleapis";
-import { extractGoogleFileId } from "@/lib/google-drive-urls";
 import { DRIVE_CONNECTION_STATUS, type DriveConnectionStatus } from "@/lib/drive-connection-status";
+import { extractGoogleFileId } from "@/lib/google-drive-urls";
+import { DRIVE_STORAGE_MODE, type DriveStorageSettings } from "@/lib/drive-storage-settings";
 import { createGoogleOAuth2Client, requireGoogleRedirectUri } from "@/lib/google-oauth";
+
+export const GOOGLE_DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
+
+const GOOGLE_DRIVE_SHARED_OPTIONS = {
+    supportsAllDrives: true,
+} as const;
+
+const GOOGLE_DRIVE_LIST_SHARED_OPTIONS = {
+    ...GOOGLE_DRIVE_SHARED_OPTIONS,
+    includeItemsFromAllDrives: true,
+} as const;
+
+type DriveClient = ReturnType<typeof google.drive>;
+
+export interface DriveFolderMetadata {
+    id: string;
+    name: string;
+    url: string | null;
+}
 
 export function getAuthorizeUrl(teacherId: string, origin?: string): string {
     requireGoogleRedirectUri(origin);
@@ -47,16 +67,19 @@ export async function getDriveConnectionStatus(refreshToken?: string | null): Pr
 
 export { extractGoogleFileId as extractFileIdFromUrl };
 
-type DriveClient = ReturnType<typeof google.drive>;
-
 export async function copyFile(
     driveClient: DriveClient,
     fileId: string,
-    title: string
+    title: string,
+    parentId?: string | null
 ): Promise<{ id: string; webViewLink: string }> {
     const res = await driveClient.files.copy({
+        ...GOOGLE_DRIVE_SHARED_OPTIONS,
         fileId,
-        requestBody: { name: title },
+        requestBody: {
+            name: title,
+            parents: parentId ? [parentId] : undefined,
+        },
         fields: "id,webViewLink",
     });
     if (!res.data.id || !res.data.webViewLink) {
@@ -72,6 +95,7 @@ export async function shareFile(
     role: "writer" | "reader"
 ): Promise<string> {
     const res = await driveClient.permissions.create({
+        ...GOOGLE_DRIVE_SHARED_OPTIONS,
         fileId,
         requestBody: {
             type: "user",
@@ -86,6 +110,7 @@ export async function shareFile(
 
 export async function listPermissions(driveClient: DriveClient, fileId: string) {
     const res = await driveClient.permissions.list({
+        ...GOOGLE_DRIVE_SHARED_OPTIONS,
         fileId,
         fields: "permissions(id,emailAddress,role)",
     });
@@ -97,7 +122,11 @@ export async function removePermission(
     fileId: string,
     permissionId: string
 ) {
-    await driveClient.permissions.delete({ fileId, permissionId });
+    await driveClient.permissions.delete({
+        ...GOOGLE_DRIVE_SHARED_OPTIONS,
+        fileId,
+        permissionId,
+    });
 }
 
 /**
@@ -112,14 +141,17 @@ export async function updateFilePermissionRole(
     role: "writer" | "reader"
 ): Promise<void> {
     const list = await driveClient.permissions.list({
+        ...GOOGLE_DRIVE_SHARED_OPTIONS,
         fileId,
         fields: "permissions(id,emailAddress,role)",
     });
     const perm = list.data.permissions?.find(
         p => p.emailAddress?.toLowerCase() === email.toLowerCase()
     );
-    if (!perm?.id) return; // student has no permission on this file
+    if (!perm?.id) return;
+
     await driveClient.permissions.update({
+        ...GOOGLE_DRIVE_SHARED_OPTIONS,
         fileId,
         permissionId: perm.id,
         requestBody: { role },
@@ -148,12 +180,13 @@ export async function getOrCreateFolder(
     const safeName = sanitizeDriveFolderName(name);
     const query = [
         `name = '${safeName.replace(/'/g, "\\'")}'`,
-        "mimeType = 'application/vnd.google-apps.folder'",
+        `mimeType = '${GOOGLE_DRIVE_FOLDER_MIME_TYPE}'`,
         "trashed = false",
         parentId ? `'${parentId}' in parents` : "'root' in parents",
     ].join(" and ");
 
     const list = await driveClient.files.list({
+        ...GOOGLE_DRIVE_LIST_SHARED_OPTIONS,
         q: query,
         fields: "files(id)",
         spaces: "drive",
@@ -164,12 +197,53 @@ export async function getOrCreateFolder(
     }
 
     const created = await driveClient.files.create({
+        ...GOOGLE_DRIVE_SHARED_OPTIONS,
         requestBody: {
             name: safeName,
-            mimeType: "application/vnd.google-apps.folder",
+            mimeType: GOOGLE_DRIVE_FOLDER_MIME_TYPE,
             parents: parentId ? [parentId] : undefined,
         },
         fields: "id",
     });
     return created.data.id!;
+}
+
+export async function getDriveFolderMetadata(
+    driveClient: DriveClient,
+    folderId: string
+): Promise<DriveFolderMetadata> {
+    const res = await driveClient.files.get({
+        ...GOOGLE_DRIVE_SHARED_OPTIONS,
+        fileId: folderId,
+        fields: "id,name,mimeType,webViewLink",
+    });
+
+    if (!res.data.id || res.data.mimeType !== GOOGLE_DRIVE_FOLDER_MIME_TYPE) {
+        throw new Error("La selección no es una carpeta válida de Google Drive.");
+    }
+
+    return {
+        id: res.data.id,
+        name: res.data.name ?? "Carpeta sin nombre",
+        url: res.data.webViewLink ?? null,
+    };
+}
+
+export async function resolveDriveStorageRootFolderId(
+    driveClient: DriveClient,
+    settings: DriveStorageSettings
+): Promise<string> {
+    if (settings.mode === DRIVE_STORAGE_MODE.CUSTOM_FOLDER && settings.folderId) {
+        return settings.folderId;
+    }
+
+    return getOrCreateFolder(driveClient, null, "Aula-it Entregas");
+}
+
+export async function resolveDriveStorageRootFolderMetadata(
+    driveClient: DriveClient,
+    settings: DriveStorageSettings
+): Promise<DriveFolderMetadata> {
+    const folderId = await resolveDriveStorageRootFolderId(driveClient, settings);
+    return getDriveFolderMetadata(driveClient, folderId);
 }

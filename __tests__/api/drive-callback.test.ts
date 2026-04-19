@@ -72,4 +72,30 @@ describe("GET /api/drive/callback", () => {
       "/dashboard?drive=connected"
     );
   });
+
+  it("reuses the stored refresh_token when Google does not return a new one", async () => {
+    vi.mocked(exchangeCodeForTokens).mockResolvedValue({
+      access_token: "access-abc",
+      refresh_token: null,
+      expiry_date: new Date("2026-01-01T12:00:00Z").getTime(),
+    } as any);
+
+    const { client } = new SupabaseMockBuilder()
+      .mockQuery("teacher_drive_tokens", {
+        data: { refresh_token: "stored-refresh-token" },
+        error: null,
+      })
+      .mockUpsert("teacher_drive_tokens", { data: null, error: null })
+      .build();
+    vi.mocked(createAdminClient).mockReturnValue(client as any);
+
+    const request = new NextRequest(
+      "http://localhost/api/drive/callback?code=good-code&state=teacher-123"
+    );
+
+    const response = await GET(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/dashboard?drive=connected");
+  });
 });

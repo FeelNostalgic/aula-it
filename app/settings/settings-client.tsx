@@ -3,12 +3,14 @@
 import { useState, useTransition, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { updateProfile, disconnectDrive } from "./actions";
+import { disconnectDrive, saveDriveStorageSettings, updateProfile } from "./actions";
 import { toast } from "sonner";
 import {
     ArrowLeft,
     AlertTriangle,
     CheckCircle2,
+    ExternalLink,
+    FolderOpen,
     HardDrive,
     Mail,
     User,
@@ -45,6 +47,8 @@ import { UserNav } from "@/components/dashboard/layout/user-nav";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { DRIVE_CONNECTION_STATUS, type DriveConnectionStatus } from "@/lib/drive-connection-status";
+import { DRIVE_STORAGE_MODE, type DriveStorageSettings } from "@/lib/drive-storage-settings";
+import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 
 interface SettingsClientProps {
     userEmail: string;
@@ -55,6 +59,7 @@ interface SettingsClientProps {
     userId: string;
     isTeacher: boolean;
     driveStatus: DriveConnectionStatus;
+    driveStorageSettings: DriveStorageSettings;
 }
 
 export function SettingsClient({
@@ -66,6 +71,7 @@ export function SettingsClient({
     userId,
     isTeacher,
     driveStatus,
+    driveStorageSettings: initialDriveStorageSettings,
 }: SettingsClientProps) {
     const [fullName, setFullName] = useState(initialFullName);
     const [googleEmail, setGoogleEmail] = useState(initialGoogleEmail);
@@ -74,9 +80,12 @@ export function SettingsClient({
     const [isPending, startTransition] = useTransition();
     const [currentDriveStatus, setCurrentDriveStatus] = useState(driveStatus);
     const [isDisconnecting, startDisconnect] = useTransition();
+    const [isSavingDriveSettings, startDriveSettingsTransition] = useTransition();
+    const [driveStorageSettings, setDriveStorageSettings] = useState(initialDriveStorageSettings);
     const { setSegments } = useBreadcrumb();
     const supabase = createClient();
     const router = useRouter();
+    const { openPicker, isLoading: isDrivePickerLoading } = useGoogleDrivePicker();
 
     useEffect(() => {
         setSegments([{ label: initialFullName || "Usuario" }]);
@@ -100,6 +109,63 @@ export function SettingsClient({
         router.refresh();
     }
 
+    function handleUseAutomaticDriveFolder() {
+        startDriveSettingsTransition(async () => {
+            const result = await saveDriveStorageSettings({ mode: DRIVE_STORAGE_MODE.AUTO_ROOT });
+            if (result.error) {
+                toast.error(result.error);
+                return;
+            }
+
+            if (result.settings) {
+                setDriveStorageSettings(result.settings);
+            }
+            toast.success("Se ha restaurado la carpeta automática de Aula-it Entregas.");
+        });
+    }
+
+    async function handleSelectDriveFolder() {
+        try {
+            const response = await fetch("/api/drive/token");
+            const data = await response.json().catch(() => null);
+
+            if (!response.ok || !data?.access_token) {
+                throw new Error(typeof data?.error === "string" ? data.error : "No se pudo obtener acceso a Google Drive.");
+            }
+
+            const files = await openPicker({
+                externalAccessToken: data.access_token,
+                includeSharedDrives: true,
+                multiSelect: false,
+                selectFolders: true,
+                title: "Seleccionar carpeta base para entregas",
+            });
+
+            const folder = files[0];
+            if (!folder) return;
+
+            startDriveSettingsTransition(async () => {
+                const result = await saveDriveStorageSettings({
+                    mode: DRIVE_STORAGE_MODE.CUSTOM_FOLDER,
+                    folderId: folder.id,
+                });
+
+                if (result.error) {
+                    toast.error(result.error);
+                    return;
+                }
+
+                if (result.settings) {
+                    setDriveStorageSettings(result.settings);
+                }
+                toast.success(`La carpeta base ahora es "${folder.name}".`);
+            });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "No se pudo seleccionar la carpeta de Google Drive.";
+            toast.error(message);
+        }
+    }
+
     // Hardcoded stats based on prototype
     const uptimeStreak = 14;
     const totalXP = 42050;
@@ -116,6 +182,8 @@ export function SettingsClient({
 
     const isDriveConnected = currentDriveStatus === DRIVE_CONNECTION_STATUS.CONNECTED;
     const isDriveInvalid = currentDriveStatus === DRIVE_CONNECTION_STATUS.INVALID;
+    const isAutomaticDriveFolder = driveStorageSettings.mode === DRIVE_STORAGE_MODE.AUTO_ROOT;
+    const driveFolderLabel = driveStorageSettings.folderName ?? "Carpeta personalizada";
 
     return (
         <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
@@ -361,13 +429,13 @@ export function SettingsClient({
                                                     <Mail className="size-3 text-red-500" /> Email de Google
                                                 </label>
                                                 <p className="text-[10px] text-text-muted">
-                                                    NECESARIO PARA RECIBIR COPIAS DE TRABAJO AUTOMÁTICAS. DEBE COINCIDIR CON TU CUENTA DE GOOGLE DRIVE.
+                                                    NECESARIO PARA RECIBIR COPIAS DE TRABAJO AUTOMÁTICAS. PUEDE SER GMAIL O GOOGLE WORKSPACE, PERO DEBE COINCIDIR CON LA CUENTA QUE USARÁ EL ALUMNO.
                                                 </p>
                                                 <Input
                                                     value={googleEmail}
                                                     onChange={(e) => setGoogleEmail(e.target.value)}
                                                     type="email"
-                                                    placeholder="tu@gmail.com"
+                                                    placeholder="tu@centro.es"
                                                     className="bg-surface/50 border-border/40 focus:border-primary/50 focus:ring-primary/20 transition-all font-mono text-sm"
                                                 />
                                             </div>
@@ -430,9 +498,9 @@ export function SettingsClient({
                                                             <AlertTriangle className="size-4" />
                                                         </div>
                                                         <div className="space-y-1">
-                                                            <p>TOKEN DE GOOGLE DRIVE INVÁLIDO</p>
+                                                            <p>CONEXIÓN DE GOOGLE DRIVE NO VÁLIDA</p>
                                                             <p className="text-[11px] font-normal text-amber-200/80 leading-relaxed normal-case">
-                                                                La conexión existe en base de datos, pero Google ya no acepta el token. Reconecta Drive para volver a clonar y subir archivos.
+                                                                El access token se renueva solo. Si estás viendo este estado, el problema real es que Google revocó la conexión o el refresh token ya no es utilizable. Reconecta Drive para restaurar copias y subidas.
                                                             </p>
                                                         </div>
                                                     </div>
@@ -471,6 +539,66 @@ export function SettingsClient({
                                                         Autorizar Acceso a Drive
                                                     </Button>
                                                 </a>
+                                            )}
+
+                                            {isDriveConnected && (
+                                                <div className="space-y-4 rounded-xl border border-border/40 bg-background/30 p-4">
+                                                    <div className="space-y-1">
+                                                        <p className="text-xs font-mono uppercase tracking-widest text-text-muted">
+                                                            Destino de almacenamiento
+                                                        </p>
+                                                        <p className="text-sm text-text-muted leading-relaxed">
+                                                            Decide si Aula-it crea automáticamente la carpeta raíz o si debe guardar dentro de una carpeta concreta, incluso una carpeta compartida del centro.
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="rounded-xl border border-border/40 bg-surface/40 p-4">
+                                                        <p className="text-[10px] font-mono uppercase tracking-widest text-text-muted">
+                                                            Modo actual
+                                                        </p>
+                                                        <p className="mt-1 text-sm font-bold text-foreground">
+                                                            {isAutomaticDriveFolder ? "Aula-it Entregas (automática)" : driveFolderLabel}
+                                                        </p>
+                                                        <p className="mt-1 text-[11px] text-text-muted leading-relaxed">
+                                                            {isAutomaticDriveFolder
+                                                                ? "El sistema crea o reutiliza la carpeta 'Aula-it Entregas' en la raíz del Drive conectado."
+                                                                : "La carpeta seleccionada actúa como raíz contenedora y dentro se seguirá creando la jerarquía de módulo, unidad, actividad y paso."}
+                                                        </p>
+                                                        {driveStorageSettings.folderUrl && (
+                                                            <a
+                                                                href={driveStorageSettings.folderUrl}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="mt-3 inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-accent-blue hover:text-accent-blue/80"
+                                                            >
+                                                                <ExternalLink className="size-3" />
+                                                                Abrir carpeta base
+                                                            </a>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex flex-col gap-3 md:flex-row">
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            disabled={isSavingDriveSettings || isDrivePickerLoading || isAutomaticDriveFolder}
+                                                            onClick={handleUseAutomaticDriveFolder}
+                                                            className="flex-1 border-border/40 font-mono text-[10px] uppercase tracking-widest"
+                                                        >
+                                                            {isSavingDriveSettings ? "Guardando..." : "Usar carpeta automática"}
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            disabled={isSavingDriveSettings || isDrivePickerLoading}
+                                                            onClick={handleSelectDriveFolder}
+                                                            className="flex-1 gap-2 border-accent-blue/40 text-accent-blue hover:bg-accent-blue/10 font-mono text-[10px] uppercase tracking-widest"
+                                                        >
+                                                            <FolderOpen className="size-4" />
+                                                            {isDrivePickerLoading ? "Abriendo Drive..." : "Elegir carpeta de Drive"}
+                                                        </Button>
+                                                    </div>
+                                                </div>
                                             )}
                                         </CardContent>
                                     </Card>
