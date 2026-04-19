@@ -1198,7 +1198,15 @@ export async function getQuizStatsAttempts(stepId: string) {
     return { attempts };
 }
 
-type QuizStepResponsesContext = {
+const STEP_SUBMISSIONS_ALLOWED_TYPES = {
+    QUIZ: "quiz",
+    DELIVERABLE: "deliverable",
+    FILE_UPLOAD: "file_upload",
+} as const;
+
+type StepSubmissionsAllowedType = (typeof STEP_SUBMISSIONS_ALLOWED_TYPES)[keyof typeof STEP_SUBMISSIONS_ALLOWED_TYPES];
+
+type StepSubmissionsContext = {
     stepData: {
         stepTitle: string;
         stepType: string;
@@ -1214,11 +1222,17 @@ type QuizStepResponsesContext = {
     rows: StepSubmissionRow[];
 };
 
-export async function getQuizStepResponsesContext(
+type StepSubmissionsContextOptions = {
+    allowedTypes?: StepSubmissionsAllowedType[];
+    invalidTypeError?: string;
+};
+
+export async function getStepSubmissionsContext(
     stepId: string,
     activityId: string,
     moduleId: string,
-): Promise<{ context?: QuizStepResponsesContext; error?: string }> {
+    options?: StepSubmissionsContextOptions,
+): Promise<{ context?: StepSubmissionsContext; error?: string }> {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return { error: "No autenticado." };
@@ -1233,7 +1247,14 @@ export async function getQuizStepResponsesContext(
         .maybeSingle();
 
     if (stepError || !step) return { error: "No se pudo cargar el paso." };
-    if (step.type !== "quiz") return { error: "El paso no es un cuestionario." };
+    const allowedTypes = options?.allowedTypes ?? [
+        STEP_SUBMISSIONS_ALLOWED_TYPES.QUIZ,
+        STEP_SUBMISSIONS_ALLOWED_TYPES.DELIVERABLE,
+        STEP_SUBMISSIONS_ALLOWED_TYPES.FILE_UPLOAD,
+    ];
+    if (!allowedTypes.includes(step.type as StepSubmissionsAllowedType)) {
+        return { error: options?.invalidTypeError ?? "Este tipo de paso no permite visualizar entregas." };
+    }
 
     const { data: enrollments, error: enrollmentsError } = await admin
         .from("module_enrollments")
@@ -1253,7 +1274,12 @@ export async function getQuizStepResponsesContext(
     if (submissionsResult.error) return { error: submissionsResult.error };
 
     const rows = (submissionsResult.data ?? []).filter((row) => row.step_id === stepId);
-    const stepContent = (step.content ?? {}) as any;
+    const stepContent = (step.content ?? {}) as Record<string, unknown>;
+    const deliveryModeRaw = stepContent.deliveryMode;
+    const deliveryMode = deliveryModeRaw === "manual" || deliveryModeRaw === "teacher_copy"
+        ? deliveryModeRaw
+        : undefined;
+    const isGroupSubmission = stepContent.is_group_submission === true;
 
     return {
         context: {
@@ -1261,15 +1287,28 @@ export async function getQuizStepResponsesContext(
                 stepTitle: step.title,
                 stepType: step.type,
                 orderIndex: step.order_index ?? 0,
-                deliveryMode: stepContent.deliveryMode,
+                deliveryMode,
                 isLocked: step.is_locked ?? false,
-                isGroupSubmission: stepContent.is_group_submission === true,
+                isGroupSubmission,
                 parentStepId: step.parent_step_id ?? null,
                 isActivityClosed: step.is_activity_closed ?? false,
-                quizContent: stepContent,
+                quizContent: step.type === STEP_SUBMISSIONS_ALLOWED_TYPES.QUIZ ? stepContent : null,
             },
             students,
             rows,
         },
     };
+}
+
+type QuizStepResponsesContext = StepSubmissionsContext;
+
+export async function getQuizStepResponsesContext(
+    stepId: string,
+    activityId: string,
+    moduleId: string,
+): Promise<{ context?: QuizStepResponsesContext; error?: string }> {
+    return getStepSubmissionsContext(stepId, activityId, moduleId, {
+        allowedTypes: [STEP_SUBMISSIONS_ALLOWED_TYPES.QUIZ],
+        invalidTypeError: "El paso no es un cuestionario.",
+    });
 }

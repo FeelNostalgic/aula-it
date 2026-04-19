@@ -227,8 +227,10 @@ export function SelfEvaluationViewer({
                 <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium">
                     <CheckCircle2 className="size-4 shrink-0" />
                     Autoevaluación enviada.{" "}
-                    {evalMode === "rubric" && isPublished
-                        ? "Ya puedes ver tu nota comparativa arriba."
+                    {isPublished
+                        ? (evalMode === "rubric"
+                            ? "Ya puedes ver tu nota comparativa arriba."
+                            : "Ya ha sido revisada y publicada.")
                         : "El profesor la revisará pronto."}
                 </div>
             )}

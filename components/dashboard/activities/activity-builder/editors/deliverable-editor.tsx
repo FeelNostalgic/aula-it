@@ -22,11 +22,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
+import { StepSubmissionsPanel, STEP_SUBMISSIONS_PANEL_TYPES } from "@/components/dashboard/activities/activity-builder/step-submissions-panel";
+import { useStepEditorTab } from "./use-step-editor-tab";
 
 interface DeliverableEditorProps {
     step: ActivityStepWithClientState;
     onUpdate: (updated: ActivityStepWithClientState) => void;
     activityId?: string;
+    moduleId?: string;
 }
 
 function isBuiltInQuizChild(step: { type: string; content: unknown }) {
@@ -36,8 +39,9 @@ function isBuiltInQuizChild(step: { type: string; content: unknown }) {
     return mode === "builtin";
 }
 
-export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEditorProps) {
+export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: DeliverableEditorProps) {
     const defaultContent = (step.content as DeliverableContent) || { templateUrl: "", instructionsMarkdown: "", deliveryMode: "manual" };
+    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "instrucciones", ["instrucciones", "configuracion", "entregas"]);
     const [content, setContent] = useState<DeliverableContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
@@ -195,7 +199,7 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
     const sectionState = useConfigSectionState(step.id, configSectionIds);
 
     return (
-        <Tabs defaultValue="instrucciones" className="flex flex-col h-full w-full bg-background">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full w-full bg-background">
             {/* Tab bar */}
             <div className="shrink-0 border-b border-border/50 bg-surface-dark/10 px-4 flex items-center gap-2">
                 <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">
@@ -210,6 +214,12 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                         className="h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
                     >
                         Configuración
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="entregas"
+                        className="h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                    >
+                        Entregas
                     </TabsTrigger>
                 </TabsList>
 
@@ -278,6 +288,21 @@ export function DeliverableEditor({ step, onUpdate, activityId }: DeliverableEdi
                             </div>
                         </ResizablePanel>
                     </ResizablePanelGroup>
+                </div>
+            </TabsContent>
+
+            <TabsContent value="entregas" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <div className="w-full max-w-none mx-auto p-4 sm:p-6 pb-16">
+                    <StepSubmissionsPanel
+                        stepId={step.id}
+                        activityId={activityId}
+                        moduleId={moduleId}
+                        visible={activeTab === "entregas"}
+                        allowedTypes={[STEP_SUBMISSIONS_PANEL_TYPES.DELIVERABLE]}
+                        invalidTypeError="El paso no es un entregable."
+                        missingContextError="No se pudo cargar el contexto de actividad para mostrar entregas."
+                        loadingLabel="Cargando entregas..."
+                    />
                 </div>
             </TabsContent>
 

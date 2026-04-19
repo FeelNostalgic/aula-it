@@ -32,6 +32,7 @@ import {
   updateStepLock,
   updateStepXp,
   updateStepCompletionMode,
+  getStepSubmissionsContext,
   getQuizStepResponsesContext,
 } from "@/app/activities/[id]/edit/actions";
 
@@ -796,5 +797,71 @@ describe("getQuizStepResponsesContext", () => {
     expect(result.context?.rows).toHaveLength(1);
     expect(result.context?.rows[0].step_id).toBe("step-1");
     expect(result.context?.stepData.stepTitle).toBe("Quiz final");
+  });
+});
+
+// ─── getStepSubmissionsContext ───────────────────────────────────────────────
+
+describe("getStepSubmissionsContext", () => {
+  it("returns configured invalidTypeError when the step type is not allowed", async () => {
+    const user = createMockUser();
+    setupAuthAndAdmin(
+      user,
+      new SupabaseMockBuilder().mockQuery("activity_steps", {
+        data: { id: "step-1", type: "self_evaluation" },
+        error: null,
+      })
+    );
+    vi_verifyOwnsStep.mockResolvedValue(true);
+
+    const result = await getStepSubmissionsContext("step-1", "activity-1", "module-1", {
+      allowedTypes: ["deliverable"],
+      invalidTypeError: "Tipo de paso no permitido",
+    });
+
+    expect(result).toEqual({ error: "Tipo de paso no permitido" });
+  });
+
+  it("returns deliverable context and keeps quizContent as null", async () => {
+    const user = createMockUser();
+    setupAuthAndAdmin(
+      user,
+      new SupabaseMockBuilder()
+        .mockQuery("activity_steps", {
+          data: {
+            id: "step-1",
+            title: "Entrega final",
+            type: "deliverable",
+            content: { deliveryMode: "teacher_copy", is_group_submission: true },
+            is_locked: true,
+            is_activity_closed: false,
+            parent_step_id: null,
+            order_index: 3,
+          },
+          error: null,
+        })
+        .mockQuery("module_enrollments", {
+          data: [{ student_id: "stu-1", student: { full_name: "Ana" } }],
+          error: null,
+        })
+    );
+    vi_verifyOwnsStep.mockResolvedValue(true);
+    vi_getUnitStepSubmissions.mockResolvedValue({
+      data: [
+        { id: "sub-1", step_id: "step-1" },
+        { id: "sub-2", step_id: "step-2" },
+      ],
+    } as any);
+
+    const result = await getStepSubmissionsContext("step-1", "activity-1", "module-1", {
+      allowedTypes: ["deliverable"],
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.context?.stepData.stepType).toBe("deliverable");
+    expect(result.context?.stepData.deliveryMode).toBe("teacher_copy");
+    expect(result.context?.stepData.isGroupSubmission).toBe(true);
+    expect(result.context?.stepData.quizContent).toBeNull();
+    expect(result.context?.rows).toHaveLength(1);
   });
 });

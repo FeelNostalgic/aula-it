@@ -53,20 +53,37 @@ const FILE_TYPE_LABELS: Record<AllowedFileType, string> = {
     any: "Cualquier formato",
 };
 
-function RubricDisplay({ rubric, selectedScores, isPublished }: { rubric: RubricCriteria[]; selectedScores?: Record<string, number> | null; isPublished?: boolean }) {
+function RubricDisplay({ rubric, selectedScores, isPublished, publishedScore }: {
+    rubric: RubricCriteria[];
+    selectedScores?: Record<string, number> | null;
+    isPublished?: boolean;
+    publishedScore?: number | null;
+}) {
     if (!rubric?.length) return null;
-    const rubricTotal = Object.values(selectedScores ?? {}).reduce((sum, points) => sum + points, 0);
     const rubricMax = rubric.reduce((sum, criterion) => sum + criteriaMaxPoints(criterion), 0);
-    const normalized = rubricMax > 0 ? Math.round(((rubricTotal / rubricMax) * 10) * 100) / 100 : 0;
+    const hasRubricScores = !!selectedScores && Object.keys(selectedScores).length > 0;
+    const rubricTotal = hasRubricScores ? Object.values(selectedScores).reduce((sum, points) => sum + points, 0) : 0;
+    const normalized = hasRubricScores && rubricMax > 0 ? Math.round(((rubricTotal / rubricMax) * 10) * 100) / 100 : null;
+    const hasWeightedScore = isPublished && normalized != null && publishedScore != null && publishedScore !== normalized;
     return (
         <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-4">
             <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
                 <ClipboardList className="size-4" /> Criterios de evaluación
             </h3>
-            {isPublished && (
-                <div className="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
-                    <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">Nota total</span>
-                    <span className="text-lg font-black font-mono text-emerald-400">{normalized} / 10</span>
+            {isPublished && normalized != null && (
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
+                        <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">
+                            {hasWeightedScore ? "Nota de la rúbrica" : "Nota total"}
+                        </span>
+                        <span className="text-lg font-black font-mono text-emerald-400">{normalized} / 10</span>
+                    </div>
+                    {hasWeightedScore && (
+                        <div className="flex items-center justify-between rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-4 py-3">
+                            <span className="text-xs font-bold uppercase tracking-widest text-indigo-400">Nota final ponderada</span>
+                            <span className="text-lg font-black font-mono text-indigo-400">{publishedScore} / 10</span>
+                        </div>
+                    )}
                 </div>
             )}
             <div className="space-y-5">
@@ -113,6 +130,38 @@ const ACCEPT_MAP: Record<AllowedFileType, string> = {
 function buildAccept(allowedTypes: AllowedFileType[]): string {
     if (!allowedTypes?.length || allowedTypes.includes("any")) return "*";
     return allowedTypes.map(t => ACCEPT_MAP[t]).join(",");
+}
+
+function formatPublishedScore(score: number) {
+    const rounded = Math.round(score * 100) / 100;
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+}
+
+function PublishedGradeSummary({ gradingMode, publishedScore }: { gradingMode: ActivitySubmission["grading_mode"]; publishedScore: number | null }) {
+    if (gradingMode === "complete") {
+        return (
+            <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl">
+                <div className="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
+                    <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">Resultado publicado</span>
+                    <span className="inline-flex items-center gap-2 text-sm font-black text-emerald-300">
+                        <CheckCircle2 className="size-4" />
+                        Completado
+                    </span>
+                </div>
+            </div>
+        );
+    }
+
+    if (publishedScore == null) return null;
+
+    return (
+        <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl">
+            <div className="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">Nota publicada</span>
+                <span className="text-lg font-black font-mono text-emerald-400">{formatPublishedScore(publishedScore)} / 10</span>
+            </div>
+        </div>
+    );
 }
 
 function formatBytes(bytes: number): string {
@@ -185,6 +234,14 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
     const StatusIcon = statusConfig.icon;
     const isDeadlinePassed = dueDate ? new Date(dueDate) < new Date() : false;
     const isLocked = status === "graded" || isDeadlinePassed;
+    const isPublished = submission?.status === "published";
+    const publishedScore = isPublished ? (submission?.score ?? null) : null;
+    const hasPublishedRubricScores = isPublished && !!submission?.rubric_scores && Object.keys(submission.rubric_scores).length > 0;
+    const showPublishedSummary = isPublished && (
+        submission?.grading_mode === "score"
+        || submission?.grading_mode === "complete"
+        || (submission?.grading_mode === "rubric" && !hasPublishedRubricScores)
+    );
 
     const maxFiles = content?.maxFiles ?? 1;
     const maxSizeMb = content?.maxFileSizeMb ?? 10;
@@ -404,7 +461,19 @@ export function FileUploadViewer({ content, stepId, activityId, initialSubmissio
 
             {/* Rubric */}
             {content?.rubric && content.rubric.length > 0 && (
-                <RubricDisplay rubric={content.rubric} selectedScores={submission?.rubric_scores} isPublished={submission?.status === 'published'} />
+                <RubricDisplay
+                    rubric={content.rubric}
+                    selectedScores={submission?.rubric_scores}
+                    isPublished={isPublished}
+                    publishedScore={publishedScore}
+                />
+            )}
+
+            {showPublishedSummary && (
+                <PublishedGradeSummary
+                    gradingMode={submission?.grading_mode ?? null}
+                    publishedScore={publishedScore}
+                />
             )}
 
             {/* Upload zone */}

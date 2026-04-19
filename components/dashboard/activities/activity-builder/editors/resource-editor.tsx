@@ -29,6 +29,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
+import { useStepEditorTab } from "./use-step-editor-tab";
 
 interface ResourceEditorProps {
     step: ActivityStepWithClientState;
@@ -37,6 +38,7 @@ interface ResourceEditorProps {
 
 export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
     const defaultContent = (step.content as ResourceContent) || { items: [], markdownHeader: '' };
+    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "recursos", ["recursos", "configuracion"]);
     const [content, setContent] = useState<ResourceContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -129,7 +131,7 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
     const tabTriggerClass = "h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none";
 
     return (
-        <Tabs defaultValue="recursos" className="flex flex-col h-full w-full bg-background">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full w-full bg-background">
             {/* Tab bar */}
             <div className="shrink-0 border-b border-border/50 bg-surface-dark/10 px-4 flex items-center gap-2">
                 <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">

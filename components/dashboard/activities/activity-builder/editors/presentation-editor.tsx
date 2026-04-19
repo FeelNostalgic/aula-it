@@ -12,6 +12,7 @@ import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toEmbedUrl, GOOGLE_MIME } from "@/lib/google-drive-urls";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
+import { useStepEditorTab } from "./use-step-editor-tab";
 
 interface PresentationEditorProps {
     step: ActivityStepWithClientState;
@@ -21,6 +22,7 @@ interface PresentationEditorProps {
 export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) {
     const defaultContent: PresentationContent = { slidesUrl: "", notes: "" };
     const initialContent = (step.content as PresentationContent) || defaultContent;
+    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "presentacion", ["presentacion", "configuracion"]);
 
     const [slidesUrl, setSlidesUrl] = useState(initialContent.slidesUrl || "");
     const [notes, setNotes] = useState(initialContent.notes || "");
@@ -81,7 +83,7 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
     };
 
     return (
-        <Tabs defaultValue="presentacion" className="flex flex-col h-full w-full bg-background">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full w-full bg-background">
             {/* Tab bar */}
             <div className="shrink-0 border-b border-border/50 bg-surface-dark/10 px-4 flex items-center gap-2">
                 <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">

@@ -113,8 +113,8 @@ export function StepEditorPanel({ step, onUpdateStep, activityId, phases, module
 
             <div className="flex-1 overflow-hidden">
                 {step.type === "theory" && <TheoryEditor step={step} onUpdate={onUpdateStep} />}
-                {step.type === "deliverable" && <DeliverableEditor step={step} onUpdate={onUpdateStep} activityId={activityId} />}
-                {step.type === "file_upload" && <FileUploadEditor step={step} onUpdate={onUpdateStep} />}
+                {step.type === "deliverable" && <DeliverableEditor step={step} onUpdate={onUpdateStep} activityId={activityId} moduleId={moduleId} />}
+                {step.type === "file_upload" && <FileUploadEditor step={step} onUpdate={onUpdateStep} activityId={activityId} moduleId={moduleId} />}
                 {step.type === "animation" && <AnimationEditor step={step} onUpdate={onUpdateStep} />}
                 {step.type === "quiz" && <QuizEditor step={step} onUpdate={onUpdateStep} activityId={activityId} moduleId={moduleId} />}
                 {step.type === "presentation" && <PresentationEditor step={step} onUpdate={onUpdateStep} />}

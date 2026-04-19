@@ -157,6 +157,7 @@ export function ModuleDetailView({
     const canEditModuleContent = modulePermissions?.canEditModuleContent ?? isTeacher;
     const canManageStudents = modulePermissions?.canManageStudents ?? isTeacher;
     const canManageCollaborators = modulePermissions?.canManageCollaborators ?? isCreator;
+    const canManageModuleSettings = modulePermissions?.canManageModuleSettings ?? isTeacher;
     const { moduleXp: liveModuleXp, moduleRank: liveModuleRank, rankPosition } = useModuleGamification(module.id, userRole);
 
     // Use live data for students, prop data for teachers
@@ -281,7 +282,7 @@ export function ModuleDetailView({
         { value: "grupos", label: "Grupos", icon: UsersRound, visible: true },
         { value: "alumnos", label: "Alumnos", icon: GraduationCap, visible: isTeacher },
         { value: "profesores", label: "Profesores", icon: UserRoundCog, visible: isTeacher },
-        { value: "configuracion", label: "Configuración", icon: Settings, visible: modulePermissions?.canManageModuleSettings !== false },
+        { value: "configuracion", label: "Configuración", icon: Settings, visible: canManageModuleSettings },
     ] as const;
     const visibleModuleTabs = moduleTabs.filter((tab) => tab.visible);
 
@@ -302,7 +303,7 @@ export function ModuleDetailView({
         if (!visibleModuleTabs.some((tab) => tab.value === activeTab)) {
             setActiveTab("dashboard");
         }
-    }, [activeTab, isTeacher, modulePermissions?.canManageModuleSettings]);
+    }, [activeTab, canManageModuleSettings, isTeacher]);
 
     return (
         <div className="-mx-24 -my-8 flex min-h-[calc(100vh-68px)] bg-background">
@@ -601,7 +602,7 @@ export function ModuleDetailView({
                     </TabsContent>
 
                     {/* Configuración Tab */}
-                    {modulePermissions?.canManageModuleSettings !== false && (
+                    {canManageModuleSettings && (
                         <TabsContent value="configuracion" className="mt-0">
                             <ModuleSettingsTab
                                 module={module}

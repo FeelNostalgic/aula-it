@@ -18,6 +18,8 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
+import { StepSubmissionsPanel, STEP_SUBMISSIONS_PANEL_TYPES } from "@/components/dashboard/activities/activity-builder/step-submissions-panel";
+import { useStepEditorTab } from "./use-step-editor-tab";
 
 const ALLOWED_TYPE_OPTIONS: { value: AllowedFileType; label: string }[] = [
     { value: 'pdf', label: 'PDF' },
@@ -51,6 +53,8 @@ function utcToLocalInputValue(isoUtc: string): string {
 interface FileUploadEditorProps {
     step: ActivityStepWithClientState;
     onUpdate: (updated: ActivityStepWithClientState) => void;
+    activityId?: string;
+    moduleId?: string;
 }
 
 function isBuiltInQuizChild(step: { type: string; content: unknown }) {
@@ -60,13 +64,14 @@ function isBuiltInQuizChild(step: { type: string; content: unknown }) {
     return mode === "builtin";
 }
 
-export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
+export function FileUploadEditor({ step, onUpdate, activityId, moduleId }: FileUploadEditorProps) {
     const defaultContent: FileUploadContent = (step.content as FileUploadContent) || {
         instructionsMarkdown: '',
         allowedTypes: ['pdf', 'image', 'word'],
         maxFileSizeMb: 10,
         maxFiles: 1,
     };
+    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "instrucciones", ["instrucciones", "configuracion", "entregas"]);
     const initCustom = initCustomSizeState(defaultContent.maxFileSizeMb);
     const [content, setContent] = useState<FileUploadContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
@@ -154,12 +159,13 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
     const tabTriggerClass = "h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none";
 
     return (
-        <Tabs defaultValue="instrucciones" className="flex flex-col h-full w-full bg-background">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full w-full bg-background">
             {/* Tab bar */}
             <div className="shrink-0 border-b border-border/50 bg-surface-dark/10 px-4 flex items-center gap-2">
                 <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">
                     <TabsTrigger value="instrucciones" className={tabTriggerClass}>Instrucciones</TabsTrigger>
                     <TabsTrigger value="configuracion" className={tabTriggerClass}>Configuración</TabsTrigger>
+                    <TabsTrigger value="entregas" className={tabTriggerClass}>Entregas</TabsTrigger>
                 </TabsList>
                 <div className="ml-auto">
                     {isSaving ? (
@@ -219,6 +225,21 @@ export function FileUploadEditor({ step, onUpdate }: FileUploadEditorProps) {
                             </div>
                         </ResizablePanel>
                     </ResizablePanelGroup>
+                </div>
+            </TabsContent>
+
+            <TabsContent value="entregas" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <div className="w-full max-w-none mx-auto p-4 sm:p-6 pb-16">
+                    <StepSubmissionsPanel
+                        stepId={step.id}
+                        activityId={activityId}
+                        moduleId={moduleId}
+                        visible={activeTab === "entregas"}
+                        allowedTypes={[STEP_SUBMISSIONS_PANEL_TYPES.FILE_UPLOAD]}
+                        invalidTypeError="El paso no es de subida de archivos."
+                        missingContextError="No se pudo cargar el contexto de actividad para mostrar entregas."
+                        loadingLabel="Cargando entregas..."
+                    />
                 </div>
             </TabsContent>
 

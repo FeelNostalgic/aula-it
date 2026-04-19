@@ -15,6 +15,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
+import { useStepEditorTab } from "./use-step-editor-tab";
 
 interface TheoryEditorProps {
     step: ActivityStepWithClientState;
@@ -23,6 +24,7 @@ interface TheoryEditorProps {
 
 export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
     const defaultContent = (step.content as TheoryContent) || { markdown: "" };
+    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "contenido", ["contenido", "configuracion"]);
     const [content, setContent] = useState<TheoryContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
@@ -52,7 +54,7 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
     };
 
     return (
-        <Tabs defaultValue="contenido" className="flex flex-col h-full w-full bg-background">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full w-full bg-background">
             {/* Tab bar */}
             <div className="shrink-0 border-b border-border/50 bg-surface-dark/10 px-4 flex items-center gap-2">
                 <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">

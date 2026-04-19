@@ -12,6 +12,7 @@ import { ArpAnimation } from "@/components/animations/arp-animation";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
+import { useStepEditorTab } from "./use-step-editor-tab";
 
 // Map slug → component for preview
 const previewMap: Record<string, React.ComponentType> = {
@@ -25,6 +26,7 @@ interface AnimationEditorProps {
 
 export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
     const defaultContent = (step.content as AnimationContent) || { componentUrl: "", animationSlug: undefined };
+    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "animacion", ["animacion", "configuracion"]);
     const [content, setContent] = useState<AnimationContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -68,7 +70,7 @@ export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
     const tabTriggerClass = "h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none";
 
     return (
-        <Tabs defaultValue="animacion" className="flex flex-col h-full w-full bg-background">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full w-full bg-background">
             {/* Tab bar */}
             <div className="shrink-0 border-b border-border/50 bg-surface-dark/10 px-4 flex items-center gap-2">
                 <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">

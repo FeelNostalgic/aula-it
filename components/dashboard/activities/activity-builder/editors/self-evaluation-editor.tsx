@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { ActivityStepWithClientState, SelfEvaluationContent, RubricCriteria, ActivityPhaseWithSteps, QuizQuestion } from "@/types/activity";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { LikertQuestionConfig } from "../quiz/likert-question-config";
+import { useStepEditorTab } from "./use-step-editor-tab";
 
 interface SelfEvaluationEditorProps {
     step: ActivityStepWithClientState;
@@ -70,6 +71,13 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
 
     const evalMode = content.evalMode ?? "rubric";
     const questions = content.questions ?? [];
+    const availableTabs = useMemo(
+        () => evalMode === "questions"
+            ? ["instrucciones", "configuracion", "preguntas"]
+            : ["instrucciones", "configuracion"],
+        [evalMode],
+    );
+    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "configuracion", availableTabs);
     const configSectionIds = [
         "experience",
         "completion-mode",
@@ -110,7 +118,7 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
     const tabTriggerClass = "h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none";
 
     return (
-        <Tabs defaultValue="configuracion" className="flex flex-col h-full w-full bg-background">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full w-full bg-background">
             <div className="shrink-0 border-b border-border/50 bg-surface-dark/10 px-4 flex items-center gap-2">
                 <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">
                     <TabsTrigger value="instrucciones" className={tabTriggerClass}>Instrucciones</TabsTrigger>

@@ -46,6 +46,12 @@ export function getStudentUnitNavigationItems({
             icon: FolderOpen,
             match: `/dashboard/units/${unitId}/recursos`,
         },
+        {
+            href: `/dashboard/units/${unitId}/notas`,
+            label: "Notas",
+            icon: ClipboardCheck,
+            match: `/dashboard/units/${unitId}/notas`,
+        },
     ];
 }
 

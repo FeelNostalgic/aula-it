@@ -19,6 +19,7 @@ import { StructuredQuestionFields } from "../quiz/structured-question-fields";
 import { QuizStatsPanel } from "../quiz/quiz-stats-panel";
 import { QuizResponsesPanel } from "../quiz/quiz-responses-panel";
 import { LikertQuestionConfig } from "../quiz/likert-question-config";
+import { useStepEditorTab } from "./use-step-editor-tab";
 import {
     DndContext,
     closestCenter,
@@ -168,13 +169,8 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
         handleUpdate({ ...content, questions: arrayMove(content.questions, oldIdx, newIdx) });
     };
 
-    const [activeTab, setActiveTab] = useState("contenido");
     const [showBankManager, setShowBankManager] = useState(false);
     const [availableBanks, setAvailableBanks] = useState<QuestionBank[]>([]);
-
-    useEffect(() => {
-        setActiveTab("contenido");
-    }, [step.id]);
 
     useEffect(() => {
         getQuestionBanks().then(({ banks }) => {
@@ -217,6 +213,10 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
     };
 
     const effectiveMode: QuizMode = isNestedQuiz ? 'builtin' : content.quizMode ?? (content.googleFormUrl ? 'google_form' : 'builtin');
+    const availableTabs = effectiveMode === "builtin"
+        ? ["contenido", "pools", "stats", "respuestas", "configuracion"]
+        : ["contenido", "configuracion"];
+    const { activeTab, setActiveTab } = useStepEditorTab(step.id, "contenido", availableTabs);
     const statsAvailability = getGroupStatsAvailability(content);
     const configSectionIds = [
         "experience",
@@ -451,7 +451,7 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
             </TabsContent>
 
             <TabsContent value="respuestas" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <div className="w-full max-w-7xl mx-auto p-6 sm:p-8 pb-16">
+                <div className="w-full max-w-none mx-auto p-4 sm:p-6 pb-16">
                     <QuizResponsesPanel
                         stepId={step.id}
                         activityId={activityId}
