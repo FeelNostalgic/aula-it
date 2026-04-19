@@ -22,8 +22,8 @@ export class SettingsPage extends BasePage {
     constructor(page: Page) {
         super(page);
 
-        this.tabProfile = page.getByRole("tab", { name: /profile/i });
-        this.tabSettings = page.getByRole("tab", { name: /settings/i });
+        this.tabProfile = page.getByRole("tab", { name: /perfil/i });
+        this.tabSettings = page.getByRole("tab", { name: /ajustes/i });
 
         this.fullNameInput = page.locator('input[placeholder="Tu nombre completo"]');
         this.googleEmailInput = page.locator('input[placeholder="tu@gmail.com"]');
@@ -38,6 +38,7 @@ export class SettingsPage extends BasePage {
 
     async goto(): Promise<void> {
         await super.goto("/settings");
+        await this.page.waitForURL(/\/settings$/, { timeout: 15000 });
     }
 
     async openSettingsTab(): Promise<void> {

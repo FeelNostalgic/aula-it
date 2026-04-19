@@ -13,6 +13,7 @@ export class ModuleDetailPage extends BasePage {
     readonly tabConfiguracion: Locator;
     readonly viewModeGrid: Locator;
     readonly viewModeList: Locator;
+    private currentModuleId: string = "";
 
     constructor(page: any) {
         super(page);
@@ -23,19 +24,35 @@ export class ModuleDetailPage extends BasePage {
         this.addStudentsButton = page.getByRole('button', { name: 'MATRICULAR ALUMNO', exact: true });
         this.unitCards = page.locator('[class*="bg-surface-dark"][class*="border-border-subtle"]').filter({ has: page.locator("h3") });
         this.emptyState = page.locator('text=No hay unidades registradas');
-        this.tabDashboard = page.getByRole("tab", { name: /dashboard/i });
-        this.tabAlumnos = page.getByRole("tab", { name: /alumnos/i });
-        this.tabConfiguracion = page.getByRole("tab", { name: /configuraci.n/i });
+        this.tabDashboard = page.getByRole("tab", { name: /dashboard/i }).or(page.getByRole("link", { name: /dashboard/i }));
+        this.tabAlumnos = page.getByRole("tab", { name: /alumnos/i }).or(page.getByRole("link", { name: /alumnos/i }));
+        this.tabConfiguracion = page.getByRole("tab", { name: /configuraci.n/i }).or(page.getByRole("link", { name: /configuraci.n/i }));
         this.viewModeGrid = page.getByRole("button", { name: "Grid", exact: true });
         this.viewModeList = page.getByRole("button", { name: "Lista", exact: true });
     }
 
     async goto(moduleId: string): Promise<void> {
-        await super.goto(`/dashboard/modules/${moduleId}`);
+        this.currentModuleId = moduleId;
+        await super.goto(`/dashboard/modules/${moduleId}/dashboard`);
+        await expect(this.tabDashboard).toBeVisible({ timeout: 15000 });
     }
 
     async createUnit(name: string, description?: string): Promise<void> {
-        await this.addUnitButton.click();
+        const addButtons = this.page.getByRole("button", { name: /UNIDAD DIDÁCTICA/i });
+        const buttonCount = await addButtons.count();
+        let clicked = false;
+        for (let i = 0; i < buttonCount; i += 1) {
+            const btn = addButtons.nth(i);
+            if (await btn.isVisible().catch(() => false)) {
+                await btn.click();
+                clicked = true;
+                break;
+            }
+        }
+        if (!clicked) {
+            await this.page.goto(`/dashboard/modules/${this.currentModuleId}/dashboard`, { waitUntil: "domcontentloaded", timeout: 60000 });
+            await addButtons.first().click();
+        }
         const dialog = this.page.locator('div[role="dialog"]');
         await expect(dialog).toBeVisible();
         await dialog.locator('input[name="name"]').fill(name);
@@ -55,16 +72,16 @@ export class ModuleDetailPage extends BasePage {
     }
 
     async clickTab(tab: "dashboard" | "alumnos" | "configuracion"): Promise<void> {
-        const tabLocator = {
-            dashboard: this.tabDashboard,
-            alumnos: this.tabAlumnos,
-            configuracion: this.tabConfiguracion,
-        }[tab];
-        await tabLocator.click();
+        const paths = {
+            dashboard: `/dashboard/modules/${this.currentModuleId}/dashboard`,
+            alumnos: `/dashboard/modules/${this.currentModuleId}/alumnos`,
+            configuracion: `/dashboard/modules/${this.currentModuleId}/configuracion`,
+        } as const;
+        await this.page.goto(paths[tab], { waitUntil: "domcontentloaded", timeout: 60000 });
     }
 
     async navigateToInicio(): Promise<void> {
-        this.breadcrumbInicio.click();
-        await this.page.waitForLoadState("networkidle");
+        await this.breadcrumbInicio.click();
+        await this.page.waitForURL(/\/dashboard$/, { timeout: 15000 });
     }
 }

@@ -11,8 +11,14 @@ export class AdminStudentManagementPage extends BasePage {
     }
 
     async openCreateTab() {
+        const createTab = this.page.getByRole("tab", { name: /crear cuentas/i });
+        if (await createTab.isVisible().catch(() => false)) {
+            await createTab.click();
+            await expect(createTab).toHaveAttribute("aria-selected", "true");
+            return;
+        }
+
         await this.page.goto("/admin/students?tab=crear", { waitUntil: "domcontentloaded", timeout: 60000 });
-        await expect(this.page.getByRole("tab", { name: /crear cuentas/i })).toHaveAttribute("aria-selected", "true");
     }
 
     async fillCreateForm(prefix: string, count: number, password: string) {

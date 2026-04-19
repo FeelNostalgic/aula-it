@@ -41,6 +41,7 @@ import { DRIVE_CONNECTION_STATUS, type DriveConnectionStatus } from "@/lib/drive
 import { DRIVE_STORAGE_MODE, type DriveStorageSettings } from "@/lib/drive-storage-settings";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { Progress } from "@/components/ui/progress";
+import Link from "next/link";
 
 interface SettingsClientProps {
     userEmail: string;
@@ -91,7 +92,7 @@ export function SettingsClient({
     const [isDisconnecting, startDisconnect] = useTransition();
     const [isSavingDriveSettings, startDriveSettingsTransition] = useTransition();
     const [driveStorageSettings, setDriveStorageSettings] = useState(initialDriveStorageSettings);
-    
+
     const supabase = createClient();
     const router = useRouter();
     const { openPicker, isLoading: isDrivePickerLoading } = useGoogleDrivePicker();
@@ -178,16 +179,27 @@ export function SettingsClient({
             {/* Header with Back Button */}
             <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between px-6 shrink-0 z-40">
                 <div className="flex items-center gap-6">
-                    <Button 
-                        variant="ghost" 
-                        size="icon" 
+                    <Button
+                        variant="outline"
+                        size="icon"
                         onClick={() => router.back()}
-                        className="hover:bg-muted/50 rounded-full"
+                        className="size-8 rounded-lg border-border/50 hover:bg-accent/10 transition-colors"
                     >
                         <ArrowLeft className="size-5" />
                         <span className="sr-only">Volver</span>
                     </Button>
-                    <span className="font-bold text-lg tracking-tight">{isTeacher ? "Ajustes de perfil" : "Perfil de alumno"}</span>
+                    <div className="flex items-center gap-2">
+                        <Link href="/dashboard" className="flex items-center gap-2 group cursor-pointer transition-opacity hover:opacity-80">
+                            <div className="size-8 bg-primary rounded-md flex items-center justify-center">
+                                <span className="font-bold text-white text-xs tracking-tighter">AIT</span>
+                            </div>
+                        </Link>
+
+                        <div className="flex items-center gap-1.5 font-mono text-xs font-medium">
+                            <span className="text-muted-foreground">root /</span>
+                            <span className="text-foreground font-bold">Perfil</span>
+                        </div>
+                    </div>
                 </div>
                 <div className="flex items-center gap-6">
                     <UserNav

@@ -4,7 +4,24 @@ export class BasePage {
     constructor(protected page: Page) { }
 
     async goto(path: string): Promise<void> {
-        await this.page.goto(path, { waitUntil: "commit", timeout: 60000 });
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
+                await this.page.goto(path, { waitUntil: "domcontentloaded", timeout: 30000 });
+                return;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                const retryable =
+                    message.includes("ERR_ABORTED")
+                    || message.includes("frame was detached")
+                    || message.includes("Target page, context or browser has been closed");
+
+                if (!retryable || attempt === 2) {
+                    throw error;
+                }
+
+                await this.page.waitForTimeout(250);
+            }
+        }
     }
 
     async waitForNotification(): Promise<void> {

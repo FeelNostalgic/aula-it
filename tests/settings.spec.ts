@@ -36,7 +36,7 @@ test.describe("Settings Page", () => {
     });
 
     test(
-        "la página /settings carga y muestra el tab Profile activo",
+        "la página /settings carga y muestra el tab Ajustes activo",
         { tag: ["@critical", "@e2e", "@settings", "@SETTINGS-E2E-001"] },
         async ({ page }) => {
             if (!teacherUserId) { test.skip(); return; }
@@ -51,11 +51,9 @@ test.describe("Settings Page", () => {
             await page.waitForURL(/\/dashboard/, { timeout: 15000 });
 
             await settingsPage.goto();
-            await page.waitForLoadState("networkidle");
-
-            await expect(settingsPage.tabProfile).toBeVisible();
             await expect(settingsPage.tabSettings).toBeVisible();
-            await expect(settingsPage.tabProfile).toHaveAttribute("data-state", "active");
+            await expect(settingsPage.tabSettings).toHaveAttribute("data-state", "active");
+            await expect(settingsPage.tabProfile).toHaveCount(0);
         }
     );
 
@@ -75,9 +73,6 @@ test.describe("Settings Page", () => {
             await page.waitForURL(/\/dashboard/, { timeout: 15000 });
 
             await settingsPage.goto();
-            await page.waitForLoadState("networkidle");
-
-            await settingsPage.openSettingsTab();
 
             await settingsPage.updateFullName("Settings Teacher Editado");
 
@@ -101,9 +96,6 @@ test.describe("Settings Page", () => {
             await page.waitForURL(/\/dashboard/, { timeout: 15000 });
 
             await settingsPage.goto();
-            await page.waitForLoadState("networkidle");
-
-            await settingsPage.openSettingsTab();
 
             // Toggle privacy — first click toggles to either anónimo or público
             await settingsPage.privacyToggle.click();
@@ -130,9 +122,6 @@ test.describe("Settings Page", () => {
             await page.waitForURL(/\/dashboard/, { timeout: 15000 });
 
             await settingsPage.goto();
-            await page.waitForLoadState("networkidle");
-
-            await settingsPage.openSettingsTab();
 
             await expect(settingsPage.driveSection).toBeVisible();
         }

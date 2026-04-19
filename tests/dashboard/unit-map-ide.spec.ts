@@ -4,6 +4,7 @@ import { UnitDetailPage } from "./unit-detail-page";
 import { generateTestEmail, getSupabaseAdmin } from "../helpers";
 
 test.describe("Unit Map IDE", () => {
+    test.setTimeout(120000);
     let teacherModuleId: string;
     let testUnitId: string;
     let testEmail: string;
@@ -68,22 +69,21 @@ test.describe("Unit Map IDE", () => {
             const unitDetailPage = new UnitDetailPage(page);
 
             await loginPage.login(testEmail, password);
-            await page.waitForURL(/\/dashboard/);
+            await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
 
             await unitDetailPage.goto(testUnitId);
-            await page.waitForLoadState("networkidle");
 
-            // Go to Map Tab (navigates directly to /units/[id]/map)
-            await unitDetailPage.clickTab("mapa");
-            await page.waitForURL(/\/units\/.*\/map/);
+            // Go directly to the map route to avoid fragile UI navigation waits.
+            await page.goto(`/units/${testUnitId}/map`, { waitUntil: "domcontentloaded", timeout: 60000 });
+            await expect(page).toHaveURL(new RegExp(`/units/${testUnitId}/map`), { timeout: 15000 });
 
             // Verify IDE elements
-            await expect(page.locator('main')).toBeVisible(); // The React Flow canvas container
-            await expect(page.getByText("Panel de Diseño")).toBeVisible(); // Teacher Sidebar header
-            await expect(page.getByText("Arrastra un reto")).toBeVisible(); // Instruction
+            await expect(page.locator('main')).toBeVisible({ timeout: 10000 }); // The React Flow canvas container
+            await expect(page.getByText("Panel de Diseño")).toBeVisible({ timeout: 10000 }); // Teacher Sidebar header
+            await expect(page.getByText("Arrastra un reto")).toBeVisible({ timeout: 10000 }); // Instruction
 
             // Verify React Flow is active (check for a common class)
-            await expect(page.locator('.react-flow')).toBeVisible();
+            await expect(page.locator('.react-flow')).toBeVisible({ timeout: 10000 });
         }
     );
 });

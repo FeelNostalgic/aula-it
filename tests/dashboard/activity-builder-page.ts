@@ -33,14 +33,14 @@ export class ActivityBuilderPage extends BasePage {
         this.btnStudentPreview = page.getByRole('button', { name: "Vista Alumno" });
 
         // Settings Panel Location changed since it's a tab now
-        this.settingsPanelHeader = page.getByRole('heading', { name: 'Configuración de la Actividad' });
-        this.inputTitle = page.getByLabel(/Nombre de la Actividad/i);
-        this.inputDescription = page.getByLabel(/Descripción/i);
-        this.inputDuration = page.getByLabel(/Duración/i);
-        this.selectDifficulty = page.getByRole('combobox', { name: /Dificultad/i });
+        this.settingsPanelHeader = page.getByRole('heading', { name: /Configuración de la actividad/i });
+        this.inputTitle = page.getByLabel(/Nombre de la actividad/i);
+        this.inputDescription = page.getByLabel(/Descripción para el alumno/i);
+        this.inputDuration = page.getByLabel(/Duración estimada/i);
+        this.selectDifficulty = page.getByLabel(/Nivel de dificultad/i);
         this.logoContainer = page.getByTestId('activity-logo-container');
         this.btnRemoveLogo = page.getByTestId('remove-logo');
-        this.settingsPanel = page.getByRole('heading', { name: 'Configuración de la Actividad' }).locator('..').locator('..'); // Target the panel container
+        this.settingsPanel = page.locator("#activity-title");
 
         // Sidebar
         this.sidebarContainer = page.locator('#sidebar-panel');
@@ -52,26 +52,38 @@ export class ActivityBuilderPage extends BasePage {
     }
 
     async goto(id: string): Promise<void> {
-        await this.page.goto(`/activities/${id}/edit`);
-        await this.page.waitForLoadState('networkidle');
-        // Wait for the sidebar to be ready (at least the add phase button should be there)
-        await expect(this.btnAddPhase).toBeVisible({ timeout: 10000 });
+        const target = `/activities/${id}/edit`;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+            try {
+                await this.page.goto(target, { waitUntil: "commit", timeout: 20000 });
+                await expect(this.btnAddPhase).toBeVisible({ timeout: 15000 });
+                return;
+            } catch (error) {
+                if (attempt === 1) throw error;
+            }
+        }
     }
 
     // --- Settings Methods ---
     async openSettings(): Promise<void> {
         await this.btnSettings.click();
-        await expect(this.settingsPanel).toBeVisible(); // Modified
+        if (await this.settingsPanel.isVisible().catch(() => false)) return;
+
+        const settingsTab = this.page.getByRole("tab", { name: /Configuración/i });
+        if (await settingsTab.isVisible().catch(() => false)) {
+            await settingsTab.click();
+        }
+        await expect(this.settingsPanel).toBeVisible({ timeout: 10000 });
     }
 
     async updateSettings(data: { title?: string; description?: string; difficulty?: string; duration?: string; logoUrl?: string }): Promise<void> {
-        if (data.title) await this.page.getByLabel('Nombre de la Actividad').fill(data.title);
-        if (data.description) await this.page.getByLabel('Descripción para el Alumno').fill(data.description);
+        if (data.title) await this.page.getByLabel(/Nombre de la actividad/i).fill(data.title);
+        if (data.description) await this.page.getByLabel(/Descripción para el alumno/i).fill(data.description);
         if (data.difficulty) {
-            await this.page.getByLabel('Nivel de Dificultad').click();
+            await this.page.getByLabel(/Nivel de dificultad/i).click();
             await this.page.getByRole('option', { name: data.difficulty }).click();
         }
-        if (data.duration) await this.page.getByLabel('Duración Estimada (min)').fill(data.duration);
+        if (data.duration) await this.page.getByLabel(/Duración estimada \(min\)/i).fill(data.duration);
 
         // Wait for debounce/save
         await this.page.waitForTimeout(1500);
