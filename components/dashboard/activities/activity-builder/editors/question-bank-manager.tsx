@@ -103,6 +103,172 @@ function SortableOption({
     );
 }
 
+function SortableBankQuestion({
+    q,
+    idx,
+    sensors,
+    onChangeType,
+    onUpdate,
+    onRemove,
+    onAddOption,
+    onUpdateOption,
+    onRemoveOption,
+    onOptionDragEnd,
+}: {
+    q: QuizQuestion;
+    idx: number;
+    sensors: ReturnType<typeof useSensors>;
+    onChangeType: (id: string, type: QuizQuestionType) => void;
+    onUpdate: (id: string, updates: Partial<QuizQuestion>) => void;
+    onRemove: (id: string) => void;
+    onAddOption: (id: string) => void;
+    onUpdateOption: (qId: string, optId: string, updates: Partial<{ text: string; isCorrect: boolean }>) => void;
+    onRemoveOption: (qId: string, optId: string) => void;
+    onOptionDragEnd: (qId: string, event: DragEndEvent) => void;
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: q.id });
+    const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+    const qType = getQuestionType(q);
+
+    return (
+        <div ref={setNodeRef} style={style} className="p-6 bg-surface-dark border border-white/5 rounded-xl space-y-4 shadow-sm relative group">
+            <div className="flex items-start gap-2">
+                <button
+                    {...attributes}
+                    {...listeners}
+                    className="mt-2 text-text-muted/30 hover:text-text-muted cursor-grab active:cursor-grabbing shrink-0 touch-none"
+                >
+                    <GripVertical className="size-4" />
+                </button>
+                <span className="bg-surface text-text-muted font-bold px-3 py-1 rounded-md text-sm mt-1 shrink-0">
+                    Q{idx + 1}
+                </span>
+                <Input
+                    value={q.text}
+                    onChange={(e) => onUpdate(q.id, { text: e.target.value })}
+                    placeholder="Escribe la pregunta aquí..."
+                    className="flex-1 bg-surface border-border text-sm font-medium"
+                />
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onRemove(q.id)}
+                    className="text-text-muted hover:text-red-400 hover:bg-red-400/10 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                    <Trash2 className="size-4" />
+                </Button>
+            </div>
+
+            <div className="pl-14 flex items-center gap-4 flex-wrap">
+                <div className="flex gap-1 p-0.5 bg-surface rounded-lg border border-border/30">
+                    {QUESTION_TYPES.map((qt) => (
+                        <button
+                            key={qt.value}
+                            onClick={() => onChangeType(q.id, qt.value)}
+                            className={cn(
+                                "px-2.5 py-1 text-xs font-semibold rounded-md transition-colors",
+                                qType === qt.value ? "bg-accent-blue/15 text-accent-blue" : "text-text-muted hover:text-foreground",
+                            )}
+                        >
+                            {qt.label}
+                        </button>
+                    ))}
+                </div>
+                {qType === QUIZ_QUESTION_TYPE.LIKERT ? (
+                    <span className="text-xs text-text-muted rounded-md border border-border/30 bg-surface px-2 py-1">
+                        Sin puntuación
+                    </span>
+                ) : (
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-text-muted">Puntos:</span>
+                        <Input
+                            type="number"
+                            min={0}
+                            step={0.5}
+                            value={q.points ?? 1}
+                            onChange={(e) => onUpdate(q.id, { points: Number(e.target.value) })}
+                            className="w-16 h-7 text-xs font-mono bg-surface border-border text-center px-1"
+                        />
+                    </div>
+                )}
+                <label className="flex items-center gap-1.5 rounded-md border border-border/30 bg-surface px-2 py-1 text-xs font-medium text-text-muted">
+                    <input
+                        type="checkbox"
+                        checked={!!q.isRequired}
+                        onChange={(e) => onUpdate(q.id, { isRequired: e.target.checked || undefined })}
+                        className="size-3.5 accent-accent-blue"
+                    />
+                    Obligatoria
+                </label>
+            </div>
+
+            {supportsClassicOptions(q) && (
+                <div className="pl-14 space-y-2">
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => onOptionDragEnd(q.id, e)}>
+                        <SortableContext items={q.options.map((o) => o.id)} strategy={verticalListSortingStrategy}>
+                            {q.options.map((opt, oIdx) => (
+                                <SortableOption
+                                    key={opt.id}
+                                    opt={opt}
+                                    oIdx={oIdx}
+                                    qType={qType}
+                                    canRemove={q.options.length > 2}
+                                    onToggleCorrect={() => {
+                                        if (qType === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
+                                            onUpdate(q.id, { options: q.options.map((o) => ({ ...o, isCorrect: o.id === opt.id })) });
+                                        } else {
+                                            onUpdateOption(q.id, opt.id, { isCorrect: !opt.isCorrect });
+                                        }
+                                    }}
+                                    onChangeText={(text) => onUpdateOption(q.id, opt.id, { text })}
+                                    onRemove={() => onRemoveOption(q.id, opt.id)}
+                                />
+                            ))}
+                        </SortableContext>
+                    </DndContext>
+                    {qType === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE && (
+                        <Button variant="ghost" size="sm" onClick={() => onAddOption(q.id)} className="text-text-muted hover:text-accent-blue ml-7 mt-2">
+                            <Plus className="size-3 mr-1" /> Añadir Opción
+                        </Button>
+                    )}
+                </div>
+            )}
+
+            {qType === QUIZ_QUESTION_TYPE.SHORT_ANSWER && (
+                <div className="pl-14">
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-surface border border-border/30 text-text-muted text-sm">
+                        <AlignLeft className="size-4 shrink-0" />
+                        <span>El alumno escribirá su respuesta en texto libre. Requiere corrección manual.</span>
+                    </div>
+                </div>
+            )}
+
+            {qType === QUIZ_QUESTION_TYPE.LIKERT && (
+                <LikertQuestionConfig
+                    question={q}
+                    onUpdate={(updates) => onUpdate(q.id, updates)}
+                />
+            )}
+
+            {!supportsClassicOptions(q) && qType !== QUIZ_QUESTION_TYPE.SHORT_ANSWER && qType !== QUIZ_QUESTION_TYPE.LIKERT && (
+                <StructuredQuestionFields
+                    question={q}
+                    onUpdate={(updates) => onUpdate(q.id, updates)}
+                />
+            )}
+
+            <div className="pl-14">
+                <Input
+                    value={q.explanation ?? ""}
+                    onChange={(e) => onUpdate(q.id, { explanation: e.target.value || undefined })}
+                    placeholder="Explicación (opcional) — se muestra al alumno tras enviar"
+                    className="h-8 bg-surface/50 border-border/30 text-xs text-text-muted placeholder:text-text-muted/50"
+                />
+            </div>
+        </div>
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
@@ -229,6 +395,15 @@ export function QuestionBankManagerDialog({
         ));
     }
 
+    function handleQuestionDragEnd(bank: QuestionBank, event: DragEndEvent) {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+        const oldIdx = bank.questions.findIndex(q => q.id === active.id);
+        const newIdx = bank.questions.findIndex(q => q.id === over.id);
+        if (oldIdx < 0 || newIdx < 0) return;
+        applyQuestionUpdate(bank, arrayMove(bank.questions, oldIdx, newIdx));
+    }
+
     return (
         <>
         <AlertDialog open={!!bankToDelete} onOpenChange={(o) => { if (!o) setBankToDelete(null); }}>
@@ -252,7 +427,7 @@ export function QuestionBankManagerDialog({
         </AlertDialog>
 
         <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-            <DialogContent className="max-w-6xl h-[85vh] flex flex-col p-0 gap-0">
+            <DialogContent className="max-w-[95vw] w-[95vw] h-[85vh] flex flex-col p-0 gap-0">
                 <DialogHeader className="px-6 py-4 border-b border-border/50 shrink-0">
                     <DialogTitle className="flex items-center gap-2 text-base">
                         <Layers className="size-4 text-accent-blue" />
@@ -359,136 +534,27 @@ export function QuestionBankManagerDialog({
                                     </div>
                                 )}
 
-                                {selectedBank.questions.map((q, idx) => {
-                                    const qType = getQuestionType(q);
-                                    return (
-                                        <div key={q.id} className="p-6 bg-surface-dark border border-white/5 rounded-xl space-y-4 shadow-sm relative group">
-                                            {/* Question text row */}
-                                            <div className="flex items-start gap-2">
-                                                <span className="bg-surface text-text-muted font-bold px-3 py-1 rounded-md text-sm mt-1 shrink-0">
-                                                    Q{idx + 1}
-                                                </span>
-                                                <Input
-                                                    value={q.text}
-                                                    onChange={(e) => updateQuestion(selectedBank, q.id, { text: e.target.value })}
-                                                    placeholder="Escribe la pregunta aquí..."
-                                                    className="flex-1 bg-surface border-border text-sm font-medium"
+                                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleQuestionDragEnd(selectedBank, e)}>
+                                    <SortableContext items={selectedBank.questions.map((q) => q.id)} strategy={verticalListSortingStrategy}>
+                                        <div className="space-y-4">
+                                            {selectedBank.questions.map((q, idx) => (
+                                                <SortableBankQuestion
+                                                    key={q.id}
+                                                    q={q}
+                                                    idx={idx}
+                                                    sensors={sensors}
+                                                    onChangeType={(qId, type) => changeQuestionType(selectedBank, qId, type)}
+                                                    onUpdate={(qId, updates) => updateQuestion(selectedBank, qId, updates)}
+                                                    onRemove={(qId) => removeQuestion(selectedBank, qId)}
+                                                    onAddOption={(qId) => addOption(selectedBank, qId)}
+                                                    onUpdateOption={(qId, optId, updates) => updateOption(selectedBank, qId, optId, updates)}
+                                                    onRemoveOption={(qId, optId) => removeOption(selectedBank, qId, optId)}
+                                                    onOptionDragEnd={(qId, event) => handleOptionDragEnd(selectedBank, qId, event)}
                                                 />
-                                                <Button variant="ghost" size="icon"
-                                                    onClick={() => removeQuestion(selectedBank, q.id)}
-                                                    className="text-text-muted hover:text-red-400 hover:bg-red-400/10 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Trash2 className="size-4" />
-                                                </Button>
-                                            </div>
-
-                                            {/* Type selector + points */}
-                                            <div className="pl-14 flex items-center gap-4 flex-wrap">
-                                                <div className="flex gap-1 p-0.5 bg-surface rounded-lg border border-border/30">
-                                                    {QUESTION_TYPES.map(qt => (
-                                                        <button key={qt.value}
-                                                            onClick={() => changeQuestionType(selectedBank, q.id, qt.value)}
-                                                            className={cn(
-                                                                "px-2.5 py-1 text-xs font-semibold rounded-md transition-colors",
-                                                                qType === qt.value ? "bg-accent-blue/15 text-accent-blue" : "text-text-muted hover:text-foreground"
-                                                            )}>
-                                                            {qt.label}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                                {qType === QUIZ_QUESTION_TYPE.LIKERT ? (
-                                                    <span className="text-xs text-text-muted rounded-md border border-border/30 bg-surface px-2 py-1">
-                                                        Sin puntuación
-                                                    </span>
-                                                ) : (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="text-xs text-text-muted">Puntos:</span>
-                                                        <Input type="number" min={0} step={0.5}
-                                                            value={q.points ?? 1}
-                                                            onChange={(e) => updateQuestion(selectedBank, q.id, { points: Number(e.target.value) })}
-                                                            className="w-16 h-7 text-xs font-mono bg-surface border-border text-center px-1" />
-                                                    </div>
-                                                )}
-                                                <label className="flex items-center gap-1.5 rounded-md border border-border/30 bg-surface px-2 py-1 text-xs font-medium text-text-muted">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={!!q.isRequired}
-                                                        onChange={(e) => updateQuestion(selectedBank, q.id, { isRequired: e.target.checked || undefined })}
-                                                        className="size-3.5 accent-accent-blue"
-                                                    />
-                                                    Obligatoria
-                                                </label>
-                                            </div>
-
-                                            {/* Options with DnD */}
-                                            {supportsClassicOptions(q) && (
-                                                <div className="pl-14 space-y-2">
-                                                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleOptionDragEnd(selectedBank, q.id, e)}>
-                                                        <SortableContext items={q.options.map(o => o.id)} strategy={verticalListSortingStrategy}>
-                                                            {q.options.map((opt, oIdx) => (
-                                                                <SortableOption
-                                                                    key={opt.id}
-                                                                    opt={opt}
-                                                                    oIdx={oIdx}
-                                                                    qType={qType}
-                                                                    canRemove={q.options.length > 2}
-                                                                    onToggleCorrect={() => {
-                                                                        if (qType === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
-                                                                            updateQuestion(selectedBank, q.id, { options: q.options.map(o => ({ ...o, isCorrect: o.id === opt.id })) });
-                                                                        } else {
-                                                                            updateOption(selectedBank, q.id, opt.id, { isCorrect: !opt.isCorrect });
-                                                                        }
-                                                                    }}
-                                                                    onChangeText={(text) => updateOption(selectedBank, q.id, opt.id, { text })}
-                                                                    onRemove={() => removeOption(selectedBank, q.id, opt.id)}
-                                                                />
-                                                            ))}
-                                                        </SortableContext>
-                                                    </DndContext>
-                                                    {qType === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE && (
-                                                        <Button variant="ghost" size="sm" onClick={() => addOption(selectedBank, q.id)}
-                                                            className="text-text-muted hover:text-accent-blue ml-7 mt-2">
-                                                            <Plus className="size-3 mr-1" /> Añadir Opción
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {/* Short answer placeholder */}
-                                            {qType === QUIZ_QUESTION_TYPE.SHORT_ANSWER && (
-                                                <div className="pl-14">
-                                                    <div className="flex items-center gap-2 p-3 rounded-lg bg-surface border border-border/30 text-text-muted text-sm">
-                                                        <AlignLeft className="size-4 shrink-0" />
-                                                        <span>El alumno escribirá su respuesta en texto libre. Requiere corrección manual.</span>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {qType === QUIZ_QUESTION_TYPE.LIKERT && (
-                                                <LikertQuestionConfig
-                                                    question={q}
-                                                    onUpdate={(updates) => updateQuestion(selectedBank, q.id, updates)}
-                                                />
-                                            )}
-
-                                            {!supportsClassicOptions(q) && qType !== QUIZ_QUESTION_TYPE.SHORT_ANSWER && qType !== QUIZ_QUESTION_TYPE.LIKERT && (
-                                                <StructuredQuestionFields
-                                                    question={q}
-                                                    onUpdate={(updates) => updateQuestion(selectedBank, q.id, updates)}
-                                                />
-                                            )}
-
-                                            {/* Explanation */}
-                                            <div className="pl-14">
-                                                <Input
-                                                    value={q.explanation ?? ""}
-                                                    onChange={(e) => updateQuestion(selectedBank, q.id, { explanation: e.target.value || undefined })}
-                                                    placeholder="Explicación (opcional) — se muestra al alumno tras enviar"
-                                                    className="h-8 bg-surface/50 border-border/30 text-xs text-text-muted placeholder:text-text-muted/50"
-                                                />
-                                            </div>
+                                            ))}
                                         </div>
-                                    );
-                                })}
+                                    </SortableContext>
+                                </DndContext>
                             </div>
                         )}
                     </div>

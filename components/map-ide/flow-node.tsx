@@ -84,7 +84,7 @@ function FlowNodeComponent({ data, selected }: NodeProps<FlowNode>) {
                 <Handle type="source" position={Position.Bottom} id="bottom" onClick={handleClick("bottom")} className={cn(handleClassName, "bottom-0! left-1/2! -translate-x-1/2!")} />
                 <Handle type="source" position={Position.Right} id="right" onClick={handleClick("right")} className={cn(handleClassName, "right-0! top-1/2! -translate-y-1/2!")} />
 
-                <Icon className="size-6 shrink-0 stroke-[2.5]" />
+                <Icon className="size-5 shrink-0 stroke-[2.25]" />
             </div>
         </div>
     );

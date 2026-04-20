@@ -5,11 +5,11 @@ import { ActivityStepWithClientState, QuizContent, QuizMode, QuestionBank, QuizQ
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { updateStepContent, getQuestionBanks, updateStepLockdown } from "@/app/activities/[id]/edit/actions";
+import { updateStepContent, getQuestionBanks, updateStepLockdown, addQuestionToBank } from "@/app/activities/[id]/edit/actions";
 import { QuestionBankManagerDialog } from "./question-bank-manager";
 import { ConfigSection, ConfigSectionsToolbar, ConfigToggle, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { toast } from "sonner";
-import { Plus, Trash2, CheckCircle2, Circle, HardDrive, ExternalLink, BarChart2, AlignLeft, GripVertical, Layers, FileUp } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Circle, HardDrive, ExternalLink, BarChart2, AlignLeft, GripVertical, Layers, FileUp, ArrowDownUp } from "lucide-react";
 import { GoogleFormCsvImport } from "./google-form-csv-import";
 import { cn } from "@/lib/utils";
 import { createDefaultQuizQuestion, convertQuestionToType, getGroupStatsAvailability, getQuestionType, QUIZ_QUESTION_TYPE, supportsClassicOptions } from "@/lib/quiz-core";
@@ -38,6 +38,7 @@ import {
     useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface QuizEditorProps {
     step: ActivityStepWithClientState;
@@ -181,11 +182,14 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
 
     const addBankSelection = (bank: QuestionBank) => {
         if ((content.bankSelections ?? []).some(s => s.bankId === bank.id)) return;
-        handleUpdate({ ...content, bankSelections: [...(content.bankSelections ?? []), { bankId: bank.id, pickCount: 1 }] });
+        handleUpdate({ ...content, bankSelections: [...(content.bankSelections ?? []), { bankId: bank.id, pickCount: 1, mode: "random" }] });
     };
 
-    const updateBankSelection = (bankId: string, pickCount: number) => {
-        handleUpdate({ ...content, bankSelections: (content.bankSelections ?? []).map(s => s.bankId === bankId ? { ...s, pickCount } : s) });
+    const updateBankSelection = (bankId: string, updates: { pickCount?: number; mode?: "random" | "ordered_all" }) => {
+        handleUpdate({
+            ...content,
+            bankSelections: (content.bankSelections ?? []).map(s => s.bankId === bankId ? { ...s, ...updates } : s),
+        });
     };
 
     const removeBankSelection = (bankId: string) => {
@@ -202,6 +206,23 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
         handleUpdate({ ...content, questions: content.questions.map(qq =>
             qq.id !== qId ? qq : { ...qq, options: arrayMove(qq.options, oldIdx, newIdx) }
         )});
+    };
+
+    const getBanksContainingQuestion = (questionId: string) => {
+        return availableBanks.filter((bank) =>
+            bank.questions.some((question) => question.id === questionId || question.sourceQuestionId === questionId)
+        );
+    };
+
+    const addQuestionFromQuizToBank = async (question: QuizQuestion, bankId: string) => {
+        const result = await addQuestionToBank(bankId, { ...question, sourceQuestionId: question.id });
+        if (result.error) {
+            toast.error(result.error);
+            return;
+        }
+        const updatedBank = result.bank as QuestionBank;
+        setAvailableBanks((prev) => prev.map((bank) => bank.id === updatedBank.id ? updatedBank : bank));
+        toast.success("Pregunta añadida al banco");
     };
 
     const handlePickFormFromDrive = async () => {
@@ -341,6 +362,9 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
                                                 onUpdateOption={updateOption}
                                                 onRemoveOption={removeOption}
                                                 onOptionDragEnd={handleOptionDragEnd}
+                                                banksContainingQuestion={getBanksContainingQuestion(q.id)}
+                                                availableBanks={availableBanks}
+                                                onAddToBank={(bankId) => addQuestionFromQuizToBank(q, bankId)}
                                             />
                                         ))}
                                     </div>
@@ -368,7 +392,7 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
                         </h3>
                         <div className="flex items-center justify-between gap-4">
                             <p className="text-xs text-text-muted">
-                                Incluye preguntas aleatorias de bancos globales. Los bancos son compartidos entre cuestionarios.
+                                Decide por banco si usar preguntas aleatorias o usar todas en el orden definido.
                             </p>
                             <Button onClick={() => setShowBankManager(true)} size="sm" variant="outline" className="gap-2 border-accent-blue/30 text-accent-blue hover:bg-accent-blue/10 shrink-0">
                                 <Layers className="size-3.5" /> Gestionar bancos
@@ -390,29 +414,48 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
                                 const bank = availableBanks.find(b => b.id === selection.bankId);
                                 const bankName = bank?.name ?? selection.bankId;
                                 const bankSize = bank?.questions.length ?? 0;
+                                const mode = selection.mode ?? "random";
                                 return (
                                     <div key={selection.bankId} className="p-4 bg-surface-dark border border-white/5 rounded-xl">
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex items-start gap-3">
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-semibold text-foreground truncate">{bankName}</p>
                                                 {bankSize > 0 && <p className="text-xs text-text-muted">{bankSize} preguntas en el banco</p>}
+                                                {bankSize > 0 && mode === "ordered_all" && (
+                                                    <p className="text-xs text-accent-blue mt-1">
+                                                        Se usarán las {bankSize} preguntas en el orden del banco.
+                                                    </p>
+                                                )}
                                             </div>
                                             {bankSize === 0 ? (
                                                 <span className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-lg">
                                                     Banco vacío
                                                 </span>
                                             ) : (
-                                                <div className="flex items-center gap-2 shrink-0">
-                                                    <span className="text-xs text-text-muted">Coger:</span>
-                                                    <Input
-                                                        type="number"
-                                                        min={1}
-                                                        max={bankSize}
-                                                        value={selection.pickCount}
-                                                        onChange={(e) => updateBankSelection(selection.bankId, Math.max(1, Math.min(bankSize, Number(e.target.value))))}
-                                                        className="w-16 h-8 text-xs font-mono bg-surface border-border text-center px-1"
-                                                    />
-                                                    <span className="text-xs text-text-muted">/ {bankSize}</span>
+                                                <div className="space-y-2 shrink-0">
+                                                    <label className="flex items-center gap-2 text-xs text-text-muted">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={mode === "random"}
+                                                            onChange={(e) => updateBankSelection(selection.bankId, { mode: e.target.checked ? "random" : "ordered_all" })}
+                                                            className="accent-accent-blue size-3.5"
+                                                        />
+                                                        Aleatorio
+                                                    </label>
+                                                    {mode === "random" && (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs text-text-muted">Coger:</span>
+                                                            <Input
+                                                                type="number"
+                                                                min={1}
+                                                                max={bankSize}
+                                                                value={selection.pickCount}
+                                                                onChange={(e) => updateBankSelection(selection.bankId, { pickCount: Math.max(1, Math.min(bankSize, Number(e.target.value))) })}
+                                                                className="w-16 h-8 text-xs font-mono bg-surface border-border text-center px-1"
+                                                            />
+                                                            <span className="text-xs text-text-muted">/ {bankSize}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                             <Button variant="ghost" size="icon" onClick={() => removeBankSelection(selection.bankId)}
@@ -428,7 +471,7 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
 
                     <div className="p-4 bg-accent-blue/5 border border-accent-blue/15 rounded-xl text-xs text-text-muted space-y-1">
                         <p><strong className="text-foreground">Preguntas fijas del quiz:</strong> {content.questions.length} — siempre visibles para todos.</p>
-                        <p><strong className="text-foreground">Bancos incluidos:</strong> {content.bankSelections?.length ?? 0} — selección aleatoria determinista por alumno e intento.</p>
+                        <p><strong className="text-foreground">Bancos incluidos:</strong> {content.bankSelections?.length ?? 0} — cada banco puede ser aleatorio o por orden completo.</p>
                     </div>
 
                     <QuestionBankManagerDialog
@@ -673,7 +716,7 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
 function SortableQuestion({
     q, idx, sensors,
     onChangeType, onUpdate, onRemove,
-    onAddOption, onUpdateOption, onRemoveOption, onOptionDragEnd,
+    onAddOption, onUpdateOption, onRemoveOption, onOptionDragEnd, banksContainingQuestion, availableBanks, onAddToBank,
 }: {
     q: QuizQuestion;
     idx: number;
@@ -685,6 +728,9 @@ function SortableQuestion({
     onUpdateOption: (qId: string, optId: string, u: Partial<{ text: string; isCorrect: boolean }>) => void;
     onRemoveOption: (qId: string, optId: string) => void;
     onOptionDragEnd: (qId: string, event: DragEndEvent) => void;
+    banksContainingQuestion: QuestionBank[];
+    availableBanks: QuestionBank[];
+    onAddToBank: (bankId: string) => void;
 }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: q.id });
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
@@ -752,6 +798,36 @@ function SortableQuestion({
                     />
                     Obligatoria
                 </label>
+                {banksContainingQuestion.length > 0 ? (
+                    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300">
+                        <CheckCircle2 className="size-3.5" />
+                        En banco: {banksContainingQuestion.map((bank) => bank.name).join(", ")}
+                    </span>
+                ) : (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-7 text-xs border-border/50">
+                                <ArrowDownUp className="size-3.5 mr-1.5" />
+                                Añadir a banco
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="min-w-56">
+                            {availableBanks.length === 0 ? (
+                                <DropdownMenuItem disabled>No hay bancos creados</DropdownMenuItem>
+                            ) : (
+                                availableBanks.map((bank) => (
+                                    <DropdownMenuItem
+                                        key={bank.id}
+                                        onClick={() => onAddToBank(bank.id)}
+                                        className="cursor-pointer"
+                                    >
+                                        {bank.name}
+                                    </DropdownMenuItem>
+                                ))
+                            )}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
             </div>
 
             {/* Options with DnD */}

@@ -21,6 +21,7 @@ import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSecti
 import { StepSubmissionsPanel, STEP_SUBMISSIONS_PANEL_TYPES } from "@/components/dashboard/activities/activity-builder/step-submissions-panel";
 import { useStepEditorTab } from "./use-step-editor-tab";
 import { StepVisibilityTab } from "./step-visibility-tab";
+import { MarkdownHelpPopover } from "./markdown-help-popover";
 
 const ALLOWED_TYPE_OPTIONS: { value: AllowedFileType; label: string }[] = [
     { value: 'pdf', label: 'PDF' },
@@ -186,13 +187,16 @@ export function FileUploadEditor({ step, onUpdate, activityId, moduleId }: FileU
                             <div className="flex flex-col h-full bg-surface-dark/20 relative min-h-0">
                                 <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50 justify-between">
                                     <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Instrucciones (Markdown)</span>
-                                    <button
-                                        onClick={() => setIsPreviewCollapsed(v => !v)}
-                                        className="text-text-muted hover:text-foreground transition-colors flex items-center gap-1 bg-surface border border-border-subtle rounded-md px-2 py-1 shadow-sm h-7"
-                                        title={isPreviewCollapsed ? "Expandir vista previa" : "Ocultar vista previa"}
-                                    >
-                                        {isPreviewCollapsed ? <PanelRightOpen className="size-3.5" /> : <PanelRightClose className="size-3.5" />}
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        <MarkdownHelpPopover />
+                                        <button
+                                            onClick={() => setIsPreviewCollapsed(v => !v)}
+                                            className="text-text-muted hover:text-foreground transition-colors flex items-center gap-1 bg-surface border border-border-subtle rounded-md px-2 py-1 shadow-sm h-7"
+                                            title={isPreviewCollapsed ? "Expandir vista previa" : "Ocultar vista previa"}
+                                        >
+                                            {isPreviewCollapsed ? <PanelRightOpen className="size-3.5" /> : <PanelRightClose className="size-3.5" />}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="flex-1 p-0 overflow-hidden">
                                     <Textarea

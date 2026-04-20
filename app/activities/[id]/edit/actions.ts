@@ -1401,6 +1401,56 @@ export async function updateQuestionBank(bankId: string, updates: { name?: strin
     return { bank: data };
 }
 
+export async function addQuestionToBank(
+    bankId: string,
+    question: any,
+) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+
+    const { data: bank, error: bankError } = await supabase
+        .from("question_banks")
+        .select("id, created_by, questions")
+        .eq("id", bankId)
+        .single();
+
+    if (bankError || !bank) return { error: "No se encontró el banco." };
+    if (bank.created_by !== user.id) return { error: "No autorizado." };
+
+    const sourceQuestionId = String(question?.sourceQuestionId || question?.id || "").trim();
+    if (!sourceQuestionId) return { error: "Pregunta inválida." };
+
+    const currentQuestions = Array.isArray(bank.questions) ? bank.questions : [];
+    const alreadyExists = currentQuestions.some((q: any) => {
+        const candidateId = String(q?.id || "").trim();
+        const candidateSourceId = String(q?.sourceQuestionId || "").trim();
+        return candidateId === sourceQuestionId || candidateSourceId === sourceQuestionId;
+    });
+    if (alreadyExists) return { error: "Esta pregunta ya está en el banco." };
+
+    const copiedQuestion = {
+        ...question,
+        id: crypto.randomUUID(),
+        sourceQuestionId,
+    };
+
+    const admin = createAdminClient();
+    const nextQuestions = [...currentQuestions, copiedQuestion];
+    const { data, error } = await admin
+        .from("question_banks")
+        .update({
+            questions: nextQuestions,
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", bankId)
+        .select()
+        .single();
+
+    if (error) return { error: error.message };
+    return { bank: data };
+}
+
 export async function deleteQuestionBank(bankId: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

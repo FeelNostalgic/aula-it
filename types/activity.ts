@@ -223,6 +223,7 @@ export type QuizStructuredAnswers = Record<string, QuizStructuredQuestionAnswer>
 
 export type QuizQuestion = {
     id: string;
+    sourceQuestionId?: string; // original question id when copied from a quiz into a bank
     type: QuizQuestionType;   // default: 'multiple_choice' (backwards-compat: undefined = multiple_choice)
     text: string;
     options: QuizOption[];    // empty if type === 'short_answer'
@@ -260,6 +261,7 @@ export type QuizMode = 'builtin' | 'google_form';
 export type QuizBankSelection = {
     bankId: string;
     pickCount: number;  // how many questions to pick from this bank per attempt
+    mode?: "random" | "ordered_all";
 };
 
 export type QuestionBank = {

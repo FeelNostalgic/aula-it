@@ -332,7 +332,10 @@ export function getGroupStatsAvailability(content: QuizContent): GroupStatsAvail
         return { enabled: false, reason: "Desactiva la aleatorización de preguntas para comparar a toda la clase." };
     }
     if ((content.bankSelections?.length ?? 0) > 0) {
-        return { enabled: false, reason: "Los bancos variables hacen que no todos los alumnos vean las mismas preguntas." };
+        const hasRandomBanks = (content.bankSelections ?? []).some((selection) => (selection.mode ?? "random") === "random");
+        if (hasRandomBanks) {
+            return { enabled: false, reason: "Los bancos aleatorios hacen que no todos los alumnos vean las mismas preguntas." };
+        }
     }
     return { enabled: true };
 }

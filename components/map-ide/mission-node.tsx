@@ -55,8 +55,8 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
                     glow: 'shadow-[0_0_25px_rgba(34,211,238,0.25)]',
                     icon: (
                         <div className="size-full flex items-center justify-center">
-                            <div className="size-6 rounded-full bg-accent-blue/10 flex items-center justify-center">
-                                <Network className="size-4 text-accent-blue" />
+                            <div className="size-5 rounded-full bg-accent-blue/10 flex items-center justify-center">
+                                <Network className="size-3.5 text-accent-blue" />
                             </div>
                         </div>
                     ),
@@ -202,11 +202,13 @@ const MissionNode = ({ id, data, selected }: NodeProps<MissionNode>) => {
                     )}
                 >
                     {/* Logo or Default Icon */}
-                    <div className="size-full rounded-full overflow-hidden flex items-center justify-center p-0.5">
+                    <div className="size-full rounded-full overflow-hidden flex items-center justify-center p-1.5">
                         {logo_url ? (
-                            <img src={logo_url} alt={label} className="size-full object-cover rounded-full" />
+                            <img src={logo_url} alt={label} className="size-[72%] object-contain rounded-full" />
                         ) : (
-                            styles.icon
+                            <div className="size-[72%] flex items-center justify-center">
+                                {styles.icon}
+                            </div>
                         )}
                     </div>
 

@@ -50,11 +50,23 @@ export function selectQuestionsForAttempt(
     for (const selection of selections) {
         const candidates = bankQuestions[selection.bankId] ?? [];
         if (candidates.length === 0) continue;
+        const mode = selection.mode ?? "random";
+        if (mode === "ordered_all") {
+            selectedFromBanks.push(...candidates);
+            continue;
+        }
         const seed = `${userId}:${stepId}:${selection.bankId}:${attemptNumber}`;
         const shuffled = seededShuffle(candidates, seed);
-        selectedFromBanks.push(...shuffled.slice(0, Math.min(selection.pickCount, shuffled.length)));
+        const pickCount = Math.max(1, selection.pickCount || 1);
+        selectedFromBanks.push(...shuffled.slice(0, Math.min(pickCount, shuffled.length)));
     }
 
-    // Fixed quiz questions + randomly selected bank questions
-    return [...(content.questions ?? []), ...selectedFromBanks];
+    // Fixed quiz questions + selected bank questions (deduplicated by id)
+    const merged = [...(content.questions ?? []), ...selectedFromBanks];
+    const seen = new Set<string>();
+    return merged.filter((question) => {
+        if (seen.has(question.id)) return false;
+        seen.add(question.id);
+        return true;
+    });
 }

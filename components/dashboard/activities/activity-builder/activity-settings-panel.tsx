@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -36,9 +36,9 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
     const [selectedPreset, setSelectedPreset] = useState(inferredIdentity?.preset ?? DEFAULT_PRESET);
     const [selectedColor, setSelectedColor] = useState(inferredIdentity?.color ?? DEFAULT_COLOR);
     const [isSaving, setIsSaving] = useState(false);
+    const [isDirty, setIsDirty] = useState(false);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const selectedColorConfig = getActivityIdentityColor(selectedColor);
     const SelectedPresetIcon =
         ACTIVITY_IDENTITY_PRESETS.find((preset) => preset.value === selectedPreset)?.icon ??
@@ -57,52 +57,71 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
         setSelectedColor(nextIdentity?.color ?? DEFAULT_COLOR);
     }, [activity]);
 
+    const currentDraft = useMemo(() => ({
+        title,
+        description,
+        duration,
+        difficulty,
+        logo_url: logoUrl,
+    }), [title, description, duration, difficulty, logoUrl]);
+
+    const persistedDraft = useMemo(() => ({
+        title: activity.title || "",
+        description: activity.description || "",
+        duration: activity.duration || 30,
+        difficulty: activity.difficulty || "Bajo",
+        logo_url: activity.logo_url || "",
+    }), [activity.title, activity.description, activity.duration, activity.difficulty, activity.logo_url]);
+
     useEffect(() => {
-        return () => {
-            if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        };
-    }, []);
+        setIsDirty(JSON.stringify(currentDraft) !== JSON.stringify(persistedDraft));
+    }, [currentDraft, persistedDraft]);
 
-    const triggerSave = (updates: any) => {
+    const handleSave = async () => {
+        if (!isDirty || isSaving) return;
         setIsSaving(true);
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
-        timeoutRef.current = setTimeout(async () => {
-            const res = await updateActivitySettings(activity.id, updates);
-            if (res.error) {
-                toast.error("Error al guardar la configuración");
-            } else {
-                onUpdate({ ...activity, ...updates });
-            }
+        const res = await updateActivitySettings(activity.id, currentDraft);
+        if (res.error) {
+            toast.error("Error al guardar la configuración");
             setIsSaving(false);
-        }, 1000);
+            return;
+        }
+        onUpdate({ ...activity, ...currentDraft });
+        toast.success("Configuración del reto actualizada");
+        setIsSaving(false);
+        setIsDirty(false);
     };
 
     const handleTitleChange = (value: string) => {
         setTitle(value);
-        triggerSave({ title: value, description, duration, difficulty, logo_url: logoUrl });
-        onUpdate({ ...activity, title: value });
     };
 
     const handleDescriptionChange = (value: string) => {
         setDescription(value);
-        triggerSave({ title, description: value, duration, difficulty, logo_url: logoUrl });
     };
 
     const handleDurationChange = (value: number) => {
         setDuration(value);
-        triggerSave({ title, description, duration: value, difficulty, logo_url: logoUrl });
     };
 
     const handleDifficultyChange = (value: string) => {
         setDifficulty(value);
-        triggerSave({ title, description, duration, difficulty: value, logo_url: logoUrl });
     };
 
     const handleLogoChange = (value: string) => {
         setLogoUrl(value);
-        triggerSave({ title, description, duration, difficulty, logo_url: value });
-        onUpdate({ ...activity, logo_url: value });
+    };
+
+    const handleDiscard = () => {
+        setTitle(persistedDraft.title);
+        setDescription(persistedDraft.description);
+        setDuration(persistedDraft.duration);
+        setDifficulty(persistedDraft.difficulty);
+        setLogoUrl(persistedDraft.logo_url);
+        const nextIdentity = inferActivityIdentityFromLogoUrl(persistedDraft.logo_url);
+        setSelectedPreset(nextIdentity?.preset ?? DEFAULT_PRESET);
+        setSelectedColor(nextIdentity?.color ?? DEFAULT_COLOR);
+        setIsDirty(false);
     };
 
     const handlePresetChange = (presetValue: (typeof ACTIVITY_IDENTITY_PRESETS)[number]["value"]) => {
@@ -131,8 +150,10 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                 </div>
                 {isSaving ? (
                     <span className="text-xs text-accent-blue animate-pulse">Guardando...</span>
+                ) : isDirty ? (
+                    <span className="text-xs text-accent-amber">Cambios sin guardar</span>
                 ) : (
-                    <span className="text-xs text-text-muted/50">Guardado automáticamente</span>
+                    <span className="text-xs text-text-muted/50">Todo guardado</span>
                 )}
             </div>
 
@@ -377,6 +398,25 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3">
+                <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDiscard}
+                    disabled={!isDirty || isSaving}
+                >
+                    Descartar cambios
+                </Button>
+                <Button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={!isDirty || isSaving}
+                    className="bg-accent-blue hover:bg-accent-blue/90 text-white"
+                >
+                    {isSaving ? "Guardando..." : "Guardar cambios"}
+                </Button>
             </div>
         </div>
     );

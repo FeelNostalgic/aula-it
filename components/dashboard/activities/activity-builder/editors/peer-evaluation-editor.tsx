@@ -30,6 +30,7 @@ import { generatePeerAssignments, deletePeerAssignments, getPeerEvaluationResult
 import { LikertQuestionConfig } from "../quiz/likert-question-config";
 import { useStepEditorTab } from "./use-step-editor-tab";
 import { StepVisibilityTab } from "./step-visibility-tab";
+import { MarkdownHelpPopover } from "./markdown-help-popover";
 
 interface PeerEvaluationEditorProps {
     step: ActivityStepWithClientState;
@@ -191,13 +192,16 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                             <div className="flex flex-col h-full bg-surface-dark/20 relative min-h-0">
                                 <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50 justify-between">
                                     <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Instrucciones (Markdown)</span>
-                                    <button
-                                        onClick={() => setIsPreviewCollapsed(!isPreviewCollapsed)}
-                                        className="text-text-muted hover:text-foreground transition-colors flex items-center gap-1 bg-surface border border-border-subtle rounded-md px-2 py-1 shadow-sm h-7"
-                                        title={isPreviewCollapsed ? "Expandir Vista Previa" : "Ocultar Vista Previa"}
-                                    >
-                                        {isPreviewCollapsed ? <PanelRightOpen className="size-3.5" /> : <PanelRightClose className="size-3.5" />}
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        <MarkdownHelpPopover />
+                                        <button
+                                            onClick={() => setIsPreviewCollapsed(!isPreviewCollapsed)}
+                                            className="text-text-muted hover:text-foreground transition-colors flex items-center gap-1 bg-surface border border-border-subtle rounded-md px-2 py-1 shadow-sm h-7"
+                                            title={isPreviewCollapsed ? "Expandir Vista Previa" : "Ocultar Vista Previa"}
+                                        >
+                                            {isPreviewCollapsed ? <PanelRightOpen className="size-3.5" /> : <PanelRightClose className="size-3.5" />}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="flex-1 p-0 overflow-hidden">
                                     <Textarea
