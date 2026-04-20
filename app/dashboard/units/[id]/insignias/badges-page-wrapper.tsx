@@ -58,20 +58,24 @@ export function BadgesPageWrapper({ unitId, badges, isTeacher }: BadgesPageWrapp
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, y: 10 }}
-                                className="bg-surface border border-border-subtle rounded-2xl p-4 flex items-center gap-4 cursor-pointer hover:border-accent-amber/30 transition-colors shadow-sm"
+                                className="relative overflow-hidden bg-linear-to-br from-amber-500/20 via-orange-500/15 to-accent-blue/10 dark:from-amber-500/15 dark:via-orange-500/10 dark:to-accent-blue/8 backdrop-blur-md border border-white/20 rounded-2xl p-4 flex items-center gap-4 cursor-pointer hover:border-accent-amber/40 transition-all shadow-xl group ring-1 ring-white/5"
                                 onClick={() => handleToggleBadges(true)}
                             >
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/15 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
                                 <motion.div 
                                     layoutId="badges-icon"
-                                    className="size-10 rounded-xl bg-accent-amber/10 flex items-center justify-center text-accent-amber"
+                                    className="relative z-10 size-10 rounded-xl bg-accent-amber/20 flex items-center justify-center text-accent-amber border border-accent-amber/30 shadow-[0_0_15px_rgba(245,158,11,0.25)]"
                                 >
                                     <Award className="size-5" />
                                 </motion.div>
-                                <div className="flex-1">
-                                    <h3 className="text-sm font-bold text-foreground uppercase tracking-tight">Insignias Globales</h3>
-                                    <p className="text-xs text-text-muted">Pulsa sobre el icono para expandir</p>
+                                <div className="flex-1 relative z-10">
+                                    <h3 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                        Insignias Globales
+                                        <span className="size-1 rounded-full bg-accent-amber animate-pulse" />
+                                    </h3>
+                                    <p className="text-[10px] text-text-muted font-bold uppercase tracking-tight opacity-80">Pulsa para ver y gestionar insignias</p>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="relative z-10 flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl backdrop-blur-sm">
                                     <span className="text-[10px] font-bold text-text-muted uppercase">Disponibles:</span>
                                     <div className="flex -space-x-2">
                                         {globalBadges.slice(0, 3).map((b) => (

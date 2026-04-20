@@ -416,7 +416,7 @@ export function ModuleDetailView({
                     {/* View Mode Toggle + Count */}
                     <div className="flex flex-col gap-4 mb-6 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex items-center gap-3">
-                            <h2 className="text-lg font-bold tracking-tight text-foreground">Unidades Didácticas</h2>
+                            <h2 className="text-lg font-bold tracking-tight text-foreground">Unidades didácticas</h2>
                             <Badge variant="outline" className="border-border-subtle text-text-muted text-[10px] font-mono font-bold">
                                 {initialUnits.length}
                             </Badge>

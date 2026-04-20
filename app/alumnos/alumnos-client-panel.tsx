@@ -447,7 +447,7 @@ export function AlumnosClientPanel({ initialStudents, fetchError, modules }: Pro
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <Card className="border-border/50 bg-card">
               <CardHeader className="pb-4">
-                <CardTitle className="text-sm font-mono tracking-wider uppercase text-white flex items-center gap-2">
+                <CardTitle className="text-sm font-mono tracking-wider uppercase text-foreground flex items-center gap-2">
                   <BookOpen className="size-4 text-green-500" /> Matriculación en bloque
                 </CardTitle>
                 <CardDescription className="text-xs font-mono">Matricula todos los alumnos de un prefijo en los módulos seleccionados.</CardDescription>
@@ -488,7 +488,7 @@ export function AlumnosClientPanel({ initialStudents, fetchError, modules }: Pro
 
             <Card className="border-border/50 bg-card">
               <CardHeader className="pb-4">
-                <CardTitle className="text-sm font-mono tracking-wider uppercase text-white flex items-center gap-2">
+                <CardTitle className="text-sm font-mono tracking-wider uppercase text-foreground flex items-center gap-2">
                   <BookOpen className="size-4 text-destructive" /> Desmatriculación en bloque
                 </CardTitle>
                 <CardDescription className="text-xs font-mono">Desmatricula todos los alumnos de un prefijo de los módulos seleccionados.</CardDescription>
@@ -531,7 +531,7 @@ export function AlumnosClientPanel({ initialStudents, fetchError, modules }: Pro
           {/* ── Matricular alumno individual ── */}
           <Card className="border-border/50 bg-card mt-6">
             <CardHeader className="pb-4">
-              <CardTitle className="text-sm font-mono tracking-wider uppercase text-white flex items-center gap-2">
+              <CardTitle className="text-sm font-mono tracking-wider uppercase text-foreground flex items-center gap-2">
                 <BookOpen className="size-4 text-primary" /> Matricular alumno individual
               </CardTitle>
               <CardDescription className="text-xs font-mono">Selecciona un alumno concreto y los módulos en los que matricularlo.</CardDescription>
@@ -578,7 +578,7 @@ export function AlumnosClientPanel({ initialStudents, fetchError, modules }: Pro
             <CardHeader className="pb-3 shrink-0">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-sm font-mono tracking-wider uppercase text-white flex items-center gap-2">
+                  <CardTitle className="text-sm font-mono tracking-wider uppercase text-foreground flex items-center gap-2">
                     <KeyRound className="size-4 text-primary" /> Mis alumnos matriculados
                   </CardTitle>
                   <CardDescription className="text-xs font-mono mt-1">

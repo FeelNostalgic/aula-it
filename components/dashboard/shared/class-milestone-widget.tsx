@@ -37,7 +37,7 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label, onTog
     if (isActuallyCompleted) {
         const lastCompleted = visibleMilestones[visibleMilestones.length - 1];
         return (
-            <Card className="relative overflow-hidden border-none bg-linear-to-br from-emerald-500/20 via-teal-500/10 to-transparent backdrop-blur-md shadow-2xl border border-white/10">
+            <Card className="relative overflow-hidden border-none bg-linear-to-br from-emerald-800/24 via-teal-700/16 to-emerald-900/8 dark:from-emerald-500/20 dark:via-teal-500/10 dark:to-transparent backdrop-blur-md shadow-2xl border border-emerald-700/25 dark:border-white/10">
                 <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -51,7 +51,7 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label, onTog
                         <p className="text-sm text-text-muted max-w-[280px]">Habéis conquistado todos los objetivos de esta unidad. ¡Excelente trabajo!</p>
                     </div>
                     {lastCompleted?.reward && (
-                        <div className="mt-2 px-6 py-3 bg-white/5 border border-white/10 rounded-full flex items-center gap-3">
+                        <div className="mt-2 px-6 py-3 bg-emerald-900/10 dark:bg-white/5 border border-emerald-700/25 dark:border-white/10 rounded-full flex items-center gap-3">
                             <Gift className="size-4 text-accent-green" />
                             <span className="text-sm font-bold text-foreground">{lastCompleted.reward}</span>
                         </div>
@@ -78,10 +78,10 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label, onTog
 
     return (
         <TooltipProvider>
-            <Card className="relative overflow-hidden border-none bg-linear-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/5 backdrop-blur-xl border border-white/5 group">
+            <Card className="relative overflow-hidden border-none bg-linear-to-br from-indigo-900/24 via-indigo-800/18 to-violet-800/12 dark:from-indigo-500/10 dark:via-purple-500/10 dark:to-pink-500/5 backdrop-blur-xl border border-indigo-700/30 dark:border-white/5 group shadow-[0_10px_35px_-18px_rgba(30,64,175,0.45)] dark:shadow-none">
                 {/* Decorative gradients */}
-                <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-[100px] -mr-48 -mt-48 pointer-events-none transition-colors duration-1000" />
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-500/5 rounded-full blur-[80px] -ml-32 -mb-32 pointer-events-none" />
+                <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-700/10 dark:bg-indigo-500/5 rounded-full blur-[100px] -mr-48 -mt-48 pointer-events-none transition-colors duration-1000" />
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-700/10 dark:bg-amber-500/5 rounded-full blur-[80px] -ml-32 -mb-32 pointer-events-none" />
 
                 <CardContent className="p-6 relative z-10 flex flex-col gap-8">
                     {/* Header Info & Persisent Reward Card */}
@@ -116,7 +116,7 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label, onTog
                         </div>
 
                         {/* Persistent Reward Card (Visible without hover) */}
-                        <div className="lg:w-80 shrink-0 bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-4 shadow-xl backdrop-blur-md relative overflow-hidden group/reward transition-all hover:bg-white/10 hover:border-amber-500/20">
+                        <div className="lg:w-80 shrink-0 bg-indigo-950/10 dark:bg-white/5 border border-indigo-700/25 dark:border-white/10 rounded-2xl p-4 flex items-center gap-4 shadow-xl backdrop-blur-md relative overflow-hidden group/reward transition-all hover:bg-indigo-900/14 dark:hover:bg-white/10 hover:border-amber-500/25">
                             <div className="absolute inset-0 bg-linear-to-br from-amber-500/10 via-transparent to-transparent opacity-0 group-hover/reward:opacity-100 transition-opacity duration-500" />
 
                             {/* Icon container with more punch */}
@@ -212,7 +212,7 @@ export function ClassMilestoneWidget({ milestones, activeMilestone, label, onTog
                                 initial={{ width: 0 }}
                                 animate={{ width: `${progressPercentage}%` }}
                                 transition={{ duration: 1.5, ease: "circOut" }}
-                                className="absolute top-0 left-0 h-full bg-linear-to-r from-indigo-600 via-indigo-500 to-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.3)]"
+                                className="absolute top-0 left-0 h-full bg-linear-to-r from-indigo-800 via-indigo-700 to-indigo-600 dark:from-indigo-600 dark:via-indigo-500 dark:to-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.3)]"
                             >
                                 <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/20 to-transparent -skew-x-12 animate-shimmer scale-150 pointer-events-none" />
                             </motion.div>

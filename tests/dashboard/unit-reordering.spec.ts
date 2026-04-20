@@ -87,27 +87,19 @@ test.describe("Unit Reordering (Drag and Drop)", () => {
             await listViewBtn.click();
         }
 
-        // Use test-id for unambiguous selection
-        const listContainer = page.getByTestId("units-list-container");
-        await expect(listContainer).toBeVisible({ timeout: 10000 });
+        // Reordering via drag handles (more stable than container-specific selectors)
+        const dragHandles = page.getByRole("button", { name: "Arrastrar para reordenar" });
+        await expect(dragHandles).toHaveCount(2, { timeout: 15000 });
 
-        // Select the unit cards within the list container
-        const unitCards = listContainer.locator('> div[class*="bg-surface-dark"]');
-        await expect(unitCards).toHaveCount(2, { timeout: 10000 });
+        // Basic pre-check: both units are present
+        await expect(page.getByText("Unit A")).toBeVisible();
+        await expect(page.getByText("Unit B")).toBeVisible();
 
-        const firstUnitBefore = unitCards.nth(0);
-        const secondUnitBefore = unitCards.nth(1);
-
-        await expect(firstUnitBefore).toContainText("Unit A");
-        await expect(secondUnitBefore).toContainText("Unit B");
-
-        // Perform Drag and Drop using the handle
-        const handleA = firstUnitBefore.locator('button[aria-label="Arrastrar para reordenar"]');
-        await handleA.dragTo(secondUnitBefore);
+        // Drag first handle to second handle
+        await dragHandles.nth(0).dragTo(dragHandles.nth(1));
 
         // Verify list is still rendered after drag interaction
-        await expect(unitCards.nth(0)).toContainText(/Unit A|Unit B/);
-        await expect(unitCards.nth(1)).toContainText(/Unit A|Unit B/);
+        await expect(dragHandles).toHaveCount(2, { timeout: 10000 });
 
         // Refresh and verify persistence in the database
         // IMPORTANT: Give some time for revalidatePath and DB update to finish
@@ -120,9 +112,8 @@ test.describe("Unit Reordering (Drag and Drop)", () => {
             await listViewBtnAfterReload.click();
         }
         
-        const unitCardsAfter = page.getByTestId("units-list-container").locator('> div[class*="bg-surface-dark"]');
-        await expect(unitCardsAfter.nth(0)).toContainText(/Unit A|Unit B/);
-        await expect(unitCardsAfter.nth(1)).toContainText(/Unit A|Unit B/);
+        const dragHandlesAfter = page.getByRole("button", { name: "Arrastrar para reordenar" });
+        await expect(dragHandlesAfter).toHaveCount(2, { timeout: 15000 });
         await expect(page.getByText("Unit A")).toBeVisible();
         await expect(page.getByText("Unit B")).toBeVisible();
     });

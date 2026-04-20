@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Award, Plus, Trash2, Edit2, CheckCircle, XCircle, HardDrive, List, LayoutGrid, AlertCircle, UserCheck, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +66,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
     const [isCreating, setIsCreating] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [gridCols, setGridCols] = useState(4);
     const [badgeToDelete, setBadgeToDelete] = useState<string | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
@@ -88,6 +89,19 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
     const [isLoadingStudents, setIsLoadingStudents] = useState(false);
     const [isAwarding, setIsAwarding] = useState(false);
+
+    useEffect(() => {
+        const savedCols = localStorage.getItem("aula-it:badges:grid-cols");
+        if (!savedCols) return;
+        const parsed = Number(savedCols);
+        if ([2, 3, 4, 5].includes(parsed)) {
+            setGridCols(parsed);
+        }
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem("aula-it:badges:grid-cols", String(gridCols));
+    }, [gridCols]);
 
     const filteredBadges = useMemo(() => {
         if (activityId) {
@@ -330,6 +344,13 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
             </div>
         </button>
     );
+    const badgesGridColsClass =
+        {
+            2: "sm:grid-cols-2 lg:grid-cols-2",
+            3: "sm:grid-cols-2 lg:grid-cols-3",
+            4: "sm:grid-cols-2 lg:grid-cols-4",
+            5: "sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
+        }[gridCols as 2 | 3 | 4 | 5] || "sm:grid-cols-2 lg:grid-cols-4";
 
     return (
         <div className="space-y-6">
@@ -492,9 +513,10 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
 
             {/* INSIGNIAS tab */}
             {managerTab === 'badges' && (<>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
-                    <h3 className="text-xl font-bold tracking-tight">
+                    <h3 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+                        <Award className="size-5 text-accent-amber" />
                         {activityId ? 'Insignias del Reto' : 'Gestión de insignias globales'}
                     </h3>
                     <p className="text-sm text-text-muted">
@@ -503,15 +525,35 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                             : 'Crea insignias globales para toda la unidad.'}
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 p-1 bg-surface border border-border-subtle rounded-xl shadow-sm self-end md:self-center">
+                <div className="flex flex-wrap items-center gap-3">
+                    {viewMode === "grid" && (
+                        <div className="flex items-center gap-2 mr-2">
+                            <div className="flex items-center bg-muted/30 dark:bg-surface-dark/50 p-1 rounded-xl border border-border/50">
+                                {([2, 3, 4, 5] as const).map((count) => (
+                                    <Button
+                                        key={count}
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setGridCols(count)}
+                                        className={cn(
+                                            "h-8 w-8 p-0 rounded-lg transition-all text-xs font-bold",
+                                            gridCols === count ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                        )}
+                                    >
+                                        {count}
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    <div className="flex items-center gap-2 p-1 bg-linear-to-r from-amber-500/10 via-accent-blue/8 to-amber-500/10 border border-border-subtle rounded-xl shadow-sm self-end md:self-center">
                         <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => setViewMode('grid')}
                             className={cn(
                                 "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
-                                viewMode === 'grid' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                viewMode === 'grid' ? "bg-accent-blue/15 text-accent-blue shadow-sm dark:bg-background dark:text-foreground" : "text-text-muted hover:text-foreground"
                             )}
                         >
                             <LayoutGrid className="size-3.5 mr-2" />
@@ -523,7 +565,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                             onClick={() => setViewMode('list')}
                             className={cn(
                                 "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
-                                viewMode === 'list' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                viewMode === 'list' ? "bg-accent-blue/15 text-accent-blue shadow-sm dark:bg-background dark:text-foreground" : "text-text-muted hover:text-foreground"
                             )}
                         >
                             <List className="size-3.5 mr-2" />
@@ -869,7 +911,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
 
             <div className={cn(
                 "grid gap-4",
-                viewMode === 'grid' ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5" : "grid-cols-1"
+                viewMode === 'grid' ? `grid-cols-1 ${badgesGridColsClass}` : "grid-cols-1"
             )}>
                 {filteredBadges.map(badge => (
                     <Card key={badge.id} className={cn(

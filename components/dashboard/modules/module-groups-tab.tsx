@@ -404,7 +404,7 @@ function CreateGroupDialog({
                     <Button
                         onClick={handleConfirm}
                         disabled={!name.trim()}
-                        className="bg-accent-blue hover:bg-accent-blue/90 text-white"
+                        className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase"
                     >
                         Crear grupo
                     </Button>
@@ -467,7 +467,7 @@ function AutoAssignDialog({
                     <Button
                         onClick={() => { onConfirm(n); onOpenChange(false); }}
                         disabled={n < 2}
-                        className="bg-accent-blue hover:bg-accent-blue/90 text-white"
+                        className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase"
                     >
                         <Shuffle className="mr-2 size-4" />
                         Distribuir aleatoriamente
@@ -555,7 +555,7 @@ function GenerateGroupsDialog({
                     <Button
                         onClick={handleConfirm}
                         disabled={n < 1}
-                        className="bg-accent-blue hover:bg-accent-blue/90 text-white"
+                        className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase"
                     >
                         <Plus className="mr-2 size-4" />
                         Generar grupos
@@ -796,8 +796,8 @@ export function ModuleGroupsTab({
                 {canManageStudents && (
                     <div className="flex items-center gap-2">
                         <Select value={enrollmentMode} onValueChange={(v) => handleEnrollmentModeChange(v as GroupsEnrollmentMode)}>
-                            <SelectTrigger className="h-8 text-xs bg-surface border-border-subtle w-auto gap-1.5">
-                                <Settings2 className="size-3.5 text-text-muted" />
+                            <SelectTrigger className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[6px] h-9 px-4 uppercase w-auto gap-1.5">
+                                <Settings2 className="size-3.5 text-primary-foreground" />
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="bg-surface border-border-subtle">
@@ -808,9 +808,7 @@ export function ModuleGroupsTab({
                                     <span className="text-xs">Inscripción libre</span>
                                 </SelectItem>
                                 <SelectItem value="locked">
-                                    <span className="text-xs flex items-center gap-1.5">
-                                        <Lock className="size-3 text-amber-400" /> Grupos cerrados
-                                    </span>
+                                    <span className="text-xs"> Grupos cerrados</span>
                                 </SelectItem>
                             </SelectContent>
                         </Select>
@@ -819,26 +817,25 @@ export function ModuleGroupsTab({
                             size="sm"
                             onClick={() => setGenerateOpen(true)}
                             disabled={isPending}
-                            className="h-8 text-xs bg-surface border-border-subtle"
+                           className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase"
                         >
-                            <Plus className="mr-1.5 size-3.5" /> Generar grupos
+                            <Plus className="mr-2 size-4" /> Generar grupos
                         </Button>
                         <Button
                             variant="outline"
                             size="sm"
                             onClick={() => setAutoOpen(true)}
                             disabled={isPending || enrolledStudents.length === 0}
-                            className="h-8 text-xs bg-surface border-border-subtle"
+                            className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase"
                         >
-                            <Shuffle className="mr-1.5 size-3.5" /> Auto-asignar
+                            <Shuffle className="mr-2 size-4" /> Auto-asignar
                         </Button>
                         <Button
-                            size="sm"
                             onClick={() => setCreateOpen(true)}
                             disabled={isPending}
-                            className="h-8 bg-accent-blue hover:bg-accent-blue/90 text-white text-xs font-mono font-bold tracking-widest uppercase"
+                            className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase"
                         >
-                            <Plus className="mr-1.5 size-3.5" /> Grupo
+                            <Plus className="mr-2 size-4" /> Grupo
                         </Button>
                     </div>
                 )}
@@ -861,14 +858,15 @@ export function ModuleGroupsTab({
                     </div>
                     {canManageStudents && (
                         <div className="flex gap-2 flex-wrap justify-center">
-                            <Button variant="outline" size="sm" onClick={() => setGenerateOpen(true)} className="bg-surface border-border-subtle text-xs">
-                                <Plus className="mr-1.5 size-3.5" /> Generar grupos
+                            <Button variant="outline" size="sm" onClick={() => setGenerateOpen(true)} className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
+                                <Plus className="mr-2 size-4" /> Generar grupos
                             </Button>
-                            <Button variant="outline" size="sm" onClick={() => setAutoOpen(true)} className="bg-surface border-border-subtle text-xs">
-                                <Shuffle className="mr-1.5 size-3.5" /> Auto-asignar
+                            <Button variant="outline" size="sm" onClick={() => setAutoOpen(true)} className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
+                                <Shuffle className="mr-2 size-4" /> Auto-asignar
                             </Button>
-                            <Button size="sm" onClick={() => setCreateOpen(true)} className="bg-accent-blue hover:bg-accent-blue/90 text-white text-xs">
-                                <Plus className="mr-1.5 size-3.5" /> Crear grupo
+                            <Button size="sm" onClick={() => setCreateOpen(true)} 
+                            className="bg-accent-blue hover:bg-accent-blue/90 text-primary-foreground font-mono font-bold tracking-widest text-[10px] h-9 px-4 uppercase">
+                                <Plus className="mr-2 size-4" /> Grupo
                             </Button>
                         </div>
                     )}

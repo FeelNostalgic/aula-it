@@ -44,6 +44,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { GoogleDriveGlyph } from "@/components/icons/google-drive-glyph";
 
 interface UnitResourcesTabProps {
     unitId: string;
@@ -228,14 +229,10 @@ export function UnitResourcesTab({ unitId, initialResources }: UnitResourcesTabP
                 <div className="w-px h-8 bg-border/50 self-center hidden sm:block mx-2" />
                 <Button onClick={openDrivePicker} disabled={isDriveLoading} variant="outline" className="h-11 px-5 border-border/50 hover:bg-accent-amber/5 hover:border-accent-amber/30 transition-all rounded-xl group">
                     {isDriveLoading ? (
-                        <Loader2 className="size-4 mr-3 animate-spin text-accent-amber" />
+                        <Loader2 className="size-4 mr-1 animate-spin text-accent-amber" />
                     ) : (
-                        <div className="size-5 mr-3 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded group-hover:bg-accent-amber/10 transition-colors">
-                            <svg viewBox="0 0 24 24" className="size-3.5 fill-accent-amber">
-                                <path d="M7.714 3L4.643 8.25L9.5 16.5L12.571 11.25L7.714 3Z" />
-                                <path d="M16.286 3L11.429 11.25L14.5 16.5L19.357 8.25L16.286 3Z" />
-                                <path d="M15.429 17.25H8.571L5.5 22.5H22.357L19.286 17.25H15.429Z" />
-                            </svg>
+                        <div className="size-5 mt-0.5 mr-1 flex items-center justify-center rounded bg-transparent">
+                            <GoogleDriveGlyph className="size-4" />
                         </div>
                     )}
                     {isDriveLoading ? "Conectando..." : "Google Drive"}

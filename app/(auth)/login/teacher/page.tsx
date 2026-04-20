@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 function OAuthErrorBanner() {
   const searchParams = useSearchParams();
@@ -35,7 +36,7 @@ function LoginButton() {
   return (
     <Button
       disabled={pending}
-      className="w-full h-12 text-foreground font-bold shadow-lg shadow-primary/20"
+      className="w-full h-12 text-primary-foreground font-bold shadow-lg shadow-primary/20"
       type="submit"
     >
       {pending ? (
@@ -55,6 +56,9 @@ export default function TeacherLoginPage() {
   return (
     <div className="bg-background text-foreground min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
       {/* Version Tag */}
+      <div className="fixed top-6 left-6 z-20">
+        <ThemeToggle />
+      </div>
       <div className="fixed top-6 right-6 font-mono text-[10px] tracking-widest uppercase opacity-40 text-muted-foreground">
         build_id: v{APP_VERSION} ({APP_STATUS})
       </div>

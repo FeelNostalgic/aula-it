@@ -382,7 +382,10 @@ export default function ModuleStudentsTab({
                             </TableRow>
                         ) : (
                             table.getRowModel().rows.map((row) => (
-                                <TableRow key={row.id} className="odd:bg-white/2 even:bg-transparent hover:bg-blue-500/10 transition-colors">
+                                <TableRow
+                                    key={row.id}
+                                    className="odd:bg-slate-900/[0.055] dark:odd:bg-white/[0.03] even:bg-slate-900/[0.015] dark:even:bg-white/[0.01] hover:bg-accent-blue/10 transition-colors"
+                                >
                                     {row.getVisibleCells().map((cell) => (
                                         <TableCell
                                             key={cell.id}

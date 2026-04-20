@@ -22,7 +22,7 @@ export function LevelBadge() {
             {streakDays > 0 && (
                 <Badge variant="outline" className="bg-orange-500/10 border-orange-500/20 text-orange-500 px-4 py-1.5 rounded-lg flex items-center gap-2 hover:bg-orange-500/20 transition-colors cursor-default">
                     <Flame className="size-3 fill-orange-500" />
-                    <span className="font-bold">{streakDays} {streakDays === 1 ? "DÍA ACTIVO" : "DÍAS ACTIVO"}</span>
+                    <span className="font-bold">{streakDays} {streakDays === 1 ? "DÍA ACTIVO" : "DÍAS ACTIVOS"}</span>
                 </Badge>
             )}
 

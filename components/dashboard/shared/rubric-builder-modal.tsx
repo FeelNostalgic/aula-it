@@ -207,7 +207,7 @@ function libraryCardClass(isActive: boolean) {
 
 function getSavedActionClass(isSaved: boolean) {
     return isSaved
-        ? "border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+        ? "border-emerald-600/35 bg-emerald-500/12 text-emerald-700 hover:bg-emerald-500/18 dark:border-emerald-500/30 dark:bg-transparent dark:text-emerald-300 dark:hover:bg-emerald-500/10"
         : "border-accent-blue/30 bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/16";
 }
 
@@ -920,7 +920,7 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
                                                                             "border-transparent",
                                                                             savedRubric.visibility === "public"
                                                                                 ? "bg-accent-blue/16 text-accent-blue"
-                                                                                : "bg-slate-500/16 text-slate-300"
+                                                                                : "border-zinc-600/40 bg-zinc-700/14 text-zinc-800 dark:border-zinc-400/35 dark:bg-zinc-500/22 dark:text-zinc-100"
                                                                         )}>
                                                                             {savedRubric.visibility === "public" ? "Pública" : "Privada"}
                                                                         </Badge>
@@ -1139,7 +1139,7 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
                                                                     "border-transparent",
                                                                     selected.source_visibility === "public"
                                                                         ? "bg-accent-blue/16 text-accent-blue"
-                                                                        : "bg-slate-500/16 text-slate-300"
+                                                                        : "border-zinc-600/40 bg-zinc-700/14 text-zinc-800 dark:border-zinc-400/35 dark:bg-zinc-500/22 dark:text-zinc-100"
                                                                 )}>
                                                                     {selected.source_visibility === "public" ? "Público" : "Privado"}
                                                                 </Badge>
@@ -1390,7 +1390,7 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
                                                                         "border-transparent",
                                                                         criterion.visibility === "public"
                                                                             ? "bg-accent-blue/16 text-accent-blue"
-                                                                            : "bg-slate-500/16 text-slate-300"
+                                                                            : "border-zinc-600/40 bg-zinc-700/14 text-zinc-800 dark:border-zinc-400/35 dark:bg-zinc-500/22 dark:text-zinc-100"
                                                                     )}>
                                                                         {criterion.visibility === "public" ? "Público" : "Privado"}
                                                                     </Badge>
@@ -1563,7 +1563,7 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
                                             className={cn(
                                                 "w-full gap-2",
                                                 linkedLibraryRubric?.is_owner && rubricSource?.id === linkedLibraryRubric.id
-                                                    ? "border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                                                    ? "border border-emerald-600/35 bg-emerald-500/12 text-emerald-700 hover:bg-emerald-500/18 dark:border-emerald-500/30 dark:bg-transparent dark:text-emerald-300 dark:hover:bg-emerald-500/10"
                                                     : "bg-accent-blue text-white hover:bg-accent-blue/90"
                                             )}
                                         >

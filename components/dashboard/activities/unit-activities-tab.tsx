@@ -695,7 +695,7 @@ export function UnitActivitiesTab({
         <div className="space-y-6 w-full">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                 <div className="flex items-center gap-3">
-                    <h2 className="text-xl font-bold text-foreground">Retos de la Unidad</h2>
+                    <h2 className="text-xl font-bold text-foreground">Retos de la unidad</h2>
                     <div className="flex items-center gap-2 mt-1">
                         <Badge variant="outline" className="border-border-subtle text-text-muted text-[10px] font-mono font-bold">
                             {activities.length}

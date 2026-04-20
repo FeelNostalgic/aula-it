@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 function LoginButton() {
   const { pending } = useFormStatus();
@@ -17,7 +18,7 @@ function LoginButton() {
   return (
     <Button
       disabled={pending}
-      className="w-full h-12 text-white font-bold shadow-lg shadow-primary/20"
+      className="w-full h-12 text-primary-foreground font-bold shadow-lg shadow-primary/20"
       type="submit"
     >
       {pending ? (
@@ -37,6 +38,9 @@ export default function LoginPage() {
   return (
     <div className="bg-background text-foreground min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
       {/* Version Tag */}
+      <div className="fixed top-6 left-6 z-20">
+        <ThemeToggle />
+      </div>
       <div className="fixed top-6 right-6 font-mono text-[10px] tracking-widest uppercase opacity-40 text-muted-foreground">
         build_id: v{APP_VERSION} ({APP_STATUS})
       </div>
@@ -56,7 +60,7 @@ export default function LoginPage() {
             <div className="size-8 flex items-center justify-center">
               <Terminal className="size-8" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Aula IT
             </h1>
           </div>
@@ -65,7 +69,7 @@ export default function LoginPage() {
         {/* Login Card */}
         <Card className="border-border/50 bg-card shadow-2xl overflow-hidden">
           <CardHeader className="space-y-1 pb-6 text-center">
-            <CardTitle className="text-xl font-mono tracking-wider uppercase text-white">Protocolo de Seguridad</CardTitle>
+            <CardTitle className="text-xl font-mono tracking-wider uppercase text-foreground">Protocolo de Seguridad</CardTitle>
             <CardDescription className="text-xs uppercase tracking-widest font-mono text-muted-foreground">
               Se Requiere Autorización Nivel 4
             </CardDescription>
@@ -143,7 +147,7 @@ export default function LoginPage() {
 
         {/* External Link */}
         <div className="text-center">
-          <Button variant="outline" size="sm" className="h-9 px-4 rounded-full bg-border-subtle/20 border-border/20 text-muted-foreground hover:text-white hover:bg-border/30 transition-all font-medium text-xs">
+          <Button variant="outline" size="sm" className="h-9 px-4 rounded-full bg-border-subtle/20 border-border/20 text-muted-foreground hover:text-foreground hover:bg-border/30 transition-all font-medium text-xs">
             <ShieldCheck className="mr-2 h-4 w-4" />
             Solicitar acceso al sistema
           </Button>

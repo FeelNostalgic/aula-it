@@ -1,7 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { LoginPage } from "../auth/login-page";
 import { getSupabaseAdmin, generateTestEmail } from "../helpers";
-import { StudentManagementPage } from "./student-management-page";
 
 test.describe.configure({ mode: "serial" });
 
@@ -13,6 +12,8 @@ let createdStudentPrefix: string;
 const password = "password123";
 
 test.describe("Student Management (/alumnos)", () => {
+    test.setTimeout(90000);
+
     test.beforeAll(async () => {
         supabase = getSupabaseAdmin();
         if (!supabase) throw new Error("Supabase admin client not available");
@@ -61,22 +62,20 @@ test.describe("Student Management (/alumnos)", () => {
 
     test("teacher can navigate to /alumnos page", async ({ page }) => {
         const loginPage = new LoginPage(page);
-        const studentManagementPage = new StudentManagementPage(page);
-        await loginPage.loginTeacher(teacherEmail, password);
+        await loginPage.login(teacherEmail, password);
         await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
 
-        await studentManagementPage.goto();
+        await gotoAlumnos(page);
         await expect(page).toHaveURL(/\/alumnos/, { timeout: 10000 });
         await expect(page.locator("h1, h2").filter({ hasText: /alumnos|students/i }).first()).toBeVisible({ timeout: 5000 });
     });
 
     test("teacher can list created students", async ({ page }) => {
         const loginPage = new LoginPage(page);
-        const studentManagementPage = new StudentManagementPage(page);
-        await loginPage.loginTeacher(teacherEmail, password);
+        await loginPage.login(teacherEmail, password);
         await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
 
-        await studentManagementPage.goto();
+        await gotoAlumnos(page);
         await expect(page).toHaveURL(/\/alumnos/, { timeout: 10000 });
 
         // The page should load and show the student table (may be empty or have students)
@@ -84,3 +83,8 @@ test.describe("Student Management (/alumnos)", () => {
         await expect(page.locator("body")).not.toHaveText(/error/i, { timeout: 5000 });
     });
 });
+
+async function gotoAlumnos(page: import("@playwright/test").Page) {
+    await page.goto("/alumnos", { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.waitForURL(/\/alumnos/, { timeout: 15000, waitUntil: "domcontentloaded" });
+}

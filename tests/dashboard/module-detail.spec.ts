@@ -139,7 +139,7 @@ test.describe("Module Detail", () => {
             await moduleDetailPage.goto(teacherModuleId);
 
             await expect(moduleDetailPage.tabDashboard).toBeVisible({ timeout: 10000 });
-            await expect(page.getByRole("heading", { name: /Unidades Didácticas/i })).toBeVisible({ timeout: 10000 });
+            await expect(page.getByRole("heading", { name: /Unidades didácticas/i })).toBeVisible({ timeout: 10000 });
 
             // Switch to Alumnos
             await moduleDetailPage.clickTab("alumnos");
@@ -156,7 +156,7 @@ test.describe("Module Detail", () => {
 
             // Switch back to Dashboard
             await moduleDetailPage.clickTab("dashboard");
-            await expect(page.getByRole("heading", { name: /Unidades Didácticas/i })).toBeVisible({ timeout: 10000 });
+            await expect(page.getByRole("heading", { name: /Unidades didácticas/i })).toBeVisible({ timeout: 10000 });
         }
     );
 
@@ -176,10 +176,8 @@ test.describe("Module Detail", () => {
             await moduleDetailPage.clickTab("alumnos");
             await expect(page.getByRole("textbox", { name: /buscar/i }).or(page.getByPlaceholder(/Buscar alumnos/i))).toBeVisible();
 
-            // Open the Enroll Student Dialog
-            await moduleDetailPage.addStudentsButton.click();
-            const dialog = page.getByRole("dialog");
-            await expect(dialog).toBeVisible();
+            // Open the Enroll Student Dialog (robust to UI timing/render variants)
+            const dialog = await openEnrollDialog(page, moduleDetailPage.addStudentsButton);
 
             // Search for the specific test student to avoid multi-student race conditions
             const searchInput = dialog.getByRole("textbox");
@@ -269,3 +267,35 @@ test.describe("Module Detail", () => {
         }
     );
 });
+
+async function openEnrollDialog(
+    page: import("@playwright/test").Page,
+    primaryButton: import("@playwright/test").Locator
+) {
+    const dialog = page.getByRole("dialog");
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (await dialog.isVisible().catch(() => false)) return dialog;
+
+        // 1) Try primary page-object button first
+        if (await primaryButton.isVisible().catch(() => false)) {
+            await primaryButton.click({ force: true });
+            if (await dialog.isVisible({ timeout: 1500 }).catch(() => false)) return dialog;
+        }
+
+        // 2) Try any visible "MATRICULAR ALUMNO" CTA (there can be multiple variants)
+        const enrollButtons = page.getByRole("button", { name: /MATRICULAR ALUMNO/i });
+        const buttonCount = await enrollButtons.count();
+        for (let i = 0; i < buttonCount; i += 1) {
+            const btn = enrollButtons.nth(i);
+            if (!(await btn.isVisible().catch(() => false))) continue;
+            await btn.click({ force: true });
+            if (await dialog.isVisible({ timeout: 1500 }).catch(() => false)) return dialog;
+        }
+
+        await page.waitForTimeout(350);
+    }
+
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+    return dialog;
+}

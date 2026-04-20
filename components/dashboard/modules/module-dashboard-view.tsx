@@ -49,6 +49,8 @@ import { toast } from "sonner";
 import { useTransition } from "react";
 import { SortableUnitListItem, SortableUnitGridItem } from "@/components/dashboard/units/sortable-unit-item";
 import { getModuleIconVisualProps } from "@/components/dashboard/modules/module-identity";
+import { useModuleGamification } from "@/hooks/use-gamification";
+import { RankBadge } from "@/components/dashboard/badges/rank-badge";
 
 const ICON_MAP: Record<string, any> = {
     BookOpen, Brain, Code, Network, Database, Terminal,
@@ -98,6 +100,8 @@ export function ModuleDashboardView({
     const isTeacher = userRole === "teacher";
     const effectiveRole = moduleRole;
     const canEditModuleContent = modulePermissions?.canEditModuleContent ?? isTeacher;
+    const { moduleRank: liveModuleRank, rankPosition } = useModuleGamification(module.id, userRole);
+    const rankLetter = !isTeacher ? liveModuleRank : "F";
 
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const [gridCols, setGridCols] = useState(3);
@@ -106,6 +110,49 @@ export function ModuleDashboardView({
 
     const ModuleIcon = ICON_MAP[module.icon] || BookOpen;
     const moduleIconVisual = getModuleIconVisualProps(module.icon_style);
+    const statusConfigMap = {
+        active: {
+            color: "text-accent-green",
+            bg: "bg-accent-green/10",
+            border: "border-accent-green/30",
+            label: "ACTIVO",
+            dotBg: "bg-accent-green",
+            dotAnim: "animate-pulse"
+        },
+        draft: {
+            color: "text-accent-orange",
+            bg: "bg-accent-orange/10",
+            border: "border-accent-orange/30",
+            label: "BORRADOR",
+            dotBg: "bg-accent-orange",
+            dotAnim: ""
+        },
+        pending: {
+            color: "text-accent-orange",
+            bg: "bg-accent-orange/10",
+            border: "border-accent-orange/30",
+            label: "BORRADOR",
+            dotBg: "bg-accent-orange",
+            dotAnim: ""
+        },
+        completed: {
+            color: "text-accent-blue",
+            bg: "bg-accent-blue/10",
+            border: "border-accent-blue/30",
+            label: "COMPLETADO",
+            dotBg: "bg-accent-blue",
+            dotAnim: ""
+        },
+        archived: {
+            color: "text-text-muted",
+            bg: "bg-surface-dark",
+            border: "border-border-strong border-dashed",
+            label: "ARCHIVADO",
+            dotBg: "bg-text-muted",
+            dotAnim: ""
+        }
+    };
+    const statusConfig = statusConfigMap[module.status as keyof typeof statusConfigMap || "draft"];
 
     // Persistence: load from localStorage
     useEffect(() => {
@@ -160,10 +207,54 @@ export function ModuleDashboardView({
 
     return (
         <>
+            {/* Module Header */}
+            <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+                <div className="flex items-start gap-5">
+                    {module.custom_icon_url ? (
+                        <div className="size-14 rounded-xl overflow-hidden flex items-center justify-center shrink-0 bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]">
+                            <img src={module.custom_icon_url} alt={module.name} className="size-full object-cover p-2" />
+                        </div>
+                    ) : (
+                        <div className="size-14 rounded-xl bg-surface border border-accent-blue/20 shadow-[0_0_15px_rgba(34,211,238,0.1)] flex items-center justify-center shrink-0">
+                            <ModuleIcon className={cn("size-7", moduleIconVisual.className)} style={moduleIconVisual.style} />
+                        </div>
+                    )}
+                    <div className="space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <h1 className="text-2xl font-bold tracking-tight text-foreground">{module.name}</h1>
+                            {statusConfig && (
+                                <Badge variant="outline" className={`${statusConfig.border} ${statusConfig.bg} ${statusConfig.color} gap-1.5 py-1 px-3 shadow-sm`}>
+                                    <span className={`size-1.5 rounded-full ${statusConfig.dotBg} ${statusConfig.dotAnim}`} />
+                                    {statusConfig.label}
+                                </Badge>
+                            )}
+                            {!isTeacher && (
+                                <div className="flex items-center gap-3">
+                                    <RankBadge
+                                        rank={rankLetter}
+                                        showLabel
+                                        className="py-1.5 shadow-md"
+                                    />
+                                    {rankPosition && (
+                                        <Badge variant="outline" className="bg-surface border-border/50 text-text-muted px-2.5 py-1.5 h-auto">
+                                            <span className="text-[10px] uppercase font-mono font-bold tracking-widest mr-1 opacity-70">Top</span>
+                                            <span className="font-bold text-foreground">#{rankPosition}</span>
+                                        </Badge>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        <p className="text-sm text-text-muted max-w-xl">
+                            {module.description || "Sin descripción proporcionada para este módulo."}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             {/* View Mode Toggle + Count */}
             <div className="flex flex-col gap-4 mb-6 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-bold tracking-tight text-foreground">Unidades Didácticas</h2>
+                    <h2 className="text-lg font-bold tracking-tight text-foreground">Unidades didácticas</h2>
                     <Badge variant="outline" className="border-border-subtle text-text-muted text-[10px] font-mono font-bold">
                         {initialUnits.length}
                     </Badge>

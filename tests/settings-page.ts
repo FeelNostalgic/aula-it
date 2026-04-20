@@ -38,11 +38,16 @@ export class SettingsPage extends BasePage {
 
     async goto(): Promise<void> {
         await super.goto("/settings");
-        await this.page.waitForURL(/\/settings$/, { timeout: 15000 });
+        await this.page.waitForURL(/\/settings(?:[/?#].*)?$/, { timeout: 20000, waitUntil: "domcontentloaded" });
     }
 
     async openSettingsTab(): Promise<void> {
-        await this.tabSettings.click();
+        await this.tabSettings.click({ force: true });
+        const settingsHeading = this.page.getByText("Configuración de Cuenta");
+        if (!(await settingsHeading.isVisible().catch(() => false))) {
+            await this.tabSettings.click({ force: true });
+        }
+        await settingsHeading.waitFor({ state: "visible", timeout: 10000 });
     }
 
     async openProfileTab(): Promise<void> {

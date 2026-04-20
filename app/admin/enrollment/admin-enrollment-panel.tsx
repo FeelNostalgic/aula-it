@@ -111,7 +111,7 @@ export function AdminEnrollmentPanel({ modules, teachers, students }: Props) {
       {/* ── Matriculación ── */}
       <Card className="border-border/50 bg-card">
         <CardHeader className="pb-4">
-          <CardTitle className="text-sm font-mono tracking-wider uppercase text-white flex items-center gap-2">
+          <CardTitle className="text-sm font-mono tracking-wider uppercase text-foreground flex items-center gap-2">
             <BookOpen className="size-4 text-green-500" /> Matriculación en bloque
           </CardTitle>
           <CardDescription className="text-xs font-mono">
@@ -169,7 +169,7 @@ export function AdminEnrollmentPanel({ modules, teachers, students }: Props) {
       {/* ── Desmatriculación ── */}
       <Card className="border-border/50 bg-card">
         <CardHeader className="pb-4">
-          <CardTitle className="text-sm font-mono tracking-wider uppercase text-white flex items-center gap-2">
+          <CardTitle className="text-sm font-mono tracking-wider uppercase text-foreground flex items-center gap-2">
             <BookOpen className="size-4 text-destructive" /> Desmatriculación en bloque
           </CardTitle>
           <CardDescription className="text-xs font-mono">

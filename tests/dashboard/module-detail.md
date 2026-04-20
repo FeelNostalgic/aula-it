@@ -1,4 +1,4 @@
-### E2E Tests: Module Detail (Unidades Didácticas)
+### E2E Tests: Module Detail (Unidades didácticas)
 
 **Suite ID:** `MODULE-DETAIL`
 **Feature:** Module detail page with units management, tabs navigation, and breadcrumb

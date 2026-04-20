@@ -616,48 +616,50 @@ export function SettingsClient({
                                 </Card>
 
                                 {/* Privacy Card */}
-                                <Card className={cn(
-                                    "bg-surface-dark/40 border-border/40 backdrop-blur-sm border-l-4 transition-colors",
-                                    !isPrivate ? "border-l-emerald-500/40" : "border-l-text-muted/40"
-                                )}>
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-2">
-                                            {isPrivate ? <Eye className="size-3 opacity-50" /> : <Eye className="size-3 text-emerald-500" />}
-                                            Privacidad en Ranking
-                                        </CardTitle>
-                                        <CardDescription className="text-[10px] uppercase font-mono">
-                                            {isPrivate ? "Apareces con nombre anónimo" : "Apareces con tu nombre real"}
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs font-mono uppercase text-text-muted">Perfil Público</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const newValue = !isPrivate;
-                                                    setIsPrivate(newValue);
-                                                    startTransition(async () => {
-                                                        const result = await updateProfile({ fullName, googleEmail, isPrivate: newValue });
-                                                        if (result.error) toast.error("Error al actualizar privacidad");
-                                                        else toast.success(newValue ? "Modo anónimo activado" : "Modo público activado");
-                                                    });
-                                                }}
-                                                className={cn(
-                                                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background",
-                                                    !isPrivate ? "bg-emerald-500" : "bg-muted"
-                                                )}
-                                            >
-                                                <span
+                                {!isTeacher && (
+                                    <Card className={cn(
+                                        "bg-surface-dark/40 border-border/40 backdrop-blur-sm border-l-4 transition-colors",
+                                        !isPrivate ? "border-l-emerald-500/40" : "border-l-text-muted/40"
+                                    )}>
+                                        <CardHeader className="pb-2">
+                                            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-2">
+                                                {isPrivate ? <Eye className="size-3 opacity-50" /> : <Eye className="size-3 text-emerald-500" />}
+                                                Privacidad en Ranking
+                                            </CardTitle>
+                                            <CardDescription className="text-[10px] uppercase font-mono">
+                                                {isPrivate ? "Apareces con nombre anónimo" : "Apareces con tu nombre real"}
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-mono uppercase text-text-muted">Perfil Público</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const newValue = !isPrivate;
+                                                        setIsPrivate(newValue);
+                                                        startTransition(async () => {
+                                                            const result = await updateProfile({ fullName, googleEmail, isPrivate: newValue });
+                                                            if (result.error) toast.error("Error al actualizar privacidad");
+                                                            else toast.success(newValue ? "Modo anónimo activado" : "Modo público activado");
+                                                        });
+                                                    }}
                                                     className={cn(
-                                                        "pointer-events-none inline-block size-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                                                        !isPrivate ? "translate-x-4" : "translate-x-0"
+                                                        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background",
+                                                        !isPrivate ? "bg-emerald-500" : "bg-muted"
                                                     )}
-                                                />
-                                            </button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                                                >
+                                                    <span
+                                                        className={cn(
+                                                            "pointer-events-none inline-block size-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                                                            !isPrivate ? "translate-x-4" : "translate-x-0"
+                                                        )}
+                                                    />
+                                                </button>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                )}
                             </div>
                         </div>
                     </TabsContent>

@@ -40,26 +40,31 @@ export class ModuleDetailPage extends BasePage {
     async createUnit(name: string, description?: string): Promise<void> {
         const addButtons = this.page.getByRole("button", { name: /UNIDAD DIDÁCTICA/i });
         const buttonCount = await addButtons.count();
-        let clicked = false;
-        for (let i = 0; i < buttonCount; i += 1) {
-            const btn = addButtons.nth(i);
-            if (await btn.isVisible().catch(() => false)) {
-                await btn.click();
-                clicked = true;
-                break;
-            }
-        }
-        if (!clicked) {
-            await this.page.goto(`/dashboard/modules/${this.currentModuleId}/dashboard`, { waitUntil: "domcontentloaded", timeout: 60000 });
-            await addButtons.first().click();
-        }
         const dialog = this.page.locator('div[role="dialog"]');
-        await expect(dialog).toBeVisible();
-        await dialog.locator('input[name="name"]').fill(name);
-        if (description) {
-            await dialog.locator('textarea[name="description"]').fill(description);
+
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+            for (let i = 0; i < buttonCount; i += 1) {
+                const btn = addButtons.nth(i);
+                if (!(await btn.isVisible().catch(() => false))) continue;
+
+                await btn.click({ force: true });
+                if (await dialog.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    await expect(dialog).toBeVisible({ timeout: 10000 });
+                    await dialog.locator('input[name="name"]').fill(name);
+                    if (description) {
+                        await dialog.locator('textarea[name="description"]').fill(description);
+                    }
+                    await dialog.getByRole('button', { name: 'CREAR UNIDAD', exact: true }).click();
+                    return;
+                }
+            }
+
+            // Refresh view and retry if none of the visible triggers opened the modal.
+            await this.page.goto(`/dashboard/modules/${this.currentModuleId}/dashboard`, { waitUntil: "domcontentloaded", timeout: 60000 });
+            await this.page.waitForTimeout(300);
         }
-        await dialog.getByRole('button', { name: 'CREAR UNIDAD', exact: true }).click();
+
+        await expect(dialog).toBeVisible({ timeout: 10000 });
     }
 
     async verifyUnitExists(name: string): Promise<void> {

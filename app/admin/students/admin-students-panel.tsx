@@ -517,7 +517,7 @@ export function AdminStudentsPanel({
           <div>
             <Card className="border-border/50 max-h-250 bg-card">
               <CardHeader className="pb-4">
-                <CardTitle className="text-sm font-mono tracking-wider uppercase text-white flex items-center gap-2">
+                <CardTitle className="text-sm font-mono tracking-wider uppercase text-foreground flex items-center gap-2">
                   <Users className="size-4 text-primary" /> Crear cuentas en bloque
                 </CardTitle>
                 <CardDescription className="text-xs font-mono">
@@ -607,7 +607,7 @@ export function AdminStudentsPanel({
             <CardHeader className="pb-3 shrink-0">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-sm font-mono tracking-wider uppercase text-white flex items-center gap-2">
+                  <CardTitle className="text-sm font-mono tracking-wider uppercase text-foreground flex items-center gap-2">
                     <KeyRound className="size-4 text-primary" /> Alumnos en el sistema
                   </CardTitle>
                   <CardDescription className="text-xs font-mono mt-1">

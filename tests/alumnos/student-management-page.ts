@@ -7,6 +7,16 @@ export class StudentManagementPage extends BasePage {
     }
 
     async goto() {
+        const alumnosLink = this.page.getByRole("link", { name: /alumnos/i }).first();
+        if (await alumnosLink.isVisible().catch(() => false)) {
+            try {
+                await alumnosLink.click();
+                await this.page.waitForURL(/\/alumnos/, { timeout: 8000, waitUntil: "domcontentloaded" });
+                return;
+            } catch {
+                // fall through to direct navigation
+            }
+        }
         await super.goto("/alumnos");
     }
 

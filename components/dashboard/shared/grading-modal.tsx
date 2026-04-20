@@ -430,14 +430,14 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                                             const preview = buildWeightedPreview(submission, teacherS);
                                             if (!preview) return null;
                                             return (
-                                                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-200">
-                                                    <UserCheck className="size-3.5 shrink-0 text-indigo-400 mt-0.5" />
+                                                <div className="flex items-start gap-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/12 p-3 text-xs text-indigo-800 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-200">
+                                                    <UserCheck className="mt-0.5 size-3.5 shrink-0 text-indigo-600 dark:text-indigo-400" />
                                                     <div>
-                                                        <p className="font-semibold text-indigo-300 mb-0.5">Nota ponderada 360°</p>
+                                                        <p className="mb-0.5 font-semibold text-indigo-900 dark:text-indigo-300">Nota ponderada 360°</p>
                                                         <p className="font-mono">
                                                             {preview.teacherWeight}%×{teacherS}
                                                             {preview.entries.map(entry => ` + ${entry.weight}%×${entry.score}(${entry.label})`).join("")}
-                                                            {" = "}<span className="font-bold text-white">{preview.total}</span>/10
+                                                            {" = "}<span className="font-bold text-indigo-950 dark:text-white">{preview.total}</span>/10
                                                         </p>
                                                     </div>
                                                 </div>
@@ -476,14 +476,14 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                                                     const preview = buildWeightedPreview(submission, teacherS);
                                                     if (!preview) return null;
                                                     return (
-                                                        <div className="flex items-start gap-2.5 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-200">
-                                                            <UserCheck className="size-3.5 shrink-0 text-indigo-400 mt-0.5" />
+                                                        <div className="flex items-start gap-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/12 p-3 text-xs text-indigo-800 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-200">
+                                                            <UserCheck className="mt-0.5 size-3.5 shrink-0 text-indigo-600 dark:text-indigo-400" />
                                                             <div>
-                                                                <p className="font-semibold text-indigo-300 mb-0.5">Nota ponderada 360°</p>
+                                                                <p className="mb-0.5 font-semibold text-indigo-900 dark:text-indigo-300">Nota ponderada 360°</p>
                                                                 <p className="font-mono">
                                                                     {preview.teacherWeight}%×{teacherS}
                                                                     {preview.entries.map(entry => ` + ${entry.weight}%×${entry.score}(${entry.label})`).join("")}
-                                                                    {" = "}<span className="font-bold text-white">{preview.total}</span>/10
+                                                                    {" = "}<span className="font-bold text-indigo-950 dark:text-white">{preview.total}</span>/10
                                                                 </p>
                                                             </div>
                                                         </div>

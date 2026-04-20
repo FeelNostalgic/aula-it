@@ -142,8 +142,8 @@ test.describe("Student Activity Flow", () => {
         await moduleCard.click();
         await expect(page).toHaveURL(/\/dashboard\/modules\//, { timeout: 15000 });
 
-        // On module page, units are listed under "Unidades Didácticas"
-        await expect(page.getByRole("heading", { name: "Unidades Didácticas" })).toBeVisible({ timeout: 10000 });
+        // On module page, units are listed under "Unidades didácticas"
+        await expect(page.getByRole("heading", { name: "Unidades didácticas" })).toBeVisible({ timeout: 10000 });
 
         // Verify unit card is visible in module page
         const unitCard = page.getByRole("heading", { name: "E2E Student Unit" }).first();

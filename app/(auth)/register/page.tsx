@@ -5,11 +5,15 @@ import { Terminal, ShieldOff, ArrowLeft, GraduationCap } from "lucide-react";
 import { APP_VERSION, APP_STATUS } from "@/lib/version";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function RegisterPage() {
     return (
         <div className="bg-background text-foreground min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
             {/* Version Tag */}
+            <div className="fixed top-6 left-6 z-20">
+                <ThemeToggle />
+            </div>
             <div className="fixed top-6 right-6 font-mono text-[10px] tracking-widest uppercase opacity-40 text-muted-foreground">
                 build_id: v{APP_VERSION} ({APP_STATUS})
             </div>
@@ -26,7 +30,7 @@ export default function RegisterPage() {
                 <div className="flex flex-col items-center gap-3 text-center">
                     <div className="flex items-center gap-3 text-primary">
                         <Terminal className="size-8" />
-                        <h1 className="text-2xl font-bold tracking-tight text-white">Aula IT</h1>
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground">Aula IT</h1>
                     </div>
                 </div>
 
@@ -37,20 +41,20 @@ export default function RegisterPage() {
                                 <ShieldOff className="size-7 text-destructive" />
                             </div>
                         </div>
-                        <CardTitle className="text-xl font-mono tracking-wider uppercase text-white">Acceso solo por invitación</CardTitle>
+                        <CardTitle className="text-xl font-mono tracking-wider uppercase text-foreground">Acceso solo por invitación</CardTitle>
                         <CardDescription className="text-xs font-mono text-muted-foreground leading-relaxed pt-1">
                             El registro público está deshabilitado. Las cuentas son gestionadas por el administrador del sistema.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-3 pb-6">
                         <Link href="/login/teacher">
-                            <Button variant="outline" className="w-full h-11 bg-background/50 border-border/50 hover:bg-accent/10 text-white text-xs font-mono tracking-wider">
+                            <Button variant="outline" className="w-full h-11 bg-background/50 border-border/50 hover:bg-accent/10 text-foreground text-xs font-mono tracking-wider">
                                 <GraduationCap className="mr-2 h-4 w-4 text-primary" />
                                 Acceso docente
                             </Button>
                         </Link>
                         <Link href="/login">
-                            <Button variant="ghost" className="w-full h-11 text-muted-foreground hover:text-white text-xs font-mono tracking-wider">
+                            <Button variant="ghost" className="w-full h-11 text-muted-foreground hover:text-foreground text-xs font-mono tracking-wider">
                                 <ArrowLeft className="mr-2 h-3 w-3" />
                                 Acceso de alumnos
                             </Button>

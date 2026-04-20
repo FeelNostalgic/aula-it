@@ -11,6 +11,7 @@ import {
   reorderModules,
   reorderUnits,
   duplicateModule,
+  pingActiveDay,
 } from "@/app/dashboard/actions";
 
 const vi_createClient = vi.mocked(createClient);
@@ -339,5 +340,130 @@ describe("duplicateModule", () => {
 
     expect(result).toEqual({ success: true });
     expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
+});
+
+// ─── pingActiveDay ───────────────────────────────────────────────────────────
+
+describe("pingActiveDay", () => {
+  it("does not increment streak when it's the same local day", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-20T18:00:00.000Z"));
+
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const updateEq = vi.fn().mockResolvedValue({ data: null, error: null });
+    const update = vi.fn().mockReturnValue({ eq: updateEq });
+    const selectEqSingle = vi.fn().mockResolvedValue({
+      data: { streak_days: 5, last_active_at: "2026-04-20T05:00:00.000Z" },
+      error: null,
+    });
+    const selectEq = vi.fn().mockReturnValue({ single: selectEqSingle });
+    const select = vi.fn().mockReturnValue({ eq: selectEq });
+    const adminClient = {
+      from: vi.fn().mockReturnValue({ select, update }),
+    };
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    await pingActiveDay("Europe/Madrid");
+
+    expect(update).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("increments streak by 1 when local day is consecutive", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-20T06:00:00.000Z"));
+
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const updateEq = vi.fn().mockResolvedValue({ data: null, error: null });
+    const update = vi.fn().mockReturnValue({ eq: updateEq });
+    const selectEqSingle = vi.fn().mockResolvedValue({
+      data: { streak_days: 7, last_active_at: "2026-04-19T03:00:00.000Z" },
+      error: null,
+    });
+    const selectEq = vi.fn().mockReturnValue({ single: selectEqSingle });
+    const select = vi.fn().mockReturnValue({ eq: selectEq });
+    const adminClient = {
+      from: vi.fn().mockReturnValue({ select, update }),
+    };
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    await pingActiveDay("Europe/Madrid");
+
+    expect(update).toHaveBeenCalledOnce();
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        streak_days: 8,
+      })
+    );
+    vi.useRealTimers();
+  });
+
+  it("resets streak to 1 when there is a day gap", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-20T08:00:00.000Z"));
+
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const updateEq = vi.fn().mockResolvedValue({ data: null, error: null });
+    const update = vi.fn().mockReturnValue({ eq: updateEq });
+    const selectEqSingle = vi.fn().mockResolvedValue({
+      data: { streak_days: 9, last_active_at: "2026-04-17T03:00:00.000Z" },
+      error: null,
+    });
+    const selectEq = vi.fn().mockReturnValue({ single: selectEqSingle });
+    const select = vi.fn().mockReturnValue({ eq: selectEq });
+    const adminClient = {
+      from: vi.fn().mockReturnValue({ select, update }),
+    };
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    await pingActiveDay("Europe/Madrid");
+
+    expect(update).toHaveBeenCalledOnce();
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        streak_days: 1,
+      })
+    );
+    vi.useRealTimers();
+  });
+
+  it("falls back safely when timezone is invalid", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-20T08:00:00.000Z"));
+
+    const { client } = new SupabaseMockBuilder()
+      .mockAuth(createMockUser())
+      .build();
+    vi_createClient.mockResolvedValue(client as any);
+
+    const updateEq = vi.fn().mockResolvedValue({ data: null, error: null });
+    const update = vi.fn().mockReturnValue({ eq: updateEq });
+    const selectEqSingle = vi.fn().mockResolvedValue({
+      data: { streak_days: 2, last_active_at: "2026-04-19T03:00:00.000Z" },
+      error: null,
+    });
+    const selectEq = vi.fn().mockReturnValue({ single: selectEqSingle });
+    const select = vi.fn().mockReturnValue({ eq: selectEq });
+    const adminClient = {
+      from: vi.fn().mockReturnValue({ select, update }),
+    };
+    vi_createAdminClient.mockReturnValue(adminClient as any);
+
+    await expect(pingActiveDay("Invalid/Timezone")).resolves.toBeUndefined();
+    expect(update).toHaveBeenCalledOnce();
+    vi.useRealTimers();
   });
 });

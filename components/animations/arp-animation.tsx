@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import gsap from "gsap"
 import { AnimatePresence } from "framer-motion"
+import { useTheme } from "next-themes"
 import { useAnimationContext } from "./animation-player"
 import { NodeInfoCard, type NodeInfo } from "./node-info-card"
 
@@ -53,22 +54,42 @@ const NODE_INFO: Record<string, NodeInfo> = {
   },
 }
 
-// Colors
-const C = {
-  idle: "#464646",
-  active: "#0070F3",
-  success: "#10B981",
-  warn: "#F59E0B",
-  muted: "#191919",
-  fg: "#EDEDED",
-  bg: "#121212",
-}
-
 export function ArpAnimation() {
   const svgRef = useRef<SVGSVGElement>(null)
   const { registerTimeline } = useAnimationContext()
+  const { resolvedTheme } = useTheme()
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const C =
+    resolvedTheme === "light"
+      ? {
+          idle: "#94A3B8",
+          active: "#2563EB",
+          success: "#059669",
+          warn: "#D97706",
+          muted: "#CBD5E1",
+          fg: "#0F172A",
+          bg: "#E5EAF0",
+          warnText: "#111827",
+          successText: "#F8FAFC",
+          successMacText: "#ECFDF5",
+          successMacStroke: "rgba(6, 95, 70, 0.55)",
+          subText: "#475569",
+        }
+      : {
+          idle: "#64748B",
+          active: "#38BDF8",
+          success: "#34D399",
+          warn: "#FBBF24",
+          muted: "#334155",
+          fg: "#E5E7EB",
+          bg: "#1F2937",
+          warnText: "#111827",
+          successText: "#F8FAFC",
+          successMacText: "#052E2B",
+          successMacStroke: "rgba(255, 255, 255, 0.42)",
+          subText: "#A3B0C2",
+        }
 
   const handleNodeEnter = useCallback((id: string) => {
     if (hideTimer.current) clearTimeout(hideTimer.current)
@@ -178,7 +199,7 @@ export function ArpAnimation() {
 
     registerTimeline(tl)
     return () => { tl.kill() }
-  }, [registerTimeline])
+  }, [C.active, C.bg, C.fg, C.idle, C.success, C.warn, registerTimeline])
 
   // ── SVG ─────────────────────────────────────────────────────────────────
   const activeInfo = selectedNode ? NODE_INFO[selectedNode] : null
@@ -223,7 +244,7 @@ export function ArpAnimation() {
           {/* Broadcast label (shown in step 2) */}
           <g id="label-bc">
             <rect x="-30" y="-60" width="60" height="18" rx="4" fill={C.warn} />
-            <text y="-47" textAnchor="middle" fill="#000" fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">BROADCAST</text>
+            <text y="-47" textAnchor="middle" fill={C.warnText} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">BROADCAST</text>
           </g>
         </g>
 
@@ -242,7 +263,7 @@ export function ArpAnimation() {
             <text x="0" y="-97" fontSize="9" fill={C.success} fontWeight="700" fontFamily="var(--font-mono)">TABLA ARP</text>
             <line x1="-2" y1="-90" x2="148" y2="-90" stroke={C.idle} strokeWidth="0.75" />
             <text x="0" y="-77" fontSize="8" fill={C.fg} fontFamily="var(--font-mono)">IP (B)  → B4:22:DA:FF:11:22</text>
-            <text x="0" y="-65" fontSize="8" fill="#737373" fontFamily="var(--font-mono)">Interfaz: eth0</text>
+            <text x="0" y="-65" fontSize="8" fill={C.subText} fontFamily="var(--font-mono)">Interfaz: eth0</text>
           </g>
         </g>
 
@@ -267,28 +288,41 @@ export function ArpAnimation() {
         {/* ── Packets (moved by GSAP) ──────────────────────────────────── */}
         <g id="pkt-req" className="packet">
           <rect x="-30" y="-11" width="60" height="22" rx="5" fill={C.warn} />
-          <text textAnchor="middle" y="4" fontSize="8.5" fill="#000" fontWeight="700" fontFamily="var(--font-mono)">ARP REQ</text>
+          <text textAnchor="middle" y="4" fontSize="8.5" fill={C.warnText} fontWeight="700" fontFamily="var(--font-mono)">ARP REQ</text>
         </g>
 
         <g id="pkt-bc-b" className="packet">
           <rect x="-30" y="-11" width="60" height="22" rx="5" fill={C.warn} />
-          <text textAnchor="middle" y="4" fontSize="8.5" fill="#000" fontWeight="700" fontFamily="var(--font-mono)">ARP REQ</text>
+          <text textAnchor="middle" y="4" fontSize="8.5" fill={C.warnText} fontWeight="700" fontFamily="var(--font-mono)">ARP REQ</text>
         </g>
 
         <g id="pkt-bc-c" className="packet">
           <rect x="-30" y="-11" width="60" height="22" rx="5" fill={C.warn} />
-          <text textAnchor="middle" y="4" fontSize="8.5" fill="#000" fontWeight="700" fontFamily="var(--font-mono)">ARP REQ</text>
+          <text textAnchor="middle" y="4" fontSize="8.5" fill={C.warnText} fontWeight="700" fontFamily="var(--font-mono)">ARP REQ</text>
         </g>
 
         <g id="pkt-reply-up" className="packet">
           <rect x="-34" y="-11" width="68" height="22" rx="5" fill={C.success} />
-          <text textAnchor="middle" y="4" fontSize="8.5" fill="#fff" fontWeight="700" fontFamily="var(--font-mono)">ARP REPLY</text>
+          <text textAnchor="middle" y="4" fontSize="8.5" fill={C.successText} fontWeight="700" fontFamily="var(--font-mono)">ARP REPLY</text>
         </g>
 
         <g id="pkt-reply-down" className="packet">
           <rect x="-52" y="-16" width="104" height="32" rx="5" fill={C.success} />
-          <text textAnchor="middle" y="-3" fontSize="8.5" fill="#fff" fontWeight="700" fontFamily="var(--font-mono)">ARP REPLY</text>
-          <text textAnchor="middle" y="10" fontSize="7.5" fill="rgba(255,255,255,0.85)" fontFamily="var(--font-mono)">B4:22:DA:FF:11:22</text>
+          <text textAnchor="middle" y="-3" fontSize="8.5" fill={C.successText} fontWeight="700" fontFamily="var(--font-mono)">ARP REPLY</text>
+          <text
+            textAnchor="middle"
+            y="10"
+            fontSize="8"
+            fill={C.successMacText}
+            stroke={C.successMacStroke}
+            strokeWidth="0.35"
+            paintOrder="stroke fill"
+            fontWeight="700"
+            fontFamily="var(--font-mono)"
+            letterSpacing="0.2px"
+          >
+            B4:22:DA:FF:11:22
+          </text>
         </g>
       </svg>
     </div>

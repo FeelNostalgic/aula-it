@@ -925,18 +925,18 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                                             if (type === MAP_NODE_TYPE.START) return 'var(--color-accent-green)';
                                             if (type === MAP_NODE_TYPE.END) return 'var(--color-accent-red)';
                                             if (type === MAP_NODE_TYPE.BRANCH) return 'var(--color-accent-amber)';
-                                            if (type === MAP_NODE_TYPE.MERGE) return '#f9a8d4';
+                                            if (type === MAP_NODE_TYPE.MERGE) return 'var(--color-accent-purple)';
                                             return 'var(--color-muted-foreground)';
                                         }
                                         if (n.type === 'mission') {
                                             const status = (n.data as any)?.status;
-                                            if (status === 'blocked') return '#64748b';
-                                            if (status === 'draft') return '#f97316';
-                                            return '#22d3ee';
+                                            if (status === 'blocked') return 'var(--color-muted-foreground)';
+                                            if (status === 'draft') return 'var(--color-accent-orange)';
+                                            return 'var(--color-accent-blue)';
                                         }
-                                        return '#1e293b';
+                                        return 'var(--color-border-strong)';
                                     }}
-                                    maskColor="rgba(0, 0, 0, 0.3)"
+                                    maskColor="color-mix(in srgb, var(--color-foreground) 22%, transparent)"
                                 />
 
                                 {/* Refined Navigation Status - Bottom Left */}

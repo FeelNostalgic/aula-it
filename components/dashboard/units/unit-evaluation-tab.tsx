@@ -7,6 +7,7 @@ import {
     FileText, CheckCircle2, Clock, Circle, ExternalLink, Copy, Lock, Send, PencilLine,
     ChevronDown, Star, Undo2, BookOpen, Paperclip, CalendarPlus,
     LayoutGrid, ListFilter, Search, Users, User, FolderRoot, GraduationCap, ArrowRight,
+    PenTool, PlaySquare, CheckSquare, MonitorPlay, FolderDown, UserCheck, Users2,
     ArrowUp, ArrowDown, ArrowUpDown, Download
 } from "lucide-react";
 import {
@@ -14,7 +15,7 @@ import {
     type ColumnDef, type SortingState, type RowSelectionState, type Column,
 } from "@tanstack/react-table";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { getStepIcon, getTabStepIcon } from "@/lib/constants/step-icons";
+import { getStepIcon } from "@/lib/constants/step-icons";
 import { ActivityStepType } from "@/types/activity";
 import {
     getUnitStepSubmissions,
@@ -516,13 +517,12 @@ function ChallengeAccordion({ id, index, data, selectedStepId, onSelectStep, isO
                                         {isChild && (
                                             <span className="text-[8px] text-text-muted/40 shrink-0">↳</span>
                                         )}
-                                        <div className={cn(
-                                            "rounded-lg flex items-center justify-center border transition-colors shrink-0",
-                                            isChild ? "size-4" : "size-5",
-                                            isSelected ? "border-accent-blue/20 bg-accent-blue/5" : "border-border-strong bg-surface-dark group-hover/item:border-border-subtle"
+                                        <span className={cn(
+                                            "shrink-0 flex items-center justify-center",
+                                            isChild ? "size-5" : "size-6"
                                         )}>
-                                            {getTabStepIcon(step.stepType)}
-                                        </div>
+                                            {getEvaluationTreeStepIcon(step.stepType, isChild)}
+                                        </span>
                                         <span className={cn(
                                             "font-bold truncate flex-1 uppercase tracking-tight",
                                             isChild ? "text-[9px]" : "text-[10px]"
@@ -2050,6 +2050,23 @@ function getActivityTypeIcon(type: string) {
         case 'quiz':      return <CheckCircle2 className="size-4 text-accent-orange" />;
         case 'project':   return <Star className="size-4 text-purple-400" />;
         default:          return <BookOpen className="size-4 text-text-muted" />;
+    }
+}
+
+function getEvaluationTreeStepIcon(type?: ActivityStepType, isChild = false) {
+    const sizeClass = isChild ? "size-[15px]" : "size-[18px]";
+
+    switch (type) {
+        case 'theory':          return <FileText className={cn(sizeClass, "text-accent-blue")} />;
+        case 'deliverable':     return <PenTool className={cn(sizeClass, "text-rose-500")} />;
+        case 'animation':       return <PlaySquare className={cn(sizeClass, "text-pink-500")} />;
+        case 'quiz':            return <CheckSquare className={cn(sizeClass, "text-violet-500")} />;
+        case 'presentation':    return <MonitorPlay className={cn(sizeClass, "text-sky-500")} />;
+        case 'resource':        return <FolderDown className={cn(sizeClass, "text-accent-green")} />;
+        case 'file_upload':     return <Paperclip className={cn(sizeClass, "text-teal-500")} />;
+        case 'self_evaluation': return <UserCheck className={cn(sizeClass, "text-amber-500")} />;
+        case 'peer_evaluation': return <Users2 className={cn(sizeClass, "text-indigo-500")} />;
+        default:                return <FileText className={cn(sizeClass, "text-text-muted")} />;
     }
 }
 

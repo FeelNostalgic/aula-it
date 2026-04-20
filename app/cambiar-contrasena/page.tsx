@@ -14,13 +14,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <Button
       disabled={pending}
-      className="w-full h-12 text-white font-bold shadow-lg shadow-primary/20"
+      className="w-full h-12 text-primary-foreground font-bold shadow-lg shadow-primary/20"
       type="submit"
     >
       {pending ? (
@@ -39,6 +40,9 @@ export default function CambiarContrasenaPage() {
 
   return (
     <div className="bg-background text-foreground min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
+      <div className="fixed top-6 left-6 z-20">
+        <ThemeToggle />
+      </div>
       <div className="fixed inset-0 -z-10 pointer-events-none">
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-primary/10 rounded-full blur-[120px]" />
         <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-primary/5 rounded-full blur-[120px]" />
@@ -48,13 +52,13 @@ export default function CambiarContrasenaPage() {
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="flex items-center gap-3 text-primary">
             <Terminal className="size-8" />
-            <h1 className="text-2xl font-bold tracking-tight text-white">Aula IT</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Aula IT</h1>
           </div>
         </div>
 
         <Card className="border-border/50 bg-card shadow-2xl overflow-hidden">
           <CardHeader className="space-y-1 pb-6 text-center">
-            <CardTitle className="text-xl font-mono tracking-wider uppercase text-white">
+            <CardTitle className="text-xl font-mono tracking-wider uppercase text-foreground">
               Cambio de Contraseña
             </CardTitle>
             <CardDescription className="text-xs uppercase tracking-widest font-mono text-muted-foreground">

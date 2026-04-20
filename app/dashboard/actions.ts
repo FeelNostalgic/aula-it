@@ -302,7 +302,26 @@ export async function duplicateModule(moduleId: string) {
     return { success: true };
 }
 
-export async function pingActiveDay(): Promise<void> {
+function getDayFormatter(timeZone?: string) {
+    const baseOptions: Intl.DateTimeFormatOptions = {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    };
+    const preferred = typeof timeZone === "string" && timeZone.trim().length > 0
+        ? timeZone.trim()
+        : "UTC";
+
+    try {
+        const formatter = new Intl.DateTimeFormat("en-CA", { ...baseOptions, timeZone: preferred });
+        formatter.format(new Date());
+        return formatter;
+    } catch {
+        return new Intl.DateTimeFormat("en-CA", { ...baseOptions, timeZone: "UTC" });
+    }
+}
+
+export async function pingActiveDay(timeZone?: string): Promise<void> {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -316,15 +335,15 @@ export async function pingActiveDay(): Promise<void> {
 
     if (!profile) return;
 
+    const dayFormatter = getDayFormatter(timeZone);
     const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-    const lastActive = profile.last_active_at ? new Date(profile.last_active_at).toISOString().slice(0, 10) : null;
+    const today = dayFormatter.format(now);
+    const lastActive = profile.last_active_at ? dayFormatter.format(new Date(profile.last_active_at)) : null;
 
     if (lastActive === today) return;
 
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().slice(0, 10);
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const yesterdayStr = dayFormatter.format(yesterday);
 
     const newStreak = lastActive === yesterdayStr
         ? (profile.streak_days || 0) + 1

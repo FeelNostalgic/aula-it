@@ -284,6 +284,7 @@ function MilestoneForm({
 export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitMilestoneTabProps) {
     const [milestones, setMilestones] = useState<ClassMilestone[]>(initialMilestones);
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+    const [gridCols, setGridCols] = useState(2);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [editingMilestone, setEditingMilestone] = useState<ClassMilestone | null>(null);
     const [isPending, startTransition] = useTransition();
@@ -292,6 +293,19 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
     useEffect(() => {
         setMilestones(initialMilestones);
     }, [initialMilestones]);
+
+    useEffect(() => {
+        const savedCols = localStorage.getItem("aula-it:milestones:grid-cols");
+        if (!savedCols) return;
+        const parsed = Number(savedCols);
+        if ([2, 3, 4].includes(parsed)) {
+            setGridCols(parsed);
+        }
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem("aula-it:milestones:grid-cols", String(gridCols));
+    }, [gridCols]);
 
     const activeAndDrafts = milestones.filter(m => m.status === 'active' || m.status === 'draft');
     const completedAndArchived = milestones.filter(m => m.status === 'completed' || m.status === 'archived');
@@ -472,6 +486,12 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
     };
 
     const sortedActiveAndDrafts = [...activeAndDrafts].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+    const gridColsClass =
+        {
+            2: "md:grid-cols-2 lg:grid-cols-2",
+            3: "md:grid-cols-2 lg:grid-cols-3",
+            4: "md:grid-cols-3 lg:grid-cols-4",
+        }[gridCols as 2 | 3 | 4] || "md:grid-cols-2 lg:grid-cols-2";
     const createMilestoneTrigger = (
         <button
             type="button"
@@ -523,14 +543,34 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-2 p-1 bg-surface border border-border-subtle rounded-xl shadow-sm self-end md:self-center">
+                        {viewMode === "grid" && (
+                            <div className="flex items-center gap-2 mr-2">
+                                <div className="flex items-center bg-muted/30 dark:bg-surface-dark/50 p-1 rounded-xl border border-border/50">
+                                    {([2, 3, 4] as const).map((count) => (
+                                        <Button
+                                            key={count}
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setGridCols(count)}
+                                            className={cn(
+                                                "h-8 w-8 p-0 rounded-lg transition-all text-xs font-bold",
+                                                gridCols === count ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                            )}
+                                        >
+                                            {count}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        <div className="flex items-center gap-2 p-1 bg-slate-900/[0.09] dark:bg-surface border border-border-subtle rounded-xl shadow-sm self-end md:self-center">
                         <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => setViewMode('grid')}
                             className={cn(
                                 "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
-                                viewMode === 'grid' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                viewMode === 'grid' ? "bg-accent-blue/15 text-accent-blue shadow-sm dark:bg-background dark:text-foreground" : "text-text-muted hover:text-foreground"
                             )}
                         >
                             <LayoutGrid className="size-3.5 mr-2" />
@@ -542,7 +582,7 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
                             onClick={() => setViewMode('list')}
                             className={cn(
                                 "h-8 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
-                                viewMode === 'list' ? "bg-background text-foreground shadow-sm" : "text-text-muted hover:text-foreground"
+                                viewMode === 'list' ? "bg-accent-blue/15 text-accent-blue shadow-sm dark:bg-background dark:text-foreground" : "text-text-muted hover:text-foreground"
                             )}
                         >
                             <List className="size-3.5 mr-2" />
@@ -587,7 +627,7 @@ export function UnitMilestoneTab({ unitId, initialMilestones, isTeacher }: UnitM
                         >
                             <div className={cn(
                                 "grid gap-4 transition-all duration-500",
-                                viewMode === "grid" ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"
+                                viewMode === "grid" ? `grid-cols-1 ${gridColsClass}` : "grid-cols-1"
                             )}>
                                 {sortedActiveAndDrafts.map(m => (
                                     <SortableMilestoneCard key={m.id} milestone={m} />

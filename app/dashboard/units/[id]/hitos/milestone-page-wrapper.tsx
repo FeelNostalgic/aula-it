@@ -60,7 +60,7 @@ export function MilestonePageWrapper({ unitId, milestones, isTeacher }: Mileston
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, y: 10 }}
-                                className="relative overflow-hidden bg-linear-to-br from-indigo-500/20 via-purple-500/15 to-pink-500/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 flex items-center gap-4 cursor-pointer hover:border-accent-blue/40 transition-all shadow-xl group ring-1 ring-white/5"
+                                className="relative overflow-hidden bg-linear-to-br from-indigo-700/30 via-indigo-600/24 to-purple-600/18 dark:from-indigo-500/20 dark:via-purple-500/15 dark:to-pink-500/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 flex items-center gap-4 cursor-pointer hover:border-accent-blue/40 transition-all shadow-xl group ring-1 ring-white/5"
                                 onClick={() => handleToggleMilestone(true)}
                             >
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />

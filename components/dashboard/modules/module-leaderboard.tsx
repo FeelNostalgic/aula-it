@@ -33,10 +33,10 @@ function PodiumBlock({ entry, position, isMe, badges }: { entry: LeaderboardEntr
         2: {
             blockHeight: "h-12",
             avatarSize: "size-12",
-            borderColor: "border-slate-300/50",
-            bgColor: "bg-slate-300/5",
-            textColor: "text-slate-300",
-            icon: <Medal className="size-4 text-slate-300" />,
+            borderColor: "border-slate-500/50 dark:border-slate-300/50",
+            bgColor: "bg-slate-500/10 dark:bg-slate-300/5",
+            textColor: "text-slate-600 dark:text-slate-300",
+            icon: <Medal className="size-4 text-slate-600 dark:text-slate-300" />,
         },
         3: {
             blockHeight: "h-8",
@@ -195,7 +195,7 @@ export function ModuleLeaderboard({ moduleId, userRole }: { moduleId: string; us
                     <Trophy className="size-5 text-primary" />
                 </div>
                 <div>
-                    <h2 className="text-xl font-black tracking-tight uppercase">Leaderboard</h2>
+                    <h2 className="text-xl font-black tracking-tight uppercase">Ranking</h2>
                     <p className="text-xs text-text-muted">Ranking de clase basado en Experiencia (XP)</p>
                 </div>
             </div>

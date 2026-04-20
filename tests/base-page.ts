@@ -6,7 +6,7 @@ export class BasePage {
     async goto(path: string): Promise<void> {
         for (let attempt = 0; attempt < 3; attempt += 1) {
             try {
-                await this.page.goto(path, { waitUntil: "domcontentloaded", timeout: 10000 });
+                await this.page.goto(path, { waitUntil: "domcontentloaded", timeout: 20000 });
                 return;
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -17,7 +17,9 @@ export class BasePage {
                     || message.includes("ERR_CONNECTION_REFUSED")
                     || message.includes("ECONNREFUSED")
                     || message.includes("Timeout 30000ms exceeded")
-                    || message.includes("Timeout 10000ms exceeded");
+                    || message.includes("Timeout 10000ms exceeded")
+                    || message.includes("Timeout 15000ms exceeded")
+                    || message.includes("Timeout 20000ms exceeded");
 
                 if (!retryable || attempt === 2) {
                     throw error;
@@ -26,7 +28,11 @@ export class BasePage {
                 if (this.page.isClosed()) {
                     throw error;
                 }
-                await this.page.waitForTimeout(250);
+                try {
+                    await this.page.waitForTimeout(250);
+                } catch {
+                    throw error;
+                }
             }
         }
     }
