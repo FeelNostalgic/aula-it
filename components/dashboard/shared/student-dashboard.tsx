@@ -120,6 +120,7 @@ export function StudentDashboard({ initialModules, gridColumns: initialGridColum
             </Card>
 
             {/* Stats */}
+            {/*
             <div>
                 <button
                     onClick={() => setStatsOpen(!statsOpen)}
@@ -170,7 +171,7 @@ export function StudentDashboard({ initialModules, gridColumns: initialGridColum
                     </div>
                 )}
             </div>
-
+            */}
             <div className="flex flex-col gap-6">
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-bold">Módulos Activos</h2>
