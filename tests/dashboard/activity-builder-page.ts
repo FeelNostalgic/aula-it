@@ -161,6 +161,7 @@ export class ActivityBuilderPage extends BasePage {
     }
 
     async addResource(url: string, title: string): Promise<void> {
+        await this.openResourcesTab();
         await this.page.getByRole('button', { name: 'Añadir Enlace' }).click();
 
         // Find the last added resource card (empty)
@@ -172,6 +173,14 @@ export class ActivityBuilderPage extends BasePage {
         // Wait for auto-save debounce
         await this.page.waitForTimeout(1500);
         await this.waitForNotification();
+    }
+
+    async openResourcesTab(): Promise<void> {
+        const addLinkButton = this.page.getByRole('button', { name: 'Añadir Enlace' });
+        if (await addLinkButton.isVisible().catch(() => false)) return;
+
+        await this.page.getByRole('tab', { name: 'Recursos' }).click();
+        await expect(addLinkButton).toBeVisible({ timeout: 10000 });
     }
 
     async toggleQuizToGoogleForms(url: string): Promise<void> {
