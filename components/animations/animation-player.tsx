@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
 } from "react"
@@ -13,6 +14,11 @@ import { Button } from "@/components/ui/button"
 import type { AnimationStep } from "@/types/animations"
 import type gsap from "gsap"
 import { cn } from "@/lib/utils"
+import {
+  PLAYBACK_SPEED_OPTIONS,
+  type PlaybackSpeedLabel,
+  resolvePlaybackSpeed,
+} from "@/lib/animations/playback"
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
@@ -45,11 +51,12 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
   const stepTimesRef = useRef<number[]>([])
   const isDraggingRef = useRef(false)
   const loopRef = useRef(false)
+  const speedLabelRef = useRef<PlaybackSpeedLabel>(1)
 
   const [isPlaying, setIsPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [currentStep, setCurrentStep] = useState(0)
-  const [speed, setSpeed] = useState(1)
+  const [speedLabel, setSpeedLabel] = useState<PlaybackSpeedLabel>(1)
   const [loop, setLoop] = useState(false)
   const [tlDuration, setTlDuration] = useState(0)
   const [zoom, setZoom] = useState(1)
@@ -57,8 +64,6 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
   const handleZoomIn  = () => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))
   const handleZoomOut = () => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))
   const handleZoomReset = () => setZoom(1)
-
-  const SPEEDS = [0.25, 0.5, 1, 1.5]
 
   const updateStep = useCallback((time: number) => {
     const times = stepTimesRef.current
@@ -81,6 +86,7 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
 
       stepTimesRef.current = times
       setTlDuration(tl.duration())
+      tl.timeScale(resolvePlaybackSpeed(speedLabelRef.current))
 
       tl.eventCallback("onUpdate", () => {
         if (!isDraggingRef.current) {
@@ -103,6 +109,11 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
     },
     [steps.length, updateStep]
   )
+
+  useEffect(() => {
+    speedLabelRef.current = speedLabel
+    tlRef.current?.timeScale(resolvePlaybackSpeed(speedLabel))
+  }, [speedLabel])
 
   // Controls
   const handlePlay = () => {
@@ -164,9 +175,8 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
     isDraggingRef.current = false
   }
 
-  const handleSpeedChange = (s: number) => {
-    setSpeed(s)
-    tlRef.current?.timeScale(s)
+  const handleSpeedChange = (label: PlaybackSpeedLabel) => {
+    setSpeedLabel(label)
   }
 
   const handleLoopToggle = () => {
@@ -340,7 +350,7 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
                 {isPlaying ? (
                   <Pause className="size-4" />
                 ) : (
-                  <Play className="size-4 translate-x-0.5" />
+                  <Play className="size-4" />
                 )}
               </Button>
 
@@ -371,18 +381,18 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
             {/* Right: speed */}
             <div className="flex items-center justify-end">
               <div className="flex items-center rounded-md border border-border/50 overflow-hidden">
-                {SPEEDS.map((s) => (
+                {PLAYBACK_SPEED_OPTIONS.map((option) => (
                   <button
-                    key={s}
-                    onClick={() => handleSpeedChange(s)}
+                    key={option.label}
+                    onClick={() => handleSpeedChange(option.label)}
                     className={cn(
                       "px-2 py-1 text-xs font-mono transition-colors",
-                      speed === s
+                      speedLabel === option.label
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:text-foreground hover:bg-accent"
                     )}
                   >
-                    {s}×
+                    {option.label}×
                   </button>
                 ))}
               </div>

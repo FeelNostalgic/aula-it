@@ -19,9 +19,11 @@ import { generateMarkdownPdf } from "@/app/actions/generate-pdf";
 import { animationRegistry } from "@/lib/animations/registry";
 import { AnimationPlayer } from "@/components/animations/animation-player";
 import { ArpAnimation } from "@/components/animations/arp-animation";
+import { OsiTcpIpAnimation } from "@/components/animations/osi-tcp-ip-animation";
 
 const animationMap: Record<string, React.ComponentType> = {
     arp: ArpAnimation,
+    "osi-tcp-ip": OsiTcpIpAnimation,
 };
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";

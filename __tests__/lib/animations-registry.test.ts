@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { animationRegistry, arpSteps } from "@/lib/animations/registry";
+import { animationRegistry, arpSteps, osiTcpIpSteps } from "@/lib/animations/registry";
 
 describe("animationRegistry", () => {
     it("is an array with at least one entry", () => {
@@ -39,6 +39,22 @@ describe("animationRegistry", () => {
         expect(arpEntry).toBeDefined();
         expect(arpEntry!.slug).toBe("arp");
         expect(arpEntry!.topic).toBe("Redes");
+    });
+
+    it("contains the 'osi-tcp-ip' entry with six ordered steps", () => {
+        const osiEntry = animationRegistry.find((e) => e.slug === "osi-tcp-ip");
+        expect(osiEntry).toBeDefined();
+        expect(osiEntry!.title).toBe("Modelo OSI vs TCP/IP");
+        expect(osiEntry!.topic).toBe("Redes");
+        expect(osiEntry!.steps).toHaveLength(6);
+        expect(osiEntry!.steps.map((step) => step.id)).toEqual([
+            "step-1",
+            "step-2",
+            "step-3",
+            "step-4",
+            "step-5",
+            "step-6",
+        ]);
     });
 
     it("every entry's steps array contains objects with id, label, description", () => {
@@ -95,6 +111,31 @@ describe("arpSteps", () => {
 
     it("all descriptions are non-empty strings", () => {
         for (const step of arpSteps) {
+            expect(step.description.trim().length).toBeGreaterThan(0);
+        }
+    });
+});
+
+describe("osiTcpIpSteps", () => {
+    it("is an array with exactly 6 entries", () => {
+        expect(Array.isArray(osiTcpIpSteps)).toBe(true);
+        expect(osiTcpIpSteps).toHaveLength(6);
+    });
+
+    it("uses the sequential step-N pattern from step-1 to step-6", () => {
+        expect(osiTcpIpSteps.map((step) => step.id)).toEqual([
+            "step-1",
+            "step-2",
+            "step-3",
+            "step-4",
+            "step-5",
+            "step-6",
+        ]);
+    });
+
+    it("has non-empty labels and descriptions", () => {
+        for (const step of osiTcpIpSteps) {
+            expect(step.label.trim().length).toBeGreaterThan(0);
             expect(step.description.trim().length).toBeGreaterThan(0);
         }
     });

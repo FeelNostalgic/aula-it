@@ -33,6 +33,45 @@ export const arpSteps = [
   },
 ]
 
+export const osiTcpIpSteps = [
+  {
+    id: "step-1",
+    label: "1. Dos modelos para ordenar la comunicacion",
+    description:
+      "OSI y TCP/IP dividen la comunicacion de red en capas. La idea es la misma: separar responsabilidades para que cada nivel haga un trabajo concreto sin mezclarlo todo.",
+  },
+  {
+    id: "step-2",
+    label: "2. El modelo OSI organiza la red en 7 capas",
+    description:
+      "OSI separa con mucho detalle las funciones: aplicacion, presentacion, sesion, transporte, red, enlace y fisica. Es un modelo muy util para estudiar y diagnosticar.",
+  },
+  {
+    id: "step-3",
+    label: "3. TCP/IP agrupa esas funciones en 4 capas",
+    description:
+      "TCP/IP simplifica el enfoque en cuatro bloques: aplicacion, transporte, internet y acceso a la red. Es el modelo que describe mejor como funciona Internet en la practica.",
+  },
+  {
+    id: "step-4",
+    label: "4. Varias capas OSI se agrupan dentro de TCP/IP",
+    description:
+      "Aplicacion de TCP/IP absorbe aplicacion, presentacion y sesion de OSI. Acceso a la red agrupa enlace y fisica. Transporte e internet se corresponden de forma mas directa.",
+  },
+  {
+    id: "step-5",
+    label: "5. Los datos bajan por capas y se encapsulan",
+    description:
+      "Al enviar informacion, los datos descienden por la pila y cada capa anade su propia informacion. En recepcion ocurre lo contrario: cada capa elimina su cabecera y entrega el contenido a la superior.",
+  },
+  {
+    id: "step-6",
+    label: "6. Similitudes y diferencias clave",
+    description:
+      "Ambos modelos usan capas y modularidad. La diferencia grande es que OSI es mas teorico y detallado, mientras que TCP/IP es mas compacto y esta basado en protocolos reales usados en redes actuales.",
+  },
+]
+
 export const animationRegistry: AnimationMeta[] = [
   {
     slug: "arp",
@@ -41,5 +80,13 @@ export const animationRegistry: AnimationMeta[] = [
       "Descubre cómo los equipos de red resuelven direcciones IP a direcciones MAC usando el protocolo ARP.",
     topic: "Redes",
     steps: arpSteps,
+  },
+  {
+    slug: "osi-tcp-ip",
+    title: "Modelo OSI vs TCP/IP",
+    description:
+      "Compara las capas de OSI y TCP/IP, su correspondencia y el recorrido de los datos para entender en que se parecen y en que se diferencian.",
+    topic: "Redes",
+    steps: osiTcpIpSteps,
   },
 ]
