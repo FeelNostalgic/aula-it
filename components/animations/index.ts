@@ -1,3 +1,6 @@
 export { AnimationPlayer } from "./animation-player"
 export { ArpAnimation } from "./arp-animation"
+export { EthernetAnimation } from "./ethernet-animation"
+export { NETWORK_DEVICE_STYLE, PcGlyph, RouterGlyph, SwitchGlyph } from "./network-device-icons"
 export { OsiTcpIpAnimation } from "./osi-tcp-ip-animation"
+export { PppAnimation } from "./ppp-animation"

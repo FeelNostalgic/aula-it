@@ -1,4 +1,4 @@
-export const PLAYBACK_SLOWDOWN_FACTOR = 0.5
+export const PLAYBACK_SLOWDOWN_FACTOR = 0.75
 
 export const PLAYBACK_SPEED_OPTIONS = [
   {

@@ -5,6 +5,7 @@ import gsap from "gsap"
 import { AnimatePresence } from "framer-motion"
 import { useTheme } from "next-themes"
 import { useAnimationContext } from "./animation-player"
+import { NETWORK_DEVICE_STYLE, PcGlyph, SwitchGlyph } from "./network-device-icons"
 import { NodeInfoCard, type NodeInfo } from "./node-info-card"
 
 // Node positions in SVG space
@@ -14,6 +15,13 @@ const N = {
   b: { x: 400, y: 340 },
   c: { x: 660, y: 340 },
 }
+
+const TOOLTIP_ANCHORS = {
+  sw: { x: N.sw.x + NETWORK_DEVICE_STYLE.switch.radius, y: N.sw.y + NETWORK_DEVICE_STYLE.switch.radius },
+  a: { x: N.a.x + NETWORK_DEVICE_STYLE.pc.radius, y: N.a.y + NETWORK_DEVICE_STYLE.pc.radius },
+  b: { x: N.b.x + NETWORK_DEVICE_STYLE.pc.radius, y: N.b.y + NETWORK_DEVICE_STYLE.pc.radius },
+  c: { x: N.c.x + NETWORK_DEVICE_STYLE.pc.radius, y: N.c.y + NETWORK_DEVICE_STYLE.pc.radius },
+} as const
 
 const VB = { w: 800, h: 460 }
 
@@ -211,8 +219,8 @@ export function ArpAnimation() {
         {activeInfo && (
           <NodeInfoCard
             node={activeInfo}
-            svgX={N[selectedNode as keyof typeof N].x}
-            svgY={N[selectedNode as keyof typeof N].y}
+            anchorX={TOOLTIP_ANCHORS[selectedNode as keyof typeof TOOLTIP_ANCHORS].x}
+            anchorY={TOOLTIP_ANCHORS[selectedNode as keyof typeof TOOLTIP_ANCHORS].y}
             viewBoxW={VB.w}
             viewBoxH={VB.h}
             onMouseEnter={cancelHide}
@@ -234,15 +242,11 @@ export function ArpAnimation() {
 
         {/* ── Switch ──────────────────────────────────────────────────── */}
         <g id="node-sw" onMouseEnter={() => handleNodeEnter("sw")} onMouseLeave={scheduleHide} className="cursor-default">
-          <circle className="node-circle" r="36" fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
-          {/* Switch icon: box with ports */}
-          <rect x="-18" y="-8" width="36" height="16" rx="3" fill="none" stroke={C.active} strokeWidth="1.5" />
-          <rect cx="-10" cy="0" x="-13" y="-3" width="4" height="6" rx="1" fill={C.active} />
-          <rect cx="-3"  cy="0" x="-4"  y="-3" width="4" height="6" rx="1" fill={C.active} />
-          <rect cx="4"   cy="0" x="5"   y="-3" width="4" height="6" rx="1" fill={C.active} />
-          <text y="54" textAnchor="middle" fill={C.fg} fontSize="13" fontWeight="600" fontFamily="var(--font-mono)">Switch</text>
+          <circle className="node-circle" r={NETWORK_DEVICE_STYLE.switch.radius} fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
+          <SwitchGlyph stroke={C.active} />
+          <text y={NETWORK_DEVICE_STYLE.switch.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="13" fontWeight="600" fontFamily="var(--font-mono)">Switch</text>
           {/* Broadcast label (shown in step 2) */}
-          <g id="label-bc">
+          <g id="label-bc" pointerEvents="none">
             <rect x="-30" y="-60" width="60" height="18" rx="4" fill={C.warn} />
             <text y="-47" textAnchor="middle" fill={C.warnText} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">BROADCAST</text>
           </g>
@@ -250,15 +254,13 @@ export function ArpAnimation() {
 
         {/* ── PC A ────────────────────────────────────────────────────── */}
         <g id="node-a" onMouseEnter={() => handleNodeEnter("a")} onMouseLeave={scheduleHide} className="cursor-default">
-          <circle className="ring" r="50" fill="none" stroke={C.active} strokeWidth="1" opacity="0.2" />
-          <circle className="node-circle" r="36" fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
-          <rect x="-16" y="-12" width="32" height="20" rx="2" fill="none" stroke={C.fg} strokeWidth="1.5" />
-          <line x1="-6" y1="8" x2="6" y2="8" stroke={C.fg} strokeWidth="1.5" />
-          <line x1="-12" y1="13" x2="12" y2="13" stroke={C.fg} strokeWidth="1.5" />
-          <text y="54" textAnchor="middle" fill={C.fg} fontSize="13" fontWeight="600" fontFamily="var(--font-mono)">PC A</text>
-          <text id="question-mark" x="28" y="-18" fill={C.warn} fontSize="24" fontWeight="900">?</text>
+          <circle className="ring" r={NETWORK_DEVICE_STYLE.pc.pulseRadius} fill="none" stroke={C.active} strokeWidth="1" opacity="0.2" />
+          <circle className="node-circle" r={NETWORK_DEVICE_STYLE.pc.radius} fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
+          <PcGlyph stroke={C.fg} />
+          <text y={NETWORK_DEVICE_STYLE.pc.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="13" fontWeight="600" fontFamily="var(--font-mono)">PC A</text>
+          <text id="question-mark" x="28" y="-18" fill={C.warn} fontSize="24" fontWeight="900" pointerEvents="none">?</text>
           {/* ARP table revealed in step 5 */}
-          <g id="arp-table">
+          <g id="arp-table" pointerEvents="none">
             <rect x="-10" y="-115" width="160" height="56" rx="6" fill={C.bg} stroke={C.success} strokeWidth="1.5" />
             <text x="0" y="-97" fontSize="9" fill={C.success} fontWeight="700" fontFamily="var(--font-mono)">TABLA ARP</text>
             <line x1="-2" y1="-90" x2="148" y2="-90" stroke={C.idle} strokeWidth="0.75" />
@@ -269,44 +271,40 @@ export function ArpAnimation() {
 
         {/* ── PC B ────────────────────────────────────────────────────── */}
         <g id="node-b" onMouseEnter={() => handleNodeEnter("b")} onMouseLeave={scheduleHide} className="cursor-default">
-          <circle className="node-circle" r="36" fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
-          <rect x="-16" y="-12" width="32" height="20" rx="2" fill="none" stroke={C.fg} strokeWidth="1.5" />
-          <line x1="-6" y1="8" x2="6" y2="8" stroke={C.fg} strokeWidth="1.5" />
-          <line x1="-12" y1="13" x2="12" y2="13" stroke={C.fg} strokeWidth="1.5" />
-          <text y="54" textAnchor="middle" fill={C.fg} fontSize="13" fontWeight="600" fontFamily="var(--font-mono)">PC B</text>
+          <circle className="node-circle" r={NETWORK_DEVICE_STYLE.pc.radius} fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
+          <PcGlyph stroke={C.fg} />
+          <text y={NETWORK_DEVICE_STYLE.pc.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="13" fontWeight="600" fontFamily="var(--font-mono)">PC B</text>
         </g>
 
         {/* ── PC C ────────────────────────────────────────────────────── */}
         <g id="node-c" onMouseEnter={() => handleNodeEnter("c")} onMouseLeave={scheduleHide} className="cursor-default">
-          <circle className="node-circle" r="36" fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
-          <rect x="-16" y="-12" width="32" height="20" rx="2" fill="none" stroke={C.fg} strokeWidth="1.5" />
-          <line x1="-6" y1="8" x2="6" y2="8" stroke={C.fg} strokeWidth="1.5" />
-          <line x1="-12" y1="13" x2="12" y2="13" stroke={C.fg} strokeWidth="1.5" />
-          <text y="54" textAnchor="middle" fill={C.fg} fontSize="13" fontWeight="600" fontFamily="var(--font-mono)">PC C</text>
+          <circle className="node-circle" r={NETWORK_DEVICE_STYLE.pc.radius} fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
+          <PcGlyph stroke={C.fg} />
+          <text y={NETWORK_DEVICE_STYLE.pc.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="13" fontWeight="600" fontFamily="var(--font-mono)">PC C</text>
         </g>
 
         {/* ── Packets (moved by GSAP) ──────────────────────────────────── */}
-        <g id="pkt-req" className="packet">
+        <g id="pkt-req" className="packet" pointerEvents="none">
           <rect x="-30" y="-11" width="60" height="22" rx="5" fill={C.warn} />
           <text textAnchor="middle" y="4" fontSize="8.5" fill={C.warnText} fontWeight="700" fontFamily="var(--font-mono)">ARP REQ</text>
         </g>
 
-        <g id="pkt-bc-b" className="packet">
+        <g id="pkt-bc-b" className="packet" pointerEvents="none">
           <rect x="-30" y="-11" width="60" height="22" rx="5" fill={C.warn} />
           <text textAnchor="middle" y="4" fontSize="8.5" fill={C.warnText} fontWeight="700" fontFamily="var(--font-mono)">ARP REQ</text>
         </g>
 
-        <g id="pkt-bc-c" className="packet">
+        <g id="pkt-bc-c" className="packet" pointerEvents="none">
           <rect x="-30" y="-11" width="60" height="22" rx="5" fill={C.warn} />
           <text textAnchor="middle" y="4" fontSize="8.5" fill={C.warnText} fontWeight="700" fontFamily="var(--font-mono)">ARP REQ</text>
         </g>
 
-        <g id="pkt-reply-up" className="packet">
+        <g id="pkt-reply-up" className="packet" pointerEvents="none">
           <rect x="-34" y="-11" width="68" height="22" rx="5" fill={C.success} />
           <text textAnchor="middle" y="4" fontSize="8.5" fill={C.successText} fontWeight="700" fontFamily="var(--font-mono)">ARP REPLY</text>
         </g>
 
-        <g id="pkt-reply-down" className="packet">
+        <g id="pkt-reply-down" className="packet" pointerEvents="none">
           <rect x="-52" y="-16" width="104" height="32" rx="5" fill={C.success} />
           <text textAnchor="middle" y="-3" fontSize="8.5" fill={C.successText} fontWeight="700" fontFamily="var(--font-mono)">ARP REPLY</text>
           <text

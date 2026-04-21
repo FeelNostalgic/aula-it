@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { animationRegistry, arpSteps, osiTcpIpSteps } from "@/lib/animations/registry";
+import { animationRegistry, arpSteps, ethernetSteps, osiTcpIpSteps, pppSteps } from "@/lib/animations/registry";
 
 describe("animationRegistry", () => {
     it("is an array with at least one entry", () => {
@@ -55,6 +55,18 @@ describe("animationRegistry", () => {
             "step-5",
             "step-6",
         ]);
+    });
+
+    it("contains the 'ethernet' and 'ppp' entries with five ordered steps each", () => {
+        const ethernetEntry = animationRegistry.find((e) => e.slug === "ethernet");
+        const pppEntry = animationRegistry.find((e) => e.slug === "ppp");
+
+        expect(ethernetEntry).toBeDefined();
+        expect(pppEntry).toBeDefined();
+        expect(ethernetEntry!.steps).toHaveLength(5);
+        expect(pppEntry!.steps).toHaveLength(5);
+        expect(ethernetEntry!.topic).toBe("Redes");
+        expect(pppEntry!.topic).toBe("Redes");
     });
 
     it("every entry's steps array contains objects with id, label, description", () => {
@@ -135,6 +147,44 @@ describe("osiTcpIpSteps", () => {
 
     it("has non-empty labels and descriptions", () => {
         for (const step of osiTcpIpSteps) {
+            expect(step.label.trim().length).toBeGreaterThan(0);
+            expect(step.description.trim().length).toBeGreaterThan(0);
+        }
+    });
+});
+
+describe("ethernetSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(ethernetSteps.map((step) => step.id)).toEqual([
+            "step-1",
+            "step-2",
+            "step-3",
+            "step-4",
+            "step-5",
+        ]);
+    });
+
+    it("has non-empty labels and descriptions", () => {
+        for (const step of ethernetSteps) {
+            expect(step.label.trim().length).toBeGreaterThan(0);
+            expect(step.description.trim().length).toBeGreaterThan(0);
+        }
+    });
+});
+
+describe("pppSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(pppSteps.map((step) => step.id)).toEqual([
+            "step-1",
+            "step-2",
+            "step-3",
+            "step-4",
+            "step-5",
+        ]);
+    });
+
+    it("has non-empty labels and descriptions", () => {
+        for (const step of pppSteps) {
             expect(step.label.trim().length).toBeGreaterThan(0);
             expect(step.description.trim().length).toBeGreaterThan(0);
         }

@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 
@@ -10,6 +11,7 @@ export interface NodeInfo {
   mac?: string
   mask?: string
   gateway?: string
+  facts?: { label: string; value: string }[]
   arpTable?: { ip: string; mac: string; iface: string }[]
   macTable?: { mac: string; port: string }[]
   routingTable?: { dest: string; mask: string; gateway: string; iface: string }[]
@@ -17,8 +19,8 @@ export interface NodeInfo {
 
 interface NodeInfoCardProps {
   node: NodeInfo
-  svgX: number
-  svgY: number
+  anchorX: number
+  anchorY: number
   viewBoxW: number
   viewBoxH: number
   onMouseEnter: () => void
@@ -27,23 +29,56 @@ interface NodeInfoCardProps {
 
 export function NodeInfoCard({
   node,
-  svgX,
-  svgY,
+  anchorX,
+  anchorY,
   viewBoxW,
   viewBoxH,
   onMouseEnter,
   onMouseLeave,
 }: NodeInfoCardProps) {
-  const leftPct = (svgX / viewBoxW) * 100
-  const topPct = (svgY / viewBoxH) * 100
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
 
-  // Flip left if node is in the right 45% of canvas
-  // Flip up if node is in the bottom 45% of canvas
-  const flipX = leftPct > 55
-  const flipY = topPct > 45
+  useEffect(() => {
+    const cardElement = cardRef.current
+    const containerElement = cardElement?.offsetParent as HTMLElement | null
+    if (!containerElement) return
+
+    const updateSize = () => {
+      setContainerSize({
+        width: containerElement.clientWidth,
+        height: containerElement.clientHeight,
+      })
+    }
+
+    updateSize()
+
+    const resizeObserver = new ResizeObserver(updateSize)
+    resizeObserver.observe(containerElement)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
+
+  const hasMeasuredContainer = containerSize.width > 0 && containerSize.height > 0
+  const renderScale = hasMeasuredContainer
+    ? Math.min(containerSize.width / viewBoxW, containerSize.height / viewBoxH)
+    : 1
+
+  const renderedWidth = hasMeasuredContainer ? viewBoxW * renderScale : 0
+  const renderedHeight = hasMeasuredContainer ? viewBoxH * renderScale : 0
+  const offsetX = hasMeasuredContainer ? (containerSize.width - renderedWidth) / 2 : 0
+  const offsetY = hasMeasuredContainer ? (containerSize.height - renderedHeight) / 2 : 0
+  const leftPx = hasMeasuredContainer ? offsetX + (anchorX / viewBoxW) * renderedWidth : 0
+  const topPx = hasMeasuredContainer ? offsetY + (anchorY / viewBoxH) * renderedHeight : 0
+  const tooltipGapPx = hasMeasuredContainer
+    ? Math.max(8, Math.min(16, renderScale * 12))
+    : 8
 
   return (
     <motion.div
+      ref={cardRef}
       key={node.id}
       initial={{ opacity: 0, scale: 0.92 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -53,9 +88,9 @@ export function NodeInfoCard({
       onMouseLeave={onMouseLeave}
       style={{
         position: "absolute",
-        left: `${leftPct}%`,
-        top: `${topPct}%`,
-        transform: `translate(${flipX ? "calc(-100% - 8px)" : "8px"}, ${flipY ? "calc(-100% - 8px)" : "8px"})`,
+        left: `${leftPx}px`,
+        top: `${topPx}px`,
+        transform: `translate(${tooltipGapPx}px, ${tooltipGapPx}px)`,
         zIndex: 10,
       }}
       className="w-52 rounded-lg border border-border bg-card/97 backdrop-blur-sm shadow-xl text-xs font-mono pointer-events-auto overflow-hidden"
@@ -73,6 +108,9 @@ export function NodeInfoCard({
         )}
         {node.mac && <Row label="MAC" value={node.mac} highlight />}
         {node.gateway && <Row label="GW" value={node.gateway} />}
+        {node.facts?.map((fact) => (
+          <Row key={`${node.id}-${fact.label}`} label={fact.label} value={fact.value} />
+        ))}
 
         {/* ARP Table */}
         {node.arpTable && node.arpTable.length > 0 && (

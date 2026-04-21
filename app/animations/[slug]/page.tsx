@@ -2,7 +2,9 @@ import { notFound } from "next/navigation"
 import { animationRegistry } from "@/lib/animations/registry"
 import { AnimationPlayer } from "@/components/animations/animation-player"
 import { ArpAnimation } from "@/components/animations/arp-animation"
+import { EthernetAnimation } from "@/components/animations/ethernet-animation"
 import { OsiTcpIpAnimation } from "@/components/animations/osi-tcp-ip-animation"
+import { PppAnimation } from "@/components/animations/ppp-animation"
 import { Metadata } from "next";
 
 export async function generateMetadata({
@@ -19,7 +21,9 @@ export async function generateMetadata({
 
 const animationMap = {
   arp: ArpAnimation,
+  ethernet: EthernetAnimation,
   "osi-tcp-ip": OsiTcpIpAnimation,
+  ppp: PppAnimation,
 } as const
 
 type Slug = keyof typeof animationMap

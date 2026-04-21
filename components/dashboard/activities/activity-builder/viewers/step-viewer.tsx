@@ -19,11 +19,15 @@ import { generateMarkdownPdf } from "@/app/actions/generate-pdf";
 import { animationRegistry } from "@/lib/animations/registry";
 import { AnimationPlayer } from "@/components/animations/animation-player";
 import { ArpAnimation } from "@/components/animations/arp-animation";
+import { EthernetAnimation } from "@/components/animations/ethernet-animation";
 import { OsiTcpIpAnimation } from "@/components/animations/osi-tcp-ip-animation";
+import { PppAnimation } from "@/components/animations/ppp-animation";
 
 const animationMap: Record<string, React.ComponentType> = {
     arp: ArpAnimation,
+    ethernet: EthernetAnimation,
     "osi-tcp-ip": OsiTcpIpAnimation,
+    ppp: PppAnimation,
 };
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";

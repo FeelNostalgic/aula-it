@@ -9,7 +9,20 @@ import {
   useState,
 } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Play, Pause, SkipBack, SkipForward, RotateCcw, Repeat, ZoomIn, ZoomOut, Maximize2 } from "lucide-react"
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  RotateCcw,
+  Repeat,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Minimize2,
+  Shrink,
+  Expand
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { AnimationStep } from "@/types/animations"
 import type gsap from "gsap"
@@ -47,6 +60,7 @@ const ZOOM_MAX = 2
 const ZOOM_STEP = 0.25
 
 export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps) {
+  const playerRef = useRef<HTMLDivElement>(null)
   const tlRef = useRef<gsap.core.Timeline | null>(null)
   const stepTimesRef = useRef<number[]>([])
   const isDraggingRef = useRef(false)
@@ -60,6 +74,7 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
   const [loop, setLoop] = useState(false)
   const [tlDuration, setTlDuration] = useState(0)
   const [zoom, setZoom] = useState(1)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const handleZoomIn  = () => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))
   const handleZoomOut = () => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))
@@ -114,6 +129,17 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
     speedLabelRef.current = speedLabel
     tlRef.current?.timeScale(resolvePlaybackSpeed(speedLabel))
   }, [speedLabel])
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === playerRef.current)
+    }
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange)
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange)
+    }
+  }, [])
 
   // Controls
   const handlePlay = () => {
@@ -185,11 +211,28 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
     loopRef.current = next
   }
 
+  const handleFullscreenToggle = async () => {
+    if (!playerRef.current) return
+
+    if (document.fullscreenElement === playerRef.current) {
+      await document.exitFullscreen()
+      return
+    }
+
+    await playerRef.current.requestFullscreen()
+  }
+
   const activeStep = steps[currentStep]
 
   return (
     <AnimationContext.Provider value={{ registerTimeline }}>
-      <div className="flex flex-col h-full gap-2">
+      <div
+        ref={playerRef}
+        className={cn(
+          "flex flex-col h-full gap-2 bg-background",
+          isFullscreen && "p-4 md:p-6"
+        )}
+      >
 
         {/* Title */}
         <div className="flex items-center gap-3 shrink-0">
@@ -201,7 +244,13 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
         </div>
 
         {/* Animation canvas + zoom overlay */}
-        <div className="min-h-0 rounded-lg border border-border/50 bg-card overflow-hidden relative" style={{ flex: "1 1 0", maxHeight: "55vh" }}>
+        <div
+          className={cn(
+            "min-h-0 rounded-lg border border-border/50 bg-card overflow-hidden relative",
+            isFullscreen && "flex-1"
+          )}
+          style={{ flex: "1 1 0", maxHeight: isFullscreen ? "none" : "55vh" }}
+        >
           {/* Zoomed content */}
           <div
             className="w-full h-full"
@@ -216,24 +265,32 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
           {/* Zoom controls — overlay top-right */}
           <div className="absolute top-2 right-2 flex items-center gap-0.5 rounded-md border border-border/60 bg-card/90 backdrop-blur-sm px-1 py-0.5">
             <button
+              onClick={handleFullscreenToggle}
+              className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+            >
+              {isFullscreen ? <Shrink className="size-4" /> : <Expand className="size-4" />}
+            </button>
+            <button
               onClick={handleZoomOut}
               disabled={zoom <= ZOOM_MIN}
               className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-colors"
             >
-              <ZoomOut className="size-3" />
+              <ZoomOut className="size-4" />
             </button>
             <button
               onClick={handleZoomReset}
               className="h-6 px-1.5 flex items-center justify-center rounded text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent transition-colors min-w-[36px]"
+              title="Centrar y resetear zoom"
             >
-              {zoom === 1 ? <Maximize2 className="size-3" /> : `${Math.round(zoom * 100)}%`}
+              {zoom === 1 ? <Maximize2 className="size-4" /> : `${Math.round(zoom * 100)}%`}
             </button>
             <button
               onClick={handleZoomIn}
               disabled={zoom >= ZOOM_MAX}
               className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-colors"
             >
-              <ZoomIn className="size-3" />
+              <ZoomIn className="size-4" />
             </button>
           </div>
         </div>

@@ -9,7 +9,9 @@ import { PlaySquare, Zap } from "lucide-react";
 import { animationRegistry } from "@/lib/animations/registry";
 import { AnimationPlayer } from "@/components/animations/animation-player";
 import { ArpAnimation } from "@/components/animations/arp-animation";
+import { EthernetAnimation } from "@/components/animations/ethernet-animation";
 import { OsiTcpIpAnimation } from "@/components/animations/osi-tcp-ip-animation";
+import { PppAnimation } from "@/components/animations/ppp-animation";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
@@ -19,7 +21,9 @@ import { StepVisibilityTab } from "./step-visibility-tab";
 // Map slug → component for preview
 const previewMap: Record<string, React.ComponentType> = {
     arp: ArpAnimation,
+    ethernet: EthernetAnimation,
     "osi-tcp-ip": OsiTcpIpAnimation,
+    ppp: PppAnimation,
 };
 
 interface AnimationEditorProps {
