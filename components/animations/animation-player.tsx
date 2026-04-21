@@ -14,12 +14,12 @@ import {
   Pause,
   SkipBack,
   SkipForward,
+  ChevronsRight,
   RotateCcw,
   Repeat,
   ZoomIn,
   ZoomOut,
   Maximize2,
-  Minimize2,
   Shrink,
   Expand
 } from "lucide-react"
@@ -66,6 +66,7 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
   const isDraggingRef = useRef(false)
   const loopRef = useRef(false)
   const speedLabelRef = useRef<PlaybackSpeedLabel>(1)
+  const stepPlayTargetRef = useRef<number | null>(null)
 
   const [isPlaying, setIsPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -104,6 +105,17 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
       tl.timeScale(resolvePlaybackSpeed(speedLabelRef.current))
 
       tl.eventCallback("onUpdate", () => {
+        if (stepPlayTargetRef.current !== null && tl.time() >= stepPlayTargetRef.current - 0.01) {
+          const targetTime = stepPlayTargetRef.current
+          stepPlayTargetRef.current = null
+          tl.pause()
+          tl.seek(targetTime)
+          setProgress(tl.progress())
+          updateStep(targetTime)
+          setIsPlaying(false)
+          return
+        }
+
         if (!isDraggingRef.current) {
           setProgress(tl.progress())
           updateStep(tl.time())
@@ -111,6 +123,7 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
       })
 
       tl.eventCallback("onComplete", () => {
+        stepPlayTargetRef.current = null
         if (loopRef.current) {
           tl.seek(0).play()
           setProgress(0)
@@ -144,12 +157,38 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
   // Controls
   const handlePlay = () => {
     if (!tlRef.current) return
+    stepPlayTargetRef.current = null
     if (tlRef.current.progress() >= 1) tlRef.current.seek(0)
     tlRef.current.play()
     setIsPlaying(true)
   }
 
+  const handlePlayNextStep = () => {
+    if (!tlRef.current) return
+
+    const tl = tlRef.current
+    const times = stepTimesRef.current
+
+    if (tl.progress() >= 1) {
+      tl.seek(0)
+      setProgress(0)
+      setCurrentStep(0)
+    }
+
+    const refreshedStep = times.findIndex((time, index) => {
+      const nextTime = times[index + 1] ?? Infinity
+      return tl.time() >= time - 0.01 && tl.time() < nextTime - 0.01
+    })
+    const normalizedStep = refreshedStep >= 0 ? refreshedStep : currentStep
+    const target = times[normalizedStep + 1] ?? tl.duration()
+
+    stepPlayTargetRef.current = target
+    tl.play()
+    setIsPlaying(true)
+  }
+
   const handlePause = () => {
+    stepPlayTargetRef.current = null
     tlRef.current?.pause()
     setIsPlaying(false)
   }
@@ -158,6 +197,7 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
     if (!tlRef.current) return
     const times = stepTimesRef.current
     const target = currentStep > 0 ? times[currentStep - 1] : 0
+    stepPlayTargetRef.current = null
     tlRef.current.pause()
     tlRef.current.seek(target)
     setIsPlaying(false)
@@ -170,6 +210,7 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
     const times = stepTimesRef.current
     if (currentStep < times.length - 1) {
       const target = times[currentStep + 1]
+      stepPlayTargetRef.current = null
       tlRef.current.pause()
       tlRef.current.seek(target)
       setIsPlaying(false)
@@ -179,6 +220,7 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
   }
 
   const handleReset = () => {
+    stepPlayTargetRef.current = null
     tlRef.current?.pause()
     tlRef.current?.seek(0)
     setIsPlaying(false)
@@ -190,6 +232,7 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
     if (!tlRef.current) return
     isDraggingRef.current = true
     const value = parseFloat(e.target.value)
+    stepPlayTargetRef.current = null
     tlRef.current.pause()
     tlRef.current.progress(value)
     setProgress(value)
@@ -414,6 +457,17 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
               <Button
                 variant="ghost"
                 size="icon"
+                onClick={handlePlayNextStep}
+                disabled={steps.length <= 1}
+                className="h-9 w-9 rounded-full border border-primary/25 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary disabled:border-border disabled:bg-muted/30 disabled:text-muted-foreground"
+                title="Reproducir hasta el siguiente paso"
+              >
+                <ChevronsRight className="size-3.5" />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={handleNext}
                 disabled={currentStep === steps.length - 1}
                 className="h-8 w-8"
@@ -437,7 +491,7 @@ export function AnimationPlayer({ steps, title, children }: AnimationPlayerProps
 
             {/* Right: speed */}
             <div className="flex items-center justify-end">
-              <div className="flex items-center rounded-md border border-border/50 overflow-hidden">
+              <div className="flex items-center rounded-md border border-border/50 overflow-hidden shrink-0">
                 {PLAYBACK_SPEED_OPTIONS.map((option) => (
                   <button
                     key={option.label}

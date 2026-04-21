@@ -6,25 +6,14 @@ import { Input } from "@/components/ui/input";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { PlaySquare, Zap } from "lucide-react";
+import { animationComponentMap } from "@/components/animations/animation-component-map";
 import { animationRegistry } from "@/lib/animations/registry";
 import { AnimationPlayer } from "@/components/animations/animation-player";
-import { ArpAnimation } from "@/components/animations/arp-animation";
-import { EthernetAnimation } from "@/components/animations/ethernet-animation";
-import { OsiTcpIpAnimation } from "@/components/animations/osi-tcp-ip-animation";
-import { PppAnimation } from "@/components/animations/ppp-animation";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { useStepEditorTab } from "./use-step-editor-tab";
 import { StepVisibilityTab } from "./step-visibility-tab";
-
-// Map slug → component for preview
-const previewMap: Record<string, React.ComponentType> = {
-    arp: ArpAnimation,
-    ethernet: EthernetAnimation,
-    "osi-tcp-ip": OsiTcpIpAnimation,
-    ppp: PppAnimation,
-};
 
 interface AnimationEditorProps {
     step: ActivityStepWithClientState;
@@ -69,7 +58,9 @@ export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
     const selectedMeta = content.animationSlug
         ? animationRegistry.find(a => a.slug === content.animationSlug)
         : null;
-    const PreviewComponent = content.animationSlug ? previewMap[content.animationSlug] : null;
+    const PreviewComponent = content.animationSlug
+        ? animationComponentMap[content.animationSlug as keyof typeof animationComponentMap]
+        : null;
 
     const activeMode: "local" | "url" | "none" =
         content.animationSlug ? "local" : content.componentUrl ? "url" : "none";

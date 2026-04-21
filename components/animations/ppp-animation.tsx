@@ -216,9 +216,9 @@ export function PppAnimation() {
         </g>
 
         <g id="accept-card" pointerEvents="none">
-          <rect x="528" y="102" width="170" height="52" rx="10" fill={C.panel} stroke={C.success} strokeWidth="1.4" />
+          <rect x="518" y="102" width="190" height="52" rx="10" fill={C.panel} stroke={C.success} strokeWidth="1.4" />
           <text x="613" y="120" textAnchor="middle" fill={C.success} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
-            DESENCAPSULACION
+            DESENCAPSULACIÓN
           </text>
           <text x="613" y="136" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
             El receptor quita la cabecera PPP

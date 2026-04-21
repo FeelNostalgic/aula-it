@@ -38,6 +38,7 @@ export function NodeInfoCard({
 }: NodeInfoCardProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+  const [cardSize, setCardSize] = useState({ width: 0, height: 0 })
 
   useEffect(() => {
     const cardElement = cardRef.current
@@ -49,12 +50,17 @@ export function NodeInfoCard({
         width: containerElement.clientWidth,
         height: containerElement.clientHeight,
       })
+      setCardSize({
+        width: cardElement?.offsetWidth ?? 0,
+        height: cardElement?.offsetHeight ?? 0,
+      })
     }
 
     updateSize()
 
     const resizeObserver = new ResizeObserver(updateSize)
     resizeObserver.observe(containerElement)
+    if (cardElement) resizeObserver.observe(cardElement)
 
     return () => {
       resizeObserver.disconnect()
@@ -75,6 +81,21 @@ export function NodeInfoCard({
   const tooltipGapPx = hasMeasuredContainer
     ? Math.max(8, Math.min(16, renderScale * 12))
     : 8
+  const preferredLeft = leftPx + tooltipGapPx
+  const preferredTop = topPx + tooltipGapPx
+  const clampedLeft =
+    hasMeasuredContainer && cardSize.width > 0
+      ? Math.max(8, Math.min(preferredLeft, containerSize.width - cardSize.width - 8))
+      : preferredLeft
+  const clampedTop =
+    hasMeasuredContainer && cardSize.height > 0
+      ? Math.max(8, Math.min(preferredTop, containerSize.height - cardSize.height - 8))
+      : preferredTop
+  const widthClass = node.routingTable?.length
+    ? "w-80"
+    : node.macTable?.length
+    ? "w-72"
+    : "w-56"
 
   return (
     <motion.div
@@ -88,12 +109,14 @@ export function NodeInfoCard({
       onMouseLeave={onMouseLeave}
       style={{
         position: "absolute",
-        left: `${leftPx}px`,
-        top: `${topPx}px`,
-        transform: `translate(${tooltipGapPx}px, ${tooltipGapPx}px)`,
+        left: `${clampedLeft}px`,
+        top: `${clampedTop}px`,
         zIndex: 10,
       }}
-      className="w-52 rounded-lg border border-border bg-card/97 backdrop-blur-sm shadow-xl text-xs font-mono pointer-events-auto overflow-hidden"
+      className={cn(
+        widthClass,
+        "rounded-lg border border-border bg-card/97 backdrop-blur-sm shadow-xl text-xs font-mono pointer-events-auto overflow-hidden"
+      )}
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30">
@@ -124,8 +147,8 @@ export function NodeInfoCard({
             <tbody>
               {node.arpTable.map((row, i) => (
                 <tr key={i} className={i % 2 === 0 ? "text-foreground" : "text-muted-foreground"}>
-                  <td className="pr-1 py-0.5 truncate max-w-[80px]">{row.ip}</td>
-                  <td className="py-0.5 truncate">{row.mac}</td>
+                  <td className="pr-1 py-0.5 break-all">{row.ip}</td>
+                  <td className="py-0.5 break-all">{row.mac}</td>
                 </tr>
               ))}
             </tbody>
@@ -144,7 +167,7 @@ export function NodeInfoCard({
             <tbody>
               {node.macTable.map((row, i) => (
                 <tr key={i} className={i % 2 === 0 ? "text-foreground" : "text-muted-foreground"}>
-                  <td className="pr-2 py-0.5">{row.mac}</td>
+                  <td className="pr-2 py-0.5 break-all">{row.mac}</td>
                   <td className="py-0.5 text-primary">{row.port}</td>
                 </tr>
               ))}
@@ -165,9 +188,9 @@ export function NodeInfoCard({
             <tbody>
               {node.routingTable.map((row, i) => (
                 <tr key={i} className={i % 2 === 0 ? "text-foreground" : "text-muted-foreground"}>
-                  <td className="pr-1 py-0.5 truncate max-w-[72px]">{row.dest}/{row.mask}</td>
-                  <td className="pr-1 py-0.5 truncate max-w-[60px]">{row.gateway || "—"}</td>
-                  <td className="py-0.5">{row.iface}</td>
+                  <td className="pr-1 py-0.5 break-all">{row.dest}/{row.mask}</td>
+                  <td className="pr-1 py-0.5 break-all">{row.gateway || "—"}</td>
+                  <td className="py-0.5 whitespace-nowrap">{row.iface}</td>
                 </tr>
               ))}
             </tbody>
@@ -180,9 +203,9 @@ export function NodeInfoCard({
 
 function Row({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className="flex items-baseline gap-2">
-      <span className="text-muted-foreground text-[9px] uppercase w-7 shrink-0">{label}</span>
-      <span className={cn("text-[10px] break-all leading-tight", highlight ? "text-primary" : "text-foreground")}>
+    <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] items-start gap-2">
+      <span className="text-muted-foreground text-[9px] uppercase leading-tight">{label}</span>
+      <span className={cn("text-[10px] break-words leading-tight", highlight ? "text-primary" : "text-foreground")}>
         {value}
       </span>
     </div>

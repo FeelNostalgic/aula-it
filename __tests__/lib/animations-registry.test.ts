@@ -1,5 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { animationRegistry, arpSteps, ethernetSteps, osiTcpIpSteps, pppSteps } from "@/lib/animations/registry";
+import {
+  animationRegistry,
+  arpSteps,
+  ethernetSteps,
+  icmpSteps,
+  ipBasicSteps,
+  ipEncapsulationSteps,
+  ipHopByHopSteps,
+  ipRouteSteps,
+  osiTcpIpSteps,
+  pppSteps,
+  tcpSteps,
+  tcpVsUdpSteps,
+  udpSteps,
+} from "@/lib/animations/registry";
 
 describe("animationRegistry", () => {
     it("is an array with at least one entry", () => {
@@ -67,6 +81,26 @@ describe("animationRegistry", () => {
         expect(pppEntry!.steps).toHaveLength(5);
         expect(ethernetEntry!.topic).toBe("Redes");
         expect(pppEntry!.topic).toBe("Redes");
+    });
+
+    it("contains all new IP, ICMP, TCP and UDP entries", () => {
+        const expectedSlugs = [
+            "ip-basico",
+            "ip-ruta",
+            "ip-hop-by-hop",
+            "ip-encapsulacion",
+            "icmp",
+            "tcp",
+            "udp",
+            "tcp-vs-udp",
+        ];
+
+        for (const slug of expectedSlugs) {
+            const entry = animationRegistry.find((e) => e.slug === slug);
+            expect(entry).toBeDefined();
+            expect(entry!.topic).toBe("Redes");
+            expect(entry!.steps.length).toBeGreaterThanOrEqual(5);
+        }
     });
 
     it("every entry's steps array contains objects with id, label, description", () => {
@@ -188,5 +222,103 @@ describe("pppSteps", () => {
             expect(step.label.trim().length).toBeGreaterThan(0);
             expect(step.description.trim().length).toBeGreaterThan(0);
         }
+    });
+});
+
+describe("ipBasicSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(ipBasicSteps.map((step) => step.id)).toEqual([
+            "step-1",
+            "step-2",
+            "step-3",
+            "step-4",
+            "step-5",
+        ]);
+    });
+});
+
+describe("ipRouteSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(ipRouteSteps.map((step) => step.id)).toEqual([
+            "step-1",
+            "step-2",
+            "step-3",
+            "step-4",
+            "step-5",
+        ]);
+    });
+});
+
+describe("ipHopByHopSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(ipHopByHopSteps.map((step) => step.id)).toEqual([
+            "step-1",
+            "step-2",
+            "step-3",
+            "step-4",
+            "step-5",
+        ]);
+    });
+});
+
+describe("ipEncapsulationSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-6", () => {
+        expect(ipEncapsulationSteps.map((step) => step.id)).toEqual([
+            "step-1",
+            "step-2",
+            "step-3",
+            "step-4",
+            "step-5",
+            "step-6",
+        ]);
+    });
+});
+
+describe("icmpSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(icmpSteps.map((step) => step.id)).toEqual([
+            "step-1",
+            "step-2",
+            "step-3",
+            "step-4",
+            "step-5",
+        ]);
+    });
+});
+
+describe("tcpSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(tcpSteps.map((step) => step.id)).toEqual([
+            "step-1",
+            "step-2",
+            "step-3",
+            "step-4",
+            "step-5",
+        ]);
+    });
+});
+
+describe("udpSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(udpSteps.map((step) => step.id)).toEqual([
+            "step-1",
+            "step-2",
+            "step-3",
+            "step-4",
+            "step-5",
+        ]);
+    });
+});
+
+describe("tcpVsUdpSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-6", () => {
+        expect(tcpVsUdpSteps.map((step) => step.id)).toEqual([
+            "step-1",
+            "step-2",
+            "step-3",
+            "step-4",
+            "step-5",
+            "step-6",
+        ]);
     });
 });
