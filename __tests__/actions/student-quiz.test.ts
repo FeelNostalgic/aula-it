@@ -289,6 +289,112 @@ describe("submitQuizAttempt", () => {
     expect(result.data?.pointsTotal).toBe(2);
   });
 
+  it("auto-scores table_drag_drop questions when the same option is reused in multiple cells", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-table",
+          type: "table_drag_drop",
+          text: "Relaciona protocolo y capa OSI",
+          options: [],
+          tableRowHeaderLabel: "Protocolo",
+          tableRows: [
+            { id: "row-http", label: "HTTP" },
+            { id: "row-ftp", label: "FTP" },
+          ],
+          tableColumns: [{ id: "col-layer", label: "Capa OSI" }],
+          tableItems: [
+            { id: "item-app", text: "Aplicación" },
+            { id: "item-transport", text: "Transporte" },
+          ],
+          tableCells: [
+            { id: "cell-http", rowId: "row-http", columnId: "col-layer", correctItemId: "item-app" },
+            { id: "cell-ftp", rowId: "row-ftp", columnId: "col-layer", correctItemId: "item-app" },
+          ],
+          points: 2,
+        },
+      ],
+    });
+    const attempt = createMockQuizAttempt({ points_earned: 2, points_total: 2 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const result = await submitQuizAttempt(
+      "step-1",
+      "activity-1",
+      {},
+      {},
+      {
+        "q-table": {
+          kind: "table_drag_drop",
+          placements: {
+            "cell-http": "item-app",
+            "cell-ftp": "item-app",
+          },
+        },
+      },
+      content
+    );
+
+    expect(result.data?.pointsEarned).toBe(2);
+    expect(result.data?.pointsTotal).toBe(2);
+  });
+
+  it("auto-scores matching_pairs questions when the same match is reused in multiple prompts", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-match",
+          type: "matching_pairs",
+          text: "Relaciona protocolo y capa",
+          options: [],
+          matchingOptions: [
+            { id: "match-app", text: "Aplicación" },
+            { id: "match-transport", text: "Transporte" },
+          ],
+          matchingPrompts: [
+            { id: "prompt-http", text: "HTTP", correctMatchId: "match-app" },
+            { id: "prompt-ftp", text: "FTP", correctMatchId: "match-app" },
+          ],
+          points: 2,
+        },
+      ],
+    });
+    const attempt = createMockQuizAttempt({ points_earned: 2, points_total: 2 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const result = await submitQuizAttempt(
+      "step-1",
+      "activity-1",
+      {},
+      {},
+      {
+        "q-match": {
+          kind: "matching_pairs",
+          matches: {
+            "prompt-http": "match-app",
+            "prompt-ftp": "match-app",
+          },
+        },
+      },
+      content
+    );
+
+    expect(result.data?.pointsEarned).toBe(2);
+    expect(result.data?.pointsTotal).toBe(2);
+  });
+
   it("auto-scores ordering_sequence questions by correct position", async () => {
     const content = createMockQuizContent({
       questions: [

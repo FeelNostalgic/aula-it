@@ -1,14 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
     closestCenter,
     DndContext,
+    DragOverlay,
     KeyboardSensor,
     PointerSensor,
+    useDraggable,
+    useDroppable,
     useSensor,
     useSensors,
     type DragEndEvent,
+    type DragStartEvent,
 } from "@dnd-kit/core";
 import {
     arrayMove,
@@ -47,6 +51,10 @@ type TableDragAnswer = Extract<QuizStructuredQuestionAnswer, { kind: "table_drag
 type MatchingAnswer = Extract<QuizStructuredQuestionAnswer, { kind: "matching_pairs" }>;
 type OrderingAnswer = Extract<QuizStructuredQuestionAnswer, { kind: "ordering_sequence" }>;
 type CategorizationAnswerType = Extract<QuizStructuredQuestionAnswer, { kind: "categorization_drag_drop" }>;
+type ActiveStructuredDrag = {
+    itemId: string;
+    label: string;
+};
 
 function getFillBlankAnswer(questionId: string, structuredAnswers: QuizStructuredAnswers): FillBlankAnswer {
     const answer = structuredAnswers[questionId];
@@ -95,17 +103,58 @@ function getTableCell(question: QuizQuestion, rowId: string, columnId: string) {
     return question.tableCells?.find((candidate) => candidate.rowId === rowId && candidate.columnId === columnId);
 }
 
-function DraggableAnswerChip({
+type DndDraggableAnswerChipProps = {
+    dragId: string;
+    itemId: string;
+    label: string;
+};
+
+type NativeDraggableAnswerChipProps = {
+    id: string;
+    label: string;
+    onDragStart: (itemId: string) => void;
+    onDragEnd: () => void;
+};
+
+function DndDraggableAnswerChip({
+    dragId,
+    itemId,
+    label,
+}: DndDraggableAnswerChipProps) {
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+        id: dragId,
+        data: {
+            itemId,
+            label,
+        },
+    });
+    const style = transform
+        ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+        : undefined;
+
+    return (
+        <button
+            type="button"
+            ref={setNodeRef}
+            style={style}
+            className={cn(
+                "rounded-full border border-accent-blue/30 bg-background px-3 py-1.5 text-sm text-foreground transition-colors hover:border-accent-blue/50 hover:bg-accent-blue/8 touch-none",
+                isDragging && "opacity-50",
+            )}
+            {...attributes}
+            {...listeners}
+        >
+            {label || "Opción sin texto"}
+        </button>
+    );
+}
+
+function NativeDraggableAnswerChip({
     id,
     label,
     onDragStart,
     onDragEnd,
-}: {
-    id: string;
-    label: string;
-    onDragStart: (itemId: string) => void;
-    onDragEnd?: () => void;
-}) {
+}: NativeDraggableAnswerChipProps) {
     return (
         <button
             type="button"
@@ -114,8 +163,48 @@ function DraggableAnswerChip({
             onDragEnd={onDragEnd}
             className="rounded-full border border-accent-blue/30 bg-background px-3 py-1.5 text-sm text-foreground transition-colors hover:border-accent-blue/50 hover:bg-accent-blue/8"
         >
-            {label || "Opción sin texto"}
+            {label || "OpciÃ³n sin texto"}
         </button>
+    );
+}
+
+function DraggableAnswerChip(props: DndDraggableAnswerChipProps | NativeDraggableAnswerChipProps) {
+    if ("dragId" in props) {
+        return <DndDraggableAnswerChip {...props} />;
+    }
+
+    return <NativeDraggableAnswerChip {...props} />;
+}
+
+function DragOverlayChip({ label }: { label: string }) {
+    return (
+        <div className="rounded-full border border-accent-blue/40 bg-background px-3 py-1.5 text-sm font-medium text-foreground shadow-lg shadow-accent-blue/10">
+            {label || "Opción sin texto"}
+        </div>
+    );
+}
+
+function DroppableAnswerSlot({
+    id,
+    className,
+    children,
+}: {
+    id: string;
+    className: string;
+    children: ReactNode;
+}) {
+    const { isOver, setNodeRef } = useDroppable({ id });
+
+    return (
+        <div
+            ref={setNodeRef}
+            className={cn(
+                className,
+                isOver && "border-accent-blue/50 bg-accent-blue/10 ring-1 ring-accent-blue/30",
+            )}
+        >
+            {children}
+        </div>
     );
 }
 
@@ -218,22 +307,24 @@ function TableDragDropAnswer({
     structuredAnswers,
     onStructuredAnswerChange,
 }: Pick<QuizQuestionAnswerFieldProps, "question" | "structuredAnswers" | "onStructuredAnswerChange">) {
-    const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+    const [activeDrag, setActiveDrag] = useState<ActiveStructuredDrag | null>(null);
     const currentAnswer = getTableDragAnswer(question.id, structuredAnswers);
     const rowHeaderLabel = question.tableRowHeaderLabel ?? "Concepto";
     const rows = question.tableRows ?? [];
     const columns = question.tableColumns ?? [];
-    const assignedItemIds = Object.values(currentAnswer.placements).filter(Boolean);
-    const availableItems = (question.tableItems ?? []).filter((item) => !assignedItemIds.includes(item.id));
+    const tableItems = question.tableItems ?? [];
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    );
 
     const assignItem = (cellId: string, itemId: string) => {
-        const nextPlacements = Object.fromEntries(
-            Object.entries(currentAnswer.placements).filter(([, placedItemId]) => placedItemId !== itemId),
-        );
-        nextPlacements[cellId] = itemId;
         onStructuredAnswerChange(question.id, {
             kind: QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP,
-            placements: nextPlacements,
+            placements: {
+                ...currentAnswer.placements,
+                [cellId]: itemId,
+            },
         });
     };
 
@@ -256,96 +347,129 @@ function TableDragDropAnswer({
         );
     }
 
+    const handleDragStart = (event: DragStartEvent) => {
+        const itemId = event.active.data.current?.itemId;
+        const label = event.active.data.current?.label;
+        if (typeof itemId !== "string" || typeof label !== "string") return;
+        setActiveDrag({ itemId, label });
+    };
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const itemId = event.active.data.current?.itemId;
+        const overId = typeof event.over?.id === "string" ? event.over.id : null;
+
+        if (typeof itemId === "string" && overId?.startsWith("table-cell:")) {
+            assignItem(overId.replace("table-cell:", ""), itemId);
+        }
+
+        setActiveDrag(null);
+    };
+
     return (
-        <div className="space-y-4 pl-12">
-            <div className="flex flex-wrap gap-2 rounded-xl border border-dashed border-accent-blue/20 bg-accent-blue/5 p-3">
-                {availableItems.map((item) => (
-                    <DraggableAnswerChip
-                        key={item.id}
-                        id={item.id}
-                        label={item.text}
-                        onDragStart={(itemId) => setDraggedItemId(itemId)}
-                        onDragEnd={() => setDraggedItemId(null)}
-                    />
-                ))}
-                {availableItems.length === 0 && (
-                    <span className="text-xs text-text-muted">Todas las opciones están asignadas.</span>
-                )}
-            </div>
-
-            <div className="overflow-x-auto">
-                <div
-                    className="grid min-w-[760px] gap-px rounded-2xl border border-border/30 bg-border/30"
-                    style={{ gridTemplateColumns: `minmax(180px, 1.1fr) repeat(${columns.length}, minmax(220px, 1fr))` }}
-                >
-                    <div className="bg-surface px-4 py-3 text-xs font-bold uppercase tracking-widest text-text-muted">
-                        {rowHeaderLabel || "Columna fija"}
-                    </div>
-                    {columns.map((column) => (
-                        <div key={column.id} className="bg-surface px-4 py-3 text-xs font-bold uppercase tracking-widest text-text-muted">
-                            {column.label || "Columna sin texto"}
-                        </div>
-                    ))}
-
-                    {rows.map((row) => (
-                        <div key={row.id} className="contents">
-                            <div className="bg-background px-4 py-4 text-sm font-semibold text-foreground">
-                                {row.label || "Fila sin texto"}
+        <div className="pl-12">
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragCancel={() => setActiveDrag(null)}
+            >
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,300px)] lg:items-start">
+                    <div className="overflow-x-auto">
+                        <div
+                            className="grid min-w-[760px] gap-px rounded-2xl border border-border/30 bg-border/30"
+                            style={{ gridTemplateColumns: `minmax(180px, 1.1fr) repeat(${columns.length}, minmax(220px, 1fr))` }}
+                        >
+                            <div className="bg-surface px-4 py-3 text-xs font-bold uppercase tracking-widest text-text-muted">
+                                {rowHeaderLabel || "Columna fija"}
                             </div>
-                            {columns.map((column) => {
-                                const cell = getTableCell(question, row.id, column.id);
-                                if (!cell) {
-                                    return <div key={`${row.id}-${column.id}`} className="bg-background/70" />;
-                                }
+                            {columns.map((column) => (
+                                <div key={column.id} className="bg-surface px-4 py-3 text-xs font-bold uppercase tracking-widest text-text-muted">
+                                    {column.label || "Columna sin texto"}
+                                </div>
+                            ))}
 
-                                const assignedItemId = currentAnswer.placements[cell.id];
-                                return (
-                                    <div key={cell.id} className="bg-background/70 p-3">
-                                        <div
-                                            onDragOver={(event) => event.preventDefault()}
-                                            onDrop={(event) => {
-                                                event.preventDefault();
-                                                if (!draggedItemId) return;
-                                                assignItem(cell.id, draggedItemId);
-                                                setDraggedItemId(null);
-                                            }}
-                                            className={cn(
-                                                "flex min-h-[112px] flex-col rounded-xl border border-dashed p-3 transition-colors",
-                                                assignedItemId
-                                                    ? "border-accent-blue/30 bg-accent-blue/8"
-                                                    : "border-border/40 bg-background/60",
-                                            )}
-                                        >
-                                            <div className="flex items-start justify-between gap-2">
-                                                <p className={cn(
-                                                    "text-sm",
-                                                    assignedItemId ? "font-medium text-foreground" : "text-text-muted",
-                                                )}>
-                                                    {assignedItemId
-                                                        ? getAssignedItemLabel(question, assignedItemId)
-                                                        : "Suelta aquí la opción correcta"}
-                                                </p>
-                                                {assignedItemId && (
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        aria-label="Quitar opción de la celda"
-                                                        className="size-7 shrink-0 text-text-muted hover:text-red-400"
-                                                        onClick={() => clearItem(cell.id)}
-                                                    >
-                                                        <X className="size-3.5" />
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </div>
+                            {rows.map((row) => (
+                                <div key={row.id} className="contents">
+                                    <div className="bg-background px-4 py-4 text-sm font-semibold text-foreground">
+                                        {row.label || "Fila sin texto"}
                                     </div>
-                                );
-                            })}
+                                    {columns.map((column) => {
+                                        const cell = getTableCell(question, row.id, column.id);
+                                        if (!cell) {
+                                            return <div key={`${row.id}-${column.id}`} className="bg-background/70" />;
+                                        }
+
+                                        const assignedItemId = currentAnswer.placements[cell.id];
+                                        return (
+                                            <div key={cell.id} className="bg-background/70 p-3">
+                                                <DroppableAnswerSlot
+                                                    id={`table-cell:${cell.id}`}
+                                                    className={cn(
+                                                        "flex min-h-[112px] flex-col rounded-xl border border-dashed p-3 transition-colors",
+                                                        assignedItemId
+                                                            ? "border-accent-blue/30 bg-accent-blue/8"
+                                                            : "border-border/40 bg-background/60",
+                                                    )}
+                                                >
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <p className={cn(
+                                                            "text-sm",
+                                                            assignedItemId ? "font-medium text-foreground" : "text-text-muted",
+                                                        )}>
+                                                            {assignedItemId
+                                                                ? getAssignedItemLabel(question, assignedItemId)
+                                                                : "Suelta aquí la opción correcta"}
+                                                        </p>
+                                                        {assignedItemId && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                aria-label="Quitar opción de la celda"
+                                                                className="size-7 shrink-0 text-text-muted hover:text-red-400"
+                                                                onClick={() => clearItem(cell.id)}
+                                                            >
+                                                                <X className="size-3.5" />
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </DroppableAnswerSlot>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ))}
                         </div>
-                    ))}
+                    </div>
+
+                    <div className="lg:sticky lg:top-4 lg:self-start">
+                        <div className="space-y-2 rounded-xl border border-dashed border-accent-blue/20 bg-accent-blue/5 p-3">
+                            <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Opciones arrastrables</p>
+                            <div className="flex max-h-80 flex-wrap gap-2 overflow-y-auto pr-1">
+                                {tableItems.map((item) => (
+                                    <DraggableAnswerChip
+                                        key={item.id}
+                                        dragId={`table-item:${item.id}`}
+                                        itemId={item.id}
+                                        label={item.text}
+                                    />
+                                ))}
+                                {tableItems.length === 0 && (
+                                    <span className="text-xs text-text-muted">No hay opciones configuradas.</span>
+                                )}
+                            </div>
+                            <p className="text-xs text-text-muted">
+                                Las opciones se pueden reutilizar varias veces si la respuesta correcta se repite.
+                            </p>
+                        </div>
+                    </div>
                 </div>
-            </div>
+
+                <DragOverlay>
+                    {activeDrag ? <DragOverlayChip label={activeDrag.label} /> : null}
+                </DragOverlay>
+            </DndContext>
         </div>
     );
 }
@@ -355,19 +479,21 @@ function MatchingPairsAnswer({
     structuredAnswers,
     onStructuredAnswerChange,
 }: Pick<QuizQuestionAnswerFieldProps, "question" | "structuredAnswers" | "onStructuredAnswerChange">) {
-    const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+    const [activeDrag, setActiveDrag] = useState<ActiveStructuredDrag | null>(null);
     const currentAnswer = getMatchingAnswer(question.id, structuredAnswers);
-    const assignedOptionIds = Object.values(currentAnswer.matches).filter(Boolean);
-    const availableOptions = (question.matchingOptions ?? []).filter((option) => !assignedOptionIds.includes(option.id));
+    const matchingOptions = question.matchingOptions ?? [];
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    );
 
     const assignMatch = (promptId: string, optionId: string) => {
-        const nextMatches = Object.fromEntries(
-            Object.entries(currentAnswer.matches).filter(([, assignedId]) => assignedId !== optionId),
-        );
-        nextMatches[promptId] = optionId;
         onStructuredAnswerChange(question.id, {
             kind: QUIZ_QUESTION_TYPE.MATCHING_PAIRS,
-            matches: nextMatches,
+            matches: {
+                ...currentAnswer.matches,
+                [promptId]: optionId,
+            },
         });
     };
 
@@ -380,72 +506,105 @@ function MatchingPairsAnswer({
         });
     };
 
-    return (
-        <div className="space-y-4 pl-12">
-            <div className="flex flex-wrap gap-2 rounded-xl border border-dashed border-accent-blue/20 bg-accent-blue/5 p-3">
-                {availableOptions.map((option) => (
-                    <DraggableAnswerChip
-                        key={option.id}
-                        id={option.id}
-                        label={option.text}
-                        onDragStart={(itemId) => setDraggedItemId(itemId)}
-                        onDragEnd={() => setDraggedItemId(null)}
-                    />
-                ))}
-                {availableOptions.length === 0 && (
-                    <span className="text-xs text-text-muted">Todos los emparejamientos están asignados.</span>
-                )}
-            </div>
+    const handleDragStart = (event: DragStartEvent) => {
+        const itemId = event.active.data.current?.itemId;
+        const label = event.active.data.current?.label;
+        if (typeof itemId !== "string" || typeof label !== "string") return;
+        setActiveDrag({ itemId, label });
+    };
 
-            <div className="space-y-3">
-                {(question.matchingPrompts ?? []).map((prompt) => {
-                    const assignedOptionId = currentAnswer.matches[prompt.id];
-                    return (
-                        <div
-                            key={prompt.id}
-                            className="grid gap-3 rounded-xl border border-border/40 bg-background/50 p-4 md:grid-cols-[minmax(0,1fr)_minmax(240px,0.9fr)] md:items-center"
-                        >
-                            <p className="text-sm font-semibold text-foreground">{prompt.text}</p>
-                            <div
-                                onDragOver={(event) => event.preventDefault()}
-                                onDrop={(event) => {
-                                    event.preventDefault();
-                                    if (!draggedItemId) return;
-                                    assignMatch(prompt.id, draggedItemId);
-                                    setDraggedItemId(null);
-                                }}
-                                className={cn(
-                                    "flex min-h-[72px] items-start justify-between gap-2 rounded-xl border border-dashed p-3 transition-colors",
-                                    assignedOptionId
-                                        ? "border-accent-blue/30 bg-accent-blue/8"
-                                        : "border-border/40 bg-background/60",
-                                )}
-                            >
-                                <p className={cn(
-                                    "text-sm",
-                                    assignedOptionId ? "font-medium text-foreground" : "text-text-muted",
-                                )}>
-                                    {assignedOptionId
-                                        ? getAssignedItemLabel(question, assignedOptionId)
-                                        : "Suelta aquí la opción correspondiente"}
-                                </p>
-                                {assignedOptionId && (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        aria-label="Quitar emparejamiento"
-                                        className="size-7 shrink-0 text-text-muted hover:text-red-400"
-                                        onClick={() => clearMatch(prompt.id)}
+    const handleDragEnd = (event: DragEndEvent) => {
+        const itemId = event.active.data.current?.itemId;
+        const overId = typeof event.over?.id === "string" ? event.over.id : null;
+
+        if (typeof itemId === "string" && overId?.startsWith("matching-prompt:")) {
+            assignMatch(overId.replace("matching-prompt:", ""), itemId);
+        }
+
+        setActiveDrag(null);
+    };
+
+    return (
+        <div className="pl-12">
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragCancel={() => setActiveDrag(null)}
+            >
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(240px,280px)] lg:items-start">
+                    <div className="space-y-3">
+                        {(question.matchingPrompts ?? []).map((prompt) => {
+                            const assignedOptionId = currentAnswer.matches[prompt.id];
+                            return (
+                                <div
+                                    key={prompt.id}
+                                    className="grid gap-3 rounded-xl border border-border/40 bg-background/50 p-4 md:grid-cols-[minmax(0,1fr)_minmax(240px,0.9fr)] md:items-center"
+                                >
+                                    <p className="text-sm font-semibold text-foreground">{prompt.text}</p>
+                                    <DroppableAnswerSlot
+                                        id={`matching-prompt:${prompt.id}`}
+                                        className={cn(
+                                            "flex min-h-[72px] items-start justify-between gap-2 rounded-xl border border-dashed p-3 transition-colors",
+                                            assignedOptionId
+                                                ? "border-accent-blue/30 bg-accent-blue/8"
+                                                : "border-border/40 bg-background/60",
+                                        )}
                                     >
-                                        <X className="size-3.5" />
-                                    </Button>
+                                        <p className={cn(
+                                            "text-sm",
+                                            assignedOptionId ? "font-medium text-foreground" : "text-text-muted",
+                                        )}>
+                                            {assignedOptionId
+                                                ? getAssignedItemLabel(question, assignedOptionId)
+                                                : "Suelta aquí la opción correspondiente"}
+                                        </p>
+                                        {assignedOptionId && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                aria-label="Quitar emparejamiento"
+                                                className="size-7 shrink-0 text-text-muted hover:text-red-400"
+                                                onClick={() => clearMatch(prompt.id)}
+                                            >
+                                                <X className="size-3.5" />
+                                            </Button>
+                                        )}
+                                    </DroppableAnswerSlot>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <div className="lg:sticky lg:top-4 lg:self-start">
+                        <div className="space-y-2 rounded-xl border border-dashed border-accent-blue/20 bg-accent-blue/5 p-3">
+                            <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Matches</p>
+                            <div className="flex max-h-80 flex-wrap gap-2 overflow-y-auto pr-1">
+                                {matchingOptions.map((option) => (
+                                    <DraggableAnswerChip
+                                        key={option.id}
+                                        dragId={`matching-option:${option.id}`}
+                                        itemId={option.id}
+                                        label={option.text}
+                                    />
+                                ))}
+                                {matchingOptions.length === 0 && (
+                                    <span className="text-xs text-text-muted">No hay matches configurados.</span>
                                 )}
                             </div>
+                            <p className="text-xs text-text-muted">
+                                Un mismo match se puede reutilizar tantas veces como haga falta.
+                            </p>
                         </div>
-                    );
-                })}
-            </div>
+                    </div>
+                </div>
+
+                <DragOverlay>
+                    {activeDrag ? <DragOverlayChip label={activeDrag.label} /> : null}
+                </DragOverlay>
+            </DndContext>
         </div>
     );
 }
