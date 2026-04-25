@@ -1,3 +1,4 @@
+import { getQuizFixedQuestions } from "@/lib/quiz-content";
 import type {
     QuizAttempt,
     QuizCategory,
@@ -632,7 +633,7 @@ export function scoreQuizAttempt(
 }
 
 export function getQuizAttemptQuestions(content: QuizContent, attempt?: QuizAttempt | null) {
-    return attempt?.resolved_questions?.length ? attempt.resolved_questions : content.questions;
+    return attempt?.resolved_questions?.length ? attempt.resolved_questions : getQuizFixedQuestions(content);
 }
 
 export function buildQuestionReview(

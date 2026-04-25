@@ -25,6 +25,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { cn } from "@/lib/utils";
 import { ResourceIcon } from "@/components/dashboard/shared/resource-icon";
 import { toSlidesDownloadUrl, toDriveDownloadUrl } from "@/lib/google-drive-urls";
+import { buildQuizRenderItems, getPaginatedQuizRenderItems, getQuizFixedQuestions } from "@/lib/quiz-content";
 import { selectQuestionsForAttempt } from "@/lib/quiz-pool-selection";
 import { buildQuestionReview, getQuestionType, getQuizAttemptQuestions, isQuizQuestionAnswered, QUIZ_QUESTION_TYPE } from "@/lib/quiz-core";
 import { QuizQuestionAnswerField } from "../quiz/quiz-question-answer-field";
@@ -309,6 +310,7 @@ function QuizViewer({
         const studentId = studentName ?? (userId ? userId.slice(-8).toUpperCase() : null);
         return (
             <div className="w-full h-screen min-h-[600px] flex flex-col gap-4">
+                <QuizInstructions instructionsMarkdown={content.instructionsMarkdown} />
                 {studentId && (
                     <div className="flex items-center gap-4 p-4 bg-accent-blue/5 border border-accent-blue/20 rounded-xl">
                         <div className="flex-1">
@@ -337,6 +339,38 @@ function QuizViewer({
     }
 
     return <BuiltinQuizViewer content={content} userId={userId} stepId={stepId} activityId={activityId} submission={submission} isPreview={isPreview} isClosed={isClosed} isLockdown={isLockdown} />;
+}
+
+function QuizInstructions({ instructionsMarkdown }: { instructionsMarkdown?: string }) {
+    if (!instructionsMarkdown?.trim()) return null;
+
+    return (
+        <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-4">
+            <h3 className="text-sm font-bold text-accent-blue flex items-center gap-2 uppercase tracking-widest">
+                <CheckSquare className="size-4" /> Instrucciones
+            </h3>
+            <div className="prose dark:prose-invert prose-sm max-w-none text-text-muted font-sans">
+                <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
+                >
+                    {instructionsMarkdown}
+                </ReactMarkdown>
+            </div>
+        </div>
+    );
+}
+
+function QuizSectionHeading({ title }: { title: string }) {
+    return (
+        <div className="flex items-center gap-3 px-1">
+            <span className="shrink-0 rounded-md border border-accent-blue/20 bg-accent-blue/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-accent-blue">
+                Sección
+            </span>
+            <h3 className="text-lg font-bold text-foreground">{title || "Sección sin título"}</h3>
+            <div className="h-px flex-1 bg-linear-to-r from-accent-blue/20 to-transparent" />
+        </div>
+    );
 }
 
 function BuiltinQuizViewer({
@@ -450,7 +484,7 @@ function BuiltinQuizViewer({
         // Apply bank selection when bankSelections are defined
         const selected = (content.bankSelections?.length && userId && stepId)
             ? selectQuestionsForAttempt(content, bankQuestions, userId, stepId, (attempts.length ?? 0) + 1)
-            : content.questions;
+            : getQuizFixedQuestions(content);
         const qs = content.randomizeQuestions
             ? [...selected].sort(() => Math.random() - 0.5)
             : selected;
@@ -459,6 +493,11 @@ function BuiltinQuizViewer({
         }
         return qs;
     }, [content?.questions, content?.bankSelections, content?.randomizeQuestions, content?.randomizeOptions, userId, stepId, attempts.length, bankQuestions]);
+    const displayItems = useMemo(() => buildQuizRenderItems(content, displayQuestions), [content, displayQuestions]);
+    const questionNumberById = useMemo(
+        () => new Map(displayQuestions.map((question, index) => [question.id, index + 1])),
+        [displayQuestions],
+    );
 
     const maxAttempts = content?.maxAttempts;
     const attemptsDone = attempts.length;
@@ -481,7 +520,7 @@ function BuiltinQuizViewer({
 
     const qpp = content?.questionsPerPage;
     const totalPages = qpp ? Math.ceil(displayQuestions.length / qpp) : 1;
-    const paginatedQuestions = qpp ? displayQuestions.slice(currentPage * qpp, (currentPage + 1) * qpp) : displayQuestions;
+    const paginatedItems = getPaginatedQuizRenderItems(displayItems, qpp, currentPage);
     const isLastPage = currentPage >= totalPages - 1;
     const unansweredRequiredQuestions = displayQuestions.filter(question =>
         question.isRequired
@@ -570,7 +609,7 @@ function BuiltinQuizViewer({
         setPhase('answering');
     }
 
-    if ((!content?.questions || content.questions.length === 0) && !content?.bankSelections?.length) {
+    if (getQuizFixedQuestions(content).length === 0 && !content?.bankSelections?.length) {
         return <p className="text-text-muted italic text-center">Este cuestionario no tiene preguntas aún.</p>;
     }
 
@@ -690,6 +729,8 @@ function BuiltinQuizViewer({
             : 0;
         const passed = content.passingScore !== undefined ? pct >= content.passingScore : null;
         const effectiveQuestions = getQuizAttemptQuestions(content, lastAttempt);
+        const reviewItems = buildQuizRenderItems(content, effectiveQuestions);
+        const reviewQuestionNumberById = new Map(effectiveQuestions.map((question, index) => [question.id, index + 1]));
         const hasShortAnswerQs = effectiveQuestions.some((q) => getQuestionType(q) === QUIZ_QUESTION_TYPE.SHORT_ANSWER);
         const isPublished = submission?.status === 'published';
         // Score visible only when: grades are visible AND (no short answers OR already published)
@@ -742,7 +783,12 @@ function BuiltinQuizViewer({
                 {/* Per-question review — visible if teacher enabled showCorrectAnswers OR if published */}
                 {(content.showCorrectAnswers !== false || gradesVisible) && (
                     <div className="space-y-4">
-                        {effectiveQuestions.map((q, idx: number) => {
+                        {reviewItems.map((item) => {
+                            if (item.kind === "section") {
+                                return <QuizSectionHeading key={item.id} title={item.section.title} />;
+                            }
+
+                            const q = item.question;
                             const review = buildQuestionReview(q, lastAttempt, !!content.penalizeWrongAnswers);
                             const qType = getQuestionType(q);
                             const qScore = review.pointsEarned;
@@ -751,11 +797,12 @@ function BuiltinQuizViewer({
                                 : (qScore ?? 0) < 0 ? "bg-red-500/5 border-red-500/20"
                                 : "bg-surface border-border/30"
                                 : "bg-surface border-border/30";
+                            const displayNumber = reviewQuestionNumberById.get(q.id) ?? 1;
 
                             return (
                                 <div key={q.id} className={cn("rounded-xl border p-6 md:p-7", borderClass)}>
                                     <div className="flex items-start gap-3 mb-3">
-                                        <span className="size-6 rounded-md bg-surface-dark text-text-muted flex items-center justify-center text-xs font-bold shrink-0">{idx + 1}</span>
+                                        <span className="size-6 rounded-md bg-surface-dark text-text-muted flex items-center justify-center text-xs font-bold shrink-0">{displayNumber}</span>
                                         <p className="font-semibold text-foreground leading-tight flex-1">{q.text}</p>
                                         {review.isAutoGraded && qScore !== null ? (
                                             <span className={cn(
@@ -849,6 +896,8 @@ function BuiltinQuizViewer({
     // Answering phase — shared content
     const answeringContent = (
         <div className="space-y-8">
+            <QuizInstructions instructionsMarkdown={content.instructionsMarkdown} />
+
             {/* Attempt counter — hidden in lockdown fullscreen (shown in header instead) */}
             {!isExamActive && (
                 <div className="flex items-center justify-between">
@@ -878,15 +927,20 @@ function BuiltinQuizViewer({
                     </div>
                 )}
 
-                {paginatedQuestions.map((q, idx) => {
-                    const globalIdx = qpp ? currentPage * qpp + idx : idx;
+                {paginatedItems.map((item) => {
+                    if (item.kind === "section") {
+                        return <QuizSectionHeading key={item.id} title={item.section.title} />;
+                    }
+
+                    const q = item.question;
+                    const displayNumber = questionNumberById.get(q.id) ?? 1;
 
                     return (
                         <div key={q.id} className="p-8 bg-surface border border-white/5 rounded-2xl space-y-6 shadow-xl">
                             <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-start gap-4 flex-1">
                                     <span className="size-8 rounded-lg bg-accent-blue/10 text-accent-blue flex items-center justify-center text-sm font-bold shrink-0">
-                                        {globalIdx + 1}
+                                        {displayNumber}
                                     </span>
                                     <h3 className="text-xl font-bold text-foreground leading-tight mt-0.5">{q.text}</h3>
                                     {q.isRequired && (

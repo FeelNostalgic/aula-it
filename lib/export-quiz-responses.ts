@@ -1,3 +1,4 @@
+import { getQuizFixedQuestions } from "@/lib/quiz-content";
 import { buildQuestionReview, QUIZ_QUESTION_TYPE, type QuizQuestionReview } from "@/lib/quiz-core";
 import type { QuizAttempt, QuizContent, QuizQuestion } from "@/types/activity";
 import type { StepSubmissionRow } from "@/app/dashboard/units/[id]/actions";
@@ -37,7 +38,7 @@ function resolveQuestions(rows: StepSubmissionRow[], quizContent: QuizContent | 
     if (fromAttempt?.resolved_questions?.length) return fromAttempt.resolved_questions;
     const fromRows = rows.find((row) => (row.quiz_content?.questions?.length ?? 0) > 0)?.quiz_content?.questions;
     if (fromRows?.length) return fromRows;
-    return quizContent?.questions ?? [];
+    return quizContent ? getQuizFixedQuestions(quizContent) : [];
 }
 
 function normalizeReviewValue(value: string) {

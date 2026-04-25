@@ -101,7 +101,7 @@ export async function createStep(phaseId: string, title: string, type: ActivityS
     } else if (type === 'animation') {
         defaultContent = { componentUrl: '' };
     } else if (type === 'quiz') {
-        defaultContent = { questions: [] };
+        defaultContent = { questions: [], blocks: [], instructionsMarkdown: '' };
     } else if (type === 'presentation') {
         defaultContent = { slidesUrl: '', notes: '' };
     } else if (type === 'resource') {

@@ -5,6 +5,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { ActivitySubmission, QuizContent, QuizStructuredAnswers, SubmissionFile, QuizAttempt } from "@/types/activity";
 import { buildPeerEvaluationLiveNoteFiles } from "@/lib/peer-evaluation-live-notes";
+import { getQuizFixedQuestions } from "@/lib/quiz-content";
 import { selectQuestionsForAttempt } from "@/lib/quiz-pool-selection";
 import { isQuizQuestionAnswered, scoreQuizAttempt } from "@/lib/quiz-core";
 import { isStepVisibleForStudent } from "@/lib/activity-step-audience";
@@ -466,7 +467,7 @@ export async function submitQuizAttempt(
     }
 
     // Resolve bank questions server-side for scoring and storage
-    let resolvedQuestions = content.questions ?? [];
+    let resolvedQuestions = getQuizFixedQuestions(content);
     if (content.bankSelections?.length) {
         const admin = createAdminClient();
         const bankIds = content.bankSelections.map((s: any) => s.bankId);

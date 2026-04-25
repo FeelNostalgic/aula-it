@@ -1,3 +1,4 @@
+import { getQuizFixedQuestions } from "@/lib/quiz-content";
 import { QuizContent, QuizQuestion } from "@/types/activity";
 
 /**
@@ -29,11 +30,11 @@ function seededShuffle<T>(arr: T[], seed: string): T[] {
 /**
  * Returns the set of questions a student should see for a given attempt.
  *
- * - `content.questions` are always shown (fixed questions defined in the quiz).
+ * - Fixed questions defined directly in the quiz are always shown.
  * - `bankQuestions`: map of bankId → QuizQuestion[] fetched from global question banks.
  * - For each `bankSelection`, deterministically picks `pickCount` questions from the bank
  *   using seed = `${userId}:${stepId}:${bankId}:${attemptNumber}`.
- * - Falls back to content.questions only when no bankSelections are defined.
+ * - Falls back to fixed quiz questions only when no bankSelections are defined.
  */
 export function selectQuestionsForAttempt(
     content: QuizContent,
@@ -43,7 +44,8 @@ export function selectQuestionsForAttempt(
     attemptNumber: number,
 ): QuizQuestion[] {
     const selections = content.bankSelections;
-    if (!selections || selections.length === 0) return content.questions;
+    const fixedQuestions = getQuizFixedQuestions(content);
+    if (!selections || selections.length === 0) return fixedQuestions;
 
     const selectedFromBanks: QuizQuestion[] = [];
 
@@ -62,7 +64,7 @@ export function selectQuestionsForAttempt(
     }
 
     // Fixed quiz questions + selected bank questions (deduplicated by id)
-    const merged = [...(content.questions ?? []), ...selectedFromBanks];
+    const merged = [...fixedQuestions, ...selectedFromBanks];
     const seen = new Set<string>();
     return merged.filter((question) => {
         if (seen.has(question.id)) return false;

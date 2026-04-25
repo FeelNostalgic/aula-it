@@ -274,8 +274,23 @@ export type QuestionBank = {
     updated_at: string;
 };
 
+export type QuizSectionBlock = {
+    id: string;
+    kind: "section";
+    title: string;
+};
+
+export type QuizQuestionBlock = {
+    id: string;
+    kind: "question";
+    question: QuizQuestion;
+};
+
+export type QuizFixedBlock = QuizSectionBlock | QuizQuestionBlock;
+
 export type QuizContent = {
     questions: QuizQuestion[];
+    blocks?: QuizFixedBlock[];
     bankSelections?: QuizBankSelection[];  // global bank references (replaces per-quiz pools)
     passingScore?: number;          // % (0–100)
     maxAttempts?: number;           // undefined = unlimited
@@ -285,6 +300,7 @@ export type QuizContent = {
     penalizeWrongAnswers?: boolean;
     questionsPerPage?: number;   // undefined = all on one page
     saveQuestionStats?: boolean;
+    instructionsMarkdown?: string;
     googleFormUrl?: string;
     quizMode?: QuizMode;
 };

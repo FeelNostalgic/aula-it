@@ -32,6 +32,7 @@ import {
     ChartTooltipContent,
     type ChartConfig,
 } from "@/components/ui/chart";
+import { getQuizFixedQuestions } from "@/lib/quiz-content";
 import { buildQuizStatsForAttempt, getGroupStatsAvailability, type QuizStatsTeacherAttempt } from "@/lib/quiz-core";
 import { cn } from "@/lib/utils";
 import type { QuizContent, QuizQuestionType } from "@/types/activity";
@@ -114,7 +115,7 @@ export function QuizStatsPanel({ stepId, content, visible }: QuizStatsPanelProps
     const attemptsForSelectedNumber = attempts.filter((attempt) => attempt.attempt_number === attemptNumber);
     const effectiveQuestions = attemptsForSelectedNumber[0]?.resolved_questions?.length
         ? attemptsForSelectedNumber[0].resolved_questions
-        : content.questions;
+        : getQuizFixedQuestions(content);
     const questionStats = buildQuizStatsForAttempt(
         effectiveQuestions,
         attemptsForSelectedNumber,

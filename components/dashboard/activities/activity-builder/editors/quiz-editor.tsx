@@ -3,16 +3,18 @@
 import { useState, useEffect, useRef } from "react";
 import { ActivityStepWithClientState, QuizContent, QuizMode, QuestionBank, QuizQuestion, QuizQuestionType } from "@/types/activity";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { updateStepContent, getQuestionBanks, updateStepLockdown, addQuestionToBank } from "@/app/activities/[id]/edit/actions";
 import { QuestionBankManagerDialog } from "./question-bank-manager";
 import { ConfigSection, ConfigSectionsToolbar, ConfigToggle, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { toast } from "sonner";
-import { Plus, Trash2, CheckCircle2, Circle, HardDrive, ExternalLink, BarChart2, AlignLeft, GripVertical, Layers, FileUp, ArrowDownUp } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Circle, HardDrive, ExternalLink, BarChart2, AlignLeft, GripVertical, Layers, FileUp, ArrowDownUp, Copy, MoreVertical, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { GoogleFormCsvImport } from "./google-form-csv-import";
 import { cn } from "@/lib/utils";
 import { createDefaultQuizQuestion, convertQuestionToType, getGroupStatsAvailability, getQuestionType, QUIZ_QUESTION_TYPE, supportsClassicOptions } from "@/lib/quiz-core";
+import { createQuizQuestionBlock, createQuizSectionBlock, getQuizFixedBlocks, getQuizFixedQuestions, isQuizQuestionBlock, isQuizSectionBlock, syncQuizContent } from "@/lib/quiz-content";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toFormEmbedUrl, GOOGLE_MIME } from "@/lib/google-drive-urls";
 import { StructuredQuestionFields } from "../quiz/structured-question-fields";
@@ -21,6 +23,14 @@ import { QuizResponsesPanel } from "../quiz/quiz-responses-panel";
 import { LikertQuestionConfig } from "../quiz/likert-question-config";
 import { useStepEditorTab } from "./use-step-editor-tab";
 import { StepVisibilityTab } from "./step-visibility-tab";
+import { MarkdownHelpPopover } from "./markdown-help-popover";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeRaw from "rehype-raw";
+import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import {
     DndContext,
     closestCenter,
@@ -67,6 +77,14 @@ const QUESTION_TYPES: { value: QuizQuestionType; label: string }[] = [
     { value: 'categorization_drag_drop', label: 'Clasificar' },
 ];
 
+function duplicateQuizQuestion(question: QuizQuestion): QuizQuestion {
+    const clonedQuestion = structuredClone(question);
+    return {
+        ...clonedQuestion,
+        id: crypto.randomUUID(),
+    };
+}
+
 export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorProps) {
     const isNestedQuiz = !!step.parent_step_id;
 
@@ -74,23 +92,33 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
         const content = rawContent && typeof rawContent === "object"
             ? rawContent as Partial<QuizContent>
             : null;
-        if (!content) return { questions: [], passingScore: 80, showCorrectAnswers: true };
-        return {
+        if (!content) {
+            return syncQuizContent({
+                questions: [],
+                blocks: [],
+                instructionsMarkdown: "",
+                passingScore: 80,
+                showCorrectAnswers: true,
+            });
+        }
+        return syncQuizContent({
             ...content,
+            questions: content.questions ?? [],
             quizMode: isNestedQuiz ? "builtin" : content.quizMode,
             googleFormUrl: isNestedQuiz ? undefined : content.googleFormUrl,
-            questions: content.questions ?? [],
+            instructionsMarkdown: content.instructionsMarkdown ?? "",
             showCorrectAnswers: content.showCorrectAnswers ?? true,
             penalizeWrongAnswers: content.penalizeWrongAnswers ?? false,
             randomizeQuestions: content.randomizeQuestions ?? false,
             randomizeOptions: content.randomizeOptions ?? false,
             saveQuestionStats: content.saveQuestionStats ?? false,
-        };
+        });
     };
 
     const [content, setContent] = useState<QuizContent>(getInitialContent(step.content));
     const [isSaving, setIsSaving] = useState(false);
     const [showCsvImport, setShowCsvImport] = useState(false);
+    const [isInstructionsPreviewCollapsed, setIsInstructionsPreviewCollapsed] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
@@ -114,9 +142,10 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
     };
 
     const handleUpdate = (newContent: QuizContent) => {
+        const syncedContent = syncQuizContent(newContent);
         const normalizedContent: QuizContent = isNestedQuiz
-            ? { ...newContent, quizMode: "builtin", googleFormUrl: undefined }
-            : newContent;
+            ? { ...syncedContent, quizMode: "builtin", googleFormUrl: undefined }
+            : syncedContent;
         const nextContent = getGroupStatsAvailability(normalizedContent).enabled
             ? normalizedContent
             : { ...normalizedContent, saveQuestionStats: false };
@@ -125,50 +154,149 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
         saveToServer(nextContent);
     };
 
+    const fixedBlocks = getQuizFixedBlocks(content);
+    const fixedQuestions = getQuizFixedQuestions(content);
+    const fixedQuestionCount = fixedQuestions.length;
+    const questionNumberById = fixedBlocks.reduce((acc, block) => {
+        if (!isQuizQuestionBlock(block)) return acc;
+        acc.set(block.id, acc.size + 1);
+        return acc;
+    }, new Map<string, number>());
+
     const addQuestion = () => {
-        handleUpdate({ ...content, questions: [...content.questions, createDefaultQuizQuestion()] });
+        handleUpdate({
+            ...content,
+            blocks: [...fixedBlocks, createQuizQuestionBlock(createDefaultQuizQuestion())],
+        });
+    };
+
+    const addSection = () => {
+        handleUpdate({
+            ...content,
+            blocks: [...fixedBlocks, createQuizSectionBlock()],
+        });
     };
 
     const updateQuestion = (qId: string, updates: Partial<QuizQuestion>) => {
-        handleUpdate({ ...content, questions: content.questions.map(q => q.id === qId ? { ...q, ...updates } : q) });
+        handleUpdate({
+            ...content,
+            blocks: fixedBlocks.map((block) => (
+                isQuizQuestionBlock(block) && block.question.id === qId
+                    ? { ...block, question: { ...block.question, ...updates } }
+                    : block
+            )),
+        });
     };
 
     const changeQuestionType = (qId: string, type: QuizQuestionType) => {
-        const questions = content.questions.map(q => {
-            if (q.id !== qId) return q;
-            return convertQuestionToType(q, type);
+        handleUpdate({
+            ...content,
+            blocks: fixedBlocks.map((block) => {
+                if (!isQuizQuestionBlock(block) || block.question.id !== qId) return block;
+                return { ...block, question: convertQuestionToType(block.question, type) };
+            }),
         });
-        handleUpdate({ ...content, questions });
     };
 
     const removeQuestion = (qId: string) => {
-        handleUpdate({ ...content, questions: content.questions.filter(q => q.id !== qId) });
+        handleUpdate({
+            ...content,
+            blocks: fixedBlocks.filter((block) => !isQuizQuestionBlock(block) || block.question.id !== qId),
+        });
+    };
+
+    const duplicateQuestion = (qId: string) => {
+        const sourceIndex = fixedBlocks.findIndex((block) => isQuizQuestionBlock(block) && block.question.id === qId);
+        if (sourceIndex < 0) return;
+
+        const sourceBlock = fixedBlocks[sourceIndex];
+        if (!isQuizQuestionBlock(sourceBlock)) return;
+
+        const duplicatedQuestion = duplicateQuizQuestion(sourceBlock.question);
+        const nextBlocks = [...fixedBlocks];
+        nextBlocks.splice(sourceIndex + 1, 0, createQuizQuestionBlock(duplicatedQuestion));
+
+        handleUpdate({
+            ...content,
+            blocks: nextBlocks,
+        });
+    };
+
+    const updateSection = (sectionId: string, title: string) => {
+        handleUpdate({
+            ...content,
+            blocks: fixedBlocks.map((block) => (
+                isQuizSectionBlock(block) && block.id === sectionId
+                    ? { ...block, title }
+                    : block
+            )),
+        });
+    };
+
+    const removeSection = (sectionId: string) => {
+        handleUpdate({
+            ...content,
+            blocks: fixedBlocks.filter((block) => !isQuizSectionBlock(block) || block.id !== sectionId),
+        });
     };
 
     const addOption = (qId: string) => {
-        handleUpdate({ ...content, questions: content.questions.map(q =>
-            q.id !== qId ? q : { ...q, options: [...q.options, { id: crypto.randomUUID(), text: "", isCorrect: false }] }
-        )});
+        handleUpdate({
+            ...content,
+            blocks: fixedBlocks.map((block) => (
+                !isQuizQuestionBlock(block) || block.question.id !== qId
+                    ? block
+                    : {
+                        ...block,
+                        question: {
+                            ...block.question,
+                            options: [...block.question.options, { id: crypto.randomUUID(), text: "", isCorrect: false }],
+                        },
+                    }
+            )),
+        });
     };
 
     const updateOption = (qId: string, optId: string, updates: Partial<{ text: string; isCorrect: boolean }>) => {
-        handleUpdate({ ...content, questions: content.questions.map(q =>
-            q.id !== qId ? q : { ...q, options: q.options.map(opt => opt.id === optId ? { ...opt, ...updates } : opt) }
-        )});
+        handleUpdate({
+            ...content,
+            blocks: fixedBlocks.map((block) => (
+                !isQuizQuestionBlock(block) || block.question.id !== qId
+                    ? block
+                    : {
+                        ...block,
+                        question: {
+                            ...block.question,
+                            options: block.question.options.map((opt) => opt.id === optId ? { ...opt, ...updates } : opt),
+                        },
+                    }
+            )),
+        });
     };
 
     const removeOption = (qId: string, optId: string) => {
-        handleUpdate({ ...content, questions: content.questions.map(q =>
-            q.id !== qId ? q : { ...q, options: q.options.filter(opt => opt.id !== optId) }
-        )});
+        handleUpdate({
+            ...content,
+            blocks: fixedBlocks.map((block) => (
+                !isQuizQuestionBlock(block) || block.question.id !== qId
+                    ? block
+                    : {
+                        ...block,
+                        question: {
+                            ...block.question,
+                            options: block.question.options.filter((opt) => opt.id !== optId),
+                        },
+                    }
+            )),
+        });
     };
 
     const handleQuestionDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
         if (!over || active.id === over.id) return;
-        const oldIdx = content.questions.findIndex(q => q.id === active.id);
-        const newIdx = content.questions.findIndex(q => q.id === over.id);
-        handleUpdate({ ...content, questions: arrayMove(content.questions, oldIdx, newIdx) });
+        const oldIdx = fixedBlocks.findIndex((block) => block.id === active.id);
+        const newIdx = fixedBlocks.findIndex((block) => block.id === over.id);
+        handleUpdate({ ...content, blocks: arrayMove(fixedBlocks, oldIdx, newIdx) });
     };
 
     const [showBankManager, setShowBankManager] = useState(false);
@@ -199,13 +327,24 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
     const handleOptionDragEnd = (qId: string, event: DragEndEvent) => {
         const { active, over } = event;
         if (!over || active.id === over.id) return;
-        const q = content.questions.find(q => q.id === qId);
+        const q = fixedQuestions.find((question) => question.id === qId);
         if (!q) return;
-        const oldIdx = q.options.findIndex(o => o.id === active.id);
-        const newIdx = q.options.findIndex(o => o.id === over.id);
-        handleUpdate({ ...content, questions: content.questions.map(qq =>
-            qq.id !== qId ? qq : { ...qq, options: arrayMove(qq.options, oldIdx, newIdx) }
-        )});
+        const oldIdx = q.options.findIndex((option) => option.id === active.id);
+        const newIdx = q.options.findIndex((option) => option.id === over.id);
+        handleUpdate({
+            ...content,
+            blocks: fixedBlocks.map((block) => (
+                !isQuizQuestionBlock(block) || block.question.id !== qId
+                    ? block
+                    : {
+                        ...block,
+                        question: {
+                            ...block.question,
+                            options: arrayMove(block.question.options, oldIdx, newIdx),
+                        },
+                    }
+            )),
+        });
     };
 
     const getBanksContainingQuestion = (questionId: string) => {
@@ -236,8 +375,8 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
 
     const effectiveMode: QuizMode = isNestedQuiz ? 'builtin' : content.quizMode ?? (content.googleFormUrl ? 'google_form' : 'builtin');
     const availableTabs = effectiveMode === "builtin"
-        ? ["contenido", "pools", "stats", "respuestas", "configuracion", "visibilidad"]
-        : ["contenido", "configuracion", "visibilidad"];
+        ? ["instrucciones", "contenido", "pools", "stats", "respuestas", "configuracion", "visibilidad"]
+        : ["instrucciones", "contenido", "configuracion", "visibilidad"];
     const { activeTab, setActiveTab } = useStepEditorTab(step.id, "contenido", availableTabs);
     const statsAvailability = getGroupStatsAvailability(content);
     const configSectionIds = [
@@ -256,9 +395,12 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
             {/* Tab bar */}
             <div className="shrink-0 border-b border-border/50 bg-surface-dark/10 px-4 flex items-center gap-2">
                 <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">
+                    <TabsTrigger value="instrucciones" className={tabTriggerClass}>
+                        Instrucciones
+                    </TabsTrigger>
                     <TabsTrigger value="contenido" className={tabTriggerClass}>
                         {effectiveMode === 'builtin'
-                            ? <>Preguntas{content.questions.length > 0 && <span className="ml-1.5 text-[10px] font-mono opacity-60">({content.questions.length})</span>}</>
+                            ? <>Preguntas{fixedQuestionCount > 0 && <span className="ml-1.5 text-[10px] font-mono opacity-60">({fixedQuestionCount})</span>}</>
                             : "Google Form"
                         }
                     </TabsTrigger>
@@ -283,6 +425,60 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
                     }
                 </div>
             </div>
+
+            <TabsContent value="instrucciones" className="mt-0 flex-1 overflow-hidden data-[state=inactive]:hidden">
+                <div className="flex h-full overflow-hidden min-h-0">
+                    <ResizablePanelGroup direction="horizontal">
+                        <ResizablePanel defaultSize={50} minSize={30}>
+                            <div className="flex flex-col h-full bg-surface-dark/20 relative min-h-0">
+                                <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50 justify-between">
+                                    <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Instrucciones (Markdown)</span>
+                                    <div className="flex items-center gap-1">
+                                        <MarkdownHelpPopover />
+                                        <button
+                                            onClick={() => setIsInstructionsPreviewCollapsed((value) => !value)}
+                                            className="text-text-muted hover:text-foreground transition-colors flex items-center gap-1 bg-surface border border-border-subtle rounded-md px-2 py-1 shadow-sm h-7"
+                                            title={isInstructionsPreviewCollapsed ? "Expandir vista previa" : "Ocultar vista previa"}
+                                        >
+                                            {isInstructionsPreviewCollapsed ? <PanelRightOpen className="size-3.5" /> : <PanelRightClose className="size-3.5" />}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="flex-1 p-0 overflow-hidden">
+                                    <Textarea
+                                        value={content.instructionsMarkdown ?? ""}
+                                        onChange={(e) => handleUpdate({ ...content, instructionsMarkdown: e.target.value })}
+                                        className="h-full w-full resize-none border-none focus-visible:ring-0 rounded-none bg-transparent p-6 text-foreground font-mono text-sm leading-relaxed"
+                                        placeholder={"# Instrucciones\nExplica cómo debe responderse el cuestionario..."}
+                                    />
+                                </div>
+                            </div>
+                        </ResizablePanel>
+
+                        <ResizableHandle withHandle className="bg-border-subtle hover:bg-accent-blue transition-colors duration-300 w-1.5 flex flex-col items-center justify-center" />
+
+                        <ResizablePanel defaultSize={50} minSize={25} maxSize={75} className={isInstructionsPreviewCollapsed ? "hidden" : ""}>
+                            <div className="flex flex-col h-full bg-background relative border-l border-border-subtle">
+                                <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50">
+                                    <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Vista previa</span>
+                                </div>
+                                <div className="flex-1 p-8 overflow-y-auto prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-a:text-accent-blue hover:prose-a:text-accent-blue/80 prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-pre:border-none prose-code:bg-surface-dark prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none font-sans">
+                                    {content.instructionsMarkdown ? (
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkGfm, remarkMath]}
+                                            rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
+                                        >
+                                            {content.instructionsMarkdown}
+                                        </ReactMarkdown>
+                                    ) : (
+                                        <div className="text-text-muted/50 italic mt-4 text-center">Instrucciones vacías.</div>
+                                    )}
+                                </div>
+                            </div>
+                        </ResizablePanel>
+                    </ResizablePanelGroup>
+                </div>
+            </TabsContent>
 
             {/* Contenido tab — adapta según modo */}
             <TabsContent value="contenido" className="mt-0 flex-1 min-h-0 overflow-y-auto">
@@ -338,44 +534,66 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
                 ) : (
                     /* Built-in mode — questions builder */
                     <div className="w-full max-w-7xl mx-auto p-6 sm:p-8 space-y-4 pb-32">
-                        {content.questions.length === 0 ? (
+                        {fixedBlocks.length === 0 ? (
                             <div className="text-center p-12 border border-dashed border-border/50 rounded-xl bg-surface/20">
-                                <p className="text-text-muted mb-4">No hay preguntas creadas.</p>
-                                <Button onClick={addQuestion} variant="outline" className="text-accent-blue border-accent-blue/30 hover:bg-accent-blue/10">
-                                    <Plus className="size-4 mr-2" /> Añadir la primera pregunta
-                                </Button>
+                                <p className="text-text-muted mb-4">No hay contenido creado.</p>
+                                <div className="flex items-center justify-center gap-2">
+                                    <Button onClick={addQuestion} variant="outline" className="text-accent-blue border-accent-blue/30 hover:bg-accent-blue/10">
+                                        <Plus className="size-4 mr-2" /> Añadir la primera pregunta
+                                    </Button>
+                                    <Button onClick={addSection} variant="outline" className="border-border/50 hover:bg-surface-dark">
+                                        <Plus className="size-4 mr-2" /> Nueva sección
+                                    </Button>
+                                </div>
                             </div>
                         ) : (
                             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleQuestionDragEnd}>
-                                <SortableContext items={content.questions.map(q => q.id)} strategy={verticalListSortingStrategy}>
+                                <SortableContext items={fixedBlocks.map((block) => block.id)} strategy={verticalListSortingStrategy}>
                                     <div className="space-y-4">
-                                        {content.questions.map((q, idx) => (
-                                            <SortableQuestion
-                                                key={q.id}
-                                                q={q}
-                                                idx={idx}
-                                                sensors={sensors}
-                                                onChangeType={changeQuestionType}
-                                                onUpdate={updateQuestion}
-                                                onRemove={removeQuestion}
-                                                onAddOption={addOption}
-                                                onUpdateOption={updateOption}
-                                                onRemoveOption={removeOption}
-                                                onOptionDragEnd={handleOptionDragEnd}
-                                                banksContainingQuestion={getBanksContainingQuestion(q.id)}
-                                                availableBanks={availableBanks}
-                                                onAddToBank={(bankId) => addQuestionFromQuizToBank(q, bankId)}
-                                            />
+                                        {fixedBlocks.map((block) => (
+                                            isQuizQuestionBlock(block) ? (
+                                                <SortableQuestion
+                                                    key={block.id}
+                                                    blockId={block.id}
+                                                    q={block.question}
+                                                    displayNumber={questionNumberById.get(block.id) ?? 1}
+                                                    sensors={sensors}
+                                                    onChangeType={changeQuestionType}
+                                                    onUpdate={updateQuestion}
+                                                    onDuplicate={duplicateQuestion}
+                                                    onRemove={removeQuestion}
+                                                    onAddOption={addOption}
+                                                    onUpdateOption={updateOption}
+                                                    onRemoveOption={removeOption}
+                                                    onOptionDragEnd={handleOptionDragEnd}
+                                                    banksContainingQuestion={getBanksContainingQuestion(block.question.id)}
+                                                    availableBanks={availableBanks}
+                                                    onAddToBank={(bankId) => addQuestionFromQuizToBank(block.question, bankId)}
+                                                />
+                                            ) : (
+                                                <SortableSection
+                                                    key={block.id}
+                                                    blockId={block.id}
+                                                    title={block.title}
+                                                    onUpdate={updateSection}
+                                                    onRemove={removeSection}
+                                                />
+                                            )
                                         ))}
                                     </div>
                                 </SortableContext>
                             </DndContext>
                         )}
-                        {content.questions.length > 0 && (
+                        {fixedBlocks.length > 0 && (
                             <div className="flex justify-center pt-4">
-                                <Button onClick={addQuestion} className="bg-surface hover:bg-surface-dark text-foreground border border-border/50">
-                                    <Plus className="size-4 mr-2" /> Nueva Pregunta
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button onClick={addQuestion} className="bg-surface hover:bg-surface-dark text-foreground border border-border/50">
+                                        <Plus className="size-4 mr-2" /> Nueva pregunta
+                                    </Button>
+                                    <Button onClick={addSection} variant="outline" className="border-border/50 hover:bg-surface-dark">
+                                        <Plus className="size-4 mr-2" /> Nueva sección
+                                    </Button>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -470,7 +688,7 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
                     )}
 
                     <div className="p-4 bg-accent-blue/5 border border-accent-blue/15 rounded-xl text-xs text-text-muted space-y-1">
-                        <p><strong className="text-foreground">Preguntas fijas del quiz:</strong> {content.questions.length} — siempre visibles para todos.</p>
+                        <p><strong className="text-foreground">Preguntas fijas del quiz:</strong> {fixedQuestionCount} — siempre visibles para todos.</p>
                         <p><strong className="text-foreground">Bancos incluidos:</strong> {content.bankSelections?.length ?? 0} — cada banco puede ser aleatorio o por orden completo.</p>
                     </div>
 
@@ -710,19 +928,78 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
 }
 
 // ---------------------------------------------------------------------------
-// Sortable Question card
+// Sortable blocks
 // ---------------------------------------------------------------------------
 
+function SortableSection({
+    blockId,
+    title,
+    onUpdate,
+    onRemove,
+}: {
+    blockId: string;
+    title: string;
+    onUpdate: (id: string, title: string) => void;
+    onRemove: (id: string) => void;
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: blockId });
+    const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+
+    return (
+        <div ref={setNodeRef} style={style} className="p-5 bg-accent-blue/5 border border-accent-blue/15 rounded-xl space-y-3 shadow-sm">
+            <div className="flex items-center gap-3">
+                <button
+                    {...attributes}
+                    {...listeners}
+                    className="text-text-muted/40 hover:text-text-muted cursor-grab active:cursor-grabbing shrink-0 touch-none"
+                    aria-label="Reordenar sección"
+                >
+                    <GripVertical className="size-4" />
+                </button>
+                <span className="rounded-md border border-accent-blue/20 bg-accent-blue/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-accent-blue shrink-0">
+                    Sección
+                </span>
+                <Input
+                    value={title}
+                    onChange={(e) => onUpdate(blockId, e.target.value)}
+                    placeholder="Título de la sección"
+                    className="flex-1 bg-background/70 border-accent-blue/20 text-sm font-semibold"
+                />
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onRemove(blockId)}
+                    className="size-8 text-text-muted hover:text-red-400 hover:bg-red-400/10 shrink-0"
+                    aria-label="Eliminar sección"
+                >
+                    <Trash2 className="size-4" />
+                </Button>
+            </div>
+            <p className="pl-9 text-xs text-text-muted">
+                Encabezado visual para organizar preguntas. No puntúa ni se exporta como respuesta.
+            </p>
+        </div>
+    );
+}
+
 function SortableQuestion({
-    q, idx, sensors,
-    onChangeType, onUpdate, onRemove,
+    blockId,
+    q,
+    displayNumber,
+    sensors,
+    onChangeType,
+    onUpdate,
+    onDuplicate,
+    onRemove,
     onAddOption, onUpdateOption, onRemoveOption, onOptionDragEnd, banksContainingQuestion, availableBanks, onAddToBank,
 }: {
+    blockId: string;
     q: QuizQuestion;
-    idx: number;
+    displayNumber: number;
     sensors: ReturnType<typeof useSensors>;
     onChangeType: (id: string, t: QuizQuestionType) => void;
     onUpdate: (id: string, updates: Partial<QuizQuestion>) => void;
+    onDuplicate: (id: string) => void;
     onRemove: (id: string) => void;
     onAddOption: (id: string) => void;
     onUpdateOption: (qId: string, optId: string, u: Partial<{ text: string; isCorrect: boolean }>) => void;
@@ -732,7 +1009,7 @@ function SortableQuestion({
     availableBanks: QuestionBank[];
     onAddToBank: (bankId: string) => void;
 }) {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: q.id });
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: blockId });
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
     const qType = getQuestionType(q);
 
@@ -743,11 +1020,12 @@ function SortableQuestion({
                 <button
                     {...attributes} {...listeners}
                     className="mt-2 text-text-muted/30 hover:text-text-muted cursor-grab active:cursor-grabbing shrink-0 touch-none"
+                    aria-label="Reordenar pregunta"
                 >
                     <GripVertical className="size-4" />
                 </button>
                 <span className="bg-surface text-text-muted font-bold px-3 py-1 rounded-md text-sm mt-1 shrink-0">
-                    Q{idx + 1}
+                    Q{displayNumber}
                 </span>
                 <Input
                     value={q.text}
@@ -755,11 +1033,28 @@ function SortableQuestion({
                     placeholder="Escribe la pregunta aquí..."
                     className="flex-1 bg-surface border-border text-sm font-medium"
                 />
-                <Button variant="ghost" size="icon"
-                    onClick={() => onRemove(q.id)}
-                    className="text-text-muted hover:text-red-400 hover:bg-red-400/10 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Trash2 className="size-4" />
-                </Button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-text-muted hover:text-foreground hover:bg-surface shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            aria-label="Acciones de la pregunta"
+                        >
+                            <MoreVertical className="size-4" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-44">
+                        <DropdownMenuItem onClick={() => onDuplicate(q.id)} className="cursor-pointer">
+                            <Copy className="size-3.5 mr-2" />
+                            Duplicar pregunta
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onRemove(q.id)} className="cursor-pointer text-red-400 focus:text-red-400">
+                            <Trash2 className="size-3.5 mr-2" />
+                            Eliminar pregunta
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
 
             {/* Type selector + points */}
