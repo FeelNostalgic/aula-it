@@ -99,7 +99,7 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
 
     const handleAddFromDrive = async () => {
         try {
-            const files = await openPicker();
+            const files = await openPicker({ autoShareAll: true });
             if (files && files.length > 0) {
                 const newItems: ResourceItem[] = files.map(file => ({
                     id: crypto.randomUUID(),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { getDriveFilesToAutoShare } from "@/lib/google-drive-sharing";
 
 const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_API_KEY!;
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
@@ -24,7 +25,7 @@ export interface PickerOptions {
     multiSelect?: boolean;
     title?: string;
     externalAccessToken?: string; // Skip OAuth flow when provided (server-side token)
-    autoShareAll?: boolean; // Auto-share all file types (not just images). Use for unit resources.
+    autoShareAll?: boolean; // Auto-share all file types (not just images). Use for student-visible Drive content.
     selectFolders?: boolean;
     includeSharedDrives?: boolean;
 }
@@ -250,7 +251,7 @@ export function useGoogleDrivePicker() {
                             if (!isFolderSelection && (options?.externalAccessToken || accessTokenRef.current)) {
                                 const tokenToUse = options?.externalAccessToken || accessTokenRef.current;
                                 if (tokenToUse) {
-                                    const filesToShare = files.filter((f) => options?.autoShareAll || f.mimeType?.startsWith("image/"));
+                                    const filesToShare = getDriveFilesToAutoShare(files, options?.autoShareAll ?? false);
                                     await Promise.all(
                                         filesToShare.map(async (f) => {
                                             // 1. Set public "anyone reader" permission

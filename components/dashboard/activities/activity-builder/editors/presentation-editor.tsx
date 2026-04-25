@@ -69,6 +69,7 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
                 mimeTypes: [GOOGLE_MIME.PRESENTATION],
                 multiSelect: false,
                 title: "Seleccionar presentación",
+                autoShareAll: true,
             });
             if (files.length > 0) {
                 handleUrlChange(toEmbedUrl(files[0]));

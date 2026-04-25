@@ -366,7 +366,12 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
 
     const handlePickFormFromDrive = async () => {
         try {
-            const files = await openPicker({ mimeTypes: [GOOGLE_MIME.FORM], multiSelect: false, title: "Seleccionar Google Form" });
+            const files = await openPicker({
+                mimeTypes: [GOOGLE_MIME.FORM],
+                multiSelect: false,
+                title: "Seleccionar Google Form",
+                autoShareAll: true,
+            });
             if (files.length > 0) handleUpdate({ ...content, googleFormUrl: toFormEmbedUrl(files[0]) });
         } catch {
             toast.error("Error al abrir Google Drive");

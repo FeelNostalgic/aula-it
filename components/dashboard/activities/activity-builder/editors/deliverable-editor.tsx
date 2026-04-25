@@ -105,7 +105,12 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
                     // fall through to OAuth flow
                 }
             }
-            const files = await openPicker({ multiSelect: false, title: "Seleccionar plantilla", externalAccessToken });
+            const files = await openPicker({
+                multiSelect: false,
+                title: "Seleccionar plantilla",
+                externalAccessToken,
+                autoShareAll: true,
+            });
             if (files.length > 0) {
                 handleChange("templateUrl", toEditableUrl(files[0]));
             }
