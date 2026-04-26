@@ -395,6 +395,174 @@ describe("submitQuizAttempt", () => {
     expect(result.data?.pointsTotal).toBe(2);
   });
 
+  it("auto-scores multi table_drag_drop cells by exact set match", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-table-multi",
+          type: "table_drag_drop",
+          text: "Clasifica los servicios de una web",
+          options: [],
+          tableAllowMultipleItemsPerCell: true,
+          tableRowHeaderLabel: "Servicio",
+          tableRows: [{ id: "row-http", label: "HTTP" }],
+          tableColumns: [{ id: "col-props", label: "Propiedades" }],
+          tableItems: [
+            { id: "item-app", text: "Aplicación" },
+            { id: "item-clear", text: "Sin cifrar" },
+            { id: "item-tls", text: "Con TLS" },
+          ],
+          tableCells: [
+            {
+              id: "cell-http",
+              rowId: "row-http",
+              columnId: "col-props",
+              correctItemId: "item-app",
+              correctItemIds: ["item-app", "item-clear"],
+            },
+          ],
+          points: 2,
+        },
+      ],
+    });
+    const attempt = createMockQuizAttempt({ points_earned: 2, points_total: 2 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const result = await submitQuizAttempt(
+      "step-1",
+      "activity-1",
+      {},
+      {},
+      {
+        "q-table-multi": {
+          kind: "table_drag_drop",
+          placements: {
+            "cell-http": ["item-clear", "item-app"],
+          },
+        },
+      },
+      content
+    );
+
+    expect(result.data?.pointsEarned).toBe(2);
+    expect(result.data?.pointsTotal).toBe(2);
+  });
+
+  it("auto-scores multi matching_pairs prompts by exact set match", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-match-multi",
+          type: "matching_pairs",
+          text: "Relaciona HTTP",
+          options: [],
+          matchingAllowMultiplePerPrompt: true,
+          matchingOptions: [
+            { id: "match-app", text: "Aplicación" },
+            { id: "match-clear", text: "Sin cifrar" },
+            { id: "match-tls", text: "Con TLS" },
+          ],
+          matchingPrompts: [
+            {
+              id: "prompt-http",
+              text: "HTTP",
+              correctMatchId: "match-app",
+              correctMatchIds: ["match-app", "match-clear"],
+            },
+          ],
+          points: 2,
+        },
+      ],
+    });
+    const attempt = createMockQuizAttempt({ points_earned: 2, points_total: 2 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const result = await submitQuizAttempt(
+      "step-1",
+      "activity-1",
+      {},
+      {},
+      {
+        "q-match-multi": {
+          kind: "matching_pairs",
+          matches: {
+            "prompt-http": ["match-clear", "match-app"],
+          },
+        },
+      },
+      content
+    );
+
+    expect(result.data?.pointsEarned).toBe(2);
+    expect(result.data?.pointsTotal).toBe(2);
+  });
+
+  it("auto-scores categorization reuse by exact category set", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-cat-multi",
+          type: "categorization_drag_drop",
+          text: "Clasifica protocolos",
+          options: [],
+          categorizationAllowReuse: true,
+          categories: [
+            { id: "cat-app", label: "Aplicación" },
+            { id: "cat-web", label: "Web" },
+          ],
+          categoryItems: [
+            {
+              id: "item-http",
+              text: "HTTP",
+              correctCategoryId: "cat-app",
+              correctCategoryIds: ["cat-app", "cat-web"],
+            },
+          ],
+          points: 2,
+        },
+      ],
+    });
+    const attempt = createMockQuizAttempt({ points_earned: 2, points_total: 2 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const result = await submitQuizAttempt(
+      "step-1",
+      "activity-1",
+      {},
+      {},
+      {
+        "q-cat-multi": {
+          kind: "categorization_drag_drop",
+          assignments: {
+            "item-http": ["cat-web", "cat-app"],
+          },
+        },
+      },
+      content
+    );
+
+    expect(result.data?.pointsEarned).toBe(2);
+    expect(result.data?.pointsTotal).toBe(2);
+  });
+
   it("auto-scores ordering_sequence questions by correct position", async () => {
     const content = createMockQuizContent({
       questions: [

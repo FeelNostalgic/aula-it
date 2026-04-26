@@ -14,8 +14,23 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { doesTableDragAllowItemReuse, getQuestionType, getTableDragDuplicateCorrectItemIds, QUIZ_QUESTION_TYPE } from "@/lib/quiz-core";
+import {
+    doesCategorizationAllowReuse,
+    doesMatchingAllowMultiplePerPrompt,
+    doesMatchingAllowReuse,
+    doesTableDragAllowItemReuse,
+    doesTableDragAllowMultipleItemsPerCell,
+    getCategoryItemCorrectCategoryIds,
+    getCategorizationItemsWithMultipleCorrectCategories,
+    getMatchingDuplicateCorrectMatchIds,
+    getMatchingPromptCorrectMatchIds,
+    getQuestionType,
+    getTableCellCorrectItemIds,
+    getTableDragDuplicateCorrectItemIds,
+    QUIZ_QUESTION_TYPE,
+} from "@/lib/quiz-core";
 import type {
     QuizCategory,
     QuizCategoryItem,
@@ -29,7 +44,7 @@ import type {
     QuizTableItem,
     QuizTableRow,
 } from "@/types/activity";
-import { Plus, Trash2, ArrowDown, ArrowUp, GripVertical } from "lucide-react";
+import { Plus, Trash2, ArrowDown, ArrowUp, GripVertical, HelpCircle } from "lucide-react";
 
 type StructuredQuestionFieldsProps = {
     question: QuizQuestion;
@@ -72,7 +87,7 @@ function createMatchingOption(text = ""): QuizMatchingOption {
 }
 
 function createMatchingPrompt(correctMatchId: string): QuizMatchingPrompt {
-    return { id: crypto.randomUUID(), text: "", correctMatchId };
+    return { id: crypto.randomUUID(), text: "", correctMatchId, correctMatchIds: correctMatchId ? [correctMatchId] : [] };
 }
 
 function createOrderingItem(text = ""): QuizOrderingItem {
@@ -84,7 +99,7 @@ function createCategory(label = ""): QuizCategory {
 }
 
 function createCategoryItem(correctCategoryId: string): QuizCategoryItem {
-    return { id: crypto.randomUUID(), text: "", correctCategoryId };
+    return { id: crypto.randomUUID(), text: "", correctCategoryId, correctCategoryIds: correctCategoryId ? [correctCategoryId] : [] };
 }
 
 function moveItem<T>(items: T[], fromIndex: number, direction: -1 | 1) {
@@ -137,6 +152,77 @@ function SortableFieldRow({
                 <GripVertical className="size-4" />
             </button>
             <div className="min-w-0 flex-1">{children}</div>
+        </div>
+    );
+}
+
+function FieldHelpTooltip({ title, description }: { title: string; description: string }) {
+    return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <button type="button" className="text-text-muted transition-colors hover:text-accent-blue cursor-help" aria-label={`Ayuda sobre ${title}`}>
+                        <HelpCircle className="size-3.5" />
+                    </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs p-3 space-y-1.5 bg-surface-dark border-border-subtle shadow-xl">
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-accent-blue">{title}</p>
+                    <p className="text-xs leading-relaxed text-text-muted">{description}</p>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    );
+}
+
+function SectionTitleWithHelp({ title, help }: { title: string; help?: string }) {
+    return (
+        <div className="flex items-center gap-2">
+            <p className="text-xs font-bold uppercase tracking-widest text-text-muted">{title}</p>
+            {help ? <FieldHelpTooltip title={title} description={help} /> : null}
+        </div>
+    );
+}
+
+function MultipleChoiceChecklist({
+    title,
+    help,
+    options,
+    selectedIds,
+    onChange,
+    emptyLabel,
+}: {
+    title: string;
+    help?: string;
+    options: Array<{ id: string; label: string }>;
+    selectedIds: string[];
+    onChange: (nextIds: string[]) => void;
+    emptyLabel: string;
+}) {
+    const selectedSet = new Set(selectedIds);
+
+    return (
+        <div className="space-y-2 rounded-lg border border-border/20 bg-background/40 p-3">
+            <SectionTitleWithHelp title={title} help={help} />
+            {options.length === 0 ? (
+                <p className="text-xs text-text-muted">{emptyLabel}</p>
+            ) : (
+                <div className="space-y-2">
+                    {options.map((option) => (
+                        <label key={option.id} className="flex items-start gap-2 rounded-md border border-border/20 bg-background/30 px-2.5 py-2 text-xs text-foreground">
+                            <Checkbox
+                                checked={selectedSet.has(option.id)}
+                                onCheckedChange={(checked) => {
+                                    const nextIds = checked === true
+                                        ? [...selectedIds, option.id]
+                                        : selectedIds.filter((candidate) => candidate !== option.id);
+                                    onChange([...new Set(nextIds)]);
+                                }}
+                            />
+                            <span className="leading-relaxed">{option.label}</span>
+                        </label>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -320,6 +406,7 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
     const items = question.tableItems ?? [createTableItem("Elemento A"), createTableItem("Elemento B"), createTableItem("Elemento C"), createTableItem("Elemento D")];
     const rowHeaderLabel = question.tableRowHeaderLabel ?? "Concepto";
     const allowItemReuse = doesTableDragAllowItemReuse(question);
+    const allowMultipleItemsPerCell = doesTableDragAllowMultipleItemsPerCell(question);
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -329,6 +416,7 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
         rowId: row.id,
         columnId: column.id,
         correctItemId: items[index % items.length]?.id ?? "",
+        correctItemIds: items[index % items.length]?.id ? [items[index % items.length].id] : [],
     })));
 
     const patchQuestion = (updates: Partial<QuizQuestion>) => {
@@ -339,6 +427,7 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
             tableItems: items,
             tableCells: cells,
             tableAllowItemReuse: allowItemReuse,
+            tableAllowMultipleItemsPerCell: allowMultipleItemsPerCell,
             ...updates,
         });
     };
@@ -356,7 +445,10 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
     return (
         <div className="pl-14 space-y-4">
             <div className="rounded-xl border border-border/30 bg-surface/30 p-4 space-y-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Columna fija</p>
+                <SectionTitleWithHelp
+                    title="Columna fija"
+                    help="Es la columna de referencia que siempre aparece a la izquierda. Cada fila define el valor base desde el que el alumno completa el resto de celdas."
+                />
                 <Input
                     value={rowHeaderLabel}
                     onChange={(event) => patchQuestion({ tableRowHeaderLabel: event.target.value })}
@@ -387,6 +479,32 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
                             Si está activo, la misma opción puede colocarse en varias celdas. Si lo desactivas, cada opción solo podrá usarse una vez.
                         </p>
                     </div>
+                    <FieldHelpTooltip
+                        title="Reutilizar opciones"
+                        description="Controla si una misma ficha arrastrable puede usarse en varias celdas distintas. Si lo desactivas, cada ficha solo podrá resolver una celda."
+                    />
+                </div>
+                <div className="flex items-start gap-3">
+                    <Checkbox
+                        id={`table-allow-multi-cell-${question.id}`}
+                        checked={allowMultipleItemsPerCell}
+                        onCheckedChange={(checked) => patchQuestion({ tableAllowMultipleItemsPerCell: checked === true })}
+                    />
+                    <div className="space-y-1">
+                        <label
+                            htmlFor={`table-allow-multi-cell-${question.id}`}
+                            className="text-sm font-semibold text-foreground"
+                        >
+                            Permitir varias opciones por celda
+                        </label>
+                        <p className="text-xs text-text-muted">
+                            Si está activo, una misma celda puede requerir varias fichas correctas y el alumno podrá soltar varias dentro.
+                        </p>
+                    </div>
+                    <FieldHelpTooltip
+                        title="Varias opciones por celda"
+                        description="Convierte cada celda en un objetivo múltiple. La corrección exige coincidencia exacta entre el conjunto seleccionado y el conjunto correcto."
+                    />
                 </div>
                 {duplicateCorrectItemLabels.length > 0 && (
                     <div className="rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs text-amber-200">
@@ -400,7 +518,10 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
             <div className="grid gap-4 lg:grid-cols-3">
                 <div className="rounded-xl border border-border/30 bg-surface/30 p-4 space-y-2">
                     <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Columnas a completar</p>
+                        <SectionTitleWithHelp
+                            title="Columnas a completar"
+                            help="Cada columna adicional crea un hueco que el alumno tendrá que completar en cada fila de la tabla."
+                        />
                         <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => {
                             const nextColumn = createColumn(`Columna ${columns.length + 1}`);
                             patchQuestion({
@@ -454,7 +575,10 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
 
                 <div className="rounded-xl border border-border/30 bg-surface/30 p-4 space-y-2">
                     <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Valores de la columna fija</p>
+                        <SectionTitleWithHelp
+                            title="Valores de la columna fija"
+                            help="Cada fila representa un elemento base de la tabla. Después cada celda de esa fila se corrige con sus opciones correspondientes."
+                        />
                         <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => {
                             const nextRow = createRow(`Fila ${rows.length + 1}`);
                             patchQuestion({
@@ -508,7 +632,10 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
 
                 <div className="rounded-xl border border-border/30 bg-surface/30 p-4 space-y-2">
                     <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Opciones arrastrables</p>
+                        <SectionTitleWithHelp
+                            title="Opciones arrastrables"
+                            help="Estas son las fichas que verá el alumno para arrastrar a las celdas. También determina el catálogo de respuestas posibles."
+                        />
                         <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => patchQuestion({ tableItems: [...items, createTableItem("")] })}>
                             <Plus className="size-3 mr-1" /> Añadir
                         </Button>
@@ -535,7 +662,17 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
                                                 placeholder="Texto de opción"
                                                 className="bg-background/60 border-border/40 text-sm"
                                             />
-                                            <Button type="button" variant="ghost" size="icon" aria-label="Eliminar opción arrastrable" className="size-8 text-text-muted hover:text-red-400" onClick={() => patchQuestion({ tableItems: items.filter((candidate) => candidate.id !== item.id), tableCells: cells.map((cell) => cell.correctItemId === item.id ? { ...cell, correctItemId: "" } : cell) })}>
+                                            <Button type="button" variant="ghost" size="icon" aria-label="Eliminar opción arrastrable" className="size-8 text-text-muted hover:text-red-400" onClick={() => patchQuestion({
+                                                tableItems: items.filter((candidate) => candidate.id !== item.id),
+                                                tableCells: cells.map((cell) => {
+                                                    const nextCorrectItemIds = getTableCellCorrectItemIds(cell).filter((candidate) => candidate !== item.id);
+                                                    return {
+                                                        ...cell,
+                                                        correctItemId: nextCorrectItemIds[0] ?? "",
+                                                        correctItemIds: nextCorrectItemIds,
+                                                    };
+                                                }),
+                                            })}>
                                                 <Trash2 className="size-3.5" />
                                             </Button>
                                         </div>
@@ -548,7 +685,10 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
             </div>
 
             <div className="rounded-xl border border-border/30 bg-surface/30 p-4 space-y-3">
-                <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Respuestas correctas por celda</p>
+                <SectionTitleWithHelp
+                    title="Respuestas correctas por celda"
+                    help="Aquí defines qué fichas resuelven correctamente cada celda. Si el modo múltiple está activo, puedes marcar varias respuestas correctas en la misma celda."
+                />
                 <div className="overflow-x-auto">
                     <div
                         className="grid min-w-[720px] gap-px rounded-xl border border-border/30 bg-border/30"
@@ -570,31 +710,52 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
                                 </div>
                                 {columns.map((column) => {
                                     const cell = cells.find((candidate) => candidate.rowId === row.id && candidate.columnId === column.id)
-                                        ?? { id: crypto.randomUUID(), rowId: row.id, columnId: column.id, correctItemId: "" };
+                                        ?? { id: crypto.randomUUID(), rowId: row.id, columnId: column.id, correctItemId: "", correctItemIds: [] };
+                                    const selectedItemIds = getTableCellCorrectItemIds(cell);
                                     return (
                                         <div key={cell.id} className="bg-background/70 p-3">
-                                            <Select
-                                                value={cell.correctItemId || "__empty__"}
-                                                onValueChange={(value) => {
-                                                    const nextValue = value === "__empty__" ? "" : value;
-                                                    const existingCell = cells.some((candidate) => candidate.id === cell.id);
-                                                    patchQuestion({
-                                                        tableCells: existingCell
-                                                            ? cells.map((candidate) => candidate.id === cell.id ? { ...candidate, correctItemId: nextValue } : candidate)
-                                                            : [...cells, { ...cell, correctItemId: nextValue }],
-                                                    });
-                                                }}
-                                            >
-                                                <SelectTrigger className="bg-background border-border/40">
-                                                    <SelectValue placeholder="Selecciona la opción correcta" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="__empty__">Sin asignar</SelectItem>
-                                                    {items.map((item) => (
-                                                        <SelectItem key={item.id} value={item.id}>{item.text || "Opción sin texto"}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            {allowMultipleItemsPerCell ? (
+                                                <MultipleChoiceChecklist
+                                                    title="Opciones correctas"
+                                                    help="Marca todas las fichas que deben estar presentes en esta celda para que cuente como correcta."
+                                                    options={items.map((item) => ({ id: item.id, label: item.text || "Opción sin texto" }))}
+                                                    selectedIds={selectedItemIds}
+                                                    onChange={(nextIds) => {
+                                                        const existingCell = cells.some((candidate) => candidate.id === cell.id);
+                                                        const nextCell = { ...cell, correctItemId: nextIds[0] ?? "", correctItemIds: nextIds };
+                                                        patchQuestion({
+                                                            tableCells: existingCell
+                                                                ? cells.map((candidate) => candidate.id === cell.id ? nextCell : candidate)
+                                                                : [...cells, nextCell],
+                                                        });
+                                                    }}
+                                                    emptyLabel="No hay opciones arrastrables configuradas."
+                                                />
+                                            ) : (
+                                                <Select
+                                                    value={selectedItemIds[0] || "__empty__"}
+                                                    onValueChange={(value) => {
+                                                        const nextValue = value === "__empty__" ? "" : value;
+                                                        const existingCell = cells.some((candidate) => candidate.id === cell.id);
+                                                        const nextCell = { ...cell, correctItemId: nextValue, correctItemIds: nextValue ? [nextValue] : [] };
+                                                        patchQuestion({
+                                                            tableCells: existingCell
+                                                                ? cells.map((candidate) => candidate.id === cell.id ? nextCell : candidate)
+                                                                : [...cells, nextCell],
+                                                        });
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="bg-background border-border/40">
+                                                        <SelectValue placeholder="Selecciona la opción correcta" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="__empty__">Sin asignar</SelectItem>
+                                                        {items.map((item) => (
+                                                            <SelectItem key={item.id} value={item.id}>{item.text || "Opción sin texto"}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -610,16 +771,79 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
 function MatchingPairsFields({ question, onUpdate }: StructuredQuestionFieldsProps) {
     const matchingOptions = question.matchingOptions ?? [createMatchingOption(""), createMatchingOption(""), createMatchingOption("")];
     const matchingPrompts = question.matchingPrompts ?? matchingOptions.map((option) => createMatchingPrompt(option.id));
+    const allowMultiplePerPrompt = doesMatchingAllowMultiplePerPrompt(question);
+    const allowReuse = doesMatchingAllowReuse(question);
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
     );
+    const duplicateMatchIds = getMatchingDuplicateCorrectMatchIds({
+        ...question,
+        matchingOptions,
+        matchingPrompts,
+    });
+    const duplicateMatchLabels = duplicateMatchIds.map((matchId) =>
+        matchingOptions.find((option) => option.id === matchId)?.text?.trim() || "Match sin texto",
+    );
 
     return (
-        <div className="pl-14 grid gap-4 lg:grid-cols-2">
+        <div className="pl-14 space-y-4">
+            <div className="rounded-xl border border-border/30 bg-surface/30 p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                    <Checkbox
+                        id={`matching-allow-multi-${question.id}`}
+                        checked={allowMultiplePerPrompt}
+                        onCheckedChange={(checked) => onUpdate({ matchingAllowMultiplePerPrompt: checked === true })}
+                    />
+                    <div className="space-y-1">
+                        <label htmlFor={`matching-allow-multi-${question.id}`} className="text-sm font-semibold text-foreground">
+                            Permitir varios matches por prompt
+                        </label>
+                        <p className="text-xs text-text-muted">
+                            Si está activo, un mismo prompt podrá requerir varias respuestas correctas.
+                        </p>
+                    </div>
+                    <FieldHelpTooltip
+                        title="Varios matches por prompt"
+                        description="Convierte cada prompt en un objetivo múltiple. El alumno tendrá que soltar todos los matches correctos y no podrá sobrar ninguno."
+                    />
+                </div>
+                <div className="flex items-start gap-3">
+                    <Checkbox
+                        id={`matching-allow-reuse-${question.id}`}
+                        checked={allowReuse}
+                        onCheckedChange={(checked) => onUpdate({ matchingAllowReuse: checked === true })}
+                        disabled={allowReuse && duplicateMatchLabels.length > 0}
+                    />
+                    <div className="space-y-1">
+                        <label htmlFor={`matching-allow-reuse-${question.id}`} className="text-sm font-semibold text-foreground">
+                            Permitir reutilizar matches
+                        </label>
+                        <p className="text-xs text-text-muted">
+                            Si está activo, el mismo match podrá usarse en varios prompts diferentes.
+                        </p>
+                    </div>
+                    <FieldHelpTooltip
+                        title="Reutilizar matches"
+                        description="Define si una misma ficha de respuesta puede resolver varios prompts o si cada una debe usarse una sola vez."
+                    />
+                </div>
+                {duplicateMatchLabels.length > 0 && (
+                    <div className="rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs text-amber-200">
+                        {allowReuse
+                            ? `No puedes desactivar la reutilización mientras haya matches correctos repetidos en varios prompts: ${duplicateMatchLabels.join(", ")}.`
+                            : `Esta pregunta tiene matches correctos repetidos en varios prompts: ${duplicateMatchLabels.join(", ")}. Así no es resoluble si cada match solo puede usarse una vez.`}
+                    </div>
+                )}
+            </div>
+
+            <div className="pl-0 grid gap-4 lg:grid-cols-2">
             <div className="rounded-xl border border-border/30 bg-surface/30 p-4 space-y-2">
                 <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Matches</p>
+                    <SectionTitleWithHelp
+                        title="Matches"
+                        help="Son las respuestas arrastrables que el alumno verá a la derecha. Representan el catálogo de posibles emparejamientos."
+                    />
                     <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onUpdate({ matchingOptions: [...matchingOptions, createMatchingOption("")] })}>
                         <Plus className="size-3 mr-1" /> Añadir
                     </Button>
@@ -646,7 +870,17 @@ function MatchingPairsFields({ question, onUpdate }: StructuredQuestionFieldsPro
                                             placeholder="Texto del match"
                                             className="bg-background/60 border-border/40 text-sm"
                                         />
-                                        <Button type="button" variant="ghost" size="icon" aria-label="Eliminar match" className="size-8 text-text-muted hover:text-red-400" onClick={() => onUpdate({ matchingOptions: matchingOptions.filter((candidate) => candidate.id !== option.id), matchingPrompts: matchingPrompts.map((prompt) => prompt.correctMatchId === option.id ? { ...prompt, correctMatchId: "" } : prompt) })}>
+                                        <Button type="button" variant="ghost" size="icon" aria-label="Eliminar match" className="size-8 text-text-muted hover:text-red-400" onClick={() => onUpdate({
+                                            matchingOptions: matchingOptions.filter((candidate) => candidate.id !== option.id),
+                                            matchingPrompts: matchingPrompts.map((prompt) => {
+                                                const nextCorrectMatchIds = getMatchingPromptCorrectMatchIds(prompt).filter((candidate) => candidate !== option.id);
+                                                return {
+                                                    ...prompt,
+                                                    correctMatchId: nextCorrectMatchIds[0] ?? "",
+                                                    correctMatchIds: nextCorrectMatchIds,
+                                                };
+                                            }),
+                                        })}>
                                             <Trash2 className="size-3.5" />
                                         </Button>
                                     </div>
@@ -659,7 +893,10 @@ function MatchingPairsFields({ question, onUpdate }: StructuredQuestionFieldsPro
 
             <div className="rounded-xl border border-border/30 bg-surface/30 p-4 space-y-2">
                 <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Prompts</p>
+                    <SectionTitleWithHelp
+                        title="Prompts"
+                        help="Cada prompt es un enunciado que el alumno debe relacionar con uno o varios matches según la configuración."
+                    />
                     <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onUpdate({ matchingPrompts: [...matchingPrompts, createMatchingPrompt(matchingOptions[0]?.id ?? "")] })}>
                         <Plus className="size-3 mr-1" /> Añadir
                     </Button>
@@ -691,20 +928,43 @@ function MatchingPairsFields({ question, onUpdate }: StructuredQuestionFieldsPro
                                                 <Trash2 className="size-3.5" />
                                             </Button>
                                         </div>
-                                        <Select
-                                            value={prompt.correctMatchId || "__empty__"}
-                                            onValueChange={(value) => onUpdate({ matchingPrompts: matchingPrompts.map((candidate) => candidate.id === prompt.id ? { ...candidate, correctMatchId: value === "__empty__" ? "" : value } : candidate) })}
-                                        >
-                                            <SelectTrigger className="bg-background border-border/40">
-                                                <SelectValue placeholder="Selecciona la respuesta correcta" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="__empty__">Sin asignar</SelectItem>
-                                                {matchingOptions.map((option) => (
-                                                    <SelectItem key={option.id} value={option.id}>{option.text || "Match sin texto"}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        {!allowMultiplePerPrompt ? (
+                                            <Select
+                                                value={getMatchingPromptCorrectMatchIds(prompt)[0] || "__empty__"}
+                                                onValueChange={(value) => onUpdate({
+                                                    matchingPrompts: matchingPrompts.map((candidate) => candidate.id === prompt.id ? {
+                                                        ...candidate,
+                                                        correctMatchId: value === "__empty__" ? "" : value,
+                                                        correctMatchIds: value === "__empty__" ? [] : [value],
+                                                    } : candidate),
+                                                })}
+                                            >
+                                                <SelectTrigger className="bg-background border-border/40">
+                                                    <SelectValue placeholder="Selecciona la respuesta correcta" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="__empty__">Sin asignar</SelectItem>
+                                                    {matchingOptions.map((option) => (
+                                                        <SelectItem key={option.id} value={option.id}>{option.text || "Match sin texto"}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        ) : (
+                                            <MultipleChoiceChecklist
+                                                title="Matches correctos"
+                                                help="Marca todos los matches que deben estar presentes en este prompt. La corrección será por coincidencia exacta."
+                                                options={matchingOptions.map((option) => ({ id: option.id, label: option.text || "Match sin texto" }))}
+                                                selectedIds={getMatchingPromptCorrectMatchIds(prompt)}
+                                                onChange={(nextIds) => onUpdate({
+                                                    matchingPrompts: matchingPrompts.map((candidate) => candidate.id === prompt.id ? {
+                                                        ...candidate,
+                                                        correctMatchId: nextIds[0] ?? "",
+                                                        correctMatchIds: nextIds,
+                                                    } : candidate),
+                                                })}
+                                                emptyLabel="No hay matches configurados."
+                                            />
+                                        )}
                                     </div>
                                 </SortableFieldRow>
                             ))}
@@ -712,6 +972,7 @@ function MatchingPairsFields({ question, onUpdate }: StructuredQuestionFieldsPro
                     </SortableContext>
                 </DndContext>
             </div>
+        </div>
         </div>
     );
 }
@@ -756,68 +1017,181 @@ function OrderingSequenceFields({ question, onUpdate }: StructuredQuestionFields
 function CategorizationFields({ question, onUpdate }: StructuredQuestionFieldsProps) {
     const categories = question.categories ?? [createCategory("Categoría A"), createCategory("Categoría B")];
     const categoryItems = question.categoryItems ?? [createCategoryItem(categories[0].id), createCategoryItem(categories[1].id)];
+    const allowReuse = doesCategorizationAllowReuse(question);
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    );
+    const multiCategoryItemIds = getCategorizationItemsWithMultipleCorrectCategories({
+        ...question,
+        categories,
+        categoryItems,
+    });
+    const multiCategoryItemLabels = multiCategoryItemIds.map((itemId) =>
+        categoryItems.find((item) => item.id === itemId)?.text?.trim() || "Elemento sin texto",
+    );
 
     return (
-        <div className="pl-14 grid gap-4 lg:grid-cols-2">
+        <div className="pl-14 space-y-4">
+            <div className="rounded-xl border border-border/30 bg-surface/30 p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                    <Checkbox
+                        id={`categorization-allow-reuse-${question.id}`}
+                        checked={allowReuse}
+                        onCheckedChange={(checked) => onUpdate({ categorizationAllowReuse: checked === true })}
+                        disabled={allowReuse && multiCategoryItemLabels.length > 0}
+                    />
+                    <div className="space-y-1">
+                        <label htmlFor={`categorization-allow-reuse-${question.id}`} className="text-sm font-semibold text-foreground">
+                            Permitir reutilizar elementos entre categorías
+                        </label>
+                        <p className="text-xs text-text-muted">
+                            Si está activo, un mismo elemento podrá clasificarse en varias categorías distintas.
+                        </p>
+                    </div>
+                    <FieldHelpTooltip
+                        title="Reutilizar elementos"
+                        description="Actívalo cuando un mismo elemento deba aparecer correctamente en más de una categoría. La corrección exige que el conjunto final sea exacto."
+                    />
+                </div>
+                {multiCategoryItemLabels.length > 0 && (
+                    <div className="rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs text-amber-200">
+                        {allowReuse
+                            ? `No puedes desactivar la reutilización mientras haya elementos con varias categorías correctas: ${multiCategoryItemLabels.join(", ")}.`
+                            : `Esta pregunta tiene elementos con varias categorías correctas: ${multiCategoryItemLabels.join(", ")}. Así no es resoluble si cada elemento solo puede pertenecer a una categoría.`}
+                    </div>
+                )}
+            </div>
+
+            <div className="pl-0 grid gap-4 lg:grid-cols-2">
             <div className="rounded-xl border border-border/30 bg-surface/30 p-4 space-y-2">
                 <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Categorías</p>
+                    <SectionTitleWithHelp
+                        title="Categorías"
+                        help="Son los contenedores en los que el alumno soltará los elementos. Ahora también puedes reordenarlas con drag & drop."
+                    />
                     <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onUpdate({ categories: [...categories, createCategory("")] })}>
                         <Plus className="size-3 mr-1" /> Añadir
                     </Button>
                 </div>
-                {categories.map((category) => (
-                    <div key={category.id} className="flex items-center gap-2">
-                        <Input
-                            value={category.label}
-                            onChange={(event) => onUpdate({ categories: categories.map((candidate) => candidate.id === category.id ? { ...candidate, label: event.target.value } : candidate) })}
-                            placeholder="Nombre de categoría"
-                            className="bg-background/60 border-border/40 text-sm"
-                        />
-                        <Button type="button" variant="ghost" size="icon" aria-label="Eliminar categoría" className="size-8 text-text-muted hover:text-red-400" onClick={() => onUpdate({ categories: categories.filter((candidate) => candidate.id !== category.id), categoryItems: categoryItems.map((item) => item.correctCategoryId === category.id ? { ...item, correctCategoryId: "" } : item) })}>
-                            <Trash2 className="size-3.5" />
-                        </Button>
-                    </div>
-                ))}
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(event) => {
+                        const { active, over } = event;
+                        if (!over || active.id === over.id) return;
+                        onUpdate({ categories: reorderItemsById(categories, String(active.id), String(over.id)) });
+                    }}
+                >
+                    <SortableContext items={categories.map((category) => category.id)} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-2">
+                            {categories.map((category) => (
+                                <SortableFieldRow key={category.id} id={category.id} handleLabel="Reordenar categoría">
+                                    <div className="flex items-center gap-2">
+                                        <Input
+                                            value={category.label}
+                                            onChange={(event) => onUpdate({ categories: categories.map((candidate) => candidate.id === category.id ? { ...candidate, label: event.target.value } : candidate) })}
+                                            placeholder="Nombre de categoría"
+                                            className="bg-background/60 border-border/40 text-sm"
+                                        />
+                                        <Button type="button" variant="ghost" size="icon" aria-label="Eliminar categoría" className="size-8 text-text-muted hover:text-red-400" onClick={() => onUpdate({
+                                            categories: categories.filter((candidate) => candidate.id !== category.id),
+                                            categoryItems: categoryItems.map((item) => ({
+                                                ...item,
+                                                correctCategoryId: item.correctCategoryId === category.id ? "" : item.correctCategoryId,
+                                                correctCategoryIds: getCategoryItemCorrectCategoryIds(item).filter((candidate) => candidate !== category.id),
+                                            })),
+                                        })}>
+                                            <Trash2 className="size-3.5" />
+                                        </Button>
+                                    </div>
+                                </SortableFieldRow>
+                            ))}
+                        </div>
+                    </SortableContext>
+                </DndContext>
             </div>
 
             <div className="rounded-xl border border-border/30 bg-surface/30 p-4 space-y-2">
                 <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Elementos</p>
+                    <SectionTitleWithHelp
+                        title="Elementos"
+                        help="Son las fichas que el alumno arrastrará a las categorías. Puedes reordenarlas y definir una o varias categorías correctas por elemento."
+                    />
                     <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onUpdate({ categoryItems: [...categoryItems, createCategoryItem(categories[0]?.id ?? "")] })}>
                         <Plus className="size-3 mr-1" /> Añadir
                     </Button>
                 </div>
-                {categoryItems.map((item) => (
-                    <div key={item.id} className="space-y-2 rounded-lg border border-border/20 bg-background/40 p-3">
-                        <div className="flex items-center gap-2">
-                            <Input
-                                value={item.text}
-                                onChange={(event) => onUpdate({ categoryItems: categoryItems.map((candidate) => candidate.id === item.id ? { ...candidate, text: event.target.value } : candidate) })}
-                                placeholder="Texto del elemento"
-                                className="bg-background/60 border-border/40 text-sm"
-                            />
-                            <Button type="button" variant="ghost" size="icon" aria-label="Eliminar elemento" className="size-8 text-text-muted hover:text-red-400" onClick={() => onUpdate({ categoryItems: categoryItems.filter((candidate) => candidate.id !== item.id) })}>
-                                <Trash2 className="size-3.5" />
-                            </Button>
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(event) => {
+                        const { active, over } = event;
+                        if (!over || active.id === over.id) return;
+                        onUpdate({ categoryItems: reorderItemsById(categoryItems, String(active.id), String(over.id)) });
+                    }}
+                >
+                    <SortableContext items={categoryItems.map((item) => item.id)} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-2">
+                            {categoryItems.map((item) => (
+                                <SortableFieldRow key={item.id} id={item.id} handleLabel="Reordenar elemento" className="items-start">
+                                    <div className="space-y-2 rounded-lg border border-border/20 bg-background/40 p-3">
+                                        <div className="flex items-center gap-2">
+                                            <Input
+                                                value={item.text}
+                                                onChange={(event) => onUpdate({ categoryItems: categoryItems.map((candidate) => candidate.id === item.id ? { ...candidate, text: event.target.value } : candidate) })}
+                                                placeholder="Texto del elemento"
+                                                className="bg-background/60 border-border/40 text-sm"
+                                            />
+                                            <Button type="button" variant="ghost" size="icon" aria-label="Eliminar elemento" className="size-8 text-text-muted hover:text-red-400" onClick={() => onUpdate({ categoryItems: categoryItems.filter((candidate) => candidate.id !== item.id) })}>
+                                                <Trash2 className="size-3.5" />
+                                            </Button>
+                                        </div>
+                                        {!allowReuse ? (
+                                            <Select
+                                                value={getCategoryItemCorrectCategoryIds(item)[0] || "__empty__"}
+                                                onValueChange={(value) => onUpdate({
+                                                    categoryItems: categoryItems.map((candidate) => candidate.id === item.id ? {
+                                                        ...candidate,
+                                                        correctCategoryId: value === "__empty__" ? "" : value,
+                                                        correctCategoryIds: value === "__empty__" ? [] : [value],
+                                                    } : candidate),
+                                                })}
+                                            >
+                                                <SelectTrigger className="bg-background border-border/40">
+                                                    <SelectValue placeholder="Selecciona la categoría correcta" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="__empty__">Sin asignar</SelectItem>
+                                                    {categories.map((category) => (
+                                                        <SelectItem key={category.id} value={category.id}>{category.label || "Categoría sin texto"}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        ) : (
+                                            <MultipleChoiceChecklist
+                                                title="Categorías correctas"
+                                                help="Marca todas las categorías en las que este elemento debe poder clasificarse correctamente."
+                                                options={categories.map((category) => ({ id: category.id, label: category.label || "Categoría sin texto" }))}
+                                                selectedIds={getCategoryItemCorrectCategoryIds(item)}
+                                                onChange={(nextIds) => onUpdate({
+                                                    categoryItems: categoryItems.map((candidate) => candidate.id === item.id ? {
+                                                        ...candidate,
+                                                        correctCategoryId: nextIds[0] ?? "",
+                                                        correctCategoryIds: nextIds,
+                                                    } : candidate),
+                                                })}
+                                                emptyLabel="No hay categorías configuradas."
+                                            />
+                                        )}
+                                    </div>
+                                </SortableFieldRow>
+                            ))}
                         </div>
-                        <Select
-                            value={item.correctCategoryId || "__empty__"}
-                            onValueChange={(value) => onUpdate({ categoryItems: categoryItems.map((candidate) => candidate.id === item.id ? { ...candidate, correctCategoryId: value === "__empty__" ? "" : value } : candidate) })}
-                        >
-                            <SelectTrigger className="bg-background border-border/40">
-                                <SelectValue placeholder="Selecciona la categoría correcta" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="__empty__">Sin asignar</SelectItem>
-                                {categories.map((category) => (
-                                    <SelectItem key={category.id} value={category.id}>{category.label || "Categoría sin texto"}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                ))}
+                    </SortableContext>
+                </DndContext>
             </div>
+        </div>
         </div>
     );
 }

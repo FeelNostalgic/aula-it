@@ -225,6 +225,7 @@ function createDefaultTableCells(rows: QuizTableRow[], columns: QuizTableColumn[
                 rowId: row.id,
                 columnId: column.id,
                 correctItemId: fallbackItem.id,
+                correctItemIds: [fallbackItem.id],
             });
             itemIndex += 1;
         }
@@ -234,9 +235,9 @@ function createDefaultTableCells(rows: QuizTableRow[], columns: QuizTableColumn[
 
 function createDefaultMatchingPrompts(options: QuizMatchingOption[]): QuizMatchingPrompt[] {
     return [
-        { id: crypto.randomUUID(), text: "Concepto 1", correctMatchId: options[0].id },
-        { id: crypto.randomUUID(), text: "Concepto 2", correctMatchId: options[1].id },
-        { id: crypto.randomUUID(), text: "Concepto 3", correctMatchId: options[2].id },
+        { id: crypto.randomUUID(), text: "Concepto 1", correctMatchId: options[0].id, correctMatchIds: [options[0].id] },
+        { id: crypto.randomUUID(), text: "Concepto 2", correctMatchId: options[1].id, correctMatchIds: [options[1].id] },
+        { id: crypto.randomUUID(), text: "Concepto 3", correctMatchId: options[2].id, correctMatchIds: [options[2].id] },
     ];
 }
 
@@ -265,9 +266,9 @@ function createDefaultCategories(): QuizCategory[] {
 
 function createDefaultCategoryItems(categories: QuizCategory[]): QuizCategoryItem[] {
     return [
-        { id: crypto.randomUUID(), text: "Elemento 1", correctCategoryId: categories[0].id },
-        { id: crypto.randomUUID(), text: "Elemento 2", correctCategoryId: categories[0].id },
-        { id: crypto.randomUUID(), text: "Elemento 3", correctCategoryId: categories[1].id },
+        { id: crypto.randomUUID(), text: "Elemento 1", correctCategoryId: categories[0].id, correctCategoryIds: [categories[0].id] },
+        { id: crypto.randomUUID(), text: "Elemento 2", correctCategoryId: categories[0].id, correctCategoryIds: [categories[0].id] },
+        { id: crypto.randomUUID(), text: "Elemento 3", correctCategoryId: categories[1].id, correctCategoryIds: [categories[1].id] },
     ];
 }
 
@@ -382,13 +383,13 @@ export function isQuizQuestionAnswered(question: QuizQuestion, input: QuizStruct
     if (questionType === QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP) {
         if (structuredAnswer.kind !== QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP) return false;
         const cells = question.tableCells ?? [];
-        return cells.length > 0 && cells.every(cell => !!structuredAnswer.placements[cell.id]);
+        return cells.length > 0 && cells.every(cell => getTableAnswerItemIds(structuredAnswer, cell.id).length > 0);
     }
 
     if (questionType === QUIZ_QUESTION_TYPE.MATCHING_PAIRS) {
         if (structuredAnswer.kind !== QUIZ_QUESTION_TYPE.MATCHING_PAIRS) return false;
         const prompts = question.matchingPrompts ?? [];
-        return prompts.length > 0 && prompts.every(prompt => !!structuredAnswer.matches[prompt.id]);
+        return prompts.length > 0 && prompts.every(prompt => getMatchingAnswerItemIds(structuredAnswer, prompt.id).length > 0);
     }
 
     if (questionType === QUIZ_QUESTION_TYPE.ORDERING_SEQUENCE) {
@@ -402,7 +403,7 @@ export function isQuizQuestionAnswered(question: QuizQuestion, input: QuizStruct
     if (questionType === QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP) {
         if (structuredAnswer.kind !== QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP) return false;
         const items = question.categoryItems ?? [];
-        return items.length > 0 && items.every(item => !!structuredAnswer.assignments[item.id]);
+        return items.length > 0 && items.every(item => getCategorizationAssignedCategoryIds(structuredAnswer, item.id).length > 0);
     }
 
     return false;
@@ -470,11 +471,15 @@ export function convertQuestionToType(question: QuizQuestion, type: QuizQuestion
         tableCells: undefined,
         tableRowHeaderLabel: undefined,
         tableAllowItemReuse: undefined,
+        tableAllowMultipleItemsPerCell: undefined,
         matchingPrompts: undefined,
         matchingOptions: undefined,
+        matchingAllowMultiplePerPrompt: undefined,
+        matchingAllowReuse: undefined,
         orderingItems: undefined,
         categories: undefined,
         categoryItems: undefined,
+        categorizationAllowReuse: undefined,
     };
 
     if (type === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
@@ -537,6 +542,7 @@ export function convertQuestionToType(question: QuizQuestion, type: QuizQuestion
             tableItems,
             tableCells: createDefaultTableCells(tableRows, tableColumns, tableItems),
             tableAllowItemReuse: true,
+            tableAllowMultipleItemsPerCell: false,
         };
     }
 
@@ -546,6 +552,8 @@ export function convertQuestionToType(question: QuizQuestion, type: QuizQuestion
             ...baseQuestion,
             matchingOptions,
             matchingPrompts: createDefaultMatchingPrompts(matchingOptions),
+            matchingAllowMultiplePerPrompt: false,
+            matchingAllowReuse: true,
         };
     }
 
@@ -562,6 +570,7 @@ export function convertQuestionToType(question: QuizQuestion, type: QuizQuestion
             ...baseQuestion,
             categories,
             categoryItems: createDefaultCategoryItems(categories),
+            categorizationAllowReuse: false,
         };
     }
 
@@ -584,6 +593,52 @@ function getDropdownCorrectOptionId(blank: QuizDropdownBlank) {
     return blank.options.find((option) => option.isCorrect)?.id;
 }
 
+function normalizeIdArray(value?: string | string[]) {
+    const values = Array.isArray(value)
+        ? value
+        : typeof value === "string" && value
+            ? [value]
+            : [];
+
+    return [...new Set(values.filter((candidate): candidate is string => !!candidate))];
+}
+
+export function getTableCellCorrectItemIds(cell: QuizTableCell) {
+    return normalizeIdArray(cell.correctItemIds?.length ? cell.correctItemIds : cell.correctItemId);
+}
+
+export function getMatchingPromptCorrectMatchIds(prompt: QuizMatchingPrompt) {
+    return normalizeIdArray(prompt.correctMatchIds?.length ? prompt.correctMatchIds : prompt.correctMatchId);
+}
+
+export function getCategoryItemCorrectCategoryIds(item: QuizCategoryItem) {
+    return normalizeIdArray(item.correctCategoryIds?.length ? item.correctCategoryIds : item.correctCategoryId);
+}
+
+export function getTableAnswerItemIds(
+    structuredAnswer: QuizStructuredQuestionAnswer | undefined,
+    cellId: string,
+) {
+    if (structuredAnswer?.kind !== QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP) return [];
+    return normalizeIdArray(structuredAnswer.placements[cellId]);
+}
+
+export function getMatchingAnswerItemIds(
+    structuredAnswer: QuizStructuredQuestionAnswer | undefined,
+    promptId: string,
+) {
+    if (structuredAnswer?.kind !== QUIZ_QUESTION_TYPE.MATCHING_PAIRS) return [];
+    return normalizeIdArray(structuredAnswer.matches[promptId]);
+}
+
+export function getCategorizationAssignedCategoryIds(
+    structuredAnswer: QuizStructuredQuestionAnswer | undefined,
+    itemId: string,
+) {
+    if (structuredAnswer?.kind !== QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP) return [];
+    return normalizeIdArray(structuredAnswer.assignments[itemId]);
+}
+
 function getOptionLabel(options: QuizOption[] | QuizMatchingOption[], optionId?: string) {
     if (!optionId) return "Sin respuesta";
     return options.find((option) => option.id === optionId)?.text ?? "Sin respuesta";
@@ -598,12 +653,29 @@ export function doesTableDragAllowItemReuse(question: QuizQuestion) {
     return question.tableAllowItemReuse ?? true;
 }
 
+export function doesTableDragAllowMultipleItemsPerCell(question: QuizQuestion) {
+    return question.tableAllowMultipleItemsPerCell ?? false;
+}
+
+export function doesMatchingAllowMultiplePerPrompt(question: QuizQuestion) {
+    return question.matchingAllowMultiplePerPrompt ?? false;
+}
+
+export function doesMatchingAllowReuse(question: QuizQuestion) {
+    return question.matchingAllowReuse ?? true;
+}
+
+export function doesCategorizationAllowReuse(question: QuizQuestion) {
+    return question.categorizationAllowReuse ?? false;
+}
+
 export function getTableDragDuplicateCorrectItemIds(question: QuizQuestion) {
     const counts = new Map<string, number>();
 
     for (const cell of question.tableCells ?? []) {
-        if (!cell.correctItemId) continue;
-        counts.set(cell.correctItemId, (counts.get(cell.correctItemId) ?? 0) + 1);
+        for (const itemId of getTableCellCorrectItemIds(cell)) {
+            counts.set(itemId, (counts.get(itemId) ?? 0) + 1);
+        }
     }
 
     return [...counts.entries()]
@@ -611,12 +683,59 @@ export function getTableDragDuplicateCorrectItemIds(question: QuizQuestion) {
         .map(([itemId]) => itemId);
 }
 
+export function getMatchingDuplicateCorrectMatchIds(question: QuizQuestion) {
+    const counts = new Map<string, number>();
+
+    for (const prompt of question.matchingPrompts ?? []) {
+        for (const matchId of getMatchingPromptCorrectMatchIds(prompt)) {
+            counts.set(matchId, (counts.get(matchId) ?? 0) + 1);
+        }
+    }
+
+    return [...counts.entries()]
+        .filter(([, count]) => count > 1)
+        .map(([matchId]) => matchId);
+}
+
+export function getCategorizationItemsWithMultipleCorrectCategories(question: QuizQuestion) {
+    return (question.categoryItems ?? [])
+        .filter((item) => getCategoryItemCorrectCategoryIds(item).length > 1)
+        .map((item) => item.id);
+}
+
 export function getTableDragUsedItemIds(structuredAnswer?: QuizStructuredQuestionAnswer) {
     if (structuredAnswer?.kind !== QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP) return [];
 
     return [...new Set(
-        Object.values(structuredAnswer.placements).filter((itemId): itemId is string => !!itemId),
+        Object.keys(structuredAnswer.placements).flatMap((cellId) => getTableAnswerItemIds(structuredAnswer, cellId)),
     )];
+}
+
+export function getMatchingUsedItemIds(structuredAnswer?: QuizStructuredQuestionAnswer) {
+    if (structuredAnswer?.kind !== QUIZ_QUESTION_TYPE.MATCHING_PAIRS) return [];
+
+    return [...new Set(
+        Object.keys(structuredAnswer.matches).flatMap((promptId) => getMatchingAnswerItemIds(structuredAnswer, promptId)),
+    )];
+}
+
+export function getCategorizationUsedItemIds(structuredAnswer?: QuizStructuredQuestionAnswer) {
+    if (structuredAnswer?.kind !== QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP) return [];
+
+    return [...new Set(
+        Object.keys(structuredAnswer.assignments).filter((itemId) => getCategorizationAssignedCategoryIds(structuredAnswer, itemId).length > 0),
+    )];
+}
+
+function sameIdSet(left: string[], right: string[]) {
+    if (left.length !== right.length) return false;
+    const rightSet = new Set(right);
+    return left.every((itemId) => rightSet.has(itemId));
+}
+
+function formatLabelList(labels: string[]) {
+    if (labels.length === 0) return "Sin respuesta";
+    return labels.join(", ");
 }
 
 function getCategoryLabel(categories: QuizCategory[], categoryId?: string) {
@@ -666,14 +785,20 @@ function scoreStructuredQuestion(question: QuizQuestion, structuredAnswer?: Quiz
     if (questionType === QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP) {
         const cells = question.tableCells ?? [];
         if (cells.length === 0 || structuredAnswer?.kind !== QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP) return 0;
-        const correctCount = cells.filter((cell) => structuredAnswer.placements[cell.id] === cell.correctItemId).length;
+        const correctCount = cells.filter((cell) => sameIdSet(
+            getTableAnswerItemIds(structuredAnswer, cell.id),
+            getTableCellCorrectItemIds(cell),
+        )).length;
         return round2((questionPoints / cells.length) * correctCount);
     }
 
     if (questionType === QUIZ_QUESTION_TYPE.MATCHING_PAIRS) {
         const prompts = question.matchingPrompts ?? [];
         if (prompts.length === 0 || structuredAnswer?.kind !== QUIZ_QUESTION_TYPE.MATCHING_PAIRS) return 0;
-        const correctCount = prompts.filter((prompt) => structuredAnswer.matches[prompt.id] === prompt.correctMatchId).length;
+        const correctCount = prompts.filter((prompt) => sameIdSet(
+            getMatchingAnswerItemIds(structuredAnswer, prompt.id),
+            getMatchingPromptCorrectMatchIds(prompt),
+        )).length;
         return round2((questionPoints / prompts.length) * correctCount);
     }
 
@@ -687,7 +812,10 @@ function scoreStructuredQuestion(question: QuizQuestion, structuredAnswer?: Quiz
     if (questionType === QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP) {
         const items = question.categoryItems ?? [];
         if (items.length === 0 || structuredAnswer?.kind !== QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP) return 0;
-        const correctCount = items.filter((item) => structuredAnswer.assignments[item.id] === item.correctCategoryId).length;
+        const correctCount = items.filter((item) => sameIdSet(
+            getCategorizationAssignedCategoryIds(structuredAnswer, item.id),
+            getCategoryItemCorrectCategoryIds(item),
+        )).length;
         return round2((questionPoints / items.length) * correctCount);
     }
 
@@ -895,15 +1023,14 @@ export function buildQuestionReview(
             pointsEarned: score,
             pointsTotal: questionPoints,
             rows: (question.tableCells ?? []).map((cell) => {
-                const selectedId = structuredAnswer?.kind === QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP
-                    ? structuredAnswer.placements[cell.id]
-                    : undefined;
+                const selectedIds = getTableAnswerItemIds(structuredAnswer, cell.id);
+                const correctIds = getTableCellCorrectItemIds(cell);
                 return {
                     id: cell.id,
                     label: getCellLabel(question, cell),
-                    value: getTableItemLabel(question.tableItems ?? [], selectedId),
-                    expectedValue: getTableItemLabel(question.tableItems ?? [], cell.correctItemId),
-                    isCorrect: selectedId ? selectedId === cell.correctItemId : false,
+                    value: formatLabelList(selectedIds.map((itemId) => getTableItemLabel(question.tableItems ?? [], itemId))),
+                    expectedValue: formatLabelList(correctIds.map((itemId) => getTableItemLabel(question.tableItems ?? [], itemId))),
+                    isCorrect: selectedIds.length > 0 ? sameIdSet(selectedIds, correctIds) : false,
                 };
             }),
         };
@@ -917,15 +1044,14 @@ export function buildQuestionReview(
             pointsEarned: score,
             pointsTotal: questionPoints,
             rows: (question.matchingPrompts ?? []).map((prompt) => {
-                const selectedId = structuredAnswer?.kind === QUIZ_QUESTION_TYPE.MATCHING_PAIRS
-                    ? structuredAnswer.matches[prompt.id]
-                    : undefined;
+                const selectedIds = getMatchingAnswerItemIds(structuredAnswer, prompt.id);
+                const correctIds = getMatchingPromptCorrectMatchIds(prompt);
                 return {
                     id: prompt.id,
                     label: prompt.text,
-                    value: getOptionLabel(question.matchingOptions ?? [], selectedId),
-                    expectedValue: getOptionLabel(question.matchingOptions ?? [], prompt.correctMatchId),
-                    isCorrect: selectedId ? selectedId === prompt.correctMatchId : false,
+                    value: formatLabelList(selectedIds.map((itemId) => getOptionLabel(question.matchingOptions ?? [], itemId))),
+                    expectedValue: formatLabelList(correctIds.map((itemId) => getOptionLabel(question.matchingOptions ?? [], itemId))),
+                    isCorrect: selectedIds.length > 0 ? sameIdSet(selectedIds, correctIds) : false,
                 };
             }),
         };
@@ -964,15 +1090,14 @@ export function buildQuestionReview(
         pointsEarned: score,
         pointsTotal: questionPoints,
         rows: (question.categoryItems ?? []).map((item) => {
-            const selectedCategoryId = structuredAnswer?.kind === QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP
-                ? structuredAnswer.assignments[item.id]
-                : undefined;
+            const selectedCategoryIds = getCategorizationAssignedCategoryIds(structuredAnswer, item.id);
+            const correctCategoryIds = getCategoryItemCorrectCategoryIds(item);
             return {
                 id: item.id,
                 label: item.text,
-                value: getCategoryLabel(question.categories ?? [], selectedCategoryId),
-                expectedValue: getCategoryLabel(question.categories ?? [], item.correctCategoryId),
-                isCorrect: selectedCategoryId ? selectedCategoryId === item.correctCategoryId : false,
+                value: formatLabelList(selectedCategoryIds.map((categoryId) => getCategoryLabel(question.categories ?? [], categoryId))),
+                expectedValue: formatLabelList(correctCategoryIds.map((categoryId) => getCategoryLabel(question.categories ?? [], categoryId))),
+                isCorrect: selectedCategoryIds.length > 0 ? sameIdSet(selectedCategoryIds, correctCategoryIds) : false,
             };
         }),
     };
@@ -1023,7 +1148,10 @@ function buildChartData(question: QuizQuestion, studentRows: QuizStatsStudentRow
         return (question.categories ?? []).map((category) => ({
             key: category.id,
             label: category.label,
-            value: studentRows.reduce((total, studentRow) => total + studentRow.rows.filter((row) => row.expectedValue === category.label && row.isCorrect === true).length, 0),
+            value: studentRows.reduce((total, studentRow) => total + (question.categoryItems ?? []).filter((item) => {
+                if (!getCategoryItemCorrectCategoryIds(item).includes(category.id)) return false;
+                return studentRow.rows.find((row) => row.id === item.id)?.isCorrect === true;
+            }).length, 0),
         }));
     }
 

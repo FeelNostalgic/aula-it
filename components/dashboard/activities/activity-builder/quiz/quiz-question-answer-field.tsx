@@ -33,10 +33,18 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
+    doesCategorizationAllowReuse,
+    doesMatchingAllowMultiplePerPrompt,
+    doesMatchingAllowReuse,
     doesTableDragAllowItemReuse,
+    doesTableDragAllowMultipleItemsPerCell,
+    getCategorizationAssignedCategoryIds,
+    getCategoryItemCorrectCategoryIds,
     getLikertLabel,
     getLikertRange,
+    getMatchingAnswerItemIds,
     getQuestionType,
+    getTableAnswerItemIds,
     getTableDragUsedItemIds,
     QUIZ_QUESTION_TYPE,
 } from "@/lib/quiz-core";
@@ -64,6 +72,24 @@ type ActiveStructuredDrag = {
 };
 
 const QUESTION_CONTENT_OFFSET_CLASS = "pl-0 sm:pl-6 lg:pl-8";
+
+function writeStructuredValue(
+    record: Record<string, string | string[]>,
+    key: string,
+    nextIds: string[],
+    allowMultiple: boolean,
+) {
+    if (nextIds.length === 0) {
+        const nextRecord = { ...record };
+        delete nextRecord[key];
+        return nextRecord;
+    }
+
+    return {
+        ...record,
+        [key]: allowMultiple ? nextIds : nextIds[0],
+    };
+}
 
 function getFillBlankAnswer(questionId: string, structuredAnswers: QuizStructuredAnswers): FillBlankAnswer {
     const answer = structuredAnswers[questionId];
@@ -323,6 +349,7 @@ function TableDragDropAnswer({
     const columns = question.tableColumns ?? [];
     const tableItems = question.tableItems ?? [];
     const allowItemReuse = doesTableDragAllowItemReuse(question);
+    const allowMultipleItemsPerCell = doesTableDragAllowMultipleItemsPerCell(question);
     const usedItemIds = new Set(getTableDragUsedItemIds(currentAnswer));
     const visibleTableItems = allowItemReuse
         ? tableItems
@@ -333,21 +360,24 @@ function TableDragDropAnswer({
     );
 
     const assignItem = (cellId: string, itemId: string) => {
+        const currentIds = getTableAnswerItemIds(currentAnswer, cellId);
+        const nextIds = allowMultipleItemsPerCell
+            ? [...new Set([...currentIds, itemId])]
+            : [itemId];
         onStructuredAnswerChange(question.id, {
             kind: QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP,
-            placements: {
-                ...currentAnswer.placements,
-                [cellId]: itemId,
-            },
+            placements: writeStructuredValue(currentAnswer.placements, cellId, nextIds, allowMultipleItemsPerCell),
         });
     };
 
-    const clearItem = (cellId: string) => {
-        const nextPlacements = { ...currentAnswer.placements };
-        delete nextPlacements[cellId];
+    const clearItem = (cellId: string, itemId?: string) => {
+        const currentIds = getTableAnswerItemIds(currentAnswer, cellId);
+        const nextIds = itemId
+            ? currentIds.filter((candidate) => candidate !== itemId)
+            : [];
         onStructuredAnswerChange(question.id, {
             kind: QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP,
-            placements: nextPlacements,
+            placements: writeStructuredValue(currentAnswer.placements, cellId, nextIds, allowMultipleItemsPerCell),
         });
     };
 
@@ -414,40 +444,39 @@ function TableDragDropAnswer({
                                             return <div key={`${row.id}-${column.id}`} className="bg-background/70" />;
                                         }
 
-                                        const assignedItemId = currentAnswer.placements[cell.id];
+                                        const assignedItemIds = getTableAnswerItemIds(currentAnswer, cell.id);
                                         return (
                                             <div key={cell.id} className="bg-background/70 p-3">
                                                 <DroppableAnswerSlot
                                                     id={`table-cell:${cell.id}`}
                                                     className={cn(
                                                         "flex min-h-[112px] flex-col rounded-xl border border-dashed p-3 transition-colors",
-                                                        assignedItemId
+                                                        assignedItemIds.length > 0
                                                             ? "border-accent-blue/30 bg-accent-blue/8"
                                                             : "border-border/40 bg-background/60",
                                                     )}
                                                 >
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <p className={cn(
-                                                            "text-sm",
-                                                            assignedItemId ? "font-medium text-foreground" : "text-text-muted",
-                                                        )}>
-                                                            {assignedItemId
-                                                                ? getAssignedItemLabel(question, assignedItemId)
-                                                                : "Suelta aquí la opción correcta"}
-                                                        </p>
-                                                        {assignedItemId && (
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                aria-label="Quitar opción de la celda"
-                                                                className="size-7 shrink-0 text-text-muted hover:text-red-400"
-                                                                onClick={() => clearItem(cell.id)}
-                                                            >
-                                                                <X className="size-3.5" />
-                                                            </Button>
-                                                        )}
-                                                    </div>
+                                                    {assignedItemIds.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {assignedItemIds.map((assignedItemId) => (
+                                                                <span key={assignedItemId} className="inline-flex items-center gap-2 rounded-full border border-accent-blue/20 bg-accent-blue/10 px-3 py-1 text-sm text-foreground">
+                                                                    <span>{getAssignedItemLabel(question, assignedItemId)}</span>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        aria-label="Quitar opción de la celda"
+                                                                        className="size-6 shrink-0 text-text-muted hover:text-red-400"
+                                                                        onClick={() => clearItem(cell.id, assignedItemId)}
+                                                                    >
+                                                                        <X className="size-3.5" />
+                                                                    </Button>
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-sm text-text-muted">Suelta aquí la opción correcta</p>
+                                                    )}
                                                 </DroppableAnswerSlot>
                                             </div>
                                         );
@@ -460,7 +489,7 @@ function TableDragDropAnswer({
                     <div className="lg:sticky lg:top-4 lg:self-start">
                         <div className="space-y-2 rounded-xl border border-dashed border-accent-blue/20 bg-accent-blue/5 p-3.5">
                             <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Opciones arrastrables</p>
-                            <div className="flex min-h-[18rem] max-h-[30rem] flex-wrap content-start gap-2 overflow-y-auto pr-1">
+                            <div className="flex min-h-72 max-h-280 flex-wrap content-start gap-2 overflow-y-auto pr-1">
                                 {visibleTableItems.map((item) => (
                                     <DraggableAnswerChip
                                         key={item.id}
@@ -505,27 +534,40 @@ function MatchingPairsAnswer({
     const [activeDrag, setActiveDrag] = useState<ActiveStructuredDrag | null>(null);
     const currentAnswer = getMatchingAnswer(question.id, structuredAnswers);
     const matchingOptions = question.matchingOptions ?? [];
+    const allowMultiplePerPrompt = doesMatchingAllowMultiplePerPrompt(question);
+    const allowReuse = doesMatchingAllowReuse(question);
+    const usedOptionIds = new Set(
+        allowReuse
+            ? []
+            : Object.keys(currentAnswer.matches).flatMap((promptId) => getMatchingAnswerItemIds(currentAnswer, promptId)),
+    );
+    const visibleOptions = allowReuse
+        ? matchingOptions
+        : matchingOptions.filter((option) => !usedOptionIds.has(option.id));
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
     );
 
     const assignMatch = (promptId: string, optionId: string) => {
+        const currentIds = getMatchingAnswerItemIds(currentAnswer, promptId);
+        const nextIds = allowMultiplePerPrompt
+            ? [...new Set([...currentIds, optionId])]
+            : [optionId];
         onStructuredAnswerChange(question.id, {
             kind: QUIZ_QUESTION_TYPE.MATCHING_PAIRS,
-            matches: {
-                ...currentAnswer.matches,
-                [promptId]: optionId,
-            },
+            matches: writeStructuredValue(currentAnswer.matches, promptId, nextIds, allowMultiplePerPrompt),
         });
     };
 
-    const clearMatch = (promptId: string) => {
-        const nextMatches = { ...currentAnswer.matches };
-        delete nextMatches[promptId];
+    const clearMatch = (promptId: string, optionId?: string) => {
+        const currentIds = getMatchingAnswerItemIds(currentAnswer, promptId);
+        const nextIds = optionId
+            ? currentIds.filter((candidate) => candidate !== optionId)
+            : [];
         onStructuredAnswerChange(question.id, {
             kind: QUIZ_QUESTION_TYPE.MATCHING_PAIRS,
-            matches: nextMatches,
+            matches: writeStructuredValue(currentAnswer.matches, promptId, nextIds, allowMultiplePerPrompt),
         });
     };
 
@@ -559,7 +601,7 @@ function MatchingPairsAnswer({
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(240px,280px)] lg:items-start">
                     <div className="space-y-3">
                         {(question.matchingPrompts ?? []).map((prompt) => {
-                            const assignedOptionId = currentAnswer.matches[prompt.id];
+                            const assignedOptionIds = getMatchingAnswerItemIds(currentAnswer, prompt.id);
                             return (
                                 <div
                                     key={prompt.id}
@@ -570,30 +612,31 @@ function MatchingPairsAnswer({
                                         id={`matching-prompt:${prompt.id}`}
                                         className={cn(
                                             "flex min-h-[72px] items-start justify-between gap-2 rounded-xl border border-dashed p-3 transition-colors",
-                                            assignedOptionId
+                                            assignedOptionIds.length > 0
                                                 ? "border-accent-blue/30 bg-accent-blue/8"
                                                 : "border-border/40 bg-background/60",
                                         )}
                                     >
-                                        <p className={cn(
-                                            "text-sm",
-                                            assignedOptionId ? "font-medium text-foreground" : "text-text-muted",
-                                        )}>
-                                            {assignedOptionId
-                                                ? getAssignedItemLabel(question, assignedOptionId)
-                                                : "Suelta aquí la opción correspondiente"}
-                                        </p>
-                                        {assignedOptionId && (
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                aria-label="Quitar emparejamiento"
-                                                className="size-7 shrink-0 text-text-muted hover:text-red-400"
-                                                onClick={() => clearMatch(prompt.id)}
-                                            >
-                                                <X className="size-3.5" />
-                                            </Button>
+                                        {assignedOptionIds.length > 0 ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {assignedOptionIds.map((assignedOptionId) => (
+                                                    <span key={assignedOptionId} className="inline-flex items-center gap-2 rounded-full border border-accent-blue/20 bg-accent-blue/10 px-3 py-1 text-sm text-foreground">
+                                                        <span>{getAssignedItemLabel(question, assignedOptionId)}</span>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            aria-label="Quitar emparejamiento"
+                                                            className="size-6 shrink-0 text-text-muted hover:text-red-400"
+                                                            onClick={() => clearMatch(prompt.id, assignedOptionId)}
+                                                        >
+                                                            <X className="size-3.5" />
+                                                        </Button>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-text-muted">Suelta aquí la opción correspondiente</p>
                                         )}
                                     </DroppableAnswerSlot>
                                 </div>
@@ -605,7 +648,7 @@ function MatchingPairsAnswer({
                         <div className="space-y-2 rounded-xl border border-dashed border-accent-blue/20 bg-accent-blue/5 p-3">
                             <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Matches</p>
                             <div className="flex max-h-80 flex-wrap gap-2 overflow-y-auto pr-1">
-                                {matchingOptions.map((option) => (
+                                {visibleOptions.map((option) => (
                                     <DraggableAnswerChip
                                         key={option.id}
                                         dragId={`matching-option:${option.id}`}
@@ -616,9 +659,14 @@ function MatchingPairsAnswer({
                                 {matchingOptions.length === 0 && (
                                     <span className="text-xs text-text-muted">No hay matches configurados.</span>
                                 )}
+                                {matchingOptions.length > 0 && visibleOptions.length === 0 && (
+                                    <span className="text-xs text-text-muted">Todos los matches disponibles ya están colocados. Quita uno para reutilizarlo.</span>
+                                )}
                             </div>
                             <p className="text-xs text-text-muted">
-                                Un mismo match se puede reutilizar tantas veces como haga falta.
+                                {allowReuse
+                                    ? "Un mismo match se puede reutilizar tantas veces como haga falta."
+                                    : "Cada match solo puede usarse una vez. Si lo quitas de un prompt volverá a aparecer aquí."}
                             </p>
                         </div>
                     </div>
@@ -691,12 +739,15 @@ function CategorizationAnswer({
 }: Pick<QuizQuestionAnswerFieldProps, "question" | "structuredAnswers" | "onStructuredAnswerChange">) {
     const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
     const currentAnswer = getCategorizationAnswer(question.id, structuredAnswers);
-    const unassignedItems = (question.categoryItems ?? []).filter((item) => !currentAnswer.assignments[item.id]);
+    const allowReuse = doesCategorizationAllowReuse(question);
+    const poolItems = allowReuse
+        ? (question.categoryItems ?? [])
+        : (question.categoryItems ?? []).filter((item) => getCategorizationAssignedCategoryIds(currentAnswer, item.id).length === 0);
 
     return (
         <div className={cn("space-y-4", QUESTION_CONTENT_OFFSET_CLASS)}>
             <div className="flex flex-wrap gap-2 rounded-xl border border-dashed border-accent-blue/20 bg-accent-blue/5 p-3">
-                {unassignedItems.map((item) => (
+                {poolItems.map((item) => (
                     <DraggableAnswerChip
                         key={item.id}
                         id={item.id}
@@ -705,14 +756,16 @@ function CategorizationAnswer({
                         onDragEnd={() => setDraggedItemId(null)}
                     />
                 ))}
-                {unassignedItems.length === 0 && (
+                {poolItems.length === 0 && (
                     <span className="text-xs text-text-muted">Todos los elementos están asignados.</span>
                 )}
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
                 {(question.categories ?? []).map((category) => {
-                    const categoryItems = (question.categoryItems ?? []).filter((item) => currentAnswer.assignments[item.id] === category.id);
+                    const categoryItems = (question.categoryItems ?? []).filter((item) =>
+                        getCategorizationAssignedCategoryIds(currentAnswer, item.id).includes(category.id),
+                    );
                     return (
                         <div
                             key={category.id}
@@ -720,12 +773,13 @@ function CategorizationAnswer({
                             onDrop={(event) => {
                                 event.preventDefault();
                                 if (!draggedItemId) return;
+                                const nextCategoryIds = [...new Set([
+                                    ...(allowReuse ? getCategorizationAssignedCategoryIds(currentAnswer, draggedItemId) : []),
+                                    category.id,
+                                ])];
                                 onStructuredAnswerChange(question.id, {
                                     kind: QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP,
-                                    assignments: {
-                                        ...currentAnswer.assignments,
-                                        [draggedItemId]: category.id,
-                                    },
+                                    assignments: writeStructuredValue(currentAnswer.assignments, draggedItemId, nextCategoryIds, allowReuse),
                                 });
                                 setDraggedItemId(null);
                             }}
@@ -747,8 +801,12 @@ function CategorizationAnswer({
                                             aria-label="Quitar de la categoría"
                                             className="size-7 text-text-muted hover:text-red-400"
                                             onClick={() => {
-                                                const nextAssignments = { ...currentAnswer.assignments };
-                                                delete nextAssignments[item.id];
+                                                const nextAssignments = writeStructuredValue(
+                                                    currentAnswer.assignments,
+                                                    item.id,
+                                                    getCategorizationAssignedCategoryIds(currentAnswer, item.id).filter((candidate) => candidate !== category.id),
+                                                    allowReuse,
+                                                );
                                                 onStructuredAnswerChange(question.id, {
                                                     kind: QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP,
                                                     assignments: nextAssignments,

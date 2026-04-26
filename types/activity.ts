@@ -168,12 +168,14 @@ export type QuizTableCell = {
     rowId: string;
     columnId: string;
     correctItemId: string;
+    correctItemIds?: string[];
 };
 
 export type QuizMatchingPrompt = {
     id: string;
     text: string;
     correctMatchId: string;
+    correctMatchIds?: string[];
 };
 
 export type QuizMatchingOption = {
@@ -195,6 +197,7 @@ export type QuizCategoryItem = {
     id: string;
     text: string;
     correctCategoryId: string;
+    correctCategoryIds?: string[];
 };
 
 export type QuizStructuredQuestionAnswer =
@@ -204,11 +207,11 @@ export type QuizStructuredQuestionAnswer =
     }
     | {
         kind: 'table_drag_drop';
-        placements: Record<string, string>;
+        placements: Record<string, string | string[]>;
     }
     | {
         kind: 'matching_pairs';
-        matches: Record<string, string>;
+        matches: Record<string, string | string[]>;
     }
     | {
         kind: 'ordering_sequence';
@@ -216,7 +219,7 @@ export type QuizStructuredQuestionAnswer =
     }
     | {
         kind: 'categorization_drag_drop';
-        assignments: Record<string, string>;
+        assignments: Record<string, string | string[]>;
     };
 
 export type QuizStructuredAnswers = Record<string, QuizStructuredQuestionAnswer>;
@@ -235,11 +238,15 @@ export type QuizQuestion = {
     tableItems?: QuizTableItem[];
     tableCells?: QuizTableCell[];
     tableAllowItemReuse?: boolean;
+    tableAllowMultipleItemsPerCell?: boolean;
     matchingPrompts?: QuizMatchingPrompt[];
     matchingOptions?: QuizMatchingOption[];
+    matchingAllowMultiplePerPrompt?: boolean;
+    matchingAllowReuse?: boolean;
     orderingItems?: QuizOrderingItem[];
     categories?: QuizCategory[];
     categoryItems?: QuizCategoryItem[];
+    categorizationAllowReuse?: boolean;
     points: number;           // default: 1; for 'numeric' in peer_eval: grade weight (0 = no grade)
     explanation?: string;     // shown after submission if showCorrectAnswers
     poolId?: string;          // if set, question belongs to a pool; undefined = always shown

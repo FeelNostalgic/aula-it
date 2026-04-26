@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+    buildQuestionReview,
+    doesCategorizationAllowReuse,
+    doesMatchingAllowMultiplePerPrompt,
+    doesMatchingAllowReuse,
     doesTableDragAllowItemReuse,
+    doesTableDragAllowMultipleItemsPerCell,
+    getCategorizationAssignedCategoryIds,
+    getCategorizationItemsWithMultipleCorrectCategories,
+    getCategoryItemCorrectCategoryIds,
+    getMatchingAnswerItemIds,
+    getMatchingDuplicateCorrectMatchIds,
+    getMatchingPromptCorrectMatchIds,
+    getTableAnswerItemIds,
+    getTableCellCorrectItemIds,
     getTableDragDuplicateCorrectItemIds,
     getTableDragUsedItemIds,
     QUIZ_QUESTION_TYPE,
@@ -68,11 +81,103 @@ describe("table drag/drop helpers", () => {
         expect(getTableDragUsedItemIds({
             kind: QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP,
             placements: {
-                "cell-1": "item-a",
+                "cell-1": ["item-a", "item-b"],
                 "cell-2": "item-b",
                 "cell-3": "item-a",
             },
         })).toEqual(["item-a", "item-b"]);
+    });
+
+    it("normalizes multiple correct targets and multiple student answers across structured question types", () => {
+        const tableQuestion = createQuestion(QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP, {
+            tableAllowMultipleItemsPerCell: true,
+            tableCells: [
+                { id: "cell-1", rowId: "row-1", columnId: "col-1", correctItemId: "item-a", correctItemIds: ["item-a", "item-b"] },
+            ],
+        });
+        const matchingQuestion = createQuestion(QUIZ_QUESTION_TYPE.MATCHING_PAIRS, {
+            matchingAllowMultiplePerPrompt: true,
+            matchingPrompts: [
+                { id: "prompt-1", text: "Prompt", correctMatchId: "match-a", correctMatchIds: ["match-a", "match-b"] },
+            ],
+        });
+        const categorizationQuestion = createQuestion(QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP, {
+            categorizationAllowReuse: true,
+            categoryItems: [
+                { id: "item-1", text: "Item", correctCategoryId: "cat-a", correctCategoryIds: ["cat-a", "cat-b"] },
+            ],
+        });
+
+        expect(doesTableDragAllowMultipleItemsPerCell(tableQuestion)).toBe(true);
+        expect(getTableCellCorrectItemIds(tableQuestion.tableCells![0])).toEqual(["item-a", "item-b"]);
+        expect(getTableAnswerItemIds({
+            kind: QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP,
+            placements: { "cell-1": ["item-b", "item-a", "item-a"] },
+        }, "cell-1")).toEqual(["item-b", "item-a"]);
+
+        expect(doesMatchingAllowMultiplePerPrompt(matchingQuestion)).toBe(true);
+        expect(doesMatchingAllowReuse(matchingQuestion)).toBe(true);
+        expect(getMatchingPromptCorrectMatchIds(matchingQuestion.matchingPrompts![0])).toEqual(["match-a", "match-b"]);
+        expect(getMatchingAnswerItemIds({
+            kind: QUIZ_QUESTION_TYPE.MATCHING_PAIRS,
+            matches: { "prompt-1": ["match-b", "match-a"] },
+        }, "prompt-1")).toEqual(["match-b", "match-a"]);
+
+        expect(doesCategorizationAllowReuse(categorizationQuestion)).toBe(true);
+        expect(getCategoryItemCorrectCategoryIds(categorizationQuestion.categoryItems![0])).toEqual(["cat-a", "cat-b"]);
+        expect(getCategorizationAssignedCategoryIds({
+            kind: QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP,
+            assignments: { "item-1": ["cat-b", "cat-a"] },
+        }, "item-1")).toEqual(["cat-b", "cat-a"]);
+    });
+
+    it("detects repeated matches and elements with multiple correct categories", () => {
+        const matchingQuestion = createQuestion(QUIZ_QUESTION_TYPE.MATCHING_PAIRS, {
+            matchingPrompts: [
+                { id: "prompt-1", text: "P1", correctMatchId: "match-a", correctMatchIds: ["match-a", "match-b"] },
+                { id: "prompt-2", text: "P2", correctMatchId: "match-a", correctMatchIds: ["match-a"] },
+            ],
+        });
+        const categorizationQuestion = createQuestion(QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP, {
+            categoryItems: [
+                { id: "item-1", text: "Item 1", correctCategoryId: "cat-a", correctCategoryIds: ["cat-a", "cat-b"] },
+                { id: "item-2", text: "Item 2", correctCategoryId: "cat-b", correctCategoryIds: ["cat-b"] },
+            ],
+        });
+
+        expect(getMatchingDuplicateCorrectMatchIds(matchingQuestion)).toEqual(["match-a"]);
+        expect(getCategorizationItemsWithMultipleCorrectCategories(categorizationQuestion)).toEqual(["item-1"]);
+    });
+
+    it("formats review rows for exact multi-value comparisons", () => {
+        const question = createQuestion(QUIZ_QUESTION_TYPE.MATCHING_PAIRS, {
+            points: 2,
+            matchingAllowMultiplePerPrompt: true,
+            matchingPrompts: [
+                { id: "prompt-1", text: "HTTP", correctMatchId: "match-a", correctMatchIds: ["match-a", "match-b"] },
+            ],
+            matchingOptions: [
+                { id: "match-a", text: "Aplicación" },
+                { id: "match-b", text: "Texto" },
+                { id: "match-c", text: "Transporte" },
+            ],
+        });
+
+        const review = buildQuestionReview(question, {
+            answers: {},
+            short_answers: {},
+            structured_answers: {
+                "question-1": {
+                    kind: QUIZ_QUESTION_TYPE.MATCHING_PAIRS,
+                    matches: { "prompt-1": ["match-b", "match-a"] },
+                },
+            },
+        }, false);
+
+        expect(review.pointsEarned).toBe(2);
+        expect(review.rows[0]?.value).toBe("Texto, Aplicación");
+        expect(review.rows[0]?.expectedValue).toBe("Aplicación, Texto");
+        expect(review.rows[0]?.isCorrect).toBe(true);
     });
 });
 
