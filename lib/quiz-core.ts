@@ -33,6 +33,32 @@ export const QUIZ_QUESTION_TYPE = {
     CATEGORIZATION_DRAG_DROP: "categorization_drag_drop",
 } as const;
 
+const RANDOMIZABLE_QUESTION_TYPES = {
+    [QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE]: true,
+    [QUIZ_QUESTION_TYPE.TRUE_FALSE]: true,
+    [QUIZ_QUESTION_TYPE.SHORT_ANSWER]: false,
+    [QUIZ_QUESTION_TYPE.LIKERT]: false,
+    [QUIZ_QUESTION_TYPE.NUMERIC]: false,
+    [QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN]: true,
+    [QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP]: true,
+    [QUIZ_QUESTION_TYPE.MATCHING_PAIRS]: true,
+    [QUIZ_QUESTION_TYPE.ORDERING_SEQUENCE]: false,
+    [QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP]: true,
+} as const;
+
+export const QUIZ_QUESTION_TYPE_LABELS: Record<QuizQuestionType, string> = {
+    [QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE]: "Opción múltiple",
+    [QUIZ_QUESTION_TYPE.TRUE_FALSE]: "Verdadero/Falso",
+    [QUIZ_QUESTION_TYPE.SHORT_ANSWER]: "Respuesta corta",
+    [QUIZ_QUESTION_TYPE.LIKERT]: "Likert",
+    [QUIZ_QUESTION_TYPE.NUMERIC]: "Numérica",
+    [QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN]: "Texto con huecos",
+    [QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP]: "Tabla drag & drop",
+    [QUIZ_QUESTION_TYPE.MATCHING_PAIRS]: "Emparejar",
+    [QUIZ_QUESTION_TYPE.ORDERING_SEQUENCE]: "Ordenar secuencia",
+    [QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP]: "Clasificar",
+};
+
 type GroupStatsAvailability = {
     enabled: boolean;
     reason?: string;
@@ -106,6 +132,30 @@ export type QuizQuestionStatsSnapshot = {
 
 function round2(value: number) {
     return Math.round(value * 100) / 100;
+}
+
+function seededRng(seed: string) {
+    let s = 0;
+    for (let i = 0; i < seed.length; i++) {
+        s = Math.imul(31, s) + seed.charCodeAt(i) | 0;
+    }
+    s = Math.abs(s) || 1;
+    return () => {
+        s = Math.imul(1664525, s) + 1013904223 | 0;
+        return (s >>> 0) / 0x100000000;
+    };
+}
+
+export function seededShuffle<T>(arr: T[], seed: string): T[] {
+    if (arr.length < 2) return [...arr];
+
+    const result = [...arr];
+    const rand = seededRng(seed);
+    for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
 }
 
 function createDefaultOption(text: string, isCorrect: boolean): QuizOption {
@@ -243,6 +293,60 @@ export function isStructuredQuestion(question: QuizQuestion) {
 export function supportsClassicOptions(question: QuizQuestion) {
     const type = getQuestionType(question);
     return type === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE || type === QUIZ_QUESTION_TYPE.TRUE_FALSE;
+}
+
+export function supportsResponseRandomization(questionOrType: QuizQuestion | QuizQuestionType) {
+    const type = typeof questionOrType === "string"
+        ? questionOrType
+        : getQuestionType(questionOrType);
+    return RANDOMIZABLE_QUESTION_TYPES[type];
+}
+
+export function shuffleQuestionResponses(question: QuizQuestion, seed: string): QuizQuestion {
+    const questionType = getQuestionType(question);
+    if (!supportsResponseRandomization(questionType)) {
+        return question;
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE || questionType === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
+        return {
+            ...question,
+            options: seededShuffle(question.options ?? [], `${seed}:options`),
+        };
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN) {
+        return {
+            ...question,
+            dropdownBlanks: (question.dropdownBlanks ?? []).map((blank) => ({
+                ...blank,
+                options: seededShuffle(blank.options, `${seed}:blank:${blank.id}`),
+            })),
+        };
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP) {
+        return {
+            ...question,
+            tableItems: seededShuffle(question.tableItems ?? [], `${seed}:table-items`),
+        };
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.MATCHING_PAIRS) {
+        return {
+            ...question,
+            matchingOptions: seededShuffle(question.matchingOptions ?? [], `${seed}:matching-options`),
+        };
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP) {
+        return {
+            ...question,
+            categoryItems: seededShuffle(question.categoryItems ?? [], `${seed}:category-items`),
+        };
+    }
+
+    return question;
 }
 
 export function isQuizQuestionAnswered(question: QuizQuestion, input: QuizStructuredAttemptInput) {

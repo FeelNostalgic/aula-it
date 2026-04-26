@@ -1,31 +1,6 @@
 import { getQuizFixedQuestions } from "@/lib/quiz-content";
+import { seededShuffle } from "@/lib/quiz-core";
 import { QuizContent, QuizQuestion } from "@/types/activity";
-
-/**
- * Deterministic PRNG (LCG) seeded with a string.
- * Same seed → same sequence every time.
- */
-function seededRng(seed: string) {
-    let s = 0;
-    for (let i = 0; i < seed.length; i++) {
-        s = Math.imul(31, s) + seed.charCodeAt(i) | 0;
-    }
-    s = Math.abs(s) || 1;
-    return () => {
-        s = Math.imul(1664525, s) + 1013904223 | 0;
-        return (s >>> 0) / 0x100000000;
-    };
-}
-
-function seededShuffle<T>(arr: T[], seed: string): T[] {
-    const result = [...arr];
-    const rand = seededRng(seed);
-    for (let i = result.length - 1; i > 0; i--) {
-        const j = Math.floor(rand() * (i + 1));
-        [result[i], result[j]] = [result[j], result[i]];
-    }
-    return result;
-}
 
 /**
  * Returns the set of questions a student should see for a given attempt.

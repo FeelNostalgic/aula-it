@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, CheckCircle2, Circle, HardDrive, ExternalLink, BarChart2, AlignLeft, GripVertical, Layers, FileUp, ArrowDownUp, Copy, MoreVertical, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { GoogleFormCsvImport } from "./google-form-csv-import";
 import { cn } from "@/lib/utils";
-import { createDefaultQuizQuestion, convertQuestionToType, getGroupStatsAvailability, getQuestionType, QUIZ_QUESTION_TYPE, supportsClassicOptions } from "@/lib/quiz-core";
+import { createDefaultQuizQuestion, convertQuestionToType, getGroupStatsAvailability, getQuestionType, QUIZ_QUESTION_TYPE, QUIZ_QUESTION_TYPE_LABELS, supportsClassicOptions, supportsResponseRandomization } from "@/lib/quiz-core";
 import { createQuizQuestionBlock, createQuizSectionBlock, getQuizFixedBlocks, getQuizFixedQuestions, isQuizQuestionBlock, isQuizSectionBlock, syncQuizContent } from "@/lib/quiz-content";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toFormEmbedUrl, GOOGLE_MIME } from "@/lib/google-drive-urls";
@@ -77,6 +77,19 @@ const QUESTION_TYPES: { value: QuizQuestionType; label: string }[] = [
     { value: 'categorization_drag_drop', label: 'Clasificar' },
 ];
 
+const RANDOMIZATION_SUPPORT_ORDER: QuizQuestionType[] = [
+    QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE,
+    QUIZ_QUESTION_TYPE.TRUE_FALSE,
+    QUIZ_QUESTION_TYPE.SHORT_ANSWER,
+    QUIZ_QUESTION_TYPE.LIKERT,
+    QUIZ_QUESTION_TYPE.NUMERIC,
+    QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN,
+    QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP,
+    QUIZ_QUESTION_TYPE.MATCHING_PAIRS,
+    QUIZ_QUESTION_TYPE.ORDERING_SEQUENCE,
+    QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP,
+];
+
 function duplicateQuizQuestion(question: QuizQuestion): QuizQuestion {
     const clonedQuestion = structuredClone(question);
     return {
@@ -87,6 +100,12 @@ function duplicateQuizQuestion(question: QuizQuestion): QuizQuestion {
 
 export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorProps) {
     const isNestedQuiz = !!step.parent_step_id;
+    const randomizableQuestionLabels = RANDOMIZATION_SUPPORT_ORDER
+        .filter((type) => supportsResponseRandomization(type))
+        .map((type) => QUIZ_QUESTION_TYPE_LABELS[type]);
+    const nonRandomizableQuestionLabels = RANDOMIZATION_SUPPORT_ORDER
+        .filter((type) => !supportsResponseRandomization(type))
+        .map((type) => QUIZ_QUESTION_TYPE_LABELS[type]);
 
     const getInitialContent = (rawContent: unknown): QuizContent => {
         const content = rawContent && typeof rawContent === "object"
@@ -891,8 +910,30 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
                                     checked={!!content.randomizeOptions}
                                     onChange={(v) => handleUpdate({ ...content, randomizeOptions: v })}
                                     label="Aleatorizar opciones de respuesta"
-                                    description="Las opciones de cada pregunta se muestran en orden aleatorio. No aplica a preguntas de Verdadero/Falso."
+                                    description="Mezcla solo los tipos donde el orden visual no cambia la lógica de corrección. El orden se mantiene estable durante el mismo intento."
                                 />
+                                <div className="grid gap-3 rounded-xl border border-border/30 bg-surface/30 p-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Se aleatorizan</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {randomizableQuestionLabels.map((label) => (
+                                                <span key={label} className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200">
+                                                    {label}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">No se aleatorizan</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {nonRandomizableQuestionLabels.map((label) => (
+                                                <span key={label} className="rounded-full border border-border/40 bg-background/40 px-2.5 py-1 text-[11px] font-semibold text-text-muted">
+                                                    {label}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
                             </ConfigSection>
 
                             <ConfigSection

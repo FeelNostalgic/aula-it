@@ -27,7 +27,7 @@ import { ResourceIcon } from "@/components/dashboard/shared/resource-icon";
 import { toSlidesDownloadUrl, toDriveDownloadUrl } from "@/lib/google-drive-urls";
 import { buildQuizRenderItems, getPaginatedQuizRenderItems, getQuizFixedQuestions } from "@/lib/quiz-content";
 import { selectQuestionsForAttempt } from "@/lib/quiz-pool-selection";
-import { buildQuestionReview, getQuestionType, getQuizAttemptQuestions, isQuizQuestionAnswered, QUIZ_QUESTION_TYPE } from "@/lib/quiz-core";
+import { buildQuestionReview, getQuestionType, getQuizAttemptQuestions, isQuizQuestionAnswered, QUIZ_QUESTION_TYPE, shuffleQuestionResponses } from "@/lib/quiz-core";
 import { QuizQuestionAnswerField } from "../quiz/quiz-question-answer-field";
 
 interface StepViewerProps {
@@ -479,20 +479,23 @@ function BuiltinQuizViewer({
         localStorage.setItem(`exam-draft:${stepId}`, JSON.stringify({ selectedAnswers, shortAnswers, structuredAnswers }));
     }, [selectedAnswers, shortAnswers, structuredAnswers, isExamActive, stepId]);
 
+    const currentAttemptNumber = (attempts.length ?? 0) + 1;
+
     const displayQuestions = useMemo(() => {
         if (!content?.questions && !content?.bankSelections?.length) return [];
         // Apply bank selection when bankSelections are defined
         const selected = (content.bankSelections?.length && userId && stepId)
-            ? selectQuestionsForAttempt(content, bankQuestions, userId, stepId, (attempts.length ?? 0) + 1)
+            ? selectQuestionsForAttempt(content, bankQuestions, userId, stepId, currentAttemptNumber)
             : getQuizFixedQuestions(content);
         const qs = content.randomizeQuestions
             ? [...selected].sort(() => Math.random() - 0.5)
             : selected;
         if (content.randomizeOptions) {
-            return qs.map(q => ({ ...q, options: [...q.options].sort(() => Math.random() - 0.5) }));
+            const attemptSeed = `${userId ?? "preview-user"}:${stepId ?? "preview-step"}:${currentAttemptNumber}`;
+            return qs.map((question) => shuffleQuestionResponses(question, `${attemptSeed}:${question.id}`));
         }
         return qs;
-    }, [content?.questions, content?.bankSelections, content?.randomizeQuestions, content?.randomizeOptions, userId, stepId, attempts.length, bankQuestions]);
+    }, [content?.questions, content?.bankSelections, content?.randomizeQuestions, content?.randomizeOptions, userId, stepId, currentAttemptNumber, bankQuestions]);
     const displayItems = useMemo(() => buildQuizRenderItems(content, displayQuestions), [content, displayQuestions]);
     const questionNumberById = useMemo(
         () => new Map(displayQuestions.map((question, index) => [question.id, index + 1])),
