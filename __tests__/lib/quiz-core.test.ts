@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    buildQuestionStatsSnapshot,
     buildQuestionReview,
     doesCategorizationAllowReuse,
     doesMatchingAllowMultiplePerPrompt,
@@ -17,6 +18,7 @@ import {
     getTableDragDuplicateCorrectItemIds,
     getTableDragUsedItemIds,
     QUIZ_QUESTION_TYPE,
+    QUIZ_STATS_MODE,
     shuffleQuestionResponses,
     supportsResponseRandomization,
 } from "@/lib/quiz-core";
@@ -317,5 +319,171 @@ describe("shuffleQuestionResponses", () => {
         });
 
         expect(shuffleQuestionResponses(question, "ordering-seed")).toEqual(question);
+    });
+});
+
+describe("quiz stats snapshots", () => {
+    it("counts fully correct classic answers correctly in stats", () => {
+        const question = createQuestion(QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE, {
+            text: "¿Qué protocolo se usa para web segura?",
+            options: [
+                { id: "opt-a", text: "HTTP", isCorrect: false },
+                { id: "opt-b", text: "HTTPS", isCorrect: true },
+                { id: "opt-c", text: "FTP", isCorrect: false },
+            ],
+        });
+
+        const snapshot = buildQuestionStatsSnapshot(question, [
+            {
+                id: "attempt-1",
+                student_id: "student-1",
+                student_name: "Ana",
+                step_id: "step-1",
+                attempt_number: 1,
+                answers: { "question-1": ["opt-b"] },
+                short_answers: {},
+                structured_answers: {},
+                short_answer_scores: {},
+                points_earned: 1,
+                points_total: 1,
+                completed_at: "2026-04-26T10:00:00.000Z",
+                short_answer_feedback: {},
+            },
+            {
+                id: "attempt-2",
+                student_id: "student-2",
+                student_name: "Luis",
+                step_id: "step-1",
+                attempt_number: 1,
+                answers: { "question-1": ["opt-a"] },
+                short_answers: {},
+                structured_answers: {},
+                short_answer_scores: {},
+                points_earned: 0,
+                points_total: 1,
+                completed_at: "2026-04-26T10:01:00.000Z",
+                short_answer_feedback: {},
+            },
+        ], false);
+
+        expect(snapshot.mode).toBe(QUIZ_STATS_MODE.GRADED);
+        expect(snapshot.fullCorrectCount).toBe(1);
+        expect(snapshot.fullCorrectRate).toBe(50);
+        expect(snapshot.studentRows[0]?.isFullyCorrect).toBe(true);
+        expect(snapshot.studentRows[0]?.answerLabel).toBe("HTTPS");
+        expect(snapshot.studentRows[1]?.isFullyCorrect).toBe(false);
+        expect(snapshot.visualizations[0]?.kind).toBe("donut");
+    });
+
+    it("treats likert questions as descriptive and builds a real distribution", () => {
+        const question = createQuestion(QUIZ_QUESTION_TYPE.LIKERT, {
+            text: "Valora tu confianza",
+            likertMin: 1,
+            likertMax: 5,
+            likertLabels: ["Muy baja", "Baja", "Media", "Alta", "Muy alta"],
+            requireJustification: true,
+        });
+
+        const snapshot = buildQuestionStatsSnapshot(question, [
+            {
+                id: "attempt-1",
+                student_id: "student-1",
+                student_name: "Ana",
+                step_id: "step-1",
+                attempt_number: 1,
+                answers: {},
+                short_answers: { "question-1": "4", "question-1:justification": "He practicado." },
+                structured_answers: {},
+                short_answer_scores: {},
+                points_earned: 0,
+                points_total: 0,
+                completed_at: "2026-04-26T10:00:00.000Z",
+                short_answer_feedback: {},
+            },
+            {
+                id: "attempt-2",
+                student_id: "student-2",
+                student_name: "Luis",
+                step_id: "step-1",
+                attempt_number: 1,
+                answers: {},
+                short_answers: { "question-1": "2" },
+                structured_answers: {},
+                short_answer_scores: {},
+                points_earned: 0,
+                points_total: 0,
+                completed_at: "2026-04-26T10:01:00.000Z",
+                short_answer_feedback: {},
+            },
+        ], false);
+
+        expect(snapshot.mode).toBe(QUIZ_STATS_MODE.DESCRIPTIVE);
+        expect(snapshot.fullCorrectCount).toBeNull();
+        expect(snapshot.fullCorrectRate).toBeNull();
+        expect(snapshot.studentRows.every((row) => row.isFullyCorrect === null)).toBe(true);
+        expect(snapshot.visualizations[0]?.data.find((point) => point.key === "4")?.value).toBe(1);
+        expect(snapshot.visualizations[1]?.data.find((point) => point.key === "with-justification")?.value).toBe(1);
+    });
+
+    it("builds a histogram for numeric questions instead of empty bars", () => {
+        const question = createQuestion(QUIZ_QUESTION_TYPE.NUMERIC, {
+            text: "¿Cuántos equipos hay?",
+            numericMin: 0,
+            numericMax: 10,
+        });
+
+        const snapshot = buildQuestionStatsSnapshot(question, [
+            {
+                id: "attempt-1",
+                student_id: "student-1",
+                student_name: "Ana",
+                step_id: "step-1",
+                attempt_number: 1,
+                answers: {},
+                short_answers: { "question-1": "2" },
+                structured_answers: {},
+                short_answer_scores: {},
+                points_earned: 0,
+                points_total: 0,
+                completed_at: "2026-04-26T10:00:00.000Z",
+                short_answer_feedback: {},
+            },
+            {
+                id: "attempt-2",
+                student_id: "student-2",
+                student_name: "Luis",
+                step_id: "step-1",
+                attempt_number: 1,
+                answers: {},
+                short_answers: { "question-1": "7" },
+                structured_answers: {},
+                short_answer_scores: {},
+                points_earned: 0,
+                points_total: 0,
+                completed_at: "2026-04-26T10:01:00.000Z",
+                short_answer_feedback: {},
+            },
+            {
+                id: "attempt-3",
+                student_id: "student-3",
+                student_name: "Marta",
+                step_id: "step-1",
+                attempt_number: 1,
+                answers: {},
+                short_answers: {},
+                structured_answers: {},
+                short_answer_scores: {},
+                points_earned: 0,
+                points_total: 0,
+                completed_at: "2026-04-26T10:02:00.000Z",
+                short_answer_feedback: {},
+            },
+        ], false);
+
+        expect(snapshot.mode).toBe(QUIZ_STATS_MODE.DESCRIPTIVE);
+        expect(snapshot.visualizations[0]?.kind).toBe("histogram");
+        expect(snapshot.visualizations[0]?.data.some((point) => point.value > 0)).toBe(true);
+        expect(snapshot.visualizations[1]?.kind).toBe("donut");
+        expect(snapshot.summaryMetrics.find((metric) => metric.key === "numeric-average")?.value).toBe("4.50");
     });
 });

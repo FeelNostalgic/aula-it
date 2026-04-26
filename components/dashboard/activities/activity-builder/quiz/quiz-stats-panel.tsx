@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { getQuizStatsAttempts } from "@/app/activities/[id]/edit/actions";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
     Card,
     CardContent,
@@ -28,15 +27,28 @@ import {
 } from "@/components/ui/table";
 import {
     ChartContainer,
+    ChartLegend,
+    ChartLegendContent,
     ChartTooltip,
     ChartTooltipContent,
     type ChartConfig,
 } from "@/components/ui/chart";
 import { getQuizFixedQuestions } from "@/lib/quiz-content";
-import { buildQuizStatsForAttempt, getGroupStatsAvailability, type QuizStatsTeacherAttempt } from "@/lib/quiz-core";
+import {
+    buildQuizStatsForAttempt,
+    getGroupStatsAvailability,
+    QUIZ_STATS_METRIC_TONE,
+    QUIZ_STATS_MODE,
+    QUIZ_STATS_VALUE_UNIT,
+    QUIZ_STATS_VISUALIZATION_KIND,
+    type QuizQuestionStatsSnapshot,
+    type QuizStatsChartPoint,
+    type QuizStatsTeacherAttempt,
+    type QuizStatsVisualization,
+} from "@/lib/quiz-core";
 import { cn } from "@/lib/utils";
 import type { QuizContent, QuizQuestionType } from "@/types/activity";
-import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, Label, Pie, PieChart, XAxis, YAxis } from "recharts";
 import { AlertCircle, BarChart3, RefreshCw, Users } from "lucide-react";
 
 type QuizStatsPanelProps = {
@@ -45,18 +57,13 @@ type QuizStatsPanelProps = {
     visible: boolean;
 };
 
-const chartConfig = {
-    value: {
-        label: "Respuestas",
-        color: "var(--chart-1)",
-    },
-} satisfies ChartConfig;
-
 function getQuestionTypeLabel(questionType: QuizQuestionType) {
     switch (questionType) {
         case "multiple_choice": return "Opción múltiple";
         case "true_false": return "Verdadero/Falso";
         case "short_answer": return "Respuesta corta";
+        case "likert": return "Likert";
+        case "numeric": return "Numérica";
         case "fill_in_the_blank_dropdown": return "Texto con huecos";
         case "table_drag_drop": return "Tabla drag & drop";
         case "matching_pairs": return "Emparejar";
@@ -70,6 +77,175 @@ function getBarColor(isCorrect?: boolean) {
     if (isCorrect === true) return "var(--chart-2)";
     if (isCorrect === false) return "var(--chart-5)";
     return "var(--chart-1)";
+}
+
+function getPointColor(entry: QuizStatsChartPoint, index: number) {
+    return entry.color ?? getBarColor(entry.correct) ?? `var(--chart-${(index % 5) + 1})`;
+}
+
+function buildChartConfig(visualization: QuizStatsVisualization): ChartConfig {
+    return visualization.data.reduce<ChartConfig>((config, point, index) => {
+        config[point.key] = {
+            label: point.label,
+            color: getPointColor(point, index),
+        };
+        return config;
+    }, {
+        value: {
+            label: visualization.valueLabel,
+            color: "var(--chart-1)",
+        },
+    });
+}
+
+function formatMetricTone(tone?: string) {
+    if (tone === QUIZ_STATS_METRIC_TONE.SUCCESS) return "text-emerald-400";
+    if (tone === QUIZ_STATS_METRIC_TONE.WARNING) return "text-amber-300";
+    if (tone === QUIZ_STATS_METRIC_TONE.MUTED) return "text-text-muted";
+    return "text-foreground";
+}
+
+function formatPointValue(entry: QuizStatsChartPoint, visualization: QuizStatsVisualization) {
+    if (visualization.valueUnit === QUIZ_STATS_VALUE_UNIT.PERCENT) {
+        const suffix = entry.count !== undefined && entry.total !== undefined ? ` · ${entry.count}/${entry.total}` : "";
+        return `${entry.value}%${suffix}`;
+    }
+
+    if (entry.total !== undefined && entry.total > 0) {
+        const percentage = Math.round((entry.value / entry.total) * 100);
+        return `${entry.value} (${percentage}%)`;
+    }
+
+    return String(entry.value);
+}
+
+function VisualizationCard({ visualization }: { visualization: QuizStatsVisualization }) {
+    const chartConfig = buildChartConfig(visualization);
+    const totalValue = visualization.data.reduce((total, point) => total + point.value, 0);
+
+    return (
+        <div className="rounded-xl border border-border/40 bg-background/40 p-4">
+            <div className="mb-3 space-y-1">
+                <h4 className="text-sm font-semibold text-foreground">{visualization.title}</h4>
+                {visualization.description && (
+                    <p className="text-xs text-text-muted">{visualization.description}</p>
+                )}
+            </div>
+
+            <ChartContainer config={chartConfig} className="h-[280px] w-full">
+                {visualization.kind === QUIZ_STATS_VISUALIZATION_KIND.DONUT ? (
+                    <PieChart>
+                        <ChartTooltip
+                            cursor={false}
+                            content={(
+                                <ChartTooltipContent
+                                    formatter={(_, __, item) => {
+                                        const point = item.payload as QuizStatsChartPoint;
+                                        return (
+                                            <div className="flex flex-1 justify-between gap-3 text-xs">
+                                                <span className="text-muted-foreground">{point.label}</span>
+                                                <span className="font-mono text-foreground">{formatPointValue(point, visualization)}</span>
+                                            </div>
+                                        );
+                                    }}
+                                />
+                            )}
+                        />
+                        <Pie data={visualization.data} dataKey="value" nameKey="label" innerRadius={70} strokeWidth={4}>
+                            {visualization.data.map((entry, index) => (
+                                <Cell key={entry.key} fill={getPointColor(entry, index)} />
+                            ))}
+                            <Label
+                                content={({ viewBox }) => {
+                                    if (!viewBox || !("cx" in viewBox) || !("cy" in viewBox)) return null;
+                                    return (
+                                        <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
+                                            <tspan x={viewBox.cx} y={viewBox.cy} className="fill-foreground text-2xl font-black">
+                                                {totalValue}
+                                            </tspan>
+                                            <tspan x={viewBox.cx} y={(viewBox.cy ?? 0) + 18} className="fill-muted-foreground text-[11px] font-semibold">
+                                                {visualization.valueLabel}
+                                            </tspan>
+                                        </text>
+                                    );
+                                }}
+                            />
+                        </Pie>
+                        <ChartLegend content={<ChartLegendContent nameKey="label" className="flex flex-wrap justify-center gap-3" />} />
+                    </PieChart>
+                ) : visualization.kind === QUIZ_STATS_VISUALIZATION_KIND.HISTOGRAM ? (
+                    <BarChart accessibilityLayer data={visualization.data} margin={{ left: 12, right: 12, top: 8 }}>
+                        <CartesianGrid vertical={false} />
+                        <XAxis dataKey="label" tickLine={false} axisLine={false} interval={0} angle={-18} textAnchor="end" height={58} className="text-[10px]" />
+                        <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                        <ChartTooltip
+                            cursor={false}
+                            content={(
+                                <ChartTooltipContent
+                                    formatter={(_, __, item) => {
+                                        const point = item.payload as QuizStatsChartPoint;
+                                        return (
+                                            <div className="flex flex-1 justify-between gap-3 text-xs">
+                                                <span className="text-muted-foreground">{point.label}</span>
+                                                <span className="font-mono text-foreground">{formatPointValue(point, visualization)}</span>
+                                            </div>
+                                        );
+                                    }}
+                                />
+                            )}
+                        />
+                        <Bar dataKey="value" radius={8}>
+                            {visualization.data.map((entry, index) => (
+                                <Cell key={entry.key} fill={getPointColor(entry, index)} />
+                            ))}
+                        </Bar>
+                    </BarChart>
+                ) : (
+                    <BarChart accessibilityLayer data={visualization.data} layout="vertical" margin={{ left: 24, right: 16 }}>
+                        <CartesianGrid horizontal={false} />
+                        <YAxis
+                            dataKey="label"
+                            type="category"
+                            tickLine={false}
+                            axisLine={false}
+                            width={150}
+                            className="text-[11px]"
+                        />
+                        <XAxis
+                            dataKey="value"
+                            type="number"
+                            allowDecimals={visualization.valueUnit === QUIZ_STATS_VALUE_UNIT.PERCENT}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={visualization.valueUnit === QUIZ_STATS_VALUE_UNIT.PERCENT ? (value) => `${value}%` : undefined}
+                        />
+                        <ChartTooltip
+                            cursor={false}
+                            content={(
+                                <ChartTooltipContent
+                                    indicator="line"
+                                    formatter={(_, __, item) => {
+                                        const point = item.payload as QuizStatsChartPoint;
+                                        return (
+                                            <div className="flex flex-1 justify-between gap-3 text-xs">
+                                                <span className="text-muted-foreground">{point.label}</span>
+                                                <span className="font-mono text-foreground">{formatPointValue(point, visualization)}</span>
+                                            </div>
+                                        );
+                                    }}
+                                />
+                            )}
+                        />
+                        <Bar dataKey="value" radius={8}>
+                            {visualization.data.map((entry, index) => (
+                                <Cell key={entry.key} fill={getPointColor(entry, index)} />
+                            ))}
+                        </Bar>
+                    </BarChart>
+                )}
+            </ChartContainer>
+        </div>
+    );
 }
 
 export function QuizStatsPanel({ stepId, content, visible }: QuizStatsPanelProps) {
@@ -121,6 +297,12 @@ export function QuizStatsPanel({ stepId, content, visible }: QuizStatsPanelProps
         attemptsForSelectedNumber,
         !!content.penalizeWrongAnswers,
     );
+    const gradedQuestionStats = questionStats.filter((question) => question.mode === QUIZ_STATS_MODE.GRADED);
+    const averageFullCorrectRate = gradedQuestionStats.length > 0
+        ? Math.round(
+            gradedQuestionStats.reduce((total, question) => total + (question.fullCorrectRate ?? 0), 0) / gradedQuestionStats.length,
+        )
+        : null;
 
     if (!content.saveQuestionStats) {
         return (
@@ -227,10 +409,7 @@ export function QuizStatsPanel({ stepId, content, visible }: QuizStatsPanelProps
                     <div className="rounded-xl border border-border/40 bg-background/60 p-4">
                         <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Acierto medio completo</p>
                         <p className="mt-2 text-3xl font-black font-mono text-foreground">
-                            {questionStats.length > 0
-                                ? Math.round(questionStats.reduce((total, question) => total + question.fullCorrectRate, 0) / questionStats.length)
-                                : 0}
-                            %
+                            {averageFullCorrectRate !== null ? `${averageFullCorrectRate}%` : "n/d"}
                         </p>
                     </div>
                 </CardContent>
@@ -246,46 +425,55 @@ export function QuizStatsPanel({ stepId, content, visible }: QuizStatsPanelProps
                                     <Badge variant="outline" className="border-border/50 text-text-muted">
                                         {getQuestionTypeLabel(question.questionType)}
                                     </Badge>
+                                    <Badge
+                                        variant="outline"
+                                        className={cn(
+                                            "border-border/50",
+                                            question.mode === QUIZ_STATS_MODE.GRADED
+                                                ? "text-emerald-300"
+                                                : "text-sky-300",
+                                        )}
+                                    >
+                                        {question.mode === QUIZ_STATS_MODE.GRADED ? "Evaluativa" : "Descriptiva"}
+                                    </Badge>
                                 </div>
                                 <CardTitle className="text-base">{question.questionText || "Pregunta sin enunciado"}</CardTitle>
                                 <CardDescription>
-                                    {question.fullCorrectCount}/{question.participants} respuestas totalmente correctas
+                                    {question.mode === QUIZ_STATS_MODE.GRADED
+                                        ? `${question.fullCorrectCount}/${question.participants} respuestas totalmente correctas`
+                                        : `${question.participants} respuestas comparadas en distribución`}
                                 </CardDescription>
                             </div>
-                            <div className="rounded-xl border border-border/40 bg-background/60 px-4 py-3 text-right">
-                                <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Acierto completo</p>
-                                <p className="mt-1 text-2xl font-black font-mono text-foreground">{question.fullCorrectRate}%</p>
-                            </div>
+                            {question.mode === QUIZ_STATS_MODE.GRADED ? (
+                                <div className="rounded-xl border border-border/40 bg-background/60 px-4 py-3 text-right">
+                                    <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Acierto completo</p>
+                                    <p className="mt-1 text-2xl font-black font-mono text-foreground">{question.fullCorrectRate}%</p>
+                                </div>
+                            ) : (
+                                <div className="rounded-xl border border-border/40 bg-background/60 px-4 py-3 text-right">
+                                    <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Lectura</p>
+                                    <p className="mt-1 text-sm font-semibold text-sky-300">Distribución de la clase</p>
+                                </div>
+                            )}
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {question.chartData.length > 0 && (
-                            <div className="rounded-xl border border-border/40 bg-background/40 p-4">
-                                <ChartContainer config={chartConfig} className="h-[260px] w-full">
-                                    <BarChart
-                                        accessibilityLayer
-                                        data={question.chartData}
-                                        layout="vertical"
-                                        margin={{ left: 24, right: 16 }}
-                                    >
-                                        <CartesianGrid horizontal={false} />
-                                        <YAxis
-                                            dataKey="label"
-                                            type="category"
-                                            tickLine={false}
-                                            axisLine={false}
-                                            width={140}
-                                            className="text-[11px]"
-                                        />
-                                        <XAxis dataKey="value" type="number" allowDecimals={false} tickLine={false} axisLine={false} />
-                                        <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
-                                        <Bar dataKey="value" radius={8}>
-                                            {question.chartData.map((entry) => (
-                                                <Cell key={entry.key} fill={getBarColor(entry.correct)} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ChartContainer>
+                        {question.summaryMetrics.length > 0 && (
+                            <div className="grid gap-3 md:grid-cols-3">
+                                {question.summaryMetrics.map((metric) => (
+                                    <div key={metric.key} className="rounded-xl border border-border/40 bg-background/50 p-4">
+                                        <p className="text-[11px] font-bold uppercase tracking-widest text-text-muted">{metric.label}</p>
+                                        <p className={cn("mt-2 text-lg font-black font-mono", formatMetricTone(metric.tone))}>{metric.value}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {question.visualizations.length > 0 && (
+                            <div className={cn("grid gap-4", question.visualizations.length > 1 ? "xl:grid-cols-2" : "grid-cols-1")}>
+                                {question.visualizations.map((visualization) => (
+                                    <VisualizationCard key={visualization.key} visualization={visualization} />
+                                ))}
                             </div>
                         )}
 
@@ -310,7 +498,9 @@ export function QuizStatsPanel({ stepId, content, visible }: QuizStatsPanelProps
                                                             ? "text-emerald-400"
                                                             : studentRow.isFullyCorrect === false
                                                                 ? "text-amber-300"
-                                                                : "text-text-muted"
+                                                                : question.questionType === "short_answer"
+                                                                    ? "text-text-muted"
+                                                                    : "text-sky-300"
                                                     )}>
                                                         {studentRow.answerLabel}
                                                     </p>
@@ -319,7 +509,9 @@ export function QuizStatsPanel({ stepId, content, visible }: QuizStatsPanelProps
                                                             ? "Todo correcto"
                                                             : studentRow.isFullyCorrect === false
                                                                 ? "Con errores"
-                                                                : "Respuesta abierta"}
+                                                                : question.questionType === "short_answer"
+                                                                    ? "Respuesta abierta"
+                                                                    : "Respuesta descriptiva"}
                                                     </p>
                                                 </div>
                                             </TableCell>

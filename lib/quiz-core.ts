@@ -117,21 +117,102 @@ export type QuizStatsChartPoint = {
     label: string;
     value: number;
     correct?: boolean;
+    color?: string;
+    count?: number;
+    total?: number;
+};
+
+export const QUIZ_STATS_MODE = {
+    GRADED: "graded",
+    DESCRIPTIVE: "descriptive",
+} as const;
+
+export type QuizStatsMode = (typeof QUIZ_STATS_MODE)[keyof typeof QUIZ_STATS_MODE];
+
+export const QUIZ_STATS_VALUE_UNIT = {
+    COUNT: "count",
+    PERCENT: "percent",
+} as const;
+
+export type QuizStatsValueUnit = (typeof QUIZ_STATS_VALUE_UNIT)[keyof typeof QUIZ_STATS_VALUE_UNIT];
+
+export const QUIZ_STATS_VISUALIZATION_KIND = {
+    BAR: "bar",
+    DONUT: "donut",
+    HISTOGRAM: "histogram",
+} as const;
+
+export type QuizStatsVisualizationKind = (typeof QUIZ_STATS_VISUALIZATION_KIND)[keyof typeof QUIZ_STATS_VISUALIZATION_KIND];
+
+export const QUIZ_STATS_METRIC_TONE = {
+    DEFAULT: "default",
+    SUCCESS: "success",
+    WARNING: "warning",
+    MUTED: "muted",
+} as const;
+
+export type QuizStatsMetricTone = (typeof QUIZ_STATS_METRIC_TONE)[keyof typeof QUIZ_STATS_METRIC_TONE];
+
+export type QuizStatsSummaryMetric = {
+    key: string;
+    label: string;
+    value: string;
+    tone?: QuizStatsMetricTone;
+};
+
+export type QuizStatsVisualization = {
+    key: string;
+    kind: QuizStatsVisualizationKind;
+    title: string;
+    description?: string;
+    valueLabel: string;
+    valueUnit: QuizStatsValueUnit;
+    data: QuizStatsChartPoint[];
 };
 
 export type QuizQuestionStatsSnapshot = {
     questionId: string;
     questionText: string;
     questionType: QuizQuestionType;
+    mode: QuizStatsMode;
     participants: number;
-    fullCorrectCount: number;
-    fullCorrectRate: number;
+    fullCorrectCount: number | null;
+    fullCorrectRate: number | null;
     chartData: QuizStatsChartPoint[];
+    summaryMetrics: QuizStatsSummaryMetric[];
+    visualizations: QuizStatsVisualization[];
     studentRows: QuizStatsStudentRow[];
+};
+
+type QuizStatsReviewedAttempt = {
+    attempt: QuizStatsTeacherAttempt;
+    review: QuizQuestionReview;
+    studentRow: QuizStatsStudentRow;
 };
 
 function round2(value: number) {
     return Math.round(value * 100) / 100;
+}
+
+function formatPercent(value: number) {
+    return `${round2(value)}%`;
+}
+
+function clampPercentage(numerator: number, denominator: number) {
+    if (denominator <= 0) return 0;
+    return round2((numerator / denominator) * 100);
+}
+
+function getStatsQuestionMode(questionType: QuizQuestionType): QuizStatsMode {
+    if (
+        questionType === QUIZ_QUESTION_TYPE.SHORT_ANSWER ||
+        questionType === QUIZ_QUESTION_TYPE.LIKERT ||
+        questionType === QUIZ_QUESTION_TYPE.NUMERIC
+    ) {
+        return QUIZ_STATS_MODE.DESCRIPTIVE;
+    }
+
+    return QUIZ_STATS_MODE.GRADED;
 }
 
 function seededRng(seed: string) {
@@ -738,6 +819,14 @@ function formatLabelList(labels: string[]) {
     return labels.join(", ");
 }
 
+function buildAttemptInput(attempt: Pick<QuizAttempt, "answers" | "short_answers" | "structured_answers">): QuizStructuredAttemptInput {
+    return {
+        answers: attempt.answers ?? {},
+        shortAnswers: attempt.short_answers ?? {},
+        structuredAnswers: attempt.structured_answers ?? {},
+    };
+}
+
 function getCategoryLabel(categories: QuizCategory[], categoryId?: string) {
     if (!categoryId) return "Sin respuesta";
     return categories.find((category) => category.id === categoryId)?.label ?? "Sin respuesta";
@@ -945,8 +1034,8 @@ export function buildQuestionReview(
         return {
             questionId: question.id,
             questionType,
-            isAutoGraded: true,
-            pointsEarned: 0,
+            isAutoGraded: false,
+            pointsEarned: null,
             pointsTotal: 0,
             rows,
         };
@@ -956,8 +1045,8 @@ export function buildQuestionReview(
         return {
             questionId: question.id,
             questionType,
-            isAutoGraded: true,
-            pointsEarned: 0,
+            isAutoGraded: false,
+            pointsEarned: null,
             pointsTotal: 0,
             rows: [
                 {
@@ -983,8 +1072,8 @@ export function buildQuestionReview(
                 id: option.id,
                 label: option.text,
                 value: selectedIds.includes(option.id) ? "Seleccionada" : "No seleccionada",
-                expectedValue: option.isCorrect ? "Correcta" : undefined,
-                isCorrect: option.isCorrect ? true : selectedIds.includes(option.id) ? false : null,
+                expectedValue: option.isCorrect ? "Seleccionada" : "No seleccionada",
+                isCorrect: option.isCorrect ? selectedIds.includes(option.id) : !selectedIds.includes(option.id),
             })),
         };
     }
@@ -1104,62 +1193,667 @@ export function buildQuestionReview(
 }
 
 function buildAnswerLabel(review: QuizQuestionReview) {
-    if (review.questionType === QUIZ_QUESTION_TYPE.SHORT_ANSWER) {
+    if (
+        review.questionType === QUIZ_QUESTION_TYPE.SHORT_ANSWER ||
+        review.questionType === QUIZ_QUESTION_TYPE.LIKERT ||
+        review.questionType === QUIZ_QUESTION_TYPE.NUMERIC
+    ) {
         return review.rows[0]?.value ?? "Sin respuesta";
     }
+
+    if (review.questionType === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE || review.questionType === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
+        return formatLabelList(
+            review.rows
+                .filter((row) => row.value === "Seleccionada")
+                .map((row) => row.label),
+        );
+    }
+
     const correctCount = review.rows.filter((row) => row.isCorrect === true).length;
     return `${correctCount}/${review.rows.length} correctas`;
 }
 
 function countFullyCorrect(review: QuizQuestionReview) {
-    if (!review.isAutoGraded) return null;
+    if (getStatsQuestionMode(review.questionType) === QUIZ_STATS_MODE.DESCRIPTIVE || !review.isAutoGraded) return null;
     if (review.rows.length === 0) return false;
     return review.rows.every((row) => row.isCorrect === true);
 }
 
-function buildChartData(question: QuizQuestion, studentRows: QuizStatsStudentRow[]): QuizStatsChartPoint[] {
-    const questionType = getQuestionType(question);
+function getAnsweredCount(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]) {
+    return reviewedAttempts.filter(({ attempt }) => isQuizQuestionAnswered(question, buildAttemptInput(attempt))).length;
+}
 
-    if (questionType === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE || questionType === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
-        return (question.options ?? []).map((option) => ({
+function buildPresenceData(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]): QuizStatsChartPoint[] {
+    const answeredCount = getAnsweredCount(question, reviewedAttempts);
+    const participants = reviewedAttempts.length;
+
+    return [
+        {
+            key: "answered",
+            label: "Respondidas",
+            value: answeredCount,
+            color: "var(--chart-2)",
+            count: answeredCount,
+            total: participants,
+        },
+        {
+            key: "empty",
+            label: "Sin respuesta",
+            value: Math.max(participants - answeredCount, 0),
+            color: "var(--chart-5)",
+            count: Math.max(participants - answeredCount, 0),
+            total: participants,
+        },
+    ];
+}
+
+function getRowAccuracyData(rows: QuizQuestionReviewRow[], reviewedAttempts: QuizStatsReviewedAttempt[]): QuizStatsChartPoint[] {
+    return rows.map((row) => {
+        const count = reviewedAttempts.filter(({ studentRow }) => studentRow.rows.find((candidate) => candidate.id === row.id)?.isCorrect === true).length;
+        return {
+            key: row.id,
+            label: row.label,
+            value: clampPercentage(count, reviewedAttempts.length),
+            color: "var(--chart-1)",
+            count,
+            total: reviewedAttempts.length,
+        };
+    });
+}
+
+function getClassicOptionSelectionData(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]) {
+    return (question.options ?? []).map((option, index) => {
+        const count = reviewedAttempts.filter(({ review }) => review.rows.some((row) => row.id === option.id && row.value === "Seleccionada")).length;
+        return {
             key: option.id,
             label: option.text || "Sin texto",
-            value: studentRows.filter((studentRow) => studentRow.rows.some((row) => row.id === option.id && row.value === "Seleccionada")).length,
+            value: count,
             correct: option.isCorrect,
-        }));
+            color: option.isCorrect ? "var(--chart-2)" : `var(--chart-${(index % 4) + 1})`,
+            count,
+            total: reviewedAttempts.length,
+        };
+    });
+}
+
+function getClassicResponseStateData(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]): QuizStatsChartPoint[] {
+    const counts = {
+        full: 0,
+        partial: 0,
+        incorrect: 0,
+        blank: 0,
+    };
+
+    for (const { attempt, review } of reviewedAttempts) {
+        const answered = isQuizQuestionAnswered(question, buildAttemptInput(attempt));
+        const isFullyCorrect = countFullyCorrect(review);
+        if (!answered) {
+            counts.blank += 1;
+            continue;
+        }
+        if (isFullyCorrect) {
+            counts.full += 1;
+            continue;
+        }
+        if ((review.pointsEarned ?? 0) > 0) {
+            counts.partial += 1;
+            continue;
+        }
+        counts.incorrect += 1;
+    }
+
+    return [
+        {
+            key: "full",
+            label: "Todo correcto",
+            value: counts.full,
+            color: "var(--chart-2)",
+            count: counts.full,
+            total: reviewedAttempts.length,
+        },
+        {
+            key: "partial",
+            label: "Parcial",
+            value: counts.partial,
+            color: "var(--chart-3)",
+            count: counts.partial,
+            total: reviewedAttempts.length,
+        },
+        {
+            key: "incorrect",
+            label: "Incorrecta",
+            value: counts.incorrect,
+            color: "var(--chart-5)",
+            count: counts.incorrect,
+            total: reviewedAttempts.length,
+        },
+        {
+            key: "blank",
+            label: "En blanco",
+            value: counts.blank,
+            color: "var(--chart-4)",
+            count: counts.blank,
+            total: reviewedAttempts.length,
+        },
+    ].filter((point) => point.value > 0);
+}
+
+function getTopPoint(points: QuizStatsChartPoint[]) {
+    return [...points].sort((left, right) => right.value - left.value)[0];
+}
+
+function buildAverageAccuracyMetric(points: QuizStatsChartPoint[]): QuizStatsSummaryMetric | null {
+    if (points.length === 0) return null;
+    const average = round2(points.reduce((total, point) => total + point.value, 0) / points.length);
+    return {
+        key: "average-accuracy",
+        label: "Precisión media",
+        value: formatPercent(average),
+        tone: average >= 70 ? QUIZ_STATS_METRIC_TONE.SUCCESS : average >= 40 ? QUIZ_STATS_METRIC_TONE.DEFAULT : QUIZ_STATS_METRIC_TONE.WARNING,
+    };
+}
+
+function buildWeakestPointMetric(points: QuizStatsChartPoint[], label: string): QuizStatsSummaryMetric | null {
+    if (points.length === 0) return null;
+    const weakest = [...points].sort((left, right) => left.value - right.value)[0];
+    return {
+        key: "weakest-point",
+        label,
+        value: `${weakest.label} (${formatPercent(weakest.value)})`,
+        tone: QUIZ_STATS_METRIC_TONE.WARNING,
+    };
+}
+
+function buildLikertDistributionData(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]) {
+    const { values } = getLikertRange(question);
+    return values.map((value, index) => {
+        const rawValue = String(value);
+        const count = reviewedAttempts.filter(({ attempt }) => (attempt.short_answers[question.id] ?? "") === rawValue).length;
+        return {
+            key: rawValue,
+            label: `${value} · ${getLikertLabel(question, value)}`,
+            value: count,
+            color: `var(--chart-${(index % 5) + 1})`,
+            count,
+            total: reviewedAttempts.length,
+        };
+    });
+}
+
+function getLikertAnsweredValues(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]) {
+    return reviewedAttempts
+        .map(({ attempt }) => (attempt.short_answers[question.id] ?? "").trim())
+        .filter((value) => value.length > 0)
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value));
+}
+
+function buildLikertSummaryMetrics(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]): QuizStatsSummaryMetric[] {
+    const values = getLikertAnsweredValues(question, reviewedAttempts);
+    const distribution = buildLikertDistributionData(question, reviewedAttempts);
+    const topPoint = getTopPoint(distribution.filter((point) => point.value > 0));
+    const answeredCount = values.length;
+    const blankRate = clampPercentage(reviewedAttempts.length - answeredCount, reviewedAttempts.length);
+    const average = answeredCount > 0 ? round2(values.reduce((total, value) => total + value, 0) / answeredCount) : 0;
+    const metrics: QuizStatsSummaryMetric[] = [
+        {
+            key: "likert-average",
+            label: "Media",
+            value: answeredCount > 0 ? average.toFixed(2) : "Sin datos",
+            tone: QUIZ_STATS_METRIC_TONE.DEFAULT,
+        },
+        {
+            key: "likert-mode",
+            label: "Moda",
+            value: topPoint ? topPoint.label : "Sin datos",
+            tone: QUIZ_STATS_METRIC_TONE.DEFAULT,
+        },
+        {
+            key: "likert-blank-rate",
+            label: "Sin respuesta",
+            value: formatPercent(blankRate),
+            tone: blankRate > 30 ? QUIZ_STATS_METRIC_TONE.WARNING : QUIZ_STATS_METRIC_TONE.MUTED,
+        },
+    ];
+
+    if (question.requireJustification) {
+        const justifiedCount = reviewedAttempts.filter(({ attempt }) => (attempt.short_answers[`${question.id}:justification`] ?? "").trim().length > 0).length;
+        metrics.push({
+            key: "likert-justification-rate",
+            label: "Con justificación",
+            value: formatPercent(clampPercentage(justifiedCount, reviewedAttempts.length)),
+            tone: QUIZ_STATS_METRIC_TONE.DEFAULT,
+        });
+    }
+
+    return metrics;
+}
+
+function buildLikertVisualizations(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]): QuizStatsVisualization[] {
+    const visualizations: QuizStatsVisualization[] = [
+        {
+            key: "likert-distribution",
+            kind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
+            title: "Distribución de respuestas",
+            description: "Muestra cuántos alumnos eligieron cada valor de la escala.",
+            valueLabel: "Alumnos",
+            valueUnit: QUIZ_STATS_VALUE_UNIT.COUNT,
+            data: buildLikertDistributionData(question, reviewedAttempts),
+        },
+    ];
+
+    if (question.requireJustification) {
+        visualizations.push({
+            key: "likert-justification",
+            kind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
+            title: "Justificación entregada",
+            description: "Permite ver si la clase argumentó la valoración elegida.",
+            valueLabel: "Alumnos",
+            valueUnit: QUIZ_STATS_VALUE_UNIT.COUNT,
+            data: [
+                {
+                    key: "with-justification",
+                    label: "Con justificación",
+                    value: reviewedAttempts.filter(({ attempt }) => (attempt.short_answers[`${question.id}:justification`] ?? "").trim().length > 0).length,
+                    color: "var(--chart-2)",
+                    count: reviewedAttempts.filter(({ attempt }) => (attempt.short_answers[`${question.id}:justification`] ?? "").trim().length > 0).length,
+                    total: reviewedAttempts.length,
+                },
+                {
+                    key: "without-justification",
+                    label: "Sin justificación",
+                    value: reviewedAttempts.filter(({ attempt }) => (attempt.short_answers[`${question.id}:justification`] ?? "").trim().length === 0).length,
+                    color: "var(--chart-5)",
+                    count: reviewedAttempts.filter(({ attempt }) => (attempt.short_answers[`${question.id}:justification`] ?? "").trim().length === 0).length,
+                    total: reviewedAttempts.length,
+                },
+            ],
+        });
+    }
+
+    return visualizations;
+}
+
+function getNumericAnsweredValues(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]) {
+    return reviewedAttempts
+        .map(({ attempt }) => (attempt.short_answers[question.id] ?? "").trim())
+        .filter((value) => value.length > 0)
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value >= (question.numericMin ?? 0) && value <= (question.numericMax ?? 10));
+}
+
+function formatNumericRangeLabel(start: number, end: number) {
+    const formatter = (value: number) => Number.isInteger(value) ? String(value) : round2(value).toFixed(2);
+    return `${formatter(start)} - ${formatter(end)}`;
+}
+
+function buildNumericHistogramData(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]) {
+    const values = getNumericAnsweredValues(question, reviewedAttempts);
+    const configuredMin = question.numericMin ?? 0;
+    const configuredMax = question.numericMax ?? 10;
+    const bucketCount = 5;
+    const bucketSize = (configuredMax - configuredMin) / bucketCount || 1;
+    const buckets = Array.from({ length: bucketCount }, (_, index) => {
+        const start = configuredMin + (bucketSize * index);
+        const end = index === bucketCount - 1 ? configuredMax : configuredMin + (bucketSize * (index + 1));
+        return {
+            key: `bucket-${index + 1}`,
+            label: formatNumericRangeLabel(start, end),
+            start,
+            end,
+            count: 0,
+        };
+    });
+
+    for (const value of values) {
+        const bucketIndex = value === configuredMax
+            ? buckets.length - 1
+            : Math.min(Math.floor((value - configuredMin) / bucketSize), buckets.length - 1);
+        if (bucketIndex >= 0 && bucketIndex < buckets.length) {
+            buckets[bucketIndex].count += 1;
+        }
+    }
+
+    return buckets.map((bucket, index) => ({
+        key: bucket.key,
+        label: bucket.label,
+        value: bucket.count,
+        color: `var(--chart-${(index % 5) + 1})`,
+        count: bucket.count,
+        total: reviewedAttempts.length,
+    }));
+}
+
+function buildNumericSummaryMetrics(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]): QuizStatsSummaryMetric[] {
+    const values = getNumericAnsweredValues(question, reviewedAttempts);
+    const blankRate = clampPercentage(reviewedAttempts.length - values.length, reviewedAttempts.length);
+    if (values.length === 0) {
+        return [
+            {
+                key: "numeric-average",
+                label: "Media",
+                value: "Sin datos",
+                tone: QUIZ_STATS_METRIC_TONE.MUTED,
+            },
+            {
+                key: "numeric-range",
+                label: "Rango observado",
+                value: "Sin datos",
+                tone: QUIZ_STATS_METRIC_TONE.MUTED,
+            },
+            {
+                key: "numeric-blank-rate",
+                label: "Sin respuesta",
+                value: formatPercent(blankRate),
+                tone: QUIZ_STATS_METRIC_TONE.WARNING,
+            },
+        ];
+    }
+
+    const average = round2(values.reduce((total, value) => total + value, 0) / values.length);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+
+    return [
+        {
+            key: "numeric-average",
+            label: "Media",
+            value: average.toFixed(2),
+            tone: QUIZ_STATS_METRIC_TONE.DEFAULT,
+        },
+        {
+            key: "numeric-range",
+            label: "Rango observado",
+            value: `${round2(min)} - ${round2(max)}`,
+            tone: QUIZ_STATS_METRIC_TONE.DEFAULT,
+        },
+        {
+            key: "numeric-blank-rate",
+            label: "Sin respuesta",
+            value: formatPercent(blankRate),
+            tone: blankRate > 30 ? QUIZ_STATS_METRIC_TONE.WARNING : QUIZ_STATS_METRIC_TONE.MUTED,
+        },
+    ];
+}
+
+function buildCategorizationCategoryAccuracyData(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]) {
+    return (question.categories ?? []).map((category) => {
+        const total = reviewedAttempts.length * (question.categoryItems ?? []).filter((item) =>
+            getCategoryItemCorrectCategoryIds(item).includes(category.id),
+        ).length;
+        const count = reviewedAttempts.reduce((runningTotal, { studentRow }) => runningTotal + (question.categoryItems ?? []).filter((item) => {
+            if (!getCategoryItemCorrectCategoryIds(item).includes(category.id)) return false;
+            return studentRow.rows.find((row) => row.id === item.id)?.isCorrect === true;
+        }).length, 0);
+
+        return {
+            key: category.id,
+            label: category.label,
+            value: clampPercentage(count, total),
+            color: "var(--chart-1)",
+            count,
+            total,
+        };
+    });
+}
+
+function buildQuestionSummaryMetrics(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[], fullCorrectRate: number | null): QuizStatsSummaryMetric[] {
+    const questionType = getQuestionType(question);
+    const answeredCount = getAnsweredCount(question, reviewedAttempts);
+    const blankRate = clampPercentage(reviewedAttempts.length - answeredCount, reviewedAttempts.length);
+
+    if (questionType === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE || questionType === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
+        const optionData = getClassicOptionSelectionData(question, reviewedAttempts);
+        const mostChosen = getTopPoint(optionData.filter((point) => point.value > 0));
+        const distractor = getTopPoint(optionData.filter((point) => !point.correct && point.value > 0));
+        return [
+            {
+                key: "most-chosen",
+                label: "Respuesta más elegida",
+                value: mostChosen ? `${mostChosen.label} (${formatPercent(clampPercentage(mostChosen.value, reviewedAttempts.length))})` : "Sin datos",
+                tone: mostChosen?.correct ? QUIZ_STATS_METRIC_TONE.SUCCESS : QUIZ_STATS_METRIC_TONE.WARNING,
+            },
+            {
+                key: "top-distractor",
+                label: "Distractor líder",
+                value: distractor ? `${distractor.label} (${formatPercent(clampPercentage(distractor.value, reviewedAttempts.length))})` : "Sin distractor claro",
+                tone: distractor ? QUIZ_STATS_METRIC_TONE.WARNING : QUIZ_STATS_METRIC_TONE.MUTED,
+            },
+            {
+                key: "blank-rate",
+                label: "En blanco",
+                value: formatPercent(blankRate),
+                tone: blankRate > 30 ? QUIZ_STATS_METRIC_TONE.WARNING : QUIZ_STATS_METRIC_TONE.MUTED,
+            },
+        ];
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.SHORT_ANSWER) {
+        const filledValues = reviewedAttempts
+            .map(({ review }) => review.rows[0]?.value ?? "")
+            .filter((value) => value !== "Sin respuesta");
+        const averageLength = filledValues.length > 0
+            ? Math.round(filledValues.reduce((total, value) => total + value.length, 0) / filledValues.length)
+            : 0;
+        return [
+            {
+                key: "answered-rate",
+                label: "Participación",
+                value: formatPercent(clampPercentage(answeredCount, reviewedAttempts.length)),
+                tone: QUIZ_STATS_METRIC_TONE.DEFAULT,
+            },
+            {
+                key: "unique-answers",
+                label: "Respuestas únicas",
+                value: String(new Set(filledValues).size),
+                tone: QUIZ_STATS_METRIC_TONE.DEFAULT,
+            },
+            {
+                key: "average-length",
+                label: "Longitud media",
+                value: filledValues.length > 0 ? `${averageLength} car.` : "Sin datos",
+                tone: QUIZ_STATS_METRIC_TONE.MUTED,
+            },
+        ];
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.LIKERT) {
+        return buildLikertSummaryMetrics(question, reviewedAttempts);
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.NUMERIC) {
+        return buildNumericSummaryMetrics(question, reviewedAttempts);
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP) {
+        const points = buildCategorizationCategoryAccuracyData(question, reviewedAttempts);
+        return [
+            buildAverageAccuracyMetric(points),
+            buildWeakestPointMetric(points, "Categoría más conflictiva"),
+            {
+                key: "full-correct-rate",
+                label: "Respuestas completas",
+                value: fullCorrectRate !== null ? formatPercent(fullCorrectRate) : "n/d",
+                tone: fullCorrectRate !== null && fullCorrectRate >= 70 ? QUIZ_STATS_METRIC_TONE.SUCCESS : QUIZ_STATS_METRIC_TONE.DEFAULT,
+            },
+        ].filter((metric): metric is QuizStatsSummaryMetric => metric !== null);
+    }
+
+    const referenceRows = reviewedAttempts[0]?.studentRow.rows ?? [];
+    const points = getRowAccuracyData(referenceRows, reviewedAttempts);
+    return [
+        buildAverageAccuracyMetric(points),
+        buildWeakestPointMetric(points, "Elemento más fallado"),
+        {
+            key: "blank-rate",
+            label: "En blanco",
+            value: formatPercent(blankRate),
+            tone: blankRate > 30 ? QUIZ_STATS_METRIC_TONE.WARNING : QUIZ_STATS_METRIC_TONE.MUTED,
+        },
+    ].filter((metric): metric is QuizStatsSummaryMetric => metric !== null);
+}
+
+function buildQuestionVisualizations(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]): QuizStatsVisualization[] {
+    const questionType = getQuestionType(question);
+    const isSingleSelect = getCorrectOptionIds(question).length <= 1;
+
+    if (questionType === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE || questionType === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
+        const optionData = getClassicOptionSelectionData(question, reviewedAttempts);
+        if (isSingleSelect) {
+            const blankCount = reviewedAttempts.length - getAnsweredCount(question, reviewedAttempts);
+            const donutData = blankCount > 0
+                ? [...optionData, {
+                    key: "blank",
+                    label: "En blanco",
+                    value: blankCount,
+                    color: "var(--chart-4)",
+                    count: blankCount,
+                    total: reviewedAttempts.length,
+                }]
+                : optionData;
+            return [
+                {
+                    key: "classic-distribution",
+                    kind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
+                    title: "Reparto de respuestas",
+                    description: "Ideal para comentar qué opción concentró a la clase.",
+                    valueLabel: "Alumnos",
+                    valueUnit: QUIZ_STATS_VALUE_UNIT.COUNT,
+                    data: donutData,
+                },
+            ];
+        }
+
+        return [
+            {
+                key: "classic-option-selection",
+                kind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
+                title: "Selección por opción",
+                description: "Cada barra indica cuántos alumnos marcaron esa opción.",
+                valueLabel: "Alumnos",
+                valueUnit: QUIZ_STATS_VALUE_UNIT.COUNT,
+                data: optionData,
+            },
+            {
+                key: "classic-outcomes",
+                kind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
+                title: "Resultado global",
+                description: "Separa respuestas totalmente correctas, parciales, incorrectas y en blanco.",
+                valueLabel: "Alumnos",
+                valueUnit: QUIZ_STATS_VALUE_UNIT.COUNT,
+                data: getClassicResponseStateData(question, reviewedAttempts),
+            },
+        ];
     }
 
     if (questionType === QUIZ_QUESTION_TYPE.SHORT_ANSWER) {
         return [
             {
-                key: "answered",
-                label: "Respondidas",
-                value: studentRows.filter((studentRow) => studentRow.rows[0]?.value !== "Sin respuesta").length,
-            },
-            {
-                key: "empty",
-                label: "Sin respuesta",
-                value: studentRows.filter((studentRow) => studentRow.rows[0]?.value === "Sin respuesta").length,
+                key: "short-answer-presence",
+                kind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
+                title: "Participación",
+                description: "Cuántos alumnos contestaron frente a cuántos dejaron la pregunta en blanco.",
+                valueLabel: "Alumnos",
+                valueUnit: QUIZ_STATS_VALUE_UNIT.COUNT,
+                data: buildPresenceData(question, reviewedAttempts),
             },
         ];
     }
 
-    if (questionType === QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP) {
-        return (question.categories ?? []).map((category) => ({
-            key: category.id,
-            label: category.label,
-            value: studentRows.reduce((total, studentRow) => total + (question.categoryItems ?? []).filter((item) => {
-                if (!getCategoryItemCorrectCategoryIds(item).includes(category.id)) return false;
-                return studentRow.rows.find((row) => row.id === item.id)?.isCorrect === true;
-            }).length, 0),
-        }));
+    if (questionType === QUIZ_QUESTION_TYPE.LIKERT) {
+        return buildLikertVisualizations(question, reviewedAttempts);
     }
 
-    return studentRows[0]?.rows.map((row) => ({
-        key: row.id,
-        label: row.label,
-        value: studentRows.filter((studentRow) => studentRow.rows.find((candidate) => candidate.id === row.id)?.isCorrect === true).length,
-    })) ?? [];
+    if (questionType === QUIZ_QUESTION_TYPE.NUMERIC) {
+        return [
+            {
+                key: "numeric-histogram",
+                kind: QUIZ_STATS_VISUALIZATION_KIND.HISTOGRAM,
+                title: "Distribución por rangos",
+                description: "Agrupa las respuestas numéricas para ver dónde se concentra la clase.",
+                valueLabel: "Alumnos",
+                valueUnit: QUIZ_STATS_VALUE_UNIT.COUNT,
+                data: buildNumericHistogramData(question, reviewedAttempts),
+            },
+            {
+                key: "numeric-presence",
+                kind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
+                title: "Participación",
+                description: "Distingue respuestas válidas de preguntas sin responder.",
+                valueLabel: "Alumnos",
+                valueUnit: QUIZ_STATS_VALUE_UNIT.COUNT,
+                data: buildPresenceData(question, reviewedAttempts),
+            },
+        ];
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN) {
+        return [
+            {
+                key: "fill-blank-accuracy",
+                kind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
+                title: "Acierto por hueco",
+                description: "Permite detectar qué hueco concentró más errores.",
+                valueLabel: "Precisión",
+                valueUnit: QUIZ_STATS_VALUE_UNIT.PERCENT,
+                data: getRowAccuracyData((reviewedAttempts[0]?.studentRow.rows ?? []), reviewedAttempts),
+            },
+        ];
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP) {
+        return [
+            {
+                key: "table-cell-accuracy",
+                kind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
+                title: "Acierto por celda",
+                description: "Cada barra resume el porcentaje de alumnos que acertó esa celda.",
+                valueLabel: "Precisión",
+                valueUnit: QUIZ_STATS_VALUE_UNIT.PERCENT,
+                data: getRowAccuracyData((reviewedAttempts[0]?.studentRow.rows ?? []), reviewedAttempts),
+            },
+        ];
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.MATCHING_PAIRS) {
+        return [
+            {
+                key: "matching-prompt-accuracy",
+                kind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
+                title: "Acierto por prompt",
+                description: "Ayuda a localizar qué emparejamientos generaron más confusión.",
+                valueLabel: "Precisión",
+                valueUnit: QUIZ_STATS_VALUE_UNIT.PERCENT,
+                data: getRowAccuracyData((reviewedAttempts[0]?.studentRow.rows ?? []), reviewedAttempts),
+            },
+        ];
+    }
+
+    if (questionType === QUIZ_QUESTION_TYPE.ORDERING_SEQUENCE) {
+        return [
+            {
+                key: "ordering-position-accuracy",
+                kind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
+                title: "Acierto por posición",
+                description: "Sirve para detectar en qué paso se rompe más la secuencia.",
+                valueLabel: "Precisión",
+                valueUnit: QUIZ_STATS_VALUE_UNIT.PERCENT,
+                data: getRowAccuracyData((reviewedAttempts[0]?.studentRow.rows ?? []), reviewedAttempts),
+            },
+        ];
+    }
+
+    return [
+        {
+            key: "categorization-category-accuracy",
+            kind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
+            title: "Precisión por categoría",
+            description: "Compara qué categorías entiende mejor la clase y cuáles generan más ruido.",
+            valueLabel: "Precisión",
+            valueUnit: QUIZ_STATS_VALUE_UNIT.PERCENT,
+            data: buildCategorizationCategoryAccuracyData(question, reviewedAttempts),
+        },
+    ];
 }
 
 export function buildQuestionStatsSnapshot(
@@ -1167,27 +1861,44 @@ export function buildQuestionStatsSnapshot(
     attempts: QuizStatsTeacherAttempt[],
     penalizeWrongAnswers: boolean,
 ): QuizQuestionStatsSnapshot {
-    const studentRows = attempts.map((attempt) => {
+    const reviewedAttempts = attempts.map((attempt) => {
         const review = buildQuestionReview(question, attempt, penalizeWrongAnswers);
-        return {
+        const studentRow = {
             studentId: attempt.student_id,
             studentName: attempt.student_name ?? "Alumno sin nombre",
             answerLabel: buildAnswerLabel(review),
             isFullyCorrect: countFullyCorrect(review),
             rows: review.rows,
         };
+        return {
+            attempt,
+            review,
+            studentRow,
+        };
     });
 
-    const fullCorrectCount = studentRows.filter((studentRow) => studentRow.isFullyCorrect === true).length;
+    const mode = getStatsQuestionMode(getQuestionType(question));
+    const studentRows = reviewedAttempts.map((entry) => entry.studentRow);
+    const fullCorrectCount = mode === QUIZ_STATS_MODE.GRADED
+        ? studentRows.filter((studentRow) => studentRow.isFullyCorrect === true).length
+        : null;
+    const fullCorrectRate = mode === QUIZ_STATS_MODE.GRADED
+        ? (attempts.length > 0 && fullCorrectCount !== null ? round2((fullCorrectCount / attempts.length) * 100) : 0)
+        : null;
+    const visualizations = buildQuestionVisualizations(question, reviewedAttempts);
+    const chartData = visualizations[0]?.data ?? [];
 
     return {
         questionId: question.id,
         questionText: question.text,
         questionType: getQuestionType(question),
+        mode,
         participants: attempts.length,
         fullCorrectCount,
-        fullCorrectRate: attempts.length > 0 ? round2((fullCorrectCount / attempts.length) * 100) : 0,
-        chartData: buildChartData(question, studentRows),
+        fullCorrectRate,
+        chartData,
+        summaryMetrics: buildQuestionSummaryMetrics(question, reviewedAttempts, fullCorrectRate),
+        visualizations,
         studentRows,
     };
 }
