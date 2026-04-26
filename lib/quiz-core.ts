@@ -469,6 +469,7 @@ export function convertQuestionToType(question: QuizQuestion, type: QuizQuestion
         tableItems: undefined,
         tableCells: undefined,
         tableRowHeaderLabel: undefined,
+        tableAllowItemReuse: undefined,
         matchingPrompts: undefined,
         matchingOptions: undefined,
         orderingItems: undefined,
@@ -535,6 +536,7 @@ export function convertQuestionToType(question: QuizQuestion, type: QuizQuestion
             tableRows,
             tableItems,
             tableCells: createDefaultTableCells(tableRows, tableColumns, tableItems),
+            tableAllowItemReuse: true,
         };
     }
 
@@ -590,6 +592,31 @@ function getOptionLabel(options: QuizOption[] | QuizMatchingOption[], optionId?:
 function getTableItemLabel(items: QuizTableItem[], itemId?: string) {
     if (!itemId) return "Sin respuesta";
     return items.find((item) => item.id === itemId)?.text ?? "Sin respuesta";
+}
+
+export function doesTableDragAllowItemReuse(question: QuizQuestion) {
+    return question.tableAllowItemReuse ?? true;
+}
+
+export function getTableDragDuplicateCorrectItemIds(question: QuizQuestion) {
+    const counts = new Map<string, number>();
+
+    for (const cell of question.tableCells ?? []) {
+        if (!cell.correctItemId) continue;
+        counts.set(cell.correctItemId, (counts.get(cell.correctItemId) ?? 0) + 1);
+    }
+
+    return [...counts.entries()]
+        .filter(([, count]) => count > 1)
+        .map(([itemId]) => itemId);
+}
+
+export function getTableDragUsedItemIds(structuredAnswer?: QuizStructuredQuestionAnswer) {
+    if (structuredAnswer?.kind !== QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP) return [];
+
+    return [...new Set(
+        Object.values(structuredAnswer.placements).filter((itemId): itemId is string => !!itemId),
+    )];
 }
 
 function getCategoryLabel(categories: QuizCategory[], categoryId?: string) {

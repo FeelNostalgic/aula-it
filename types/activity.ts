@@ -234,6 +234,7 @@ export type QuizQuestion = {
     tableRows?: QuizTableRow[];
     tableItems?: QuizTableItem[];
     tableCells?: QuizTableCell[];
+    tableAllowItemReuse?: boolean;
     matchingPrompts?: QuizMatchingPrompt[];
     matchingOptions?: QuizMatchingOption[];
     orderingItems?: QuizOrderingItem[];

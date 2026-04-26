@@ -32,7 +32,14 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { getLikertLabel, getLikertRange, getQuestionType, QUIZ_QUESTION_TYPE } from "@/lib/quiz-core";
+import {
+    doesTableDragAllowItemReuse,
+    getLikertLabel,
+    getLikertRange,
+    getQuestionType,
+    getTableDragUsedItemIds,
+    QUIZ_QUESTION_TYPE,
+} from "@/lib/quiz-core";
 import type { QuizOrderingItem, QuizQuestion, QuizStructuredAnswers, QuizStructuredQuestionAnswer } from "@/types/activity";
 import { CheckCircle2, Circle, GripVertical, X } from "lucide-react";
 
@@ -55,6 +62,8 @@ type ActiveStructuredDrag = {
     itemId: string;
     label: string;
 };
+
+const QUESTION_CONTENT_OFFSET_CLASS = "pl-0 sm:pl-6 lg:pl-8";
 
 function getFillBlankAnswer(questionId: string, structuredAnswers: QuizStructuredAnswers): FillBlankAnswer {
     const answer = structuredAnswers[questionId];
@@ -263,7 +272,7 @@ function FillInTheBlankAnswer({
     const currentAnswer = getFillBlankAnswer(question.id, structuredAnswers);
 
     return (
-        <div className="space-y-3 pl-12">
+        <div className={cn("space-y-3", QUESTION_CONTENT_OFFSET_CLASS)}>
             <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/40 bg-background/50 p-4 leading-relaxed">
                 {(question.promptSegments ?? []).map((segment) => {
                     if (segment.kind === "text") {
@@ -313,6 +322,11 @@ function TableDragDropAnswer({
     const rows = question.tableRows ?? [];
     const columns = question.tableColumns ?? [];
     const tableItems = question.tableItems ?? [];
+    const allowItemReuse = doesTableDragAllowItemReuse(question);
+    const usedItemIds = new Set(getTableDragUsedItemIds(currentAnswer));
+    const visibleTableItems = allowItemReuse
+        ? tableItems
+        : tableItems.filter((item) => !usedItemIds.has(item.id));
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -339,7 +353,7 @@ function TableDragDropAnswer({
 
     if (rows.length === 0 || columns.length === 0) {
         return (
-            <div className="pl-12">
+            <div className={QUESTION_CONTENT_OFFSET_CLASS}>
                 <div className="rounded-xl border border-dashed border-border/40 px-4 py-5 text-sm text-text-muted">
                     Esta tabla todavía no está configurada.
                 </div>
@@ -366,7 +380,7 @@ function TableDragDropAnswer({
     };
 
     return (
-        <div className="pl-12">
+        <div className={QUESTION_CONTENT_OFFSET_CLASS}>
             <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -374,11 +388,11 @@ function TableDragDropAnswer({
                 onDragEnd={handleDragEnd}
                 onDragCancel={() => setActiveDrag(null)}
             >
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,300px)] lg:items-start">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(220px,260px)] lg:items-start lg:gap-5">
                     <div className="overflow-x-auto">
                         <div
-                            className="grid min-w-[760px] gap-px rounded-2xl border border-border/30 bg-border/30"
-                            style={{ gridTemplateColumns: `minmax(180px, 1.1fr) repeat(${columns.length}, minmax(220px, 1fr))` }}
+                            className="grid min-w-[820px] gap-px rounded-2xl border border-border/30 bg-border/30"
+                            style={{ gridTemplateColumns: `minmax(170px, 1fr) repeat(${columns.length}, minmax(240px, 1fr))` }}
                         >
                             <div className="bg-surface px-4 py-3 text-xs font-bold uppercase tracking-widest text-text-muted">
                                 {rowHeaderLabel || "Columna fija"}
@@ -444,10 +458,10 @@ function TableDragDropAnswer({
                     </div>
 
                     <div className="lg:sticky lg:top-4 lg:self-start">
-                        <div className="space-y-2 rounded-xl border border-dashed border-accent-blue/20 bg-accent-blue/5 p-3">
+                        <div className="space-y-2 rounded-xl border border-dashed border-accent-blue/20 bg-accent-blue/5 p-3.5">
                             <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Opciones arrastrables</p>
-                            <div className="flex max-h-80 flex-wrap gap-2 overflow-y-auto pr-1">
-                                {tableItems.map((item) => (
+                            <div className="flex min-h-[18rem] max-h-[30rem] flex-wrap content-start gap-2 overflow-y-auto pr-1">
+                                {visibleTableItems.map((item) => (
                                     <DraggableAnswerChip
                                         key={item.id}
                                         dragId={`table-item:${item.id}`}
@@ -458,9 +472,18 @@ function TableDragDropAnswer({
                                 {tableItems.length === 0 && (
                                     <span className="text-xs text-text-muted">No hay opciones configuradas.</span>
                                 )}
+                                {tableItems.length > 0 && visibleTableItems.length === 0 && (
+                                    <span className="text-xs text-text-muted">
+                                        {allowItemReuse
+                                            ? "No hay opciones disponibles."
+                                            : "Ya has colocado todas las opciones disponibles. Quita una de la tabla para volver a usarla."}
+                                    </span>
+                                )}
                             </div>
                             <p className="text-xs text-text-muted">
-                                Las opciones se pueden reutilizar varias veces si la respuesta correcta se repite.
+                                {allowItemReuse
+                                    ? "La misma opción puede reutilizarse en varias celdas."
+                                    : "Cada opción solo puede usarse una vez. Al quitarla de una celda, vuelve a aparecer aquí."}
                             </p>
                         </div>
                     </div>
@@ -525,7 +548,7 @@ function MatchingPairsAnswer({
     };
 
     return (
-        <div className="pl-12">
+        <div className={QUESTION_CONTENT_OFFSET_CLASS}>
             <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -647,7 +670,7 @@ function OrderingSequenceAnswer({
     };
 
     return (
-        <div className="pl-12">
+        <div className={QUESTION_CONTENT_OFFSET_CLASS}>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={normalizedOrderedItemIds} strategy={verticalListSortingStrategy}>
                     <div className="space-y-2">
@@ -671,7 +694,7 @@ function CategorizationAnswer({
     const unassignedItems = (question.categoryItems ?? []).filter((item) => !currentAnswer.assignments[item.id]);
 
     return (
-        <div className="space-y-4 pl-12">
+        <div className={cn("space-y-4", QUESTION_CONTENT_OFFSET_CLASS)}>
             <div className="flex flex-wrap gap-2 rounded-xl border border-dashed border-accent-blue/20 bg-accent-blue/5 p-3">
                 {unassignedItems.map((item) => (
                     <DraggableAnswerChip
@@ -762,7 +785,7 @@ function LikertAnswer({
     const columnsClass = values.length <= 5 ? "grid-cols-5" : values.length <= 7 ? "grid-cols-7" : "grid-cols-4 sm:grid-cols-6 lg:grid-cols-8";
 
     return (
-        <div className="space-y-3 pl-12">
+        <div className={cn("space-y-3", QUESTION_CONTENT_OFFSET_CLASS)}>
             <div className={cn("grid gap-2", columnsClass)}>
                 {values.map((value) => {
                     const rawValue = String(value);
@@ -808,7 +831,7 @@ function NumericAnswer({
     onShortAnswerChange,
 }: Pick<QuizQuestionAnswerFieldProps, "question" | "shortAnswers" | "onShortAnswerChange">) {
     return (
-        <div className="pl-12 flex items-center gap-3">
+        <div className={cn("flex items-center gap-3", QUESTION_CONTENT_OFFSET_CLASS)}>
             <input
                 type="number"
                 min={question.numericMin ?? 0}
@@ -833,7 +856,7 @@ export function QuizQuestionAnswerField(props: QuizQuestionAnswerFieldProps) {
 
     if (questionType === QUIZ_QUESTION_TYPE.SHORT_ANSWER) {
         return (
-            <div className="pl-12">
+            <div className={QUESTION_CONTENT_OFFSET_CLASS}>
                 <Textarea
                     value={props.shortAnswers[props.question.id] ?? ""}
                     onChange={(event) => props.onShortAnswerChange(props.question.id, event.target.value)}
@@ -855,7 +878,7 @@ export function QuizQuestionAnswerField(props: QuizQuestionAnswerFieldProps) {
 
     if (questionType === QUIZ_QUESTION_TYPE.MULTIPLE_CHOICE || questionType === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
         return (
-            <div className="space-y-3 pl-12">
+            <div className={cn("space-y-3", QUESTION_CONTENT_OFFSET_CLASS)}>
                 {!isSingleSelect && (
                     <p className="-mt-3 text-xs text-text-muted">Selecciona todas las correctas</p>
                 )}

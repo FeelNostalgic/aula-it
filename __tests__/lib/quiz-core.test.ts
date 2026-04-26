@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { QUIZ_QUESTION_TYPE, shuffleQuestionResponses, supportsResponseRandomization } from "@/lib/quiz-core";
+import {
+    doesTableDragAllowItemReuse,
+    getTableDragDuplicateCorrectItemIds,
+    getTableDragUsedItemIds,
+    QUIZ_QUESTION_TYPE,
+    shuffleQuestionResponses,
+    supportsResponseRandomization,
+} from "@/lib/quiz-core";
 import type { QuizQuestion, QuizQuestionType } from "@/types/activity";
 
 function createQuestion(type: QuizQuestionType, overrides: Partial<QuizQuestion> = {}): QuizQuestion {
@@ -32,6 +39,40 @@ describe("supportsResponseRandomization", () => {
 
         expect(supportedTypes.every((type) => supportsResponseRandomization(type))).toBe(true);
         expect(unsupportedTypes.every((type) => !supportsResponseRandomization(type))).toBe(true);
+    });
+});
+
+describe("table drag/drop helpers", () => {
+    it("treats item reuse as enabled by default for backwards compatibility", () => {
+        const question = createQuestion(QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP);
+
+        expect(doesTableDragAllowItemReuse(question)).toBe(true);
+        expect(doesTableDragAllowItemReuse({ ...question, tableAllowItemReuse: true })).toBe(true);
+        expect(doesTableDragAllowItemReuse({ ...question, tableAllowItemReuse: false })).toBe(false);
+    });
+
+    it("detects repeated correct items across cells", () => {
+        const question = createQuestion(QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP, {
+            tableCells: [
+                { id: "cell-1", rowId: "row-1", columnId: "col-1", correctItemId: "item-a" },
+                { id: "cell-2", rowId: "row-2", columnId: "col-1", correctItemId: "item-a" },
+                { id: "cell-3", rowId: "row-3", columnId: "col-1", correctItemId: "item-b" },
+            ],
+        });
+
+        expect(getTableDragDuplicateCorrectItemIds(question)).toEqual(["item-a"]);
+    });
+
+    it("returns unique used item ids from student placements", () => {
+        expect(getTableDragUsedItemIds()).toEqual([]);
+        expect(getTableDragUsedItemIds({
+            kind: QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP,
+            placements: {
+                "cell-1": "item-a",
+                "cell-2": "item-b",
+                "cell-3": "item-a",
+            },
+        })).toEqual(["item-a", "item-b"]);
     });
 });
 

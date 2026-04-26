@@ -5,6 +5,7 @@ import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
     Select,
@@ -14,7 +15,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { getQuestionType, QUIZ_QUESTION_TYPE } from "@/lib/quiz-core";
+import { doesTableDragAllowItemReuse, getQuestionType, getTableDragDuplicateCorrectItemIds, QUIZ_QUESTION_TYPE } from "@/lib/quiz-core";
 import type {
     QuizCategory,
     QuizCategoryItem,
@@ -318,6 +319,7 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
     const rows = question.tableRows ?? [createRow("Elemento 1"), createRow("Elemento 2")];
     const items = question.tableItems ?? [createTableItem("Elemento A"), createTableItem("Elemento B"), createTableItem("Elemento C"), createTableItem("Elemento D")];
     const rowHeaderLabel = question.tableRowHeaderLabel ?? "Concepto";
+    const allowItemReuse = doesTableDragAllowItemReuse(question);
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -336,9 +338,20 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
             tableRows: rows,
             tableItems: items,
             tableCells: cells,
+            tableAllowItemReuse: allowItemReuse,
             ...updates,
         });
     };
+
+    const duplicateCorrectItemIds = getTableDragDuplicateCorrectItemIds({
+        ...question,
+        tableColumns: columns,
+        tableRows: rows,
+        tableItems: items,
+        tableCells: cells,
+    });
+    const duplicateCorrectItemLabels = duplicateCorrectItemIds
+        .map((itemId) => items.find((item) => item.id === itemId)?.text?.trim() || "Opción sin texto");
 
     return (
         <div className="pl-14 space-y-4">
@@ -353,6 +366,35 @@ function TableDragFields({ question, onUpdate }: StructuredQuestionFieldsProps) 
                 <p className="text-xs text-text-muted">
                     Esta cabecera se muestra a la izquierda. Cada fila define el valor fijo de esa columna.
                 </p>
+            </div>
+
+            <div className="rounded-xl border border-border/30 bg-surface/30 p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                    <Checkbox
+                        id={`table-allow-item-reuse-${question.id}`}
+                        checked={allowItemReuse}
+                        onCheckedChange={(checked) => patchQuestion({ tableAllowItemReuse: checked === true })}
+                        disabled={allowItemReuse && duplicateCorrectItemLabels.length > 0}
+                    />
+                    <div className="space-y-1">
+                        <label
+                            htmlFor={`table-allow-item-reuse-${question.id}`}
+                            className="text-sm font-semibold text-foreground"
+                        >
+                            Permitir reutilizar opciones arrastrables
+                        </label>
+                        <p className="text-xs text-text-muted">
+                            Si está activo, la misma opción puede colocarse en varias celdas. Si lo desactivas, cada opción solo podrá usarse una vez.
+                        </p>
+                    </div>
+                </div>
+                {duplicateCorrectItemLabels.length > 0 && (
+                    <div className="rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs text-amber-200">
+                        {allowItemReuse
+                            ? `No puedes desactivar la reutilización mientras haya respuestas correctas repetidas en varias celdas: ${duplicateCorrectItemLabels.join(", ")}.`
+                            : `Esta pregunta tiene respuestas correctas repetidas en varias celdas: ${duplicateCorrectItemLabels.join(", ")}. Así no es resoluble si cada opción solo puede usarse una vez.`}
+                    </div>
+                )}
             </div>
 
             <div className="grid gap-4 lg:grid-cols-3">

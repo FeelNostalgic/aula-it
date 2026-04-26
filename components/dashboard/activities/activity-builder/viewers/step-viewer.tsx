@@ -392,7 +392,7 @@ function BuiltinQuizViewer({
     isClosed?: boolean;
     isLockdown?: boolean;
 }) {
-    const quizContentShellClassName = "w-full max-w-7xl mx-auto px-3 py-4 sm:px-4 lg:px-6";
+    const quizContentShellClassName = "mx-auto w-full max-w-[92vw] px-2 py-4 sm:px-3 lg:px-4 2xl:max-w-[1500px]";
     const [phase, setPhase] = useState<'answering' | 'result' | 'list'>('answering');
     const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string[]>>({});
     const [shortAnswers, setShortAnswers] = useState<Record<string, string>>({});
@@ -939,7 +939,7 @@ function BuiltinQuizViewer({
                     const displayNumber = questionNumberById.get(q.id) ?? 1;
 
                     return (
-                        <div key={q.id} className="p-8 bg-surface border border-white/5 rounded-2xl space-y-6 shadow-xl">
+                        <div key={q.id} className="rounded-2xl border border-white/5 bg-surface px-4 py-5 shadow-xl space-y-5 sm:px-5 sm:py-6 lg:px-6 lg:py-7">
                             <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-start gap-4 flex-1">
                                     <span className="size-8 rounded-lg bg-accent-blue/10 text-accent-blue flex items-center justify-center text-sm font-bold shrink-0">
