@@ -9,6 +9,10 @@ export const NETWORK_DEVICE_STYLE = {
     labelOffsetY: 54,
     pulseRadius: 50,
   },
+  server: {
+    radius: 38,
+    labelOffsetY: 56,
+  },
   switch: {
     radius: 38,
     labelOffsetY: 56,
@@ -36,6 +40,22 @@ export function SwitchGlyph({ stroke, strokeWidth = 1.5 }: NetworkDeviceGlyphPro
       <circle cx="-8" cy="0" r="2.3" fill={stroke} />
       <circle cx="0" cy="0" r="2.3" fill={stroke} />
       <circle cx="8" cy="0" r="2.3" fill={stroke} />
+    </>
+  )
+}
+
+export function ServerGlyph({ stroke, strokeWidth = 1.5 }: NetworkDeviceGlyphProps) {
+  return (
+    <>
+      <rect x="-18" y="-16" width="36" height="12" rx="3" fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+      <rect x="-18" y="4" width="36" height="12" rx="3" fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+      <circle cx="-10" cy="-10" r="1.8" fill={stroke} />
+      <circle cx="-4" cy="-10" r="1.8" fill={stroke} />
+      <circle cx="-10" cy="10" r="1.8" fill={stroke} />
+      <circle cx="-4" cy="10" r="1.8" fill={stroke} />
+      <line x1="4" y1="-10" x2="12" y2="-10" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" />
+      <line x1="4" y1="10" x2="12" y2="10" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" />
+      <line x1="0" y1="-4" x2="0" y2="4" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" />
     </>
   )
 }

@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   animationRegistry,
   arpSteps,
+  dhcpSteps,
+  dnsSteps,
   ethernetSteps,
+  ftpSteps,
+  httpHttpsSteps,
   icmpSteps,
   ipBasicSteps,
   ipEncapsulationSteps,
@@ -10,6 +14,9 @@ import {
   ipRouteSteps,
   osiTcpIpSteps,
   pppSteps,
+  pop3Steps,
+  smtpSteps,
+  sshSteps,
   tcpSteps,
   tcpVsUdpSteps,
   udpSteps,
@@ -93,6 +100,13 @@ describe("animationRegistry", () => {
             "tcp",
             "udp",
             "tcp-vs-udp",
+            "ftp",
+            "http-https",
+            "smtp",
+            "pop3",
+            "ssh",
+            "dns",
+            "dhcp",
         ];
 
         for (const slug of expectedSlugs) {
@@ -320,5 +334,59 @@ describe("tcpVsUdpSteps", () => {
             "step-5",
             "step-6",
         ]);
+    });
+});
+
+describe("ftpSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(ftpSteps.map((step) => step.id)).toEqual(["step-1", "step-2", "step-3", "step-4", "step-5"]);
+    });
+});
+
+describe("httpHttpsSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(httpHttpsSteps.map((step) => step.id)).toEqual(["step-1", "step-2", "step-3", "step-4", "step-5"]);
+    });
+});
+
+describe("smtpSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(smtpSteps.map((step) => step.id)).toEqual(["step-1", "step-2", "step-3", "step-4", "step-5"]);
+    });
+});
+
+describe("pop3Steps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(pop3Steps.map((step) => step.id)).toEqual(["step-1", "step-2", "step-3", "step-4", "step-5"]);
+    });
+});
+
+describe("sshSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(sshSteps.map((step) => step.id)).toEqual(["step-1", "step-2", "step-3", "step-4", "step-5"]);
+    });
+});
+
+describe("dnsSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(dnsSteps.map((step) => step.id)).toEqual(["step-1", "step-2", "step-3", "step-4", "step-5"]);
+    });
+});
+
+describe("dhcpSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(dhcpSteps.map((step) => step.id)).toEqual(["step-1", "step-2", "step-3", "step-4", "step-5"]);
+    });
+});
+
+describe("new application protocol steps", () => {
+    it("have non-empty labels and descriptions", () => {
+        const groups = [ftpSteps, httpHttpsSteps, smtpSteps, pop3Steps, sshSteps, dnsSteps, dhcpSteps];
+        for (const group of groups) {
+            for (const step of group) {
+                expect(step.label.trim().length).toBeGreaterThan(0);
+                expect(step.description.trim().length).toBeGreaterThan(0);
+            }
+        }
     });
 });

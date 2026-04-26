@@ -5,7 +5,7 @@ import gsap from "gsap"
 import { AnimatePresence } from "framer-motion"
 import { useTheme } from "next-themes"
 import { useAnimationContext } from "./animation-player"
-import { NETWORK_DEVICE_STYLE, PcGlyph, RouterGlyph } from "./network-device-icons"
+import { NETWORK_DEVICE_STYLE, PcGlyph, RouterGlyph, ServerGlyph } from "./network-device-icons"
 import { CloudGlyph, PacketPill } from "./network-visual-primitives"
 import { NodeInfoCard, type NodeInfo } from "./node-info-card"
 import { useNodeTooltip } from "./use-node-tooltip"
@@ -24,7 +24,7 @@ const TOOLTIP_ANCHORS = {
   src: { x: N.src.x + NETWORK_DEVICE_STYLE.pc.radius, y: N.src.y + NETWORK_DEVICE_STYLE.pc.radius },
   gw: { x: N.gw.x + NETWORK_DEVICE_STYLE.router.radius, y: N.gw.y + NETWORK_DEVICE_STYLE.router.radius },
   edge: { x: N.edge.x + NETWORK_DEVICE_STYLE.router.radius, y: N.edge.y + NETWORK_DEVICE_STYLE.router.radius },
-  dst: { x: N.dst.x + NETWORK_DEVICE_STYLE.pc.radius, y: N.dst.y + NETWORK_DEVICE_STYLE.pc.radius },
+  dst: { x: N.dst.x + NETWORK_DEVICE_STYLE.server.radius, y: N.dst.y + NETWORK_DEVICE_STYLE.server.radius },
 } as const
 
 const NODE_INFO: Record<string, NodeInfo> = {
@@ -243,9 +243,9 @@ export function IpRouteAnimation() {
         </g>
 
         <g id="node-dst" onMouseEnter={() => handleNodeEnter("dst")} onMouseLeave={scheduleHide} className="cursor-default">
-          <circle className="node-circle" r={NETWORK_DEVICE_STYLE.pc.radius} fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
-          <PcGlyph stroke={C.fg} />
-          <text y={NETWORK_DEVICE_STYLE.pc.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="13" fontWeight="600" fontFamily="var(--font-mono)">
+          <circle className="node-circle" r={NETWORK_DEVICE_STYLE.server.radius} fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
+          <ServerGlyph stroke={C.fg} />
+          <text y={NETWORK_DEVICE_STYLE.server.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="13" fontWeight="600" fontFamily="var(--font-mono)">
             Servidor B
           </text>
         </g>

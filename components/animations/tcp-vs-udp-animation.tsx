@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react"
 import gsap from "gsap"
 import { useTheme } from "next-themes"
 import { useAnimationContext } from "./animation-player"
-import { NETWORK_DEVICE_STYLE, PcGlyph } from "./network-device-icons"
+import { NETWORK_DEVICE_STYLE, PcGlyph, ServerGlyph } from "./network-device-icons"
 import { PacketPill } from "./network-visual-primitives"
 
 const VIEWBOX = { width: 800, height: 460 }
@@ -149,9 +149,9 @@ export function TcpVsUdpAnimation() {
       </g>
 
       <g id="tcp-server">
-        <circle r={NETWORK_DEVICE_STYLE.pc.radius} fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
-        <PcGlyph stroke={C.fg} />
-        <text y={NETWORK_DEVICE_STYLE.pc.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="12.5" fontWeight="600" fontFamily="var(--font-mono)">
+        <circle r={NETWORK_DEVICE_STYLE.server.radius} fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
+        <ServerGlyph stroke={C.fg} />
+        <text y={NETWORK_DEVICE_STYLE.server.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="12.5" fontWeight="600" fontFamily="var(--font-mono)">
           Servidor
         </text>
       </g>
@@ -165,9 +165,9 @@ export function TcpVsUdpAnimation() {
       </g>
 
       <g id="udp-server">
-        <circle r={NETWORK_DEVICE_STYLE.pc.radius} fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
-        <PcGlyph stroke={C.fg} />
-        <text y={NETWORK_DEVICE_STYLE.pc.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="12.5" fontWeight="600" fontFamily="var(--font-mono)">
+        <circle r={NETWORK_DEVICE_STYLE.server.radius} fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
+        <ServerGlyph stroke={C.fg} />
+        <text y={NETWORK_DEVICE_STYLE.server.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="12.5" fontWeight="600" fontFamily="var(--font-mono)">
           Servidor
         </text>
       </g>

@@ -414,6 +414,237 @@ export const tcpVsUdpSteps = [
   },
 ]
 
+export const ftpSteps = [
+  {
+    id: "step-1",
+    label: "1. Un usuario quiere mover archivos",
+    description:
+      "FTP se usa para subir, bajar o listar archivos entre un cliente y un servidor. La idea base es sencilla: intercambiar ficheros entre dos extremos.",
+  },
+  {
+    id: "step-2",
+    label: "2. El cliente abre una sesion con el servidor",
+    description:
+      "El cliente contacta con el servidor FTP usando TCP, normalmente por el puerto 21. Primero hay que establecer la comunicacion antes de transferir nada.",
+  },
+  {
+    id: "step-3",
+    label: "3. El usuario se identifica",
+    description:
+      "El cliente envia usuario y contrasena para acceder al contenido permitido. A partir de ahi puede empezar a pedir operaciones sobre archivos.",
+  },
+  {
+    id: "step-4",
+    label: "4. Se listan o transfieren archivos",
+    description:
+      "Una vez dentro, el cliente puede pedir un listado de carpetas, descargar un archivo o subir uno nuevo al servidor.",
+  },
+  {
+    id: "step-5",
+    label: "5. FTP sirve para ficheros, no para cifrar",
+    description:
+      "La idea importante es que FTP mueve archivos, pero de forma clasica no protege los datos con cifrado, por eso hoy suele evitarse en entornos modernos.",
+  },
+]
+
+export const httpHttpsSteps = [
+  {
+    id: "step-1",
+    label: "1. El navegador quiere abrir una web",
+    description:
+      "Cuando escribes una direccion en el navegador, este necesita pedir una pagina a un servidor web. Ahi entran HTTP y HTTPS.",
+  },
+  {
+    id: "step-2",
+    label: "2. HTTP envia una peticion y espera respuesta",
+    description:
+      "HTTP funciona con el modelo peticion-respuesta. El cliente pide un recurso y el servidor devuelve la pagina o el contenido solicitado.",
+  },
+  {
+    id: "step-3",
+    label: "3. El servidor devuelve la pagina",
+    description:
+      "La respuesta puede incluir HTML, imagenes u otros recursos. Asi se construye lo que ves luego en el navegador.",
+  },
+  {
+    id: "step-4",
+    label: "4. HTTPS anade una capa de seguridad",
+    description:
+      "HTTPS hace el mismo trabajo general que HTTP, pero protege la comunicacion con cifrado para que los datos viajen mucho mas seguros.",
+  },
+  {
+    id: "step-5",
+    label: "5. La web moderna usa HTTPS",
+    description:
+      "La idea clave es esta: HTTP sirve para la web, pero HTTPS protege mejor usuarios, contrasenas y contenido mientras viajan por la red.",
+  },
+]
+
+export const smtpSteps = [
+  {
+    id: "step-1",
+    label: "1. Un usuario redacta un correo",
+    description:
+      "Cuando escribes un email y pulsas enviar, tu equipo no lo lleva magicamente al destinatario. Primero se lo entrega a un servidor de correo.",
+  },
+  {
+    id: "step-2",
+    label: "2. El cliente entrega el mensaje al servidor SMTP",
+    description:
+      "SMTP se usa para enviar correo. El cliente conecta con el servidor SMTP, normalmente por TCP 25 o 587, y le pasa el mensaje.",
+  },
+  {
+    id: "step-3",
+    label: "3. El servidor lo reenvia hacia el destino",
+    description:
+      "El servidor SMTP no suele ser el final del camino. Muchas veces reenvia el correo hacia el servidor del dominio destinatario.",
+  },
+  {
+    id: "step-4",
+    label: "4. El mensaje queda en el buzon destino",
+    description:
+      "Cuando llega al servidor correcto, el correo queda guardado para el usuario destinatario. Ya esta enviado, aunque todavia no se haya leido.",
+  },
+  {
+    id: "step-5",
+    label: "5. SMTP envia, no descarga correo",
+    description:
+      "Lo importante es no confundirlo: SMTP sirve para enviar mensajes de correo electronico, no para recuperarlos desde el buzon.",
+  },
+]
+
+export const pop3Steps = [
+  {
+    id: "step-1",
+    label: "1. El usuario quiere leer su correo",
+    description:
+      "Despues de que el correo llegue al servidor, hace falta un protocolo para recogerlo y llevarlo al equipo del usuario.",
+  },
+  {
+    id: "step-2",
+    label: "2. El cliente conecta con el servidor POP3",
+    description:
+      "POP3 se usa para recoger correo desde el servidor. El cliente conecta normalmente por TCP 110 o 995 para empezar la consulta.",
+  },
+  {
+    id: "step-3",
+    label: "3. El usuario se identifica",
+    description:
+      "El cliente necesita autenticarse para demostrar que puede acceder a ese buzon y a los mensajes que contiene.",
+  },
+  {
+    id: "step-4",
+    label: "4. Los mensajes se descargan al equipo",
+    description:
+      "Una vez validado, el servidor envia los correos al cliente. Asi los mensajes pasan del servidor al dispositivo del usuario.",
+  },
+  {
+    id: "step-5",
+    label: "5. POP3 esta pensado para recoger correo",
+    description:
+      "La idea clave es simple: POP3 descarga el correo desde el servidor al cliente para que el usuario pueda leerlo en su equipo.",
+  },
+]
+
+export const sshSteps = [
+  {
+    id: "step-1",
+    label: "1. Un admin necesita entrar en un servidor remoto",
+    description:
+      "A veces hay que gestionar un equipo sin estar delante de el. SSH permite abrir una sesion remota para administrarlo.",
+  },
+  {
+    id: "step-2",
+    label: "2. El cliente abre la conexion SSH",
+    description:
+      "El administrador conecta con el servidor usando SSH, normalmente sobre TCP 22. Desde ahi se prepara la sesion remota.",
+  },
+  {
+    id: "step-3",
+    label: "3. El usuario se autentica",
+    description:
+      "Antes de aceptar comandos, el servidor comprueba que el usuario tiene permiso para acceder. Esa autenticacion forma parte del acceso seguro.",
+  },
+  {
+    id: "step-4",
+    label: "4. Se envian comandos y vuelven respuestas",
+    description:
+      "Una vez dentro, el cliente manda instrucciones y el servidor responde con resultados, como si el admin estuviera trabajando directamente alli.",
+  },
+  {
+    id: "step-5",
+    label: "5. SSH sirve para administrar con seguridad",
+    description:
+      "La idea importante es que SSH da acceso remoto y protege la comunicacion con cifrado, algo clave al gestionar servidores.",
+  },
+]
+
+export const dnsSteps = [
+  {
+    id: "step-1",
+    label: "1. El usuario escribe un nombre",
+    description:
+      "Normalmente no recordamos IPs de memoria. Es mas facil escribir un nombre como www.ejemplo.com y dejar que la red haga la traduccion.",
+  },
+  {
+    id: "step-2",
+    label: "2. El cliente pregunta al servidor DNS",
+    description:
+      "El equipo consulta al servidor DNS, normalmente por UDP 53, para averiguar que direccion IP corresponde a ese nombre.",
+  },
+  {
+    id: "step-3",
+    label: "3. DNS responde con la IP",
+    description:
+      "El servidor DNS no trae la web. Lo que hace es devolver la IP correcta para que el cliente sepa a que servidor debe conectarse.",
+  },
+  {
+    id: "step-4",
+    label: "4. Ahora ya se puede contactar con el servidor real",
+    description:
+      "Con la IP en la mano, el cliente puede iniciar la comunicacion con el servidor web o con el servicio que buscaba.",
+  },
+  {
+    id: "step-5",
+    label: "5. DNS traduce nombres a direcciones",
+    description:
+      "Esa es la idea central: DNS no entrega la pagina, sino que convierte nombres faciles de recordar en IPs utiles para la red.",
+  },
+]
+
+export const dhcpSteps = [
+  {
+    id: "step-1",
+    label: "1. Un equipo nuevo entra en la red sin IP",
+    description:
+      "Cuando un equipo se conecta por primera vez, muchas veces no sabe que direccion usar. DHCP automatiza esa configuracion inicial.",
+  },
+  {
+    id: "step-2",
+    label: "2. El cliente busca un servidor DHCP",
+    description:
+      "El equipo lanza un mensaje Discover para localizar a un servidor DHCP que pueda darle una configuracion valida de red.",
+  },
+  {
+    id: "step-3",
+    label: "3. El servidor ofrece una IP disponible",
+    description:
+      "Si hay un servidor DHCP, responde con una oferta. Esa oferta puede incluir direccion IP, mascara, gateway y DNS.",
+  },
+  {
+    id: "step-4",
+    label: "4. El cliente pide quedarse con esa configuracion",
+    description:
+      "Despues de recibir la oferta, el cliente envia una solicitud para confirmar que quiere usar esa direccion y esos parametros.",
+  },
+  {
+    id: "step-5",
+    label: "5. DHCP confirma y el equipo ya puede trabajar",
+    description:
+      "Cuando llega el ACK final, el equipo ya tiene configuracion de red y puede empezar a comunicarse sin poner esos datos a mano.",
+  },
+]
+
 export const animationRegistry: AnimationMeta[] = [
   {
     slug: "arp",
@@ -510,5 +741,61 @@ export const animationRegistry: AnimationMeta[] = [
       "Compara de forma visual y sencilla las diferencias clave entre TCP y UDP: conexion, fiabilidad, control y casos de uso mas habituales.",
     topic: "Redes",
     steps: tcpVsUdpSteps,
+  },
+  {
+    slug: "ftp",
+    title: "Protocolo FTP",
+    description:
+      "Explica de forma sencilla como un cliente y un servidor intercambian archivos con FTP y por que no es una opcion segura por defecto.",
+    topic: "Redes",
+    steps: ftpSteps,
+  },
+  {
+    slug: "http-https",
+    title: "HTTP vs HTTPS",
+    description:
+      "Muestra como funciona la peticion y respuesta web y que aporta HTTPS al anadir seguridad y cifrado frente a HTTP.",
+    topic: "Redes",
+    steps: httpHttpsSteps,
+  },
+  {
+    slug: "smtp",
+    title: "Protocolo SMTP",
+    description:
+      "Presenta SMTP como el protocolo que se usa para enviar correos desde el cliente al servidor y de servidor a servidor.",
+    topic: "Redes",
+    steps: smtpSteps,
+  },
+  {
+    slug: "pop3",
+    title: "Protocolo POP3",
+    description:
+      "Resume como POP3 permite al cliente recoger y descargar mensajes de correo almacenados en el servidor.",
+    topic: "Redes",
+    steps: pop3Steps,
+  },
+  {
+    slug: "ssh",
+    title: "Protocolo SSH",
+    description:
+      "Explica de forma visual como SSH da acceso remoto seguro para administrar un servidor mediante terminal.",
+    topic: "Redes",
+    steps: sshSteps,
+  },
+  {
+    slug: "dns",
+    title: "Protocolo DNS",
+    description:
+      "Visualiza la traduccion de nombres a direcciones IP para entender por que DNS es una pieza basica de la navegacion y de Internet.",
+    topic: "Redes",
+    steps: dnsSteps,
+  },
+  {
+    slug: "dhcp",
+    title: "Protocolo DHCP",
+    description:
+      "Explica como un equipo obtiene automaticamente direccion IP y otros parametros basicos de red gracias a DHCP.",
+    topic: "Redes",
+    steps: dhcpSteps,
   },
 ]

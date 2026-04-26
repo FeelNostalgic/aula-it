@@ -5,7 +5,7 @@ import gsap from "gsap"
 import { AnimatePresence } from "framer-motion"
 import { useTheme } from "next-themes"
 import { useAnimationContext } from "./animation-player"
-import { NETWORK_DEVICE_STYLE, PcGlyph } from "./network-device-icons"
+import { NETWORK_DEVICE_STYLE, PcGlyph, ServerGlyph } from "./network-device-icons"
 import { PacketPill } from "./network-visual-primitives"
 import { NodeInfoCard, type NodeInfo } from "./node-info-card"
 import { useNodeTooltip } from "./use-node-tooltip"
@@ -20,7 +20,7 @@ const N = {
 
 const TOOLTIP_ANCHORS = {
   client: { x: N.client.x + NETWORK_DEVICE_STYLE.pc.radius, y: N.client.y + NETWORK_DEVICE_STYLE.pc.radius },
-  server: { x: N.server.x + NETWORK_DEVICE_STYLE.pc.radius, y: N.server.y + NETWORK_DEVICE_STYLE.pc.radius },
+  server: { x: N.server.x + NETWORK_DEVICE_STYLE.server.radius, y: N.server.y + NETWORK_DEVICE_STYLE.server.radius },
 } as const
 
 const NODE_INFO: Record<string, NodeInfo> = {
@@ -165,9 +165,9 @@ export function UdpAnimation() {
         </g>
 
         <g id="node-server" onMouseEnter={() => handleNodeEnter("server")} onMouseLeave={scheduleHide} className="cursor-default">
-          <circle className="node-circle" r={NETWORK_DEVICE_STYLE.pc.radius} fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
-          <PcGlyph stroke={C.fg} />
-          <text y={NETWORK_DEVICE_STYLE.pc.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="13" fontWeight="600" fontFamily="var(--font-mono)">
+          <circle className="node-circle" r={NETWORK_DEVICE_STYLE.server.radius} fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
+          <ServerGlyph stroke={C.fg} />
+          <text y={NETWORK_DEVICE_STYLE.server.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="13" fontWeight="600" fontFamily="var(--font-mono)">
             Servidor
           </text>
         </g>
