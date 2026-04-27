@@ -3,6 +3,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { redirect } from "next/navigation";
 import { UnitDetailView } from "@/components/dashboard/units/unit-detail-view";
 import { getUnitAccess } from "@/lib/module-access";
+import { loadStudentUnitProgressContext } from "@/lib/student-activity-progress";
 import { Metadata } from "next";
 
 export async function generateMetadata({
@@ -133,6 +134,12 @@ export default async function UnitPage({
         studentBadges = earned || [];
     }
 
+    const progressContext = await loadStudentUnitProgressContext({
+        unitId,
+        moduleId: unit.module_id,
+        userId: user.id,
+    });
+
     const activities = activitiesData?.map(activity => {
         let totalXp = 0;
         let stepCount = 0;
@@ -147,16 +154,17 @@ export default async function UnitPage({
             });
         });
 
-        // Calculate completed steps based on submissions for this student
-        const activitySubmissions = submissions.filter(s => s.activity_id === activity.id && s.student_id === user.id);
-        const completedStepIds = new Set(activitySubmissions.map(s => s.step_id));
+        const summary = progressContext?.summariesByActivityId.get(activity.id);
+        const isPublished = activity.status === "published" || activity.status === "active";
+        const isUnlocked = progressContext?.unlockedActivityIds.has(activity.id) ?? true;
 
         return {
             ...activity,
+            status: isPublished && !isUnlocked ? "blocked" : activity.status,
             xp: totalXp,
             phasesCount: stepCount > 0 ? stepCount : phases.length,
-            total_steps: stepCount,
-            completed_steps: completedStepIds.size,
+            total_steps: summary?.trackedSteps ?? stepCount,
+            completed_steps: summary?.completedTrackedSteps ?? 0,
             badges: classBadges?.filter(b => b.activity_id === activity.id) || []
         };
     });
@@ -193,7 +201,7 @@ export default async function UnitPage({
             activities={activities || []}
             connections={connections || []}
             students={students || []}
-            submissions={submissions || []}
+            submissions={progressContext?.submissions || submissions || []}
             userRole={userRole}
             milestones={unitMilestones || []}
             classBadges={classBadges || []}

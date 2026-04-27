@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import MapClient from "./client";
 import { getUnitAccess } from "@/lib/module-access";
 import { MAP_ROUTE_TYPE, toActivityNodeId, toFlowNodeId } from "@/types/unit-map";
+import { loadStudentUnitProgressContext } from "@/lib/student-activity-progress";
 import { Metadata } from "next";
 
 export async function generateMetadata({
@@ -126,7 +127,7 @@ export default async function UnitMapPage({
         .eq("unit_id", id)
         .order("order_index", { ascending: true });
 
-    const activities = activitiesData?.map(activity => {
+    let activities = activitiesData?.map(activity => {
         let totalXp = 0;
         let stepsCount = 0;
 
@@ -146,7 +147,7 @@ export default async function UnitMapPage({
             xp: totalXp,
             stepsCount
         };
-    });
+    }) || [];
 
     // Guard: if teacher changed view_type, redirect student back to unit detail
     if (role === 'student' && unit.view_type !== 'map') {
@@ -194,7 +195,30 @@ export default async function UnitMapPage({
         map_nodes: flowNodeError ? [] : flowNodeRows || [],
     };
 
-    const activitiesWithPosition = (activities || []).map(a => ({
+    if (role === "student") {
+        const progressContext = await loadStudentUnitProgressContext({
+            unitId: id,
+            moduleId: unit.module_id,
+            userId: user.id,
+        });
+
+        if (progressContext) {
+            activities = activities.map((activity) => {
+                const summary = progressContext.summariesByActivityId.get(activity.id);
+                const isPublished = activity.status === "published" || activity.status === "active";
+                const isUnlocked = progressContext.unlockedActivityIds.has(activity.id);
+
+                return {
+                    ...activity,
+                    status: isPublished && !isUnlocked ? "blocked" : activity.status,
+                    completedSteps: summary?.completedTrackedSteps ?? 0,
+                    stepsCount: summary?.trackedSteps ?? activity.stepsCount,
+                };
+            });
+        }
+    }
+
+    const activitiesWithPosition = activities.map(a => ({
         ...a,
         position: a.position_x !== null ? { x: a.position_x, y: a.position_y } : null
     }));

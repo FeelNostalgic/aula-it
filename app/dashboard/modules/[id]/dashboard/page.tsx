@@ -3,6 +3,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { redirect, notFound } from "next/navigation";
 import { getModuleAccess } from "@/lib/module-access";
 import { ModuleDashboardView } from "@/components/dashboard/modules/module-dashboard-view";
+import { loadStudentUnitProgressContext } from "@/lib/student-activity-progress";
 import type { Metadata } from "next";
 
 interface PageProps {
@@ -89,47 +90,38 @@ export default async function ModuleDashboardPage({ params }: PageProps) {
         .in("status", profile.role === "student" ? ["published", "blocked", "active"] : ["draft", "published", "blocked", "active", "archived"])
         .order("order_index", { ascending: true });
 
-    const activityCompletionMap: Record<string, Set<string>> = {};
-    let viewedStepIds = new Set<string>();
+    const unitProgressById = new Map<string, Awaited<ReturnType<typeof loadStudentUnitProgressContext>>>();
 
     if (profile.role === "student") {
-        const { data: moduleSubmissions } = await supabase
-            .from("activity_submissions")
-            .select(`step_id, step:activity_steps ( phase:activity_phases ( activity_id ) )`)
-            .eq("student_id", user.id);
-
-        moduleSubmissions?.forEach((s: any) => {
-            const actId = s.step?.phase?.activity_id;
-            if (actId) {
-                if (!activityCompletionMap[actId]) activityCompletionMap[actId] = new Set();
-                activityCompletionMap[actId].add(s.step_id);
-            }
-        });
-
-        const { data: stepViews } = await supabase.from("step_views").select("step_id").eq("student_id", user.id);
-        viewedStepIds = new Set(stepViews?.map((v) => v.step_id) ?? []);
+        for (const unit of unitsData ?? []) {
+            unitProgressById.set(unit.id, await loadStudentUnitProgressContext({
+                unitId: unit.id,
+                moduleId: id,
+                userId: user.id,
+            }));
+        }
     }
 
     const now = new Date();
     const units = unitsData?.map((unit) => {
+        const unitProgress = unitProgressById.get(unit.id) ?? null;
         const activitiesWithSubmissions = (unit.activities as any[] || []).map((a) => {
+            const summary = unitProgress?.summariesByActivityId.get(a.id);
+            const isPublished = a.status === "published" || a.status === "active";
+            const isUnlocked = unitProgress?.unlockedActivityIds.has(a.id) ?? true;
             const countableSteps: any[] = [];
             a.activity_phases?.forEach((phase: any) => {
                 phase.activity_steps?.forEach((step: any) => {
                     if (step.completion_mode !== "none") countableSteps.push(step);
                 });
             });
-            const totalSteps = countableSteps.length;
-            const completedSteps = countableSteps.filter((step) => {
-                if (step.completion_mode === "viewable") return viewedStepIds.has(step.id);
-                return activityCompletionMap[a.id]?.has(step.id) ?? false;
-            }).length;
             return {
                 ...a,
-                total_steps: totalSteps,
-                completed_steps: completedSteps,
+                status: isPublished && !isUnlocked ? "blocked" : a.status,
+                total_steps: summary?.trackedSteps ?? countableSteps.length,
+                completed_steps: summary?.completedTrackedSteps ?? 0,
                 countable_steps: countableSteps,
-                activity_submissions: completedSteps > 0 ? [{ id: "mock-id", status: "submitted" }] : [],
+                activity_submissions: (summary?.completedTrackedSteps ?? 0) > 0 ? [{ id: "mock-id", status: "submitted" }] : [],
             };
         });
 

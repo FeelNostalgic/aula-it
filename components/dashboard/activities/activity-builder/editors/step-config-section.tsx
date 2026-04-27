@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, type ReactNode } from "react";
-import { ActivityStepWithClientState, CompletionMode } from "@/types/activity";
+import { ActivityStepWithClientState, CompletionMode, STEP_XP_AWARD_TRIGGER, type StepXpAwardTrigger } from "@/types/activity";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Zap, HelpCircle, Minus, ClipboardCheck, Eye, ChevronDown } from "lucide-react";
-import { updateStepXp, updateStepCompletionMode } from "@/app/activities/[id]/edit/actions";
+import { Zap, HelpCircle, Minus, ClipboardCheck, Eye, ChevronDown, Send, Star } from "lucide-react";
+import { updateStepXp, updateStepCompletionMode, updateStepXpAwardTrigger } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { isSubmissionStepType } from "@/lib/activity-progression";
 import {
     Tooltip,
     TooltipContent,
@@ -193,13 +194,17 @@ interface StepConfigSectionProps {
 export function StepConfigSection({ step, onUpdateStep, sectionState }: StepConfigSectionProps) {
     const [xp, setXp] = useState<string>(step.xp?.toString() || "0");
     const [completionMode, setCompletionMode] = useState<CompletionMode>(step.completion_mode ?? "none");
+    const [xpAwardTrigger, setXpAwardTrigger] = useState<StepXpAwardTrigger>(step.xp_award_trigger ?? STEP_XP_AWARD_TRIGGER.GRADE);
     const xpTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const modeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const triggerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const showsSubmissionTrigger = isSubmissionStepType(step.type);
 
     useEffect(() => {
         setXp(step.xp?.toString() || "0");
         setCompletionMode(step.completion_mode ?? "none");
-    }, [step.id]);
+        setXpAwardTrigger(step.xp_award_trigger ?? STEP_XP_AWARD_TRIGGER.GRADE);
+    }, [step.id, step.xp, step.completion_mode, step.xp_award_trigger]);
 
     const handleXpChange = (val: string) => {
         setXp(val);
@@ -220,6 +225,16 @@ export function StepConfigSection({ step, onUpdateStep, sectionState }: StepConf
         modeTimeoutRef.current = setTimeout(async () => {
             const res = await updateStepCompletionMode(step.id, mode);
             if (res.error) toast.error("Error al guardar el modo de completado");
+        }, 1000);
+    };
+
+    const handleXpAwardTriggerChange = (trigger: StepXpAwardTrigger) => {
+        setXpAwardTrigger(trigger);
+        onUpdateStep({ ...step, xp_award_trigger: trigger });
+        if (triggerTimeoutRef.current) clearTimeout(triggerTimeoutRef.current);
+        triggerTimeoutRef.current = setTimeout(async () => {
+            const res = await updateStepXpAwardTrigger(step.id, trigger);
+            if (res.error) toast.error("Error al guardar cuándo se entrega la XP");
         }, 1000);
     };
 
@@ -313,10 +328,42 @@ export function StepConfigSection({ step, onUpdateStep, sectionState }: StepConf
                 </div>
                 <p className="text-xs text-text-muted/70 leading-relaxed">
                     <strong className="text-foreground/70">Ninguno</strong> — sin seguimiento.<br />
-                    <strong className="text-foreground/70">Obligatorio</strong> — el alumno debe completarlo para avanzar, se marca como completado automaticamente al finalizar.<br />
+                    <strong className="text-foreground/70">Obligatorio</strong> — el alumno debe completarlo para avanzar; en pasos pasivos se marca manualmente y en entregas depende del trigger real.<br />
                     <strong className="text-foreground/70">Visualizable</strong> — el alumno la marca como visto manualmente.
                 </p>
             </ConfigSection>
+
+            {showsSubmissionTrigger && (
+                <ConfigSection
+                    title="Entrega de XP"
+                    sectionId="xp-award-trigger"
+                    open={sectionState?.isSectionOpen("xp-award-trigger")}
+                    onToggle={sectionState ? () => sectionState.toggleSection("xp-award-trigger") : undefined}
+                >
+                    <div className="flex flex-wrap gap-2">
+                        <Button
+                            size="sm"
+                            variant={xpAwardTrigger === STEP_XP_AWARD_TRIGGER.SUBMIT ? "default" : "outline"}
+                            className="h-8 px-3 text-xs gap-1.5"
+                            onClick={() => handleXpAwardTriggerChange(STEP_XP_AWARD_TRIGGER.SUBMIT)}
+                        >
+                            <Send className="size-3.5" /> Al enviar
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant={xpAwardTrigger === STEP_XP_AWARD_TRIGGER.GRADE ? "default" : "outline"}
+                            className="h-8 px-3 text-xs gap-1.5"
+                            onClick={() => handleXpAwardTriggerChange(STEP_XP_AWARD_TRIGGER.GRADE)}
+                        >
+                            <Star className="size-3.5" /> Al corregir
+                        </Button>
+                    </div>
+                    <p className="text-xs text-text-muted/70 leading-relaxed">
+                        <strong className="text-foreground/70">Al enviar</strong> — concede XP en la primera entrega valida.<br />
+                        <strong className="text-foreground/70">Al corregir</strong> — espera a que la submission pase a corregida/publicada.
+                    </p>
+                </ConfigSection>
+            )}
         </>
     );
 }

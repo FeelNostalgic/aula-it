@@ -18,6 +18,10 @@ import {
 import { updateUnitSettings, deleteUnit } from "@/app/dashboard/units/[id]/actions";
 import { toast } from "sonner";
 import {
+    UNIT_ACTIVITY_NAVIGATION_MODE,
+    UNIT_ACTIVITY_UNLOCK_RULE,
+} from "@/types/activity";
+import {
     Select,
     SelectContent,
     SelectItem,
@@ -43,6 +47,9 @@ type Unit = {
     description: string | null;
     status?: string | null;
     view_type?: string | null;
+    activity_navigation_mode?: string | null;
+    activity_unlock_rule?: string | null;
+    activity_unlock_threshold?: number | null;
 };
 
 export function UnitSettingsTab({ unit }: { unit: Unit }) {
@@ -198,6 +205,61 @@ export function UnitSettingsTab({ unit }: { unit: Unit }) {
                                     </div>
                                 </div>
                             </Label>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4 border-t border-border-subtle pt-6">
+                        <div>
+                            <Label htmlFor="activity_navigation_mode" className="text-foreground text-lg font-bold">Desbloqueo de retos</Label>
+                            <p className="text-sm text-text-muted mt-1">Controla si los alumnos pueden abrir cualquier reto o deben desbloquearlos según el progreso real.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <Label htmlFor="activity_navigation_mode" className="text-foreground">Modo de acceso</Label>
+                                <Select
+                                    name="activity_navigation_mode"
+                                    defaultValue={unit.activity_navigation_mode || UNIT_ACTIVITY_NAVIGATION_MODE.FREE}
+                                >
+                                    <SelectTrigger className="bg-surface-dark border-border-strong text-foreground focus:ring-accent-blue">
+                                        <SelectValue placeholder="Selecciona un modo" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-surface-dark border-border-strong text-foreground">
+                                        <SelectItem value={UNIT_ACTIVITY_NAVIGATION_MODE.FREE}>Libre</SelectItem>
+                                        <SelectItem value={UNIT_ACTIVITY_NAVIGATION_MODE.RESTRICTED}>Restringido</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="activity_unlock_rule" className="text-foreground">Regla de desbloqueo</Label>
+                                <Select
+                                    name="activity_unlock_rule"
+                                    defaultValue={unit.activity_unlock_rule || UNIT_ACTIVITY_UNLOCK_RULE.REQUIRED_STEPS}
+                                >
+                                    <SelectTrigger className="bg-surface-dark border-border-strong text-foreground focus:ring-accent-blue">
+                                        <SelectValue placeholder="Selecciona una regla" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-surface-dark border-border-strong text-foreground">
+                                        <SelectItem value={UNIT_ACTIVITY_UNLOCK_RULE.REQUIRED_STEPS}>Todos los pasos obligatorios</SelectItem>
+                                        <SelectItem value={UNIT_ACTIVITY_UNLOCK_RULE.PERCENTAGE}>Porcentaje de progreso</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <div className="max-w-[220px] space-y-2">
+                            <Label htmlFor="activity_unlock_threshold" className="text-foreground">Umbral de porcentaje</Label>
+                            <Input
+                                id="activity_unlock_threshold"
+                                name="activity_unlock_threshold"
+                                type="number"
+                                min={1}
+                                max={100}
+                                defaultValue={unit.activity_unlock_threshold ?? 100}
+                                className="bg-surface-dark border-border-strong text-foreground focus-visible:ring-accent-blue"
+                            />
+                            <p className="text-xs text-text-muted">Solo se usa cuando la regla es por porcentaje.</p>
                         </div>
                     </div>
 

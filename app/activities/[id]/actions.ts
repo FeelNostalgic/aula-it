@@ -9,6 +9,7 @@ import { getQuizFixedQuestions } from "@/lib/quiz-content";
 import { selectQuestionsForAttempt } from "@/lib/quiz-pool-selection";
 import { isQuizQuestionAnswered, scoreQuizAttempt } from "@/lib/quiz-core";
 import { isStepVisibleForStudent } from "@/lib/activity-step-audience";
+import { getStudentUnlockedStepIdsForActivity, isStudentActivityOpen, loadStudentUnitProgressContext } from "@/lib/student-activity-progress";
 
 const DRIVE_URL_REGEX = /^https:\/\/(docs|drive|sheets|slides|forms)\.google\.com\//;
 
@@ -18,6 +19,7 @@ type StepAccessRow = {
     id: string;
     parent_step_id: string | null;
     is_visible: boolean;
+    is_locked?: boolean | null;
     audience_mode: "all" | "restricted" | null;
     visible_student_ids: string[] | null;
     visible_group_ids: string[] | null;
@@ -51,9 +53,9 @@ async function getStudentGroupIdInModule(
 async function assertStudentStepAccess(
     userId: string,
     stepId: string,
-): Promise<{ ok: true; groupId: string | null } | { ok: false; error: string }> {
+): Promise<{ ok: true; groupId: string | null; activityId: string; unitId: string } | { ok: false; error: string }> {
     if (process.env.NODE_ENV === "test") {
-        return { ok: true, groupId: null };
+        return { ok: true, groupId: null, activityId: "", unitId: "" };
     }
 
     const admin = createAdminClient();
@@ -64,13 +66,15 @@ async function assertStudentStepAccess(
             id,
             parent_step_id,
             is_visible,
+            is_locked,
             audience_mode,
             visible_student_ids,
             visible_group_ids,
             inherit_audience_from_parent,
             phase:activity_phases!inner(
                 activity:activities!inner(
-                    unit:units!inner(module_id)
+                    id,
+                    unit:units!inner(id, module_id, view_type)
                 )
             )
         `)
@@ -79,8 +83,10 @@ async function assertStudentStepAccess(
 
     if (stepError || !stepRow) return { ok: false, error: "Paso no encontrado." };
 
+    const activityId = (stepRow as any)?.phase?.activity?.id as string | undefined;
+    const unitId = (stepRow as any)?.phase?.activity?.unit?.id as string | undefined;
     const moduleId = (stepRow as any)?.phase?.activity?.unit?.module_id as string | undefined;
-    if (!moduleId) return { ok: false, error: "No se pudo resolver el módulo del paso." };
+    if (!activityId || !unitId || !moduleId) return { ok: false, error: "No se pudo resolver el módulo del paso." };
 
     const groupId = await getStudentGroupIdInModule(admin, moduleId, userId);
 
@@ -110,7 +116,25 @@ async function assertStudentStepAccess(
     );
 
     if (!canAccess) return { ok: false, error: "No tienes acceso a esta actividad." };
-    return { ok: true, groupId };
+    if ((stepRow as any)?.is_locked) return { ok: false, error: "Este paso está bloqueado." };
+
+    const progressContext = await loadStudentUnitProgressContext({
+        unitId,
+        moduleId,
+        userId,
+        groupId,
+    });
+
+    if (!progressContext || !isStudentActivityOpen(progressContext, activityId)) {
+        return { ok: false, error: "Este reto todavía no está desbloqueado." };
+    }
+
+    const unlockedStepIds = getStudentUnlockedStepIdsForActivity(progressContext, activityId);
+    if (!unlockedStepIds.has(stepId)) {
+        return { ok: false, error: "Este paso todavía no está desbloqueado." };
+    }
+
+    return { ok: true, groupId, activityId, unitId };
 }
 
 /**
@@ -407,6 +431,44 @@ export async function markStepViewed(stepId: string, activityId: string) {
                 viewed_at: new Date().toISOString(),
             },
             { onConflict: "student_id,step_id", ignoreDuplicates: true }
+        );
+
+    if (error) return { error: error.message };
+
+    revalidatePath(`/activities/${activityId}`);
+    return { success: true };
+}
+
+export async function markStepCompleted(stepId: string, activityId: string) {
+    const supabase = await createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) return { error: "No autenticado." };
+    const access = await assertStudentStepAccess(user.id, stepId);
+    if (!access.ok) return { error: access.error };
+
+    const { data: step, error: stepError } = await supabase
+        .from("activity_steps")
+        .select("type, completion_mode")
+        .eq("id", stepId)
+        .maybeSingle();
+
+    if (stepError || !step) return { error: "Paso no encontrado." };
+    if (step.completion_mode !== "required") {
+        return { error: "Este paso no requiere marcado manual." };
+    }
+    if (step.type === "deliverable" || step.type === "file_upload" || step.type === "quiz" || step.type === "self_evaluation" || step.type === "peer_evaluation") {
+        return { error: "Este paso se completa desde la entrega, no manualmente." };
+    }
+
+    const { error } = await supabase
+        .from("step_completions")
+        .upsert(
+            {
+                student_id: user.id,
+                step_id: stepId,
+                completed_at: new Date().toISOString(),
+            },
+            { onConflict: "student_id,step_id", ignoreDuplicates: true },
         );
 
     if (error) return { error: error.message };

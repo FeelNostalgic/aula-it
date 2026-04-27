@@ -2,10 +2,9 @@ import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { notFound, redirect } from "next/navigation";
 import { StudentActivityClient } from "./client";
-import { getStudentSubmissionsForActivity } from "./actions";
 import { getActivityAccess } from "@/lib/module-access";
 import { normalizeNestedActivityPhases } from "@/lib/activity-step-tree";
-import { filterPhasesByStepAudience } from "@/lib/activity-step-audience";
+import { isStudentActivityOpen, getStudentUnlockedStepIdsForActivity, getStudentVisiblePhasesForActivity, loadStudentUnitProgressContext } from "@/lib/student-activity-progress";
 import { Metadata } from "next";
 
 export async function generateMetadata({
@@ -62,6 +61,7 @@ export default async function ActivityPage({
             unit:units(
               id,
               name,
+              view_type,
               module_id,
               module:modules(id, name)
             )
@@ -83,12 +83,7 @@ export default async function ActivityPage({
         .eq("activity_id", id)
         .order("order_index", { ascending: true });
 
-    let initialPhases = phases || [];
-    if (!phasesError) {
-        initialPhases = normalizeNestedActivityPhases(initialPhases as any);
-    }
-
-    const submissionsMap = isTeacher ? {} : await getStudentSubmissionsForActivity(id);
+    let initialPhases = phasesError ? (phases || []) : normalizeNestedActivityPhases((phases || []) as any);
 
     const { data: classBadges } = await dataClient
         .from("class_badges")
@@ -114,83 +109,100 @@ export default async function ActivityPage({
     if (!isTeacher && activity.unit?.module_id) {
         const admin = createAdminClient();
         const moduleId = activity.unit.module_id;
-        const { data: moduleGroups } = await admin
-            .from("module_groups")
-            .select("id")
-            .eq("module_id", moduleId)
-            .eq("status", "active");
-        const groupIds = (moduleGroups ?? []).map((g: any) => g.id);
-        if (groupIds.length > 0) {
-            const { data: memberRow } = await admin
-                .from("module_group_members")
-                .select("group_id, group:module_groups(name, color)")
-                .eq("student_id", user.id)
-                .in("group_id", groupIds)
-                .maybeSingle();
-            studentGroupId = memberRow?.group_id ?? null;
-            studentGroupName = (memberRow?.group as any)?.name ?? null;
-            studentGroupColor = (memberRow?.group as any)?.color ?? null;
-        }
-    }
-
-    if (!isTeacher) {
-        initialPhases = filterPhasesByStepAudience(initialPhases as any, {
-            studentId: user.id,
-            groupId: studentGroupId,
+        const progressContext = await loadStudentUnitProgressContext({
+            unitId: activity.unit.id,
+            moduleId,
+            userId: user.id,
         });
-    }
 
-    const allStepIds = initialPhases.flatMap((phase: any) =>
-        (phase.steps || []).flatMap((step: any) => [step.id, ...((step.children ?? []).map((child: any) => child.id))]),
-    );
-
-    if (!isTeacher && allStepIds.length > 0) {
-        const { data: extensions } = await supabase
-            .from("deadline_extensions")
-            .select("step_id, extended_until")
-            .eq("student_id", user.id)
-            .in("step_id", allStepIds);
-
-        if (extensions && extensions.length > 0) {
-            const extMap = Object.fromEntries(extensions.map((extension: any) => [extension.step_id, extension.extended_until]));
-            initialPhases = initialPhases.map((phase: any) => ({
-                ...phase,
-                steps: (phase.steps || []).map((step: any) => {
-                    const applyExtension = (targetStep: any) => {
-                        const extension = extMap[targetStep.id];
-                        if (!extension) return targetStep;
-
-                        const extDate = new Date(extension);
-                        const dueDate = targetStep.due_date ? new Date(targetStep.due_date) : null;
-                        if (!dueDate || extDate > dueDate) {
-                            return { ...targetStep, due_date: extension };
-                        }
-
-                        return targetStep;
-                    };
-
-                    return {
-                        ...applyExtension(step),
-                        children: (step.children ?? []).map(applyExtension),
-                    };
-                }),
-            }));
+        if (!progressContext || !isStudentActivityOpen(progressContext, id)) {
+            redirect(activity.unit.view_type === "map" ? `/units/${activity.unit.id}/map` : `/dashboard/units/${activity.unit.id}`);
         }
-    }
 
-    let viewsMap: Record<string, boolean> = {};
-    if (!isTeacher && allStepIds.length > 0) {
-        const { data: views } = await supabase
-            .from("step_views")
-            .select("step_id")
-            .eq("student_id", user.id)
-            .in("step_id", allStepIds);
+        studentGroupId = progressContext.groupId;
+        const visiblePhases = getStudentVisiblePhasesForActivity(progressContext, id);
+        const unlockedStepIds = getStudentUnlockedStepIdsForActivity(progressContext, id);
+        initialPhases = visiblePhases.map((phase: any) => ({
+            ...phase,
+            steps: (phase.steps ?? []).map((step: any) => ({
+                ...step,
+                is_locked: Boolean(step.is_locked) || !unlockedStepIds.has(step.id),
+                children: (step.children ?? []).map((child: any) => ({
+                    ...child,
+                    is_locked: Boolean(child.is_locked) || !unlockedStepIds.has(child.id),
+                })),
+            })),
+        }));
 
-        if (views) {
-            views.forEach((view: any) => {
-                viewsMap[view.step_id] = true;
-            });
+        const { data: groupRow } = studentGroupId
+            ? await admin
+                .from("module_groups")
+                .select("name, color")
+                .eq("id", studentGroupId)
+                .maybeSingle()
+            : { data: null };
+        studentGroupName = groupRow?.name ?? null;
+        studentGroupColor = groupRow?.color ?? null;
+
+        const submissionsMap = progressContext.submissionsMap;
+        const viewsMap = Object.fromEntries(progressContext.stepViews.map((view) => [view.step_id, true]));
+        const completionsMap = Object.fromEntries(progressContext.stepCompletions.map((completion) => [completion.step_id, true]));
+
+        const allStepIds = initialPhases.flatMap((phase: any) =>
+            (phase.steps || []).flatMap((step: any) => [step.id, ...((step.children ?? []).map((child: any) => child.id))]),
+        );
+
+        if (allStepIds.length > 0) {
+            const { data: extensions } = await supabase
+                .from("deadline_extensions")
+                .select("step_id, extended_until")
+                .eq("student_id", user.id)
+                .in("step_id", allStepIds);
+
+            if (extensions && extensions.length > 0) {
+                const extMap = Object.fromEntries(extensions.map((extension: any) => [extension.step_id, extension.extended_until]));
+                initialPhases = initialPhases.map((phase: any) => ({
+                    ...phase,
+                    steps: (phase.steps || []).map((step: any) => {
+                        const applyExtension = (targetStep: any) => {
+                            const extension = extMap[targetStep.id];
+                            if (!extension) return targetStep;
+
+                            const extDate = new Date(extension);
+                            const dueDate = targetStep.due_date ? new Date(targetStep.due_date) : null;
+                            if (!dueDate || extDate > dueDate) {
+                                return { ...targetStep, due_date: extension };
+                            }
+
+                            return targetStep;
+                        };
+
+                        return {
+                            ...applyExtension(step),
+                            children: (step.children ?? []).map(applyExtension),
+                        };
+                    }),
+                }));
+            }
         }
+
+        return (
+            <StudentActivityClient
+                activity={activity as any}
+                phases={initialPhases as any}
+                user={user}
+                profile={profile}
+                submissionsMap={submissionsMap}
+                viewsMap={viewsMap}
+                completionsMap={completionsMap}
+                classBadges={classBadges || []}
+                earnedBadgeIds={earnedBadgeIds}
+                readOnly={isReadOnlyTeacher}
+                groupId={studentGroupId}
+                groupName={studentGroupName}
+                groupColor={studentGroupColor}
+            />
+        );
     }
 
     return (
@@ -199,8 +211,9 @@ export default async function ActivityPage({
             phases={initialPhases as any}
             user={user}
             profile={profile}
-            submissionsMap={submissionsMap}
-            viewsMap={viewsMap}
+            submissionsMap={{}}
+            viewsMap={{}}
+            completionsMap={{}}
             classBadges={classBadges || []}
             earnedBadgeIds={earnedBadgeIds}
             readOnly={isReadOnlyTeacher}

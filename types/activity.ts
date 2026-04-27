@@ -22,7 +22,41 @@ export type ActivityStepType =
     | 'self_evaluation'
     | 'peer_evaluation';
 
-export type CompletionMode = 'none' | 'required' | 'viewable';
+export const COMPLETION_MODE = {
+    NONE: "none",
+    REQUIRED: "required",
+    VIEWABLE: "viewable",
+} as const;
+
+export type CompletionMode = (typeof COMPLETION_MODE)[keyof typeof COMPLETION_MODE];
+
+export const STEP_XP_AWARD_TRIGGER = {
+    SUBMIT: "submit",
+    GRADE: "grade",
+} as const;
+
+export type StepXpAwardTrigger = (typeof STEP_XP_AWARD_TRIGGER)[keyof typeof STEP_XP_AWARD_TRIGGER];
+
+export const ACTIVITY_NAVIGATION_MODE = {
+    FREE: "free",
+    STRICT: "strict",
+} as const;
+
+export type ActivityNavigationMode = (typeof ACTIVITY_NAVIGATION_MODE)[keyof typeof ACTIVITY_NAVIGATION_MODE];
+
+export const UNIT_ACTIVITY_NAVIGATION_MODE = {
+    FREE: "free",
+    RESTRICTED: "restricted",
+} as const;
+
+export type UnitActivityNavigationMode = (typeof UNIT_ACTIVITY_NAVIGATION_MODE)[keyof typeof UNIT_ACTIVITY_NAVIGATION_MODE];
+
+export const UNIT_ACTIVITY_UNLOCK_RULE = {
+    REQUIRED_STEPS: "required_steps",
+    PERCENTAGE: "percentage",
+} as const;
+
+export type UnitActivityUnlockRule = (typeof UNIT_ACTIVITY_UNLOCK_RULE)[keyof typeof UNIT_ACTIVITY_UNLOCK_RULE];
 
 export const STEP_AUDIENCE_MODE = {
     ALL: "all",
@@ -46,6 +80,7 @@ export type ActivityStep = {
     due_date?: string | null;
     xp?: number;
     completion_mode?: CompletionMode;
+    xp_award_trigger?: StepXpAwardTrigger | null;
     audience_mode?: StepAudienceMode;
     visible_student_ids?: string[];
     visible_group_ids?: string[];
@@ -488,4 +523,11 @@ export type StepView = {
     student_id: string;
     step_id: string;
     viewed_at: string;
+};
+
+export type StepCompletion = {
+    id: string;
+    student_id: string;
+    step_id: string;
+    completed_at: string;
 };

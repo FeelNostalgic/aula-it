@@ -193,6 +193,7 @@ function SortableActivityItem({
     const router = useRouter();
     const diffConfig = getDifficultyConfig(activity.difficulty);
     const durationConfig = getDurationConfig(activity.duration);
+    const canOpenActivity = isTeacher || (activity.status !== "blocked" && activity.status !== "draft");
 
     const handleDelete = async () => {
         setIsPending(true);
@@ -325,9 +326,13 @@ function SortableActivityItem({
                 <div
                     ref={setNodeRef}
                     style={style}
-                    onClick={() => router.push(isTeacher && canEditActivities ? `/activities/${activity.id}/edit` : `/activities/${activity.id}`)}
+                    onClick={() => {
+                        if (!canOpenActivity) return;
+                        router.push(isTeacher && canEditActivities ? `/activities/${activity.id}/edit` : `/activities/${activity.id}`);
+                    }}
                     className={cn(
-                        "group relative bg-surface-dark border border-border-strong rounded-2xl p-5 hover:border-accent-blue/40 hover:bg-surface/50 transition-all duration-300 cursor-pointer flex flex-col h-full",
+                        "group relative bg-surface-dark border border-border-strong rounded-2xl p-5 transition-all duration-300 flex flex-col h-full",
+                        canOpenActivity ? "cursor-pointer hover:border-accent-blue/40 hover:bg-surface/50" : "cursor-not-allowed opacity-80",
                         isDragging && "opacity-50 ring-2 ring-accent-blue/20 cursor-grabbing shadow-2xl scale-105"
                     )}
                 >
@@ -476,9 +481,13 @@ function SortableActivityItem({
             <div
                 ref={setNodeRef}
                 style={style}
-                onClick={() => router.push(isTeacher && canEditActivities ? `/activities/${activity.id}/edit` : `/activities/${activity.id}`)}
+                onClick={() => {
+                    if (!canOpenActivity) return;
+                    router.push(isTeacher && canEditActivities ? `/activities/${activity.id}/edit` : `/activities/${activity.id}`);
+                }}
                 className={cn(
-                    "group flex items-center gap-4 bg-surface-dark border border-border-strong rounded-xl p-4 hover:border-accent-blue/30 hover:bg-surface/50 transition-all cursor-pointer",
+                    "group flex items-center gap-4 bg-surface-dark border border-border-strong rounded-xl p-4 transition-all",
+                    canOpenActivity ? "cursor-pointer hover:border-accent-blue/30 hover:bg-surface/50" : "cursor-not-allowed opacity-80",
                     isDragging && "opacity-50 ring-2 ring-accent-blue/20 cursor-grabbing shadow-lg"
                 )}
             >

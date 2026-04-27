@@ -4,6 +4,7 @@ import { StudentDashboard } from "@/components/dashboard/shared/student-dashboar
 import { TeacherDashboard } from "@/components/dashboard/shared/teacher-dashboard";
 import { redirect } from "next/navigation";
 import { MODULE_COLLABORATOR_ROLE, type ModuleCollaboratorRole } from "@/lib/module-collaborator-defs";
+import { loadStudentUnitProgressContext } from "@/lib/student-activity-progress";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -306,35 +307,17 @@ export default async function DashboardPage() {
     `)
     .eq("student_id", user.id);
 
-  // 2. Fetch all student submissions with their activity_id for progress calculation
-  const { data: submissions } = await supabase
-    .from("activity_submissions")
-    .select(`
-      step_id,
-      step:activity_steps (
-        phase:activity_phases (
-          activity_id
-        )
-      )
-    `)
-    .eq("student_id", user.id);
-
-  // 3. Fetch step views for viewable steps progress
-  const { data: stepViews } = await supabase
-    .from('step_views')
-    .select('step_id')
-    .eq('student_id', user.id)
-  const viewedStepIds = new Set(stepViews?.map(v => v.step_id) ?? [])
-
-  // Create a map of activity_id -> Set of completed step_ids
-  const activityCompletionMap: Record<string, Set<string>> = {};
-  submissions?.forEach((s: any) => {
-    const actId = s.step?.phase?.activity_id;
-    if (actId) {
-      if (!activityCompletionMap[actId]) activityCompletionMap[actId] = new Set();
-      activityCompletionMap[actId].add(s.step_id);
+  const unitProgressById = new Map<string, Awaited<ReturnType<typeof loadStudentUnitProgressContext>>>()
+  for (const enrollment of enrollments ?? []) {
+    const moduleRecord = enrollment.modules as any
+    for (const unit of (moduleRecord?.units || [])) {
+      unitProgressById.set(unit.id, await loadStudentUnitProgressContext({
+        unitId: unit.id,
+        moduleId: moduleRecord.id,
+        userId: user.id,
+      }))
     }
-  });
+  }
 
   const enrichedModules = enrollments
     ?.filter(e => e.modules && !["archived", "draft", "pending"].includes((e.modules as any).status))
@@ -348,28 +331,10 @@ export default async function DashboardPage() {
         const unitActivities = unit.activities || [];
         if (unitActivities.length === 0) return;
 
+        const unitProgress = unitProgressById.get(unit.id) ?? null;
         const allActivitiesDone = unitActivities.every((activity: any) => {
-          // Only count steps where completion_mode !== 'none'
-          const countableSteps: Array<{ id: string; title: string; completion_mode: string }> = [];
-          activity.activity_phases?.forEach((phase: any) => {
-            phase.activity_steps?.forEach((step: any) => {
-              if (step.completion_mode !== 'none') {
-                countableSteps.push(step);
-              }
-            });
-          });
-
-          if (countableSteps.length === 0) return false;
-
-          const allCountableDone = countableSteps.every(step => {
-            if (step.completion_mode === 'viewable') {
-              return viewedStepIds.has(step.id);
-            }
-            // 'required': must have a submission entry
-            return activityCompletionMap[activity.id]?.has(step.id) ?? false;
-          });
-
-          return allCountableDone;
+          const summary = unitProgress?.summariesByActivityId.get(activity.id);
+          return summary?.allTrackedStepsCompleted ?? false;
         });
 
         if (allActivitiesDone) {

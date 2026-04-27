@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { StepViewer } from "./viewers/step-viewer";
-import { markStepViewed } from "@/app/activities/[id]/actions";
+import { markStepCompleted, markStepViewed } from "@/app/activities/[id]/actions";
 import { DashboardBreadcrumb } from "@/components/dashboard/layout/dashboard-breadcrumb";
 import { UserNav } from "@/components/dashboard/layout/user-nav";
 import { buildStepLookupFromPhases, isStepVisibleForStudent } from "@/lib/activity-step-audience";
@@ -29,6 +29,7 @@ interface StudentPreviewProps {
     hideHeader?: boolean;
     submissionsMap?: Record<string, ActivitySubmission>;
     viewsMap?: Record<string, boolean>;
+    completionsMap?: Record<string, boolean>;
     googleEmail?: string | null;
     isPreview?: boolean;
     classBadges?: any[];
@@ -59,8 +60,8 @@ function StepXpBadge({ xp }: { xp: number }) {
     );
 }
 
-function StepStatusBadge({ status, type, isViewed, completionMode }: { status?: string; type: ActivityStepType; isViewed?: boolean; completionMode?: string }) {
-    if (!status && (type === 'deliverable' || type === 'file_upload' || type === 'quiz')) {
+function StepStatusBadge({ status, type, isViewed, isCompleted, completionMode }: { status?: string; type: ActivityStepType; isViewed?: boolean; isCompleted?: boolean; completionMode?: string }) {
+    if (!status && (type === 'deliverable' || type === 'file_upload' || type === 'quiz' || type === 'self_evaluation' || type === 'peer_evaluation')) {
         return (
             <div className="px-1.5 py-0.5 rounded-md border border-border/50 text-[8px] font-bold uppercase tracking-wider text-text-muted shrink-0">
                 Pendiente
@@ -77,6 +78,14 @@ function StepStatusBadge({ status, type, isViewed, completionMode }: { status?: 
         ) : (
             <div className="px-1.5 py-0.5 rounded-md border border-border/50 text-[8px] font-bold uppercase tracking-wider text-text-muted shrink-0">
                 Pendiente
+            </div>
+        );
+    }
+
+    if (!status && completionMode === 'required' && isCompleted) {
+        return (
+            <div className="px-1.5 py-0.5 rounded-md border border-accent-green/30 text-[8px] font-bold uppercase tracking-wider text-accent-green bg-accent-green/10 shrink-0 flex items-center gap-0.5">
+                <CheckCircle2 className="size-2.5" /> Hecho
             </div>
         );
     }
@@ -99,6 +108,15 @@ function StepStatusBadge({ status, type, isViewed, completionMode }: { status?: 
             {config.label}
         </div>
     );
+}
+
+function requiresManualCompletion(step: ActivityStepWithClientState) {
+    return step.completion_mode === "required"
+        && step.type !== "deliverable"
+        && step.type !== "file_upload"
+        && step.type !== "quiz"
+        && step.type !== "self_evaluation"
+        && step.type !== "peer_evaluation";
 }
 
 
@@ -168,7 +186,7 @@ function SortableTab({
     );
 }
 
-export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, viewsMap, googleEmail, isPreview = false, classBadges, earnedBadgeIds, groupId, groupName, groupColor }: StudentPreviewProps) {
+export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, viewsMap, completionsMap, googleEmail, isPreview = false, classBadges, earnedBadgeIds, groupId, groupName, groupColor }: StudentPreviewProps) {
     const stepLookup = useMemo(() => buildStepLookupFromPhases(phases), [phases]);
     const audienceContext = useMemo(
         () => ({
@@ -198,7 +216,17 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
     const [openStepIds, setOpenStepIds] = useState<string[]>([]);
     const [collapsedPhases, setCollapsedPhases] = useState<string[]>([]);
     const [localViews, setLocalViews] = useState<Record<string, boolean>>(viewsMap ?? {});
+    const [localCompletions, setLocalCompletions] = useState<Record<string, boolean>>(completionsMap ?? {});
     const [markingViewed, setMarkingViewed] = useState(false);
+    const [markingCompleted, setMarkingCompleted] = useState(false);
+
+    useEffect(() => {
+        setLocalViews(viewsMap ?? {});
+    }, [viewsMap]);
+
+    useEffect(() => {
+        setLocalCompletions(completionsMap ?? {});
+    }, [completionsMap]);
 
     // Restore persisted tab state when visible step tree changes.
     useEffect(() => {
@@ -297,6 +325,16 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
             setLocalViews(prev => ({ ...prev, [selectedStep.id]: true }));
         }
         setMarkingViewed(false);
+    };
+
+    const handleMarkCompleted = async () => {
+        if (!selectedStep || markingCompleted) return;
+        setMarkingCompleted(true);
+        const result = await markStepCompleted(selectedStep.id, activity.id);
+        if (!result?.error) {
+            setLocalCompletions(prev => ({ ...prev, [selectedStep.id]: true }));
+        }
+        setMarkingCompleted(false);
     };
 
     return (
@@ -452,6 +490,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                                         status={submissionsMap?.[step.id]?.status}
                                                                         type={step.type}
                                                                         isViewed={localViews[step.id]}
+                                                                        isCompleted={localCompletions[step.id]}
                                                                         completionMode={step.completion_mode}
                                                                     />
                                                                     <StepXpBadge xp={step.xp || 0} />
@@ -484,6 +523,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                                                 status={submissionsMap?.[child.id]?.status}
                                                                                 type={child.type}
                                                                                 isViewed={localViews[child.id]}
+                                                                                isCompleted={localCompletions[child.id]}
                                                                                 completionMode={child.completion_mode}
                                                                             />
                                                                         </div>
@@ -561,7 +601,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                         variant="ghost"
                                         size="icon"
                                         className="size-7 text-text-muted hover:text-foreground"
-                                        disabled={selectedStepIndex >= allSteps.length - 1}
+                                        disabled={selectedStepIndex >= accessibleSteps.length - 1}
                                         onClick={handleNext}
                                     >
                                         <ChevronRight className="size-3.5" />
@@ -618,6 +658,25 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                             >
                                                 <Eye className="size-4 mr-2" />
                                                 {markingViewed ? "Guardando..." : "Marcar como visto"}
+                                            </Button>
+                                        )
+                                    )}
+                                    {requiresManualCompletion(selectedStep) && (
+                                        localCompletions[selectedStep.id] ? (
+                                            <Button
+                                                className="bg-green-600/50 text-white cursor-not-allowed h-10 px-6 text-sm font-medium"
+                                                disabled
+                                            >
+                                                <CheckCircle2 className="size-4 mr-2" /> Completado
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                className="bg-green-600 hover:bg-green-700 text-white h-10 px-6 text-sm font-medium disabled:opacity-50"
+                                                onClick={handleMarkCompleted}
+                                                disabled={markingCompleted || isPreview}
+                                            >
+                                                <CheckCircle2 className="size-4 mr-2" />
+                                                {markingCompleted ? "Guardando..." : "Marcar como completado"}
                                             </Button>
                                         )
                                     )}
@@ -695,6 +754,25 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                 >
                                                     <Eye className="size-4 mr-2" />
                                                     {markingViewed ? "Guardando..." : "Marcar como visto"}
+                                                </Button>
+                                            )
+                                        )}
+                                        {requiresManualCompletion(selectedStep) && (
+                                            localCompletions[selectedStep.id] ? (
+                                                <Button
+                                                    className="bg-green-600/50 text-white cursor-not-allowed h-10 px-6 text-sm font-medium"
+                                                    disabled
+                                                >
+                                                    <CheckCircle2 className="size-4 mr-2" /> Completado
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    className="bg-green-600 hover:bg-green-700 text-white h-10 px-6 text-sm font-medium disabled:opacity-50"
+                                                    onClick={handleMarkCompleted}
+                                                    disabled={markingCompleted || isPreview}
+                                                >
+                                                    <CheckCircle2 className="size-4 mr-2" />
+                                                    {markingCompleted ? "Guardando..." : "Marcar como completado"}
                                                 </Button>
                                             )
                                         )}

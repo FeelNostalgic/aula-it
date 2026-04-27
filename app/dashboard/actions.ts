@@ -3,6 +3,11 @@
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
+import {
+    ACTIVITY_NAVIGATION_MODE,
+    UNIT_ACTIVITY_NAVIGATION_MODE,
+    UNIT_ACTIVITY_UNLOCK_RULE,
+} from "@/types/activity";
 
 export async function createModule(prevState: any, formData: FormData) {
     const supabase = await createClient();
@@ -205,6 +210,9 @@ export async function duplicateModule(moduleId: string) {
                 description: unit.description,
                 status: 'draft',
                 view_type: unit.view_type || 'list',
+                activity_navigation_mode: unit.activity_navigation_mode || UNIT_ACTIVITY_NAVIGATION_MODE.FREE,
+                activity_unlock_rule: unit.activity_unlock_rule || UNIT_ACTIVITY_UNLOCK_RULE.REQUIRED_STEPS,
+                activity_unlock_threshold: unit.activity_unlock_threshold ?? 100,
                 order_index: unit.order_index,
                 resources: unit.resources
             })
@@ -229,7 +237,8 @@ export async function duplicateModule(moduleId: string) {
                     order_index: activity.order_index,
                     position_x: activity.position_x,
                     position_y: activity.position_y,
-                    logo_url: activity.logo_url
+                    logo_url: activity.logo_url,
+                    navigation_mode: activity.navigation_mode ?? ACTIVITY_NAVIGATION_MODE.FREE,
                 })
                 .select()
                 .single();
@@ -259,8 +268,19 @@ export async function duplicateModule(moduleId: string) {
                             content: step.content,
                             type: step.type,
                             order_index: step.order_index,
-                            xp_reward: step.xp_reward,
+                            xp: step.xp ?? step.xp_reward ?? 0,
                             completion_mode: step.completion_mode,
+                            xp_award_trigger: step.xp_award_trigger ?? null,
+                            is_visible: step.is_visible ?? true,
+                            is_locked: step.is_locked ?? false,
+                            due_date: step.due_date ?? null,
+                            is_activity_closed: step.is_activity_closed ?? false,
+                            is_lockdown: step.is_lockdown ?? false,
+                            parent_step_id: step.parent_step_id ?? null,
+                            audience_mode: step.audience_mode ?? null,
+                            visible_student_ids: step.visible_student_ids ?? null,
+                            visible_group_ids: step.visible_group_ids ?? null,
+                            inherit_audience_from_parent: step.inherit_audience_from_parent ?? false,
                             config: step.config
                         });
                 }

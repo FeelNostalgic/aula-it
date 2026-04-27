@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { verifyTeacherOwnsActivity, verifyTeacherOwnsPhase, verifyTeacherOwnsStep } from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
-import { ActivityPhase, ActivityStep, ActivityStepType, CompletionMode, RubricCriteria, RubricLevel, STEP_AUDIENCE_MODE, type StepAudienceMode } from "@/types/activity";
+import { ActivityPhase, ActivityStep, ActivityStepType, CompletionMode, RubricCriteria, RubricLevel, STEP_AUDIENCE_MODE, type StepAudienceMode, type StepXpAwardTrigger } from "@/types/activity";
 import { extractGoogleFileId } from "@/lib/google-drive-urls";
 import { setFormAcceptingResponses } from "@/lib/google-forms-api";
 import { getDriveClient, updateFilePermissionRole } from "@/lib/google-drive-api";
@@ -123,6 +123,13 @@ export async function createStep(phaseId: string, title: string, type: ActivityS
             type,
             content: defaultContent,
             order_index: orderIndex,
+            xp_award_trigger: (
+                type === "deliverable"
+                || type === "file_upload"
+                || type === "quiz"
+                || type === "self_evaluation"
+                || type === "peer_evaluation"
+            ) ? "grade" : null,
             audience_mode: STEP_AUDIENCE_MODE.ALL,
             visible_student_ids: [],
             visible_group_ids: [],
@@ -293,6 +300,7 @@ export async function duplicateStep(stepId: string) {
         is_lockdown: (originalStep as any).is_lockdown ?? false,
         due_date: (originalStep as any).due_date ?? null,
         completion_mode: (originalStep as any).completion_mode ?? null,
+        xp_award_trigger: (originalStep as any).xp_award_trigger ?? null,
         xp: (originalStep as any).xp ?? null,
         parent_step_id: (originalStep as any).parent_step_id ?? null,
         audience_mode: (originalStep as any).audience_mode ?? STEP_AUDIENCE_MODE.ALL,
@@ -356,6 +364,7 @@ export async function duplicateStep(stepId: string) {
             is_lockdown: child.is_lockdown ?? false,
             due_date: child.due_date ?? null,
             completion_mode: child.completion_mode ?? null,
+            xp_award_trigger: child.xp_award_trigger ?? null,
             xp: child.xp ?? null,
             parent_step_id: insertedStep.id,
             audience_mode: child.audience_mode ?? STEP_AUDIENCE_MODE.ALL,
@@ -1114,6 +1123,28 @@ export async function updateStepCompletionMode(stepId: string, mode: CompletionM
         console.error("Error updating step completion mode:", error);
         return { error: error.message };
     }
+    return { data };
+}
+
+export async function updateStepXpAwardTrigger(stepId: string, trigger: StepXpAwardTrigger | null) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+        .from("activity_steps")
+        .update({ xp_award_trigger: trigger })
+        .eq("id", stepId)
+        .select()
+        .single();
+
+    if (error) {
+        console.error("Error updating step XP award trigger:", error);
+        return { error: error.message };
+    }
+
     return { data };
 }
 

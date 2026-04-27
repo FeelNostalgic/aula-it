@@ -10,6 +10,7 @@ import { Settings, Zap, HardDrive, Trash2, Palette, Check, LayoutGrid } from "lu
 import { toast } from "sonner";
 import { updateActivitySettings } from "@/app/activities/[id]/edit/actions";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
+import { ACTIVITY_NAVIGATION_MODE } from "@/types/activity";
 import {
     ACTIVITY_IDENTITY_COLORS,
     ACTIVITY_IDENTITY_PRESETS,
@@ -32,6 +33,7 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
     const [description, setDescription] = useState(activity.description || "");
     const [duration, setDuration] = useState(activity.duration || 30);
     const [difficulty, setDifficulty] = useState(activity.difficulty || "Bajo");
+    const [navigationMode, setNavigationMode] = useState(activity.navigation_mode || ACTIVITY_NAVIGATION_MODE.FREE);
     const [logoUrl, setLogoUrl] = useState(activity.logo_url || "");
     const [selectedPreset, setSelectedPreset] = useState(inferredIdentity?.preset ?? DEFAULT_PRESET);
     const [selectedColor, setSelectedColor] = useState(inferredIdentity?.color ?? DEFAULT_COLOR);
@@ -52,6 +54,7 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
         setDescription(activity.description || "");
         setDuration(activity.duration || 30);
         setDifficulty(activity.difficulty || "Bajo");
+        setNavigationMode(activity.navigation_mode || ACTIVITY_NAVIGATION_MODE.FREE);
         setLogoUrl(activity.logo_url || "");
         setSelectedPreset(nextIdentity?.preset ?? DEFAULT_PRESET);
         setSelectedColor(nextIdentity?.color ?? DEFAULT_COLOR);
@@ -62,16 +65,18 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
         description,
         duration,
         difficulty,
+        navigation_mode: navigationMode,
         logo_url: logoUrl,
-    }), [title, description, duration, difficulty, logoUrl]);
+    }), [title, description, duration, difficulty, navigationMode, logoUrl]);
 
     const persistedDraft = useMemo(() => ({
         title: activity.title || "",
         description: activity.description || "",
         duration: activity.duration || 30,
         difficulty: activity.difficulty || "Bajo",
+        navigation_mode: activity.navigation_mode || ACTIVITY_NAVIGATION_MODE.FREE,
         logo_url: activity.logo_url || "",
-    }), [activity.title, activity.description, activity.duration, activity.difficulty, activity.logo_url]);
+    }), [activity.title, activity.description, activity.duration, activity.difficulty, activity.navigation_mode, activity.logo_url]);
 
     useEffect(() => {
         setIsDirty(JSON.stringify(currentDraft) !== JSON.stringify(persistedDraft));
@@ -108,6 +113,10 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
         setDifficulty(value);
     };
 
+    const handleNavigationModeChange = (value: string) => {
+        setNavigationMode(value);
+    };
+
     const handleLogoChange = (value: string) => {
         setLogoUrl(value);
     };
@@ -117,6 +126,7 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
         setDescription(persistedDraft.description);
         setDuration(persistedDraft.duration);
         setDifficulty(persistedDraft.difficulty);
+        setNavigationMode(persistedDraft.navigation_mode);
         setLogoUrl(persistedDraft.logo_url);
         const nextIdentity = inferActivityIdentityFromLogoUrl(persistedDraft.logo_url);
         setSelectedPreset(nextIdentity?.preset ?? DEFAULT_PRESET);
@@ -208,6 +218,24 @@ export function ActivitySettingsPanel({ activity, onUpdate }: ActivitySettingsPa
                                     </SelectItem>
                                 </SelectContent>
                             </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label htmlFor="activity-navigation" className="text-sm font-semibold text-foreground">
+                                Navegación dentro del reto
+                            </label>
+                            <Select value={navigationMode} onValueChange={handleNavigationModeChange}>
+                                <SelectTrigger id="activity-navigation" className="bg-surface border-border/50">
+                                    <SelectValue placeholder="Selecciona..." />
+                                </SelectTrigger>
+                                <SelectContent className="bg-surface-dark border-border-strong">
+                                    <SelectItem value={ACTIVITY_NAVIGATION_MODE.FREE}>Libre</SelectItem>
+                                    <SelectItem value={ACTIVITY_NAVIGATION_MODE.STRICT}>Estricto</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-text-muted">
+                                `Libre` deja abrir cualquier paso visible. `Estricto` obliga a completar el paso anterior según su regla real.
+                            </p>
                         </div>
                     </div>
 

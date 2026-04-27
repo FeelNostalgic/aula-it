@@ -13,6 +13,7 @@ interface StudentActivityClientProps {
     profile?: any;
     submissionsMap?: Record<string, ActivitySubmission>;
     viewsMap?: Record<string, boolean>;
+    completionsMap?: Record<string, boolean>;
     classBadges?: any[];
     earnedBadgeIds?: string[];
     readOnly?: boolean;
@@ -49,7 +50,7 @@ function BreadcrumbSetter({ activity }: { activity: any }) {
     return null;
 }
 
-export function StudentActivityClient({ activity, phases, user, profile, submissionsMap, viewsMap, classBadges, earnedBadgeIds, readOnly = false, groupId, groupName, groupColor }: StudentActivityClientProps) {
+export function StudentActivityClient({ activity, phases, user, profile, submissionsMap, viewsMap, completionsMap, classBadges, earnedBadgeIds, readOnly = false, groupId, groupName, groupColor }: StudentActivityClientProps) {
     const router = useRouter();
 
     const handleExit = () => {
@@ -72,6 +73,7 @@ export function StudentActivityClient({ activity, phases, user, profile, submiss
                     profile={profile}
                     submissionsMap={submissionsMap}
                     viewsMap={viewsMap}
+                    completionsMap={completionsMap}
                     googleEmail={profile?.google_email ?? null}
                     classBadges={classBadges}
                     earnedBadgeIds={earnedBadgeIds}
