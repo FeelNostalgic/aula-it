@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   animationRegistry,
   arpSteps,
+  csmaCdSteps,
   dhcpSteps,
   dnsSteps,
   ethernetSteps,
@@ -19,6 +20,7 @@ import {
   sshSteps,
   tcpSteps,
   tcpVsUdpSteps,
+  tftpSteps,
   udpSteps,
 } from "@/lib/animations/registry";
 
@@ -92,6 +94,7 @@ describe("animationRegistry", () => {
 
     it("contains all new IP, ICMP, TCP and UDP entries", () => {
         const expectedSlugs = [
+            "csma-cd",
             "ip-basico",
             "ip-ruta",
             "ip-hop-by-hop",
@@ -107,6 +110,7 @@ describe("animationRegistry", () => {
             "ssh",
             "dns",
             "dhcp",
+            "tftp",
         ];
 
         for (const slug of expectedSlugs) {
@@ -343,6 +347,12 @@ describe("ftpSteps", () => {
     });
 });
 
+describe("csmaCdSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(csmaCdSteps.map((step) => step.id)).toEqual(["step-1", "step-2", "step-3", "step-4", "step-5"]);
+    });
+});
+
 describe("httpHttpsSteps", () => {
     it("uses the sequential step-N pattern from step-1 to step-5", () => {
         expect(httpHttpsSteps.map((step) => step.id)).toEqual(["step-1", "step-2", "step-3", "step-4", "step-5"]);
@@ -379,9 +389,15 @@ describe("dhcpSteps", () => {
     });
 });
 
+describe("tftpSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+        expect(tftpSteps.map((step) => step.id)).toEqual(["step-1", "step-2", "step-3", "step-4", "step-5"]);
+    });
+});
+
 describe("new application protocol steps", () => {
     it("have non-empty labels and descriptions", () => {
-        const groups = [ftpSteps, httpHttpsSteps, smtpSteps, pop3Steps, sshSteps, dnsSteps, dhcpSteps];
+        const groups = [ftpSteps, httpHttpsSteps, smtpSteps, pop3Steps, sshSteps, dnsSteps, dhcpSteps, tftpSteps, csmaCdSteps];
         for (const group of groups) {
             for (const step of group) {
                 expect(step.label.trim().length).toBeGreaterThan(0);

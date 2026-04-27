@@ -16,10 +16,13 @@ import { SmtpAnimation } from "./smtp-animation"
 import { SshAnimation } from "./ssh-animation"
 import { TcpAnimation } from "./tcp-animation"
 import { TcpVsUdpAnimation } from "./tcp-vs-udp-animation"
+import { TftpAnimation } from "./tftp-animation"
 import { UdpAnimation } from "./udp-animation"
+import { CsmaCdAnimation } from "./csma-cd-animation"
 
 export const animationComponentMap = {
   arp: ArpAnimation,
+  "csma-cd": CsmaCdAnimation,
   dhcp: DhcpAnimation,
   dns: DnsAnimation,
   ethernet: EthernetAnimation,
@@ -37,5 +40,6 @@ export const animationComponentMap = {
   ssh: SshAnimation,
   tcp: TcpAnimation,
   "tcp-vs-udp": TcpVsUdpAnimation,
+  tftp: TftpAnimation,
   udp: UdpAnimation,
 } as const

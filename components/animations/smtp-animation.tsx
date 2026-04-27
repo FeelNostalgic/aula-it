@@ -65,7 +65,7 @@ export function SmtpAnimation() {
       cards={[
         { id: "intro", x: 254, y: 52, width: 292, title: "SMTP ENTREGA EL MENSAJE AL SERVIDOR", body: "No lee correo: lo envía", tone: "warn" },
         { id: "relay", x: 522, y: 244, width: 186, title: "REENVIO ENTRE SERVIDORES", body: "Lo acerca al buzon destino", tone: "active" },
-        { id: "summary", x: 242, y: 360, width: 316, title: "SMTP SIRVE PARA ENVIAR CORREO", body: "Despues otro protocolo lo recupera", tone: "success" },
+        { id: "summary", x: 242, y: 390, width: 316, title: "SMTP SIRVE PARA ENVIAR CORREO", body: "Después otro protocolo lo recupera", tone: "success" },
       ]}
       packets={[
         { id: "submit", label: "MAIL", tone: "primary", width: 70 },

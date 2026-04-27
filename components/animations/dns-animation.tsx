@@ -65,7 +65,7 @@ export function DnsAnimation() {
       cards={[
         { id: "intro", x: 244, y: 52, width: 312, title: "DNS RESPONDE A LA PREGUNTA: QUE IP TIENE ESE NOMBRE", body: "Normalmente usa UDP 53", tone: "warn" },
         { id: "reply", x: 506, y: 244, width: 208, title: "RESPUESTA CON LA IP", body: "Ahora el cliente ya sabe a donde ir", tone: "active" },
-        { id: "summary", x: 226, y: 360, width: 348, title: "DNS NO TRAE LA WEB: SOLO DICE QUE IP USAR", body: "Despues ya se conecta al servidor correcto", tone: "success" },
+        { id: "summary", x: 226, y: 390, width: 348, title: "DNS NO TRAE LA WEB: SOLO DICE QUE IP USAR", body: "Después ya se conecta al servidor correcto", tone: "success" },
       ]}
       packets={[
         { id: "query", label: "QUERY", tone: "primary", width: 78 },

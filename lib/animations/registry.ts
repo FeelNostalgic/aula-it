@@ -464,7 +464,7 @@ export const httpHttpsSteps = [
     id: "step-3",
     label: "3. El servidor devuelve la pagina",
     description:
-      "La respuesta puede incluir HTML, imagenes u otros recursos. Así se construye lo que ves luego en el navegador.",
+      "La respuesta puede incluir HTML, imágenes u otros recursos. Así se construye lo que ves luego en el navegador.",
   },
   {
     id: "step-4",
@@ -518,7 +518,7 @@ export const pop3Steps = [
     id: "step-1",
     label: "1. El usuario quiere leer su correo",
     description:
-      "Despues de que el correo llegue al servidor, hace falta un protocolo para recogerlo y llevarlo al equipo del usuario.",
+      "Después de que el correo llegue al servidor, hace falta un protocolo para recogerlo y llevarlo al equipo del usuario.",
   },
   {
     id: "step-2",
@@ -633,15 +633,81 @@ export const dhcpSteps = [
   },
   {
     id: "step-4",
-    label: "4. El cliente pide quedarse con esa configuracion",
+    label: "4. El cliente pide quedarse con esa configuración",
     description:
-      "Despues de recibir la oferta, el cliente envía una solicitud para confirmar que quiere usar esa dirección y esos parametros.",
+      "Después de recibir la oferta, el cliente envía una solicitud para confirmar que quiere usar esa dirección y esos parámetros.",
   },
   {
     id: "step-5",
     label: "5. DHCP confirma y el equipo ya puede trabajar",
     description:
       "Cuando llega el ACK final, el equipo ya tiene configuracion de red y puede empezar a comunicarse sin poner esos datos a mano.",
+  },
+]
+
+export const tftpSteps = [
+  {
+    id: "step-1",
+    label: "1. Un cliente necesita un archivo simple desde la red",
+    description:
+      "TFTP se usa cuando importa la simplicidad: por ejemplo, para arrancar equipos por red o cargar imágenes y configuraciones sin toda la complejidad de otros protocolos.",
+  },
+  {
+    id: "step-2",
+    label: "2. El cliente pide el archivo al servidor TFTP",
+    description:
+      "El cliente enva una petición de lectura al servidor usando UDP. En TFTP no hay sesión pesada ni autenticación integrada: la idea es pedir un fichero y empezar rápido.",
+  },
+  {
+    id: "step-3",
+    label: "3. El servidor responde con el primer bloque de datos",
+    description:
+      "El archivo no viaja entero de golpe. TFTP lo divide en bloques pequeños y envía el primero para que el cliente pueda ir recibiendo y comprobando el avance.",
+  },
+  {
+    id: "step-4",
+    label: "4. El cliente confirma cada bloque con ACK",
+    description:
+      "Tras recibir un bloque, el cliente responde con un ACK. Ese intercambio bloque-ACK controla el orden de la transferencia sin convertir TFTP en un protocolo complejo.",
+  },
+  {
+    id: "step-5",
+    label: "5. El último bloque cierra la transferencia",
+    description:
+      "Cuando llega el último bloque y se confirma, la transferencia termina. TFTP resuelve una tarea concreta: mover archivos pequeños con la mínima complejidad posible.",
+  },
+]
+
+export const csmaCdSteps = [
+  {
+    id: "step-1",
+    label: "1. Varios equipos comparten el mismo medio",
+    description:
+      "En Ethernet antigua en half-duplex todos comparten el mismo canal. Antes de transmitir, una tarjeta escucha para comprobar si el medio está libre.",
+  },
+  {
+    id: "step-2",
+    label: "2. Dos equipos creen que pueden transmitir a la vez",
+    description:
+      "PC A y PC B escuchan, no detectan tráfico en ese instante y comienzan a transmitir casi al mismo tiempo. Ese es justo el escenario que provoca la colisión.",
+  },
+  {
+    id: "step-3",
+    label: "3. Las señales chocan y ambos detectan la colisión",
+    description:
+      "Las tramas se superponen en el medio compartido. Ninguna llega bien. Los equipos detectan que lo que estan viendo no coincide con lo que estaban enviando.",
+  },
+  {
+    id: "step-4",
+    label: "4. Se envía jam y cada equipo espera un tiempo aleatorio",
+    description:
+      "Tras detectar la colisión, se emite una senal de jam para que todos sepan que esa transmisión ha fallado. Después cada emisor espera un backoff aleatorio antes de reintentar.",
+  },
+  {
+    id: "step-5",
+    label: "5. Uno reintenta y ahora si transmite con exito",
+    description:
+      "Como los tiempos de espera ya no coinciden, uno de los equipos vuelve a intentarlo antes y consigue usar el medio sin chocar. Así CSMA/CD resuelve el acceso compartido por reintentos.",
   },
 ]
 
@@ -653,6 +719,14 @@ export const animationRegistry: AnimationMeta[] = [
       "Descubre cómo los equipos de red resuelven direcciones IP a direcciones MAC usando el protocolo ARP.",
     topic: "Redes",
     steps: arpSteps,
+  },
+  {
+    slug: "csma-cd",
+    title: "CSMA/CD",
+    description:
+      "Explica como varios equipos comparten un mismo medio, que ocurre cuando colisionan y por que el backoff aleatorio permite reintentar sin quedarse bloqueados.",
+    topic: "Redes",
+    steps: csmaCdSteps,
   },
   {
     slug: "osi-tcp-ip",
@@ -757,6 +831,14 @@ export const animationRegistry: AnimationMeta[] = [
       "Muestra como funciona la petición y respuesta web y que aporta HTTPS al anadir seguridad y cifrado frente a HTTP.",
     topic: "Redes",
     steps: httpHttpsSteps,
+  },
+  {
+    slug: "tftp",
+    title: "Protocolo TFTP",
+    description:
+      "Visualiza como TFTP transfiere archivos pequeños mediante bloques y ACK sobre UDP, priorizando simplicidad frente a funciones avanzadas.",
+    topic: "Redes",
+    steps: tftpSteps,
   },
   {
     slug: "smtp",
