@@ -27,15 +27,15 @@ const NODE_INFO: Record<string, NodeInfo> = {
     id: "client",
     label: "Cliente",
     facts: [
-      { label: "tcp", value: "Abre conexion" },
-      { label: "envia", value: "Datos y espera ACK" },
+      { label: "tcp", value: "Abre conexión" },
+      { label: "envía", value: "Datos y espera ACK" },
     ],
   },
   server: {
     id: "server",
     label: "Servidor",
     facts: [
-      { label: "tcp", value: "Acepta conexion" },
+      { label: "tcp", value: "Acepta conexión" },
       { label: "confirma", value: "Recepcion de datos" },
     ],
   },
@@ -55,37 +55,37 @@ export function TcpAnimation() {
   const C =
     resolvedTheme === "light"
       ? {
-          bg: "#E5EAF0",
-          fg: "#0F172A",
-          idle: "#94A3B8",
-          active: "#2563EB",
-          success: "#059669",
-          warn: "#D97706",
-          panel: "#FFFFFF",
-          subText: "#475569",
-          synFill: "#DBEAFE",
-          synText: "#1D4ED8",
-          dataFill: "#0F172A",
-          dataText: "#F8FAFC",
-          ackFill: "#DCFCE7",
-          ackText: "#047857",
-        }
+        bg: "#E5EAF0",
+        fg: "#0F172A",
+        idle: "#94A3B8",
+        active: "#2563EB",
+        success: "#059669",
+        warn: "#D97706",
+        panel: "#FFFFFF",
+        subText: "#475569",
+        synFill: "#DBEAFE",
+        synText: "#1D4ED8",
+        dataFill: "#0F172A",
+        dataText: "#F8FAFC",
+        ackFill: "#DCFCE7",
+        ackText: "#047857",
+      }
       : {
-          bg: "#1F2937",
-          fg: "#E5E7EB",
-          idle: "#64748B",
-          active: "#38BDF8",
-          success: "#34D399",
-          warn: "#FBBF24",
-          panel: "#111827",
-          subText: "#A3B0C2",
-          synFill: "#172554",
-          synText: "#BFDBFE",
-          dataFill: "#E2E8F0",
-          dataText: "#0F172A",
-          ackFill: "#052E2B",
-          ackText: "#A7F3D0",
-        }
+        bg: "#1F2937",
+        fg: "#E5E7EB",
+        idle: "#64748B",
+        active: "#38BDF8",
+        success: "#34D399",
+        warn: "#FBBF24",
+        panel: "#111827",
+        subText: "#A3B0C2",
+        synFill: "#172554",
+        synText: "#BFDBFE",
+        dataFill: "#E2E8F0",
+        dataText: "#0F172A",
+        ackFill: "#052E2B",
+        ackText: "#A7F3D0",
+      }
 
   useEffect(() => {
     if (!svgRef.current) return
@@ -165,7 +165,7 @@ export function TcpAnimation() {
       >
         <line x1={N.client.x} y1={N.client.y} x2={N.server.x} y2={N.server.y} stroke={C.idle} strokeWidth="1.8" strokeDasharray="7 5" />
         <text x="400" y="208" textAnchor="middle" fill={C.subText} fontSize="9.5" fontWeight="700" fontFamily="var(--font-mono)">
-          CONEXION ORIENTADA A SESION
+          CONEXIÓN ORIENTADA A SESIÓN
         </text>
 
         <g id="node-client" onMouseEnter={() => handleNodeEnter("client")} onMouseLeave={scheduleHide} className="cursor-default">
@@ -195,12 +195,12 @@ export function TcpAnimation() {
         </g>
 
         <g id="ack-card" pointerEvents="none">
-          <rect x="530" y="288" width="194" height="44" rx="12" fill={C.panel} stroke={C.active} strokeWidth="1.4" />
-          <text x="627" y="305" textAnchor="middle" fill={C.active} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
-            CONFIRMACION DE RECEPCION
+          <rect x="530" y="308" width="194" height="44" rx="12" fill={C.panel} stroke={C.active} strokeWidth="1.4" />
+          <text x="627" y="325" textAnchor="middle" fill={C.active} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
+            CONFIRMACIÓN DE RECEPCIÓN
           </text>
-          <text x="627" y="319" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
-            El receptor avisa de que llego
+          <text x="627" y="340" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
+            El receptor avisa de que llegó
           </text>
         </g>
 
@@ -210,7 +210,7 @@ export function TcpAnimation() {
             TCP PRIORIZA CONTROL, ORDEN Y FIABILIDAD
           </text>
           <text x="400" y="391" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
-            Ideal cuando perder datos no es una opcion
+            Ideal cuando perder datos no es una opción
           </text>
         </g>
 

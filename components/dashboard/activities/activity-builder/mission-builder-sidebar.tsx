@@ -1120,7 +1120,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
             <Dialog open={isAddingStep} onOpenChange={setIsAddingStep}>
                 <DialogContent className={`sm:max-w-[460px] ${CREATE_DIALOG_CONTENT_CLASS}`}>
                     <DialogHeader className={CREATE_DIALOG_HEADER_CLASS}>
-                        <DialogTitle>Nueva Actividad</DialogTitle>
+                        <DialogTitle>Nueva actividad</DialogTitle>
                         <DialogDescription>
                             Crea una nueva actividad dentro de la fase seleccionada.
                         </DialogDescription>
@@ -1145,7 +1145,7 @@ export function MissionBuilderSidebar({ activityId, phases, setPhases, selectedS
                         <Button variant="ghost" onClick={() => setIsAddingStep(false)} disabled={isCreatingStep}>Cancelar</Button>
                         <Button onClick={handleAddStep} disabled={isCreatingStep} className={CREATE_DIALOG_PRIMARY_ACTION_CLASS}>
                             {isCreatingStep && <span className="mr-2 size-3.5 rounded-full border-2 border-current border-t-transparent animate-spin inline-block" />}
-                            Crear Actividad
+                            Crear actividad
                         </Button>
                     </DialogFooter>
                 </DialogContent>

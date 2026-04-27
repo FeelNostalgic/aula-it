@@ -45,7 +45,7 @@ const nodes = [
       id: "web",
       label: "Servidor web",
       facts: [
-        { label: "espera", value: "La peticion final" },
+        { label: "espera", value: "La petición final" },
         { label: "usa", value: "La IP encontrada" },
       ],
     },

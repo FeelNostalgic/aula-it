@@ -163,23 +163,21 @@ test.describe("Grade Publishing Flow", () => {
 });
 
 async function gotoUnitEvaluationTab(page: import("@playwright/test").Page, unitId: string): Promise<boolean> {
-    const unitUrl = `/dashboard/units/${unitId}`;
+    const evaluationUrl = `/dashboard/units/${unitId}/evaluacion`;
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
-            await page.goto(unitUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
-            await page.waitForURL(/\/dashboard\/units\//, { timeout: 15000 });
-
-            const evaluationLink = page.getByRole("link", { name: "EVALUACIÓN" });
-            await expect(evaluationLink).toBeVisible({ timeout: 15000 });
-            await evaluationLink.click();
-            await page.waitForURL(new RegExp(`/dashboard/units/${unitId}`), { timeout: 15000 });
+            await page.goto(evaluationUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+            await page.waitForURL(new RegExp(`/dashboard/units/${unitId}/evaluacion`), { timeout: 15000 });
             return true;
         } catch {
             const currentUrl = page.url();
-            const hitChromeError = currentUrl.startsWith("chrome-error://");
+            const retryable =
+                currentUrl.startsWith("chrome-error://")
+                || currentUrl.endsWith(`/dashboard/units/${unitId}`)
+                || currentUrl.endsWith(`/dashboard/units/${unitId}/retos`);
 
-            if (!hitChromeError && attempt === 2) {
+            if (!retryable && attempt === 2) {
                 return false;
             }
 

@@ -36,7 +36,7 @@ const NODE_INFO: Record<string, NodeInfo> = {
     mask: "24",
     gateway: "192.168.1.1",
     facts: [
-      { label: "envia", value: "Paquete IP" },
+      { label: "envía", value: "Paquete IP" },
       { label: "dest", value: "172.16.0.20" },
     ],
   },
@@ -72,7 +72,7 @@ const NODE_INFO: Record<string, NodeInfo> = {
     gateway: "172.16.0.1",
     facts: [
       { label: "rol", value: "Red final" },
-      { label: "recibe", value: "Paquete del ultimo salto" },
+      { label: "recibe", value: "Paquete del último salto" },
     ],
   },
 }
@@ -91,33 +91,33 @@ export function IpHopByHopAnimation() {
   const C =
     resolvedTheme === "light"
       ? {
-          bg: "#E5EAF0",
-          fg: "#0F172A",
-          idle: "#94A3B8",
-          active: "#2563EB",
-          success: "#059669",
-          warn: "#D97706",
-          panel: "#FFFFFF",
-          subText: "#475569",
-          packet: "#0F172A",
-          packetText: "#F8FAFC",
-          noteFill: "#DBEAFE",
-          noteText: "#1D4ED8",
-        }
+        bg: "#E5EAF0",
+        fg: "#0F172A",
+        idle: "#94A3B8",
+        active: "#2563EB",
+        success: "#059669",
+        warn: "#D97706",
+        panel: "#FFFFFF",
+        subText: "#475569",
+        packet: "#0F172A",
+        packetText: "#F8FAFC",
+        noteFill: "#DBEAFE",
+        noteText: "#1D4ED8",
+      }
       : {
-          bg: "#1F2937",
-          fg: "#E5E7EB",
-          idle: "#64748B",
-          active: "#38BDF8",
-          success: "#34D399",
-          warn: "#FBBF24",
-          panel: "#111827",
-          subText: "#A3B0C2",
-          packet: "#E2E8F0",
-          packetText: "#0F172A",
-          noteFill: "#172554",
-          noteText: "#BFDBFE",
-        }
+        bg: "#1F2937",
+        fg: "#E5E7EB",
+        idle: "#64748B",
+        active: "#38BDF8",
+        success: "#34D399",
+        warn: "#FBBF24",
+        panel: "#111827",
+        subText: "#A3B0C2",
+        packet: "#E2E8F0",
+        packetText: "#0F172A",
+        noteFill: "#172554",
+        noteText: "#BFDBFE",
+      }
 
   useEffect(() => {
     if (!svgRef.current) return
@@ -245,7 +245,7 @@ export function IpHopByHopAnimation() {
         <g id="hop-note-2" className="hop-note" pointerEvents="none">
           <rect x="286" y="298" width="228" height="26" rx="13" fill={C.noteFill} />
           <text x="400" y="314" textAnchor="middle" fill={C.noteText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
-            Router 2 lo reenvia mas cerca
+            Router 2 lo reenvía más cerca
           </text>
         </g>
 
@@ -269,7 +269,7 @@ export function IpHopByHopAnimation() {
             IP AVANZA SALTO A SALTO ENTRE ROUTERS
           </text>
           <text x="400" y="402" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
-            Cada router reenvia el mismo paquete hacia el siguiente hop
+            Cada router reenvía el mismo paquete hacia el siguiente hop
           </text>
         </g>
 

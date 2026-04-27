@@ -27,41 +27,41 @@ export function TcpVsUdpAnimation() {
   const C =
     resolvedTheme === "light"
       ? {
-          bg: "#E5EAF0",
-          fg: "#0F172A",
-          idle: "#94A3B8",
-          tcp: "#2563EB",
-          udp: "#D97706",
-          success: "#059669",
-          panel: "#FFFFFF",
-          subText: "#475569",
-          tcpFill: "#DBEAFE",
-          tcpText: "#1D4ED8",
-          udpFill: "#FEF3C7",
-          udpText: "#92400E",
-          goodFill: "#DCFCE7",
-          goodText: "#047857",
-          badFill: "#FEE2E2",
-          badText: "#B91C1C",
-        }
+        bg: "#E5EAF0",
+        fg: "#0F172A",
+        idle: "#94A3B8",
+        tcp: "#2563EB",
+        udp: "#D97706",
+        success: "#059669",
+        panel: "#FFFFFF",
+        subText: "#475569",
+        tcpFill: "#DBEAFE",
+        tcpText: "#1D4ED8",
+        udpFill: "#FEF3C7",
+        udpText: "#92400E",
+        goodFill: "#DCFCE7",
+        goodText: "#047857",
+        badFill: "#FEE2E2",
+        badText: "#B91C1C",
+      }
       : {
-          bg: "#1F2937",
-          fg: "#E5E7EB",
-          idle: "#64748B",
-          tcp: "#38BDF8",
-          udp: "#FBBF24",
-          success: "#34D399",
-          panel: "#111827",
-          subText: "#A3B0C2",
-          tcpFill: "#172554",
-          tcpText: "#BFDBFE",
-          udpFill: "#78350F",
-          udpText: "#FDE68A",
-          goodFill: "#052E2B",
-          goodText: "#A7F3D0",
-          badFill: "#450A0A",
-          badText: "#FCA5A5",
-        }
+        bg: "#1F2937",
+        fg: "#E5E7EB",
+        idle: "#64748B",
+        tcp: "#38BDF8",
+        udp: "#FBBF24",
+        success: "#34D399",
+        panel: "#111827",
+        subText: "#A3B0C2",
+        tcpFill: "#172554",
+        tcpText: "#BFDBFE",
+        udpFill: "#78350F",
+        udpText: "#FDE68A",
+        goodFill: "#052E2B",
+        goodText: "#A7F3D0",
+        badFill: "#450A0A",
+        badText: "#FCA5A5",
+      }
 
   useEffect(() => {
     if (!svgRef.current) return
@@ -128,13 +128,13 @@ export function TcpVsUdpAnimation() {
         TCP
       </text>
       <text x="182" y="52" textAnchor="middle" fill={C.subText} fontSize="10" fontFamily="var(--font-mono)">
-        Orientado a conexion
+        Orientado a conexión
       </text>
       <text x="618" y="38" textAnchor="middle" fill={C.udp} fontSize="18" fontWeight="700" fontFamily="var(--font-mono)">
         UDP
       </text>
       <text x="618" y="52" textAnchor="middle" fill={C.subText} fontSize="10" fontFamily="var(--font-mono)">
-        Sin conexion previa
+        Sin conexión previa
       </text>
 
       <line x1={LEFT.client.x} y1={LEFT.client.y} x2={LEFT.server.x} y2={LEFT.server.y} stroke={C.idle} strokeWidth="1.6" strokeDasharray="6 4" />
@@ -173,60 +173,60 @@ export function TcpVsUdpAnimation() {
       </g>
 
       <g id="lane-note-handshake" className="lane-note" pointerEvents="none">
-          <rect x="74" y="254" width="216" height="24" rx="12" fill={C.tcpFill} />
-          <text x="182" y="269" textAnchor="middle" fill={C.tcpText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
-            TCP abre sesion antes de enviar
-          </text>
+        <rect x="74" y="254" width="216" height="24" rx="12" fill={C.tcpFill} />
+        <text x="182" y="269" textAnchor="middle" fill={C.tcpText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
+          TCP abre sesión antes de enviar
+        </text>
       </g>
 
       <g id="lane-note-direct" className="lane-note" pointerEvents="none">
-          <rect x="506" y="254" width="224" height="24" rx="12" fill={C.udpFill} />
-          <text x="618" y="269" textAnchor="middle" fill={C.udpText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
-            UDP envia directo sin handshake
-          </text>
+        <rect x="506" y="254" width="224" height="24" rx="12" fill={C.udpFill} />
+        <text x="618" y="269" textAnchor="middle" fill={C.udpText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
+          UDP envía directo sin handshake
+        </text>
       </g>
 
       <g id="lane-note-ack" className="lane-note" pointerEvents="none">
-          <rect x="80" y="284" width="204" height="24" rx="12" fill={C.goodFill} />
-          <text x="182" y="299" textAnchor="middle" fill={C.goodText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
-            TCP confirma con ACK
-          </text>
+        <rect x="80" y="284" width="204" height="24" rx="12" fill={C.goodFill} />
+        <text x="182" y="299" textAnchor="middle" fill={C.goodText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
+          TCP confirma con ACK
+        </text>
       </g>
 
       <g id="lane-note-noack" className="lane-note" pointerEvents="none">
-          <rect x="502" y="284" width="232" height="24" rx="12" fill={C.badFill} />
-          <text x="618" y="299" textAnchor="middle" fill={C.badText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
-            UDP no confirma recepcion
-          </text>
+        <rect x="502" y="284" width="232" height="24" rx="12" fill={C.badFill} />
+        <text x="618" y="299" textAnchor="middle" fill={C.badText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
+          UDP no confirma recepción
+        </text>
       </g>
 
       <g id="control-card" pointerEvents="none">
-          <rect x="250" y="340" width="300" height="32" rx="16" fill={C.panel} stroke={C.success} strokeWidth="1.4" />
-          <text x="400" y="360" textAnchor="middle" fill={C.fg} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
-            TCP = MAS CONTROL | UDP = MAS LIGEREZA
-          </text>
-        </g>
+        <rect x="250" y="340" width="300" height="32" rx="16" fill={C.panel} stroke={C.success} strokeWidth="1.4" />
+        <text x="400" y="360" textAnchor="middle" fill={C.fg} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
+          TCP = MAS CONTROL | UDP = MAS LIGEREZA
+        </text>
+      </g>
 
-        <g id="tcp-use" className="use-card" pointerEvents="none">
-          <rect x="58" y="386" width="248" height="30" rx="15" fill={C.tcpFill} />
-          <text x="182" y="405" textAnchor="middle" fill={C.tcpText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
-            TCP: web, correo, archivos
-          </text>
-        </g>
+      <g id="tcp-use" className="use-card" pointerEvents="none">
+        <rect x="58" y="386" width="248" height="30" rx="15" fill={C.tcpFill} />
+        <text x="182" y="405" textAnchor="middle" fill={C.tcpText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
+          TCP: web, correo, archivos
+        </text>
+      </g>
 
-        <g id="udp-use" className="use-card" pointerEvents="none">
-          <rect x="494" y="386" width="248" height="30" rx="15" fill={C.udpFill} />
-          <text x="618" y="405" textAnchor="middle" fill={C.udpText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
-            UDP: DNS, voz, streaming, juegos
-          </text>
-        </g>
+      <g id="udp-use" className="use-card" pointerEvents="none">
+        <rect x="494" y="386" width="248" height="30" rx="15" fill={C.udpFill} />
+        <text x="618" y="405" textAnchor="middle" fill={C.udpText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
+          UDP: DNS, voz, streaming, juegos
+        </text>
+      </g>
 
-        <g id="summary-row" pointerEvents="none">
-          <rect x="122" y="422" width="556" height="28" rx="14" fill={C.panel} stroke={C.idle} strokeWidth="1.2" />
-          <text x="400" y="440" textAnchor="middle" fill={C.fg} fontSize="8.3" fontWeight="700" fontFamily="var(--font-mono)">
-            REGLA RAPIDA: SI QUIERES FIABILIDAD, TCP. SI QUIERES SIMPLICIDAD Y RAPIDEZ, UDP.
-          </text>
-        </g>
+      <g id="summary-row" pointerEvents="none">
+        <rect x="122" y="422" width="556" height="28" rx="14" fill={C.panel} stroke={C.idle} strokeWidth="1.2" />
+        <text x="400" y="440" textAnchor="middle" fill={C.fg} fontSize="8.3" fontWeight="700" fontFamily="var(--font-mono)">
+          REGLA RPIDA: SI QUIERES FIABILIDAD, TCP. SI QUIERES SIMPLICIDAD Y RAPIDEZ, UDP.
+        </text>
+      </g>
 
       <g id="tcp-syn" pointerEvents="none">
         <PacketPill label="SYN" fill={C.tcpFill} textColor={C.tcpText} width={62} />

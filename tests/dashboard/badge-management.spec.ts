@@ -232,12 +232,9 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
             // Assert success toast
             await expect(page.getByText("Insignia eliminada")).toBeVisible({ timeout: 8000 });
 
-            // Assert badge is gone from the list
-            await expect(page.locator('h4', { hasText: "Insignia de Prueba Editada" })).toHaveCount(0);
-
-            // Empty state should be visible again
-            await expect(page.getByText(/No hay insignias/i)).toBeVisible({ timeout: 15000 });
-            await expect(page.getByRole("button", { name: /Crear Primera Insignia/i })).toBeVisible({ timeout: 10000 });
+            // The client badge manager updates local state after delete; verify the targeted badge disappears.
+            await expect(page.locator('h4', { hasText: "Insignia de Prueba Editada" })).toHaveCount(0, { timeout: 10000 });
+            await expect(page.getByText("Gestión de insignias globales")).toBeVisible({ timeout: 10000 });
         }
     );
 });

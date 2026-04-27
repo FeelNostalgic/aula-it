@@ -79,7 +79,7 @@ function SortableTab({
 
     const handleStartRename = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setTempTitle(isSettings ? "Nueva Actividad" : (step?.title || ""));
+        setTempTitle(isSettings ? "Nueva actividad" : (step?.title || ""));
         setIsRenaming(true);
     };
 

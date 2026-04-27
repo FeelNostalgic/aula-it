@@ -114,10 +114,10 @@ export class ActivityBuilderPage extends BasePage {
         const menuLabel = `Añadir ${type}`;
         await this.page.getByRole('menuitem', { name: menuLabel }).click();
 
-        const dialog = this.page.getByRole('dialog', { name: 'Nueva Actividad' });
+        const dialog = this.page.getByRole('dialog', { name: 'Nueva actividad' });
         await expect(dialog).toBeVisible();
         await dialog.getByLabel('Título de la actividad').fill(title);
-        await dialog.getByRole('button', { name: 'Crear Actividad' }).click();
+        await dialog.getByRole('button', { name: 'Crear actividad' }).click();
         await expect(dialog).toBeHidden();
         await expect(phase.locator(`[data-step-title="${title}"]`).first()).toBeVisible({ timeout: 10000 });
     }

@@ -33,7 +33,7 @@ const NODE_INFO: Record<string, NodeInfo> = {
     gateway: "192.168.1.1",
     facts: [
       { label: "herram", value: "ping" },
-      { label: "envia", value: "Echo Request" },
+      { label: "envía", value: "Echo Request" },
     ],
   },
   router: {
@@ -52,7 +52,7 @@ const NODE_INFO: Record<string, NodeInfo> = {
     gateway: "172.16.0.1",
     facts: [
       { label: "responde", value: "Echo Reply" },
-      { label: "prueba", value: "Conectividad basica" },
+      { label: "prueba", value: "Conectividad básica" },
     ],
   },
 }
@@ -71,33 +71,33 @@ export function IcmpAnimation() {
   const C =
     resolvedTheme === "light"
       ? {
-          bg: "#E5EAF0",
-          fg: "#0F172A",
-          idle: "#94A3B8",
-          active: "#2563EB",
-          success: "#059669",
-          warn: "#D97706",
-          panel: "#FFFFFF",
-          subText: "#475569",
-          reqFill: "#DBEAFE",
-          reqText: "#1D4ED8",
-          repFill: "#DCFCE7",
-          repText: "#047857",
-        }
+        bg: "#E5EAF0",
+        fg: "#0F172A",
+        idle: "#94A3B8",
+        active: "#2563EB",
+        success: "#059669",
+        warn: "#D97706",
+        panel: "#FFFFFF",
+        subText: "#475569",
+        reqFill: "#DBEAFE",
+        reqText: "#1D4ED8",
+        repFill: "#DCFCE7",
+        repText: "#047857",
+      }
       : {
-          bg: "#1F2937",
-          fg: "#E5E7EB",
-          idle: "#64748B",
-          active: "#38BDF8",
-          success: "#34D399",
-          warn: "#FBBF24",
-          panel: "#111827",
-          subText: "#A3B0C2",
-          reqFill: "#172554",
-          reqText: "#BFDBFE",
-          repFill: "#052E2B",
-          repText: "#A7F3D0",
-        }
+        bg: "#1F2937",
+        fg: "#E5E7EB",
+        idle: "#64748B",
+        active: "#38BDF8",
+        success: "#34D399",
+        warn: "#FBBF24",
+        panel: "#111827",
+        subText: "#A3B0C2",
+        reqFill: "#172554",
+        reqText: "#BFDBFE",
+        repFill: "#052E2B",
+        repText: "#A7F3D0",
+      }
 
   useEffect(() => {
     if (!svgRef.current) return
@@ -201,7 +201,7 @@ export function IcmpAnimation() {
             PING = COMPROBAR SI RESPONDE
           </text>
           <text x="128" y="87" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
-            Se envia un Echo Request
+            Se envía un Echo Request
           </text>
         </g>
 
@@ -221,7 +221,7 @@ export function IcmpAnimation() {
             HAY CONECTIVIDAD BASICA ENTRE AMBOS
           </text>
           <text x="400" y="389" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
-            ICMP ayuda a verificar la comunicacion con ping
+            ICMP ayuda a verificar la comunicación con ping
           </text>
         </g>
 

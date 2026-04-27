@@ -14,7 +14,7 @@ const nodes = [
       label: "Cliente FTP",
       facts: [
         { label: "tcp", value: "Puerto 21" },
-        { label: "rol", value: "Pide o envia archivos" },
+        { label: "rol", value: "Pide o envía archivos" },
       ],
     },
   },
@@ -42,9 +42,9 @@ export function FtpAnimation() {
       nodes={nodes}
       links={[{ from: "client", to: "server" }]}
       cards={[
-        { id: "intro", x: 274, y: 52, width: 252, title: "FTP USA TCP 21", body: "Abre una sesion para mover archivos", tone: "warn" },
+        { id: "intro", x: 274, y: 52, width: 252, title: "FTP USA TCP 21", body: "Abre una sesión para mover archivos", tone: "warn" },
         { id: "transfer", x: 506, y: 288, width: 220, title: "ORDENES Y DATOS", body: "Puede listar, subir o descargar", tone: "active" },
-        { id: "summary", x: 216, y: 360, width: 368, title: "FTP MUEVE FICHEROS, PERO NO CIFRA POR DEFECTO", body: "Hoy suele sustituirse por opciones mas seguras", tone: "success" },
+        { id: "summary", x: 216, y: 360, width: 368, title: "FTP MUEVE FICHEROS, PERO NO CIFRA POR DEFECTO", body: "Hoy suele sustituirse por opciones más seguras", tone: "success" },
       ]}
       packets={[
         { id: "open", label: "TCP 21", tone: "tertiary", width: 76 },

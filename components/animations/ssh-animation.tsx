@@ -44,7 +44,7 @@ export function SshAnimation() {
       cards={[
         { id: "intro", x: 250, y: 52, width: 300, title: "SSH ABRE UNA SESION REMOTA SEGURA", body: "Normalmente usa TCP 22", tone: "warn" },
         { id: "cmd", x: 508, y: 288, width: 214, title: "COMANDOS Y RESPUESTAS", body: "Todo viaja cifrado", tone: "active" },
-        { id: "summary", x: 222, y: 360, width: 356, title: "SSH SIRVE PARA ADMINISTRAR UN SERVIDOR CON SEGURIDAD", body: "Muy util para gestion remota", tone: "success" },
+        { id: "summary", x: 222, y: 360, width: 356, title: "SSH SIRVE PARA ADMINISTRAR UN SERVIDOR CON SEGURIDAD", body: "Muy útil para gestion remota", tone: "success" },
       ]}
       packets={[
         { id: "login", label: "LOGIN", tone: "primary", width: 74 },

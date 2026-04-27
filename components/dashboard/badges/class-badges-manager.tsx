@@ -62,6 +62,7 @@ interface ClassBadgesManagerProps {
 }
 
 export default function ClassBadgesManager({ badges, unitId, activityId, steps = [] }: ClassBadgesManagerProps) {
+    const [localBadges, setLocalBadges] = useState<ClassBadge[]>(badges);
     const [isEditing, setIsEditing] = useState<string | null>(null);
     const [isCreating, setIsCreating] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -103,12 +104,16 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
         localStorage.setItem("aula-it:badges:grid-cols", String(gridCols));
     }, [gridCols]);
 
+    useEffect(() => {
+        setLocalBadges(badges);
+    }, [badges]);
+
     const filteredBadges = useMemo(() => {
         if (activityId) {
-            return badges.filter(b => b.activity_id === activityId);
+            return localBadges.filter(b => b.activity_id === activityId);
         }
-        return badges.filter(b => b.activity_id === null);
-    }, [badges, activityId]);
+        return localBadges.filter(b => b.activity_id === null);
+    }, [localBadges, activityId]);
 
     const buildPayload = () => {
         if (BOOLEAN_TRIGGERS.has(conditionField)) {
@@ -200,6 +205,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
             toast.error(error);
         } else {
             toast.success("Insignia eliminada");
+            setLocalBadges((current) => current.filter((badge) => badge.id !== badgeToDelete));
         }
     };
 
@@ -1033,7 +1039,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
                     
                     <AlertDialogDescription className="text-text-muted mt-4 text-base leading-relaxed">
                         Esta acción no se puede deshacer. Se eliminará permanentemente la insignia
-                        <span className="text-white font-medium"> "{badges.find(b => b.id === badgeToDelete)?.title}"</span> y los alumnos podrían perderla.
+                        <span className="text-white font-medium"> "{localBadges.find(b => b.id === badgeToDelete)?.title}"</span> y los alumnos podrían perderla.
                     </AlertDialogDescription>
 
                     <AlertDialogFooter className="mt-8 gap-3">

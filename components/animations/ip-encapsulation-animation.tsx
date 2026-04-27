@@ -236,7 +236,7 @@ export function IpEncapsulationAnimation() {
         <g id="ip-core-card" pointerEvents="none">
           <rect x="28" y="48" width="206" height="56" rx="12" fill={C.panel} stroke={C.active} strokeWidth="1.4" />
           <text x="131" y="67" textAnchor="middle" fill={C.active} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
-            NUCLEO QUE SE MANTIENE
+            NÚCLEO QUE SE MANTIENE
           </text>
           <rect x="79" y="76" width="104" height="18" rx="9" fill={C.ipFill} />
           <text x="131" y="88" textAnchor="middle" fill={C.ipText} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">

@@ -33,7 +33,7 @@ const NODE_INFO: Record<string, NodeInfo> = {
     gateway: "192.168.1.1",
     facts: [
       { label: "rol", value: "Host origen" },
-      { label: "envia", value: "Paquete con IP destino" },
+      { label: "envía", value: "Paquete con IP destino" },
     ],
   },
   net: {
@@ -70,37 +70,37 @@ export function IpBasicAnimation() {
   const C =
     resolvedTheme === "light"
       ? {
-          bg: "#E5EAF0",
-          fg: "#0F172A",
-          idle: "#94A3B8",
-          active: "#2563EB",
-          success: "#059669",
-          warn: "#D97706",
-          panel: "#FFFFFF",
-          subText: "#475569",
-          cloudFill: "#E0F2FE",
-          cloudStroke: "#0284C7",
-          packet: "#0F172A",
-          packetText: "#F8FAFC",
-          chipFill: "#DBEAFE",
-          chipText: "#1D4ED8",
-        }
+        bg: "#E5EAF0",
+        fg: "#0F172A",
+        idle: "#94A3B8",
+        active: "#2563EB",
+        success: "#059669",
+        warn: "#D97706",
+        panel: "#FFFFFF",
+        subText: "#475569",
+        cloudFill: "#E0F2FE",
+        cloudStroke: "#0284C7",
+        packet: "#0F172A",
+        packetText: "#F8FAFC",
+        chipFill: "#DBEAFE",
+        chipText: "#1D4ED8",
+      }
       : {
-          bg: "#1F2937",
-          fg: "#E5E7EB",
-          idle: "#64748B",
-          active: "#38BDF8",
-          success: "#34D399",
-          warn: "#FBBF24",
-          panel: "#111827",
-          subText: "#A3B0C2",
-          cloudFill: "#0C4A6E",
-          cloudStroke: "#38BDF8",
-          packet: "#E2E8F0",
-          packetText: "#0F172A",
-          chipFill: "#172554",
-          chipText: "#BFDBFE",
-        }
+        bg: "#1F2937",
+        fg: "#E5E7EB",
+        idle: "#64748B",
+        active: "#38BDF8",
+        success: "#34D399",
+        warn: "#FBBF24",
+        panel: "#111827",
+        subText: "#A3B0C2",
+        cloudFill: "#0C4A6E",
+        cloudStroke: "#38BDF8",
+        packet: "#E2E8F0",
+        packetText: "#0F172A",
+        chipFill: "#172554",
+        chipText: "#BFDBFE",
+      }
 
   useEffect(() => {
     if (!svgRef.current) return

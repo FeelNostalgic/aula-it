@@ -52,7 +52,7 @@ Siempre se reutilizan los glyphs compartidos:
 
 ## Reglas de mantenimiento
 
-- Si se introduce un nuevo tipo de dispositivo, primero se anade aqui y despues se reutiliza.
+- Si se introduce un nuevo tipo de dispositivo, primero se añade aqui y despues se reutiliza.
 - Si cambia un glyph compartido, deben revisarse todas las animaciones que lo usan.
 - Si una animacion necesita una variacion visual, se cambia el color o el estado del nodo, no la geometria base del icono.
 

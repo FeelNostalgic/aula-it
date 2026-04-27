@@ -29,7 +29,7 @@ const NODE_INFO: Record<string, NodeInfo> = {
     id: "sw",
     label: "Switch",
     facts: [
-      { label: "rol", value: "Reenvia tramas por puerto" },
+      { label: "rol", value: "Reenvía tramas por puerto" },
       { label: "busca", value: "MAC destino" },
     ],
     macTable: [
@@ -86,31 +86,31 @@ export function EthernetAnimation() {
   const C =
     resolvedTheme === "light"
       ? {
-          idle: "#94A3B8",
-          active: "#2563EB",
-          success: "#059669",
-          warn: "#D97706",
-          muted: "#CBD5E1",
-          fg: "#0F172A",
-          bg: "#E5EAF0",
-          panel: "#FFFFFF",
-          subText: "#475569",
-          warnText: "#111827",
-          successText: "#F8FAFC",
-        }
+        idle: "#94A3B8",
+        active: "#2563EB",
+        success: "#059669",
+        warn: "#D97706",
+        muted: "#CBD5E1",
+        fg: "#0F172A",
+        bg: "#E5EAF0",
+        panel: "#FFFFFF",
+        subText: "#475569",
+        warnText: "#111827",
+        successText: "#F8FAFC",
+      }
       : {
-          idle: "#64748B",
-          active: "#38BDF8",
-          success: "#34D399",
-          warn: "#FBBF24",
-          muted: "#334155",
-          fg: "#E5E7EB",
-          bg: "#1F2937",
-          panel: "#111827",
-          subText: "#A3B0C2",
-          warnText: "#111827",
-          successText: "#F8FAFC",
-        }
+        idle: "#64748B",
+        active: "#38BDF8",
+        success: "#34D399",
+        warn: "#FBBF24",
+        muted: "#334155",
+        fg: "#E5E7EB",
+        bg: "#1F2937",
+        panel: "#111827",
+        subText: "#A3B0C2",
+        warnText: "#111827",
+        successText: "#F8FAFC",
+      }
 
   const handleNodeEnter = (id: string) => {
     if (hideTimer.current) clearTimeout(hideTimer.current)

@@ -143,7 +143,7 @@ export function UnitDetailView({
         if (savedCols) setGridCols(parseInt(savedCols, 10));
         if (savedMilestone !== null) setIsMilestoneExpanded(savedMilestone === 'true');
         if (savedBadges !== null) setIsBadgesExpanded(savedBadges === 'true');
-        
+
         setIsReady(true);
     }, []);
 
@@ -726,9 +726,9 @@ export function UnitDetailView({
                                                         <div
                                                             key={resource.id}
                                                             onClick={() => {
-                                                            if (isFolder) { setCurrentFolderId(resource.id); return; }
-                                                            window.open(resource.url, '_blank');
-                                                        }}
+                                                                if (isFolder) { setCurrentFolderId(resource.id); return; }
+                                                                window.open(resource.url, '_blank');
+                                                            }}
                                                             className="group p-6 bg-surface border border-border-subtle rounded-3xl hover:border-accent-blue/30 hover:shadow-xl transition-all duration-300 flex flex-col items-start gap-4 cursor-pointer"
                                                         >
                                                             <div className="size-12 group-hover:scale-110 transition-transform">
@@ -748,14 +748,14 @@ export function UnitDetailView({
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
                                                                                 const dlUrl = toDriveDownloadUrl(resource.url ?? '') ?? resource.url ?? '';
-                                                                const a = document.createElement('a');
-                                                                a.href = dlUrl;
-                                                                a.download = resource.title || 'download';
-                                                                a.target = '_blank';
-                                                                a.rel = 'noopener noreferrer';
-                                                                document.body.appendChild(a);
-                                                                a.click();
-                                                                document.body.removeChild(a);
+                                                                                const a = document.createElement('a');
+                                                                                a.href = dlUrl;
+                                                                                a.download = resource.title || 'download';
+                                                                                a.target = '_blank';
+                                                                                a.rel = 'noopener noreferrer';
+                                                                                document.body.appendChild(a);
+                                                                                a.click();
+                                                                                document.body.removeChild(a);
                                                                             }}
                                                                         >
                                                                             <Download className="size-4" />
@@ -805,14 +805,14 @@ export function UnitDetailView({
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
                                                                         const dlUrl = toDriveDownloadUrl(resource.url ?? '') ?? resource.url ?? '';
-                                                                const a = document.createElement('a');
-                                                                a.href = dlUrl;
-                                                                a.download = resource.title || 'download';
-                                                                a.target = '_blank';
-                                                                a.rel = 'noopener noreferrer';
-                                                                document.body.appendChild(a);
-                                                                a.click();
-                                                                document.body.removeChild(a);
+                                                                        const a = document.createElement('a');
+                                                                        a.href = dlUrl;
+                                                                        a.download = resource.title || 'download';
+                                                                        a.target = '_blank';
+                                                                        a.rel = 'noopener noreferrer';
+                                                                        document.body.appendChild(a);
+                                                                        a.click();
+                                                                        document.body.removeChild(a);
                                                                     }}
                                                                 >
                                                                     <Download className="size-3" />
@@ -839,7 +839,7 @@ export function UnitDetailView({
                                             Mapa interactivo
                                         </h3>
                                         <p className="text-text-muted text-sm max-w-md leading-relaxed">
-                                            Explora el camino de aprendizaje, visualiza las conexiones entre retos y sigue tu progreso en un entorno inmersivo.
+                                            Explora el camino de aprendizaje, visualiza las conexiónes entre retos y sigue tu progreso en un entorno inmersivo.
                                         </p>
                                     </div>
                                     <Link href={`/units/${unit.id}/map`}>
@@ -884,9 +884,9 @@ export function UnitDetailView({
                     {/* Insignias Tab (Teacher Only) */}
                     {isTeacher && canEditModuleContent && (
                         <TabsContent value="insignias" className="mt-6 px-12 pb-12">
-                            <ClassBadgesManager 
-                                unitId={unit.id} 
-                                badges={classBadges} 
+                            <ClassBadgesManager
+                                unitId={unit.id}
+                                badges={classBadges}
                             />
                         </TabsContent>
                     )}

@@ -140,7 +140,7 @@ export function UnitMapConfigTab({ unitId, activities, connections }: UnitMapCon
                     </div>
                     <div>
                         <h4 className="text-sm font-bold text-white uppercase tracking-tighter italic">Configurador de Mapa</h4>
-                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Arrastra retos y crea conexiones</p>
+                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Arrastra retos y crea conexiónes</p>
                     </div>
                 </div>
 

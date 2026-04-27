@@ -28,8 +28,8 @@ const NODE_INFO: Record<string, NodeInfo> = {
     id: "client",
     label: "Cliente",
     facts: [
-      { label: "udp", value: "No abre conexion" },
-      { label: "envia", value: "Datagramas directos" },
+      { label: "udp", value: "No abre conexión" },
+      { label: "envía", value: "Datagramas directos" },
     ],
   },
   server: {
@@ -56,33 +56,33 @@ export function UdpAnimation() {
   const C =
     resolvedTheme === "light"
       ? {
-          bg: "#E5EAF0",
-          fg: "#0F172A",
-          idle: "#94A3B8",
-          active: "#2563EB",
-          success: "#059669",
-          warn: "#D97706",
-          panel: "#FFFFFF",
-          subText: "#475569",
-          udpFill: "#FEF3C7",
-          udpText: "#92400E",
-          noteFill: "#FEE2E2",
-          noteText: "#B91C1C",
-        }
+        bg: "#E5EAF0",
+        fg: "#0F172A",
+        idle: "#94A3B8",
+        active: "#2563EB",
+        success: "#059669",
+        warn: "#D97706",
+        panel: "#FFFFFF",
+        subText: "#475569",
+        udpFill: "#FEF3C7",
+        udpText: "#92400E",
+        noteFill: "#FEE2E2",
+        noteText: "#B91C1C",
+      }
       : {
-          bg: "#1F2937",
-          fg: "#E5E7EB",
-          idle: "#64748B",
-          active: "#38BDF8",
-          success: "#34D399",
-          warn: "#FBBF24",
-          panel: "#111827",
-          subText: "#A3B0C2",
-          udpFill: "#78350F",
-          udpText: "#FDE68A",
-          noteFill: "#450A0A",
-          noteText: "#FCA5A5",
-        }
+        bg: "#1F2937",
+        fg: "#E5E7EB",
+        idle: "#64748B",
+        active: "#38BDF8",
+        success: "#34D399",
+        warn: "#FBBF24",
+        panel: "#111827",
+        subText: "#A3B0C2",
+        udpFill: "#78350F",
+        udpText: "#FDE68A",
+        noteFill: "#450A0A",
+        noteText: "#FCA5A5",
+      }
 
   useEffect(() => {
     if (!svgRef.current) return
@@ -153,7 +153,7 @@ export function UdpAnimation() {
       >
         <line x1={N.client.x} y1={N.client.y} x2={N.server.x} y2={N.server.y} stroke={C.idle} strokeWidth="1.8" strokeDasharray="7 5" />
         <text x="400" y="208" textAnchor="middle" fill={C.subText} fontSize="9.5" fontWeight="700" fontFamily="var(--font-mono)">
-          SIN HANDSHAKE Y SIN CONFIRMACION
+          SIN HANDSHAKE Y SIN CONFIRMACIÓN
         </text>
 
         <g id="node-client" onMouseEnter={() => handleNodeEnter("client")} onMouseLeave={scheduleHide} className="cursor-default">
@@ -188,7 +188,7 @@ export function UdpAnimation() {
             UDP PRIORIZA LIGEREZA Y RAPIDEZ
           </text>
           <text x="400" y="391" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
-            Util cuando importa mas llegar rapido que controlar todo
+            Útil cuando importa más llegar rápido que controlar todo
           </text>
         </g>
 

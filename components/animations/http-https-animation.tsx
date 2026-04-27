@@ -44,7 +44,7 @@ export function HttpHttpsAnimation() {
       cards={[
         { id: "http", x: 260, y: 52, width: 280, title: "HTTP PIDE Y RECIBE PAGINAS", body: "Normalmente usa TCP 80", tone: "warn" },
         { id: "https", x: 502, y: 288, width: 222, title: "HTTPS ANADE CIFRADO", body: "Protege los datos sobre TCP 443", tone: "active" },
-        { id: "summary", x: 214, y: 360, width: 372, title: "HTTPS PROTEGE LA WEB MEJOR QUE HTTP", body: "El candado indica una conexion cifrada", tone: "success" },
+        { id: "summary", x: 214, y: 360, width: 372, title: "HTTPS PROTEGE LA WEB MEJOR QUE HTTP", body: "El candado indica una conexión cifrada", tone: "success" },
       ]}
       packets={[
         { id: "get", label: "GET", tone: "primary", width: 64 },

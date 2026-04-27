@@ -44,7 +44,7 @@ export function DhcpAnimation() {
       cards={[
         { id: "intro", x: 248, y: 52, width: 304, title: "EL EQUIPO ENTRA SIN IP CONFIGURADA", body: "Necesita pedir ayuda a la red", tone: "warn" },
         { id: "offer", x: 494, y: 288, width: 228, title: "EL SERVIDOR OFRECE UNA IP", body: "Tambien propone otros datos de red", tone: "active" },
-        { id: "summary", x: 206, y: 360, width: 388, title: "DHCP ENTREGA IP, MASCARA, GATEWAY Y DNS", body: "Asi el equipo ya puede empezar a comunicarse", tone: "success" },
+        { id: "summary", x: 206, y: 360, width: 388, title: "DHCP ENTREGA IP, MASCARA, GATEWAY Y DNS", body: "Así el equipo ya puede empezar a comunicarse", tone: "success" },
       ]}
       packets={[
         { id: "discover", label: "DISCOVER", tone: "primary", width: 90 },
