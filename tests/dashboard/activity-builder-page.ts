@@ -103,6 +103,7 @@ export class ActivityBuilderPage extends BasePage {
         await dialog.getByLabel('Nombre de la fase').fill(title);
         await dialog.getByRole('button', { name: 'Crear Fase' }).click();
         await expect(dialog).toBeHidden();
+        await expect(this.sidebarContainer.locator(`[data-phase-title="${title}"]`).first()).toBeVisible({ timeout: 10000 });
     }
 
     async addStep(phaseTitle: string, title: string, type: 'Teoría' | 'Animación' | 'Entregable' | 'Cuestionario' | 'Presentación' | 'Recursos'): Promise<void> { // Modified
@@ -118,6 +119,7 @@ export class ActivityBuilderPage extends BasePage {
         await dialog.getByLabel('Título de la actividad').fill(title);
         await dialog.getByRole('button', { name: 'Crear Actividad' }).click();
         await expect(dialog).toBeHidden();
+        await expect(phase.locator(`[data-step-title="${title}"]`).first()).toBeVisible({ timeout: 10000 });
     }
 
     async clickStep(stepTitle: string): Promise<void> {
@@ -136,9 +138,9 @@ export class ActivityBuilderPage extends BasePage {
     }
 
     async verifyStepVisible(stepTitle: string): Promise<void> {
-        const step = this.sidebarContainer.locator(`div[data-step-title="${stepTitle}"]`);
+        const step = this.sidebarContainer.locator(`div[data-step-title="${stepTitle}"]`).first();
+        await expect(step).toBeVisible({ timeout: 10000 });
         await step.scrollIntoViewIfNeeded();
-        await expect(step).toBeVisible();
     }
 
     async toggleStepVisibility(stepTitle: string): Promise<void> {

@@ -21,10 +21,37 @@ export class LoginPage extends BasePage {
     }
 
     async loginTeacher(email: string, pass: string) {
-        await this.goto("/login/teacher");
-        await this.emailInput.fill(email);
-        await this.passwordInput.fill(pass);
-        await this.loginButton.click();
+        let lastError: unknown = null;
+
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+            await this.goto("/login/teacher");
+            await this.emailInput.fill(email);
+            await this.passwordInput.fill(pass);
+            await this.loginButton.click();
+
+            try {
+                await this.page.waitForURL(/\/(dashboard|admin)/, {
+                    timeout: 30000,
+                    waitUntil: "domcontentloaded",
+                });
+                return;
+            } catch (error) {
+                lastError = error;
+                const currentUrl = this.page.url();
+                const isRetryable =
+                    currentUrl.startsWith("chrome-error://")
+                    || /\/login\/teacher/.test(currentUrl)
+                    || /\/login$/.test(currentUrl);
+
+                if (!isRetryable || attempt === 1) {
+                    throw error;
+                }
+
+                await this.page.waitForTimeout(500);
+            }
+        }
+
+        throw lastError instanceof Error ? lastError : new Error("Teacher login failed");
     }
 
     async loginAdmin(email: string, pass: string) {

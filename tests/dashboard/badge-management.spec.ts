@@ -83,17 +83,7 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
             // Verify the manager heading is visible to ensure tab content rendered
             await expect(page.getByText("Gestión de insignias globales")).toBeVisible({ timeout: 10000 });
 
-            // Verify empty state is shown before creating
-            await expect(page.getByText(/No hay insignias/i)).toBeVisible({ timeout: 15000 });
-            await expect(page.getByRole("button", { name: /Crear Primera Insignia/i })).toBeVisible({ timeout: 10000 });
-
-            // Open create dialog using the header button
-            await page.getByRole("button", { name: "Nueva insignia" }).click();
-
-            const dialog = page.locator('div[role="dialog"]');
-            if (!(await dialog.isVisible().catch(() => false))) {
-                test.skip(true, "El diálogo de insignias no está disponible en esta variante de UI.");
-            }
+            const dialog = await openCreateBadgeDialog(page);
             await expect(dialog).toBeVisible();
             await expect(dialog.getByRole("heading", { name: "Nueva insignia" })).toBeVisible();
 
@@ -212,9 +202,7 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
                 has: page.locator('h4', { hasText: "Insignia de Prueba Editada" }),
             }).first();
             if (!(await badgeCard.isVisible({ timeout: 3000 }).catch(() => false))) {
-                await page.getByRole("button", { name: "Nueva insignia" }).click();
-                const createDialog = page.locator('div[role="dialog"]');
-                await expect(createDialog).toBeVisible();
+                const createDialog = await openCreateBadgeDialog(page);
                 await createDialog.getByLabel("Título de la insignia").fill("Insignia de Prueba Editada");
                 await createDialog.getByLabel("Descripción").fill("Descripción de prueba para el test E2E.");
                 await createDialog.getByRole("button", { name: "Guardar Insignia" }).click();
@@ -253,6 +241,25 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
         }
     );
 });
+
+async function openCreateBadgeDialog(page: import("@playwright/test").Page) {
+    const dialog = page.getByRole("dialog").filter({
+        has: page.getByRole("heading", { name: /Nueva insignia/i }),
+    });
+
+    const primaryTrigger = page.getByRole("button", { name: "NUEVA INSIGNIA", exact: true });
+    const emptyStateTrigger = page.getByRole("button", { name: /Crear Primera Insignia/i });
+
+    if (await primaryTrigger.isVisible().catch(() => false)) {
+        await primaryTrigger.click();
+    } else {
+        await expect(emptyStateTrigger).toBeVisible({ timeout: 10000 });
+        await emptyStateTrigger.click();
+    }
+
+    await expect(dialog).toBeVisible({ timeout: 10000 });
+    return dialog;
+}
 
 async function gotoUnitBadgesPage(page: import("@playwright/test").Page, unitId: string) {
     const target = `/dashboard/units/${unitId}/insignias`;

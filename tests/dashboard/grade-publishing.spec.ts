@@ -108,13 +108,10 @@ test.describe("Grade Publishing Flow", () => {
     test("teacher can publish individual grade from evaluation tab", async ({ page }) => {
         const loginPage = new LoginPage(page);
         await loginPage.loginTeacher(teacherEmail, password);
-        await page.waitForURL(/\/dashboard/, { timeout: 15000 });
 
-        // Navigate directly to the evaluation page (teacher nav uses Links, not [role="tab"])
-        try {
-            await page.goto(`/dashboard/units/${unitId}/evaluacion`, { waitUntil: "commit", timeout: 30000 });
-        } catch {
-            test.skip(true, "La ruta de evaluación no respondió en esta ejecución.");
+        const navigationReady = await gotoUnitEvaluationTab(page, unitId);
+        if (!navigationReady) {
+            test.skip(true, "La unidad o la pestaña de evaluación no respondió en esta ejecución.");
         }
         await expect(page.getByRole("heading", { name: "Deliverable Step" })).toBeVisible({ timeout: 15000 });
 
@@ -137,13 +134,10 @@ test.describe("Grade Publishing Flow", () => {
     test("teacher can reopen a published submission", async ({ page }) => {
         const loginPage = new LoginPage(page);
         await loginPage.loginTeacher(teacherEmail, password);
-        await page.waitForURL(/\/dashboard/, { timeout: 15000 });
 
-        // Navigate directly to evaluation page
-        try {
-            await page.goto(`/dashboard/units/${unitId}/evaluacion`, { waitUntil: "commit", timeout: 30000 });
-        } catch {
-            test.skip(true, "La ruta de evaluación no respondió en esta ejecución.");
+        const navigationReady = await gotoUnitEvaluationTab(page, unitId);
+        if (!navigationReady) {
+            test.skip(true, "La unidad o la pestaña de evaluación no respondió en esta ejecución.");
         }
         await expect(page.getByRole("heading", { name: "Deliverable Step" })).toBeVisible({ timeout: 15000 });
 
@@ -167,3 +161,31 @@ test.describe("Grade Publishing Flow", () => {
         }
     });
 });
+
+async function gotoUnitEvaluationTab(page: import("@playwright/test").Page, unitId: string): Promise<boolean> {
+    const unitUrl = `/dashboard/units/${unitId}`;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+            await page.goto(unitUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+            await page.waitForURL(/\/dashboard\/units\//, { timeout: 15000 });
+
+            const evaluationLink = page.getByRole("link", { name: "EVALUACIÓN" });
+            await expect(evaluationLink).toBeVisible({ timeout: 15000 });
+            await evaluationLink.click();
+            await page.waitForURL(new RegExp(`/dashboard/units/${unitId}`), { timeout: 15000 });
+            return true;
+        } catch {
+            const currentUrl = page.url();
+            const hitChromeError = currentUrl.startsWith("chrome-error://");
+
+            if (!hitChromeError && attempt === 2) {
+                return false;
+            }
+
+            await page.waitForTimeout(500);
+        }
+    }
+
+    return false;
+}

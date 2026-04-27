@@ -38,18 +38,23 @@ export class ModuleDetailPage extends BasePage {
     }
 
     async createUnit(name: string, description?: string): Promise<void> {
-        const addButtons = this.page.getByRole("button", { name: /UNIDAD DIDÁCTICA/i });
-        const buttonCount = await addButtons.count();
-        const dialog = this.page.locator('div[role="dialog"]');
+        const unitButtons = this.page.getByRole("button", { name: "UNIDAD DIDÁCTICA", exact: true });
+        const headerTrigger = unitButtons.first();
+        const emptyStateTrigger = unitButtons.nth(1);
+        const cardTrigger = this.page.getByRole("button", { name: /Nueva unidad didáctica/i }).first();
+        const dialog = this.page.getByRole("dialog").filter({
+            has: this.page.getByRole("heading", { name: /Nueva unidad didáctica/i }),
+        });
 
         for (let attempt = 0; attempt < 2; attempt += 1) {
-            for (let i = 0; i < buttonCount; i += 1) {
-                const btn = addButtons.nth(i);
-                if (!(await btn.isVisible().catch(() => false))) continue;
+            const triggers = [headerTrigger, emptyStateTrigger, cardTrigger];
 
-                await btn.click({ force: true });
-                if (await dialog.isVisible({ timeout: 2000 }).catch(() => false)) {
-                    await expect(dialog).toBeVisible({ timeout: 10000 });
+            for (const trigger of triggers) {
+                if (!(await trigger.isVisible().catch(() => false))) continue;
+                if (!(await trigger.isEnabled().catch(() => false))) continue;
+
+                await trigger.click();
+                if (await dialog.isVisible({ timeout: 2500 }).catch(() => false)) {
                     await dialog.locator('input[name="name"]').fill(name);
                     if (description) {
                         await dialog.locator('textarea[name="description"]').fill(description);
@@ -59,9 +64,16 @@ export class ModuleDetailPage extends BasePage {
                 }
             }
 
-            // Refresh view and retry if none of the visible triggers opened the modal.
+            // Reintenta tras recargar para cubrir renders cliente lentos en CI.
             await this.page.goto(`/dashboard/modules/${this.currentModuleId}/dashboard`, { waitUntil: "domcontentloaded", timeout: 60000 });
-            await this.page.waitForTimeout(300);
+            const headerVisible = await headerTrigger.first().isVisible({ timeout: 15000 }).catch(() => false);
+            if (!headerVisible) {
+                const emptyVisible = await emptyStateTrigger.isVisible({ timeout: 15000 }).catch(() => false);
+                if (!emptyVisible) {
+                    await expect(cardTrigger).toBeVisible({ timeout: 15000 });
+                }
+            }
+            await this.page.waitForTimeout(500);
         }
 
         await expect(dialog).toBeVisible({ timeout: 10000 });

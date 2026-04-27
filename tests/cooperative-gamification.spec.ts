@@ -80,7 +80,7 @@ test.describe("Cooperative Gamification: Milestone Progress", () => {
         const { data: step, error: stepErr } = await supabase.from("activity_steps").insert({
             phase_id: phase.id,
             title: "Coop Step",
-            type: "theory",
+            type: "deliverable",
             xp: 50
         }).select("id").single();
         if (stepErr) throw new Error(`Step insert failed: ${stepErr.message}`);
