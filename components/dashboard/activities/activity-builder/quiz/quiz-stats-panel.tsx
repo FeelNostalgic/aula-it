@@ -34,6 +34,7 @@ import {
     type ChartConfig,
 } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getQuizFixedQuestions } from "@/lib/quiz-content";
 import {
     buildQuizStatsForAttempt,
@@ -50,7 +51,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { QuizContent, QuizQuestionType } from "@/types/activity";
 import { Bar, BarChart, CartesianGrid, Cell, Label, Pie, PieChart, XAxis, YAxis } from "recharts";
-import { AlertCircle, BarChart3, Eye, EyeOff, PieChart as PieChartIcon, RefreshCw, Users } from "lucide-react";
+import { AlertCircle, BarChart3, Eye, EyeOff, HelpCircle, PieChart as PieChartIcon, RefreshCw, Users } from "lucide-react";
 
 type QuizStatsPanelProps = {
     stepId: string;
@@ -166,6 +167,46 @@ function formatMetricTone(tone?: string) {
     if (tone === QUIZ_STATS_METRIC_TONE.WARNING) return "text-amber-300";
     if (tone === QUIZ_STATS_METRIC_TONE.MUTED) return "text-text-muted";
     return "text-foreground";
+}
+
+function getMetricHelp(metricKey: string) {
+    if (metricKey === "average-accuracy") {
+        return "Media del porcentaje de acierto de los elementos internos de la pregunta. No equivale a respuestas completas correctas.";
+    }
+    if (metricKey === "weakest-point") {
+        return "Elemento con menor porcentaje de acierto dentro de esta pregunta.";
+    }
+    if (metricKey === "top-distractor") {
+        return "Opción incorrecta más elegida por los alumnos. Sirve para detectar el error conceptual más común.";
+    }
+    if (metricKey === "full-correct-rate") {
+        return "Porcentaje de alumnos que resolvieron toda la pregunta sin errores.";
+    }
+    if (metricKey === "blank-rate") {
+        return "Porcentaje de alumnos que dejaron la pregunta sin responder.";
+    }
+    return null;
+}
+
+function MetricHelpTooltip({ text }: { text: string }) {
+    return (
+        <TooltipProvider delayDuration={150}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <button
+                        type="button"
+                        className="inline-flex size-5 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        aria-label="Explicación de la métrica"
+                    >
+                        <HelpCircle className="size-3.5" />
+                    </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-64 p-3 leading-relaxed">
+                    {text}
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    );
 }
 
 function formatPointValue(entry: QuizStatsChartPoint, visualization: QuizStatsVisualization) {
@@ -704,12 +745,18 @@ export function QuizStatsPanel({ stepId, content, visible }: QuizStatsPanelProps
                     <CardContent className="space-y-4">
                         {question.summaryMetrics.length > 0 && (
                             <div className="grid gap-3 md:grid-cols-3">
-                                {question.summaryMetrics.map((metric) => (
-                                    <div key={metric.key} className="rounded-xl border border-border/40 bg-background/50 p-4">
-                                        <p className="text-[11px] font-bold uppercase tracking-widest text-text-muted">{metric.label}</p>
-                                        <p className={cn("mt-2 text-lg font-black font-mono", formatMetricTone(metric.tone))}>{metric.value}</p>
-                                    </div>
-                                ))}
+                                {question.summaryMetrics.map((metric) => {
+                                    const help = getMetricHelp(metric.key);
+                                    return (
+                                        <div key={metric.key} className="rounded-xl border border-border/40 bg-background/50 p-4">
+                                            <div className="flex items-center gap-1.5">
+                                                <p className="text-[11px] font-bold uppercase tracking-widest text-text-muted">{metric.label}</p>
+                                                {help && <MetricHelpTooltip text={help} />}
+                                            </div>
+                                            <p className={cn("mt-2 text-lg font-black font-mono", formatMetricTone(metric.tone))}>{metric.value}</p>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
 
