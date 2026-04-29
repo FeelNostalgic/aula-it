@@ -44,7 +44,7 @@ import type {
     QuizTableItem,
     QuizTableRow,
 } from "@/types/activity";
-import { Plus, Trash2, ArrowDown, ArrowUp, GripVertical, HelpCircle } from "lucide-react";
+import { Plus, Trash2, GripVertical, HelpCircle } from "lucide-react";
 
 type StructuredQuestionFieldsProps = {
     question: QuizQuestion;
@@ -100,15 +100,6 @@ function createCategory(label = ""): QuizCategory {
 
 function createCategoryItem(correctCategoryId: string): QuizCategoryItem {
     return { id: crypto.randomUUID(), text: "", correctCategoryId, correctCategoryIds: correctCategoryId ? [correctCategoryId] : [] };
-}
-
-function moveItem<T>(items: T[], fromIndex: number, direction: -1 | 1) {
-    const nextIndex = fromIndex + direction;
-    if (nextIndex < 0 || nextIndex >= items.length) return items;
-    const result = [...items];
-    const [item] = result.splice(fromIndex, 1);
-    result.splice(nextIndex, 0, item);
-    return result;
 }
 
 function reorderItemsById<T extends { id: string }>(items: T[], activeId: string, overId: string) {
@@ -979,6 +970,16 @@ function MatchingPairsFields({ question, onUpdate }: StructuredQuestionFieldsPro
 
 function OrderingSequenceFields({ question, onUpdate }: StructuredQuestionFieldsProps) {
     const orderingItems = question.orderingItems ?? [createOrderingItem(""), createOrderingItem(""), createOrderingItem("")];
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    );
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+        onUpdate({ orderingItems: reorderItemsById(orderingItems, String(active.id), String(over.id)) });
+    };
 
     return (
         <div className="pl-14 rounded-xl border border-border/30 bg-surface/30 p-4 space-y-3">
@@ -988,28 +989,30 @@ function OrderingSequenceFields({ question, onUpdate }: StructuredQuestionFields
                     <Plus className="size-3 mr-1" /> Añadir paso
                 </Button>
             </div>
-            {orderingItems.map((item, index) => (
-                <div key={item.id} className="flex items-center gap-2">
-                    <div className="w-8 shrink-0 rounded-md border border-border/30 bg-background/60 py-2 text-center text-xs font-black text-text-muted">
-                        {index + 1}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={orderingItems.map((item) => item.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-2">
+                        {orderingItems.map((item, index) => (
+                            <SortableFieldRow key={item.id} id={item.id} handleLabel="Reordenar paso">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 shrink-0 rounded-md border border-border/30 bg-background/60 py-2 text-center text-xs font-black text-text-muted">
+                                        {index + 1}
+                                    </div>
+                                    <Input
+                                        value={item.text}
+                                        onChange={(event) => onUpdate({ orderingItems: orderingItems.map((candidate) => candidate.id === item.id ? { ...candidate, text: event.target.value } : candidate) })}
+                                        placeholder="Paso de la secuencia"
+                                        className="bg-background/60 border-border/40 text-sm"
+                                    />
+                                    <Button type="button" variant="ghost" size="icon" aria-label="Eliminar paso" className="size-8 text-text-muted hover:text-red-400" onClick={() => onUpdate({ orderingItems: orderingItems.filter((candidate) => candidate.id !== item.id) })}>
+                                        <Trash2 className="size-3.5" />
+                                    </Button>
+                                </div>
+                            </SortableFieldRow>
+                        ))}
                     </div>
-                    <Input
-                        value={item.text}
-                        onChange={(event) => onUpdate({ orderingItems: orderingItems.map((candidate) => candidate.id === item.id ? { ...candidate, text: event.target.value } : candidate) })}
-                        placeholder="Paso de la secuencia"
-                        className="bg-background/60 border-border/40 text-sm"
-                    />
-                    <Button type="button" variant="ghost" size="icon" aria-label="Mover arriba" className="size-8 text-text-muted" disabled={index === 0} onClick={() => onUpdate({ orderingItems: moveItem(orderingItems, index, -1) })}>
-                        <ArrowUp className="size-3.5" />
-                    </Button>
-                    <Button type="button" variant="ghost" size="icon" aria-label="Mover abajo" className="size-8 text-text-muted" disabled={index === orderingItems.length - 1} onClick={() => onUpdate({ orderingItems: moveItem(orderingItems, index, 1) })}>
-                        <ArrowDown className="size-3.5" />
-                    </Button>
-                    <Button type="button" variant="ghost" size="icon" aria-label="Eliminar paso" className="size-8 text-text-muted hover:text-red-400" onClick={() => onUpdate({ orderingItems: orderingItems.filter((candidate) => candidate.id !== item.id) })}>
-                        <Trash2 className="size-3.5" />
-                    </Button>
-                </div>
-            ))}
+                </SortableContext>
+            </DndContext>
         </div>
     );
 }

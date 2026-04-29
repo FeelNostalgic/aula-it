@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
     closestCenter,
     DndContext,
@@ -72,6 +72,26 @@ type ActiveStructuredDrag = {
 };
 
 const QUESTION_CONTENT_OFFSET_CLASS = "pl-0 sm:pl-6 lg:pl-8";
+
+function areStringArraysEqual(first: string[], second: string[]) {
+    return first.length === second.length && first.every((item, index) => item === second[index]);
+}
+
+function createRandomOrderingItemIds(items: QuizOrderingItem[]) {
+    const orderedItemIds = items.map((item) => item.id);
+    const shuffledItemIds = [...orderedItemIds];
+
+    for (let index = shuffledItemIds.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
+        [shuffledItemIds[index], shuffledItemIds[swapIndex]] = [shuffledItemIds[swapIndex], shuffledItemIds[index]];
+    }
+
+    if (shuffledItemIds.length > 1 && areStringArraysEqual(shuffledItemIds, orderedItemIds)) {
+        shuffledItemIds.push(shuffledItemIds.shift()!);
+    }
+
+    return shuffledItemIds;
+}
 
 function writeStructuredValue(
     record: Record<string, string | string[]>,
@@ -687,16 +707,43 @@ function OrderingSequenceAnswer({
 }: Pick<QuizQuestionAnswerFieldProps, "question" | "structuredAnswers" | "onStructuredAnswerChange">) {
     const baseItems = question.orderingItems ?? [];
     const baseItemIds = baseItems.map((item) => item.id);
-    const currentAnswer = getOrderingAnswer(question.id, structuredAnswers, baseItemIds);
+    const baseItemIdsKey = baseItemIds.join("|");
+    const [initialOrdering, setInitialOrdering] = useState(() => ({
+        key: baseItemIdsKey,
+        orderedItemIds: createRandomOrderingItemIds(baseItems),
+    }));
+    const persistedAnswer = structuredAnswers[question.id];
+    const currentAnswer = getOrderingAnswer(question.id, structuredAnswers, initialOrdering.orderedItemIds);
     const normalizedOrderedItemIds = currentAnswer.orderedItemIds.length > 0
         ? [
             ...currentAnswer.orderedItemIds.filter((itemId) => baseItemIds.includes(itemId)),
             ...baseItemIds.filter((itemId) => !currentAnswer.orderedItemIds.includes(itemId)),
         ]
-        : baseItemIds;
+        : initialOrdering.orderedItemIds;
     const orderedItems = normalizedOrderedItemIds
         .map((itemId) => baseItems.find((item) => item.id === itemId))
         .filter(Boolean) as QuizOrderingItem[];
+
+    useEffect(() => {
+        if (initialOrdering.key === baseItemIdsKey) return;
+        setInitialOrdering({
+            key: baseItemIdsKey,
+            orderedItemIds: createRandomOrderingItemIds(baseItems),
+        });
+    }, [baseItemIdsKey, baseItems, initialOrdering.key]);
+
+    useEffect(() => {
+        if (baseItemIds.length === 0) return;
+        if (
+            persistedAnswer?.kind !== QUIZ_QUESTION_TYPE.ORDERING_SEQUENCE
+            || !areStringArraysEqual(persistedAnswer.orderedItemIds, normalizedOrderedItemIds)
+        ) {
+            onStructuredAnswerChange(question.id, {
+                kind: QUIZ_QUESTION_TYPE.ORDERING_SEQUENCE,
+                orderedItemIds: normalizedOrderedItemIds,
+            });
+        }
+    }, [baseItemIds.length, baseItemIdsKey, normalizedOrderedItemIds, onStructuredAnswerChange, persistedAnswer, question.id]);
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
