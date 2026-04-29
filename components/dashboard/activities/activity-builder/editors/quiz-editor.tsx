@@ -196,6 +196,32 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
         });
     };
 
+    const insertQuestionBelow = (qId: string) => {
+        const targetIndex = fixedBlocks.findIndex((block) => isQuizQuestionBlock(block) && block.question.id === qId);
+        if (targetIndex < 0) return;
+
+        const nextBlocks = [...fixedBlocks];
+        nextBlocks.splice(targetIndex + 1, 0, createQuizQuestionBlock(createDefaultQuizQuestion()));
+
+        handleUpdate({
+            ...content,
+            blocks: nextBlocks,
+        });
+    };
+
+    const insertSectionAbove = (qId: string) => {
+        const targetIndex = fixedBlocks.findIndex((block) => isQuizQuestionBlock(block) && block.question.id === qId);
+        if (targetIndex < 0) return;
+
+        const nextBlocks = [...fixedBlocks];
+        nextBlocks.splice(targetIndex, 0, createQuizSectionBlock());
+
+        handleUpdate({
+            ...content,
+            blocks: nextBlocks,
+        });
+    };
+
     const updateQuestion = (qId: string, updates: Partial<QuizQuestion>) => {
         handleUpdate({
             ...content,
@@ -586,6 +612,8 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
                                                     onUpdate={updateQuestion}
                                                     onDuplicate={duplicateQuestion}
                                                     onRemove={removeQuestion}
+                                                    onInsertQuestionBelow={insertQuestionBelow}
+                                                    onInsertSectionAbove={insertSectionAbove}
                                                     onAddOption={addOption}
                                                     onUpdateOption={updateOption}
                                                     onRemoveOption={removeOption}
@@ -1037,6 +1065,8 @@ function SortableQuestion({
     onUpdate,
     onDuplicate,
     onRemove,
+    onInsertQuestionBelow,
+    onInsertSectionAbove,
     onAddOption, onUpdateOption, onRemoveOption, onOptionDragEnd, banksContainingQuestion, availableBanks, onAddToBank,
 }: {
     blockId: string;
@@ -1047,6 +1077,8 @@ function SortableQuestion({
     onUpdate: (id: string, updates: Partial<QuizQuestion>) => void;
     onDuplicate: (id: string) => void;
     onRemove: (id: string) => void;
+    onInsertQuestionBelow: (id: string) => void;
+    onInsertSectionAbove: (id: string) => void;
     onAddOption: (id: string) => void;
     onUpdateOption: (qId: string, optId: string, u: Partial<{ text: string; isCorrect: boolean }>) => void;
     onRemoveOption: (qId: string, optId: string) => void;
@@ -1091,6 +1123,14 @@ function SortableQuestion({
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-44">
+                        <DropdownMenuItem onClick={() => onInsertQuestionBelow(q.id)} className="cursor-pointer">
+                            <Plus className="size-3.5 mr-2" />
+                            Añadir pregunta
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onInsertSectionAbove(q.id)} className="cursor-pointer">
+                            <Layers className="size-3.5 mr-2" />
+                            Añadir sección
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onDuplicate(q.id)} className="cursor-pointer">
                             <Copy className="size-3.5 mr-2" />
                             Duplicar pregunta
