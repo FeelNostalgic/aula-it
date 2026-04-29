@@ -289,6 +289,61 @@ describe("submitQuizAttempt", () => {
     expect(result.data?.pointsTotal).toBe(2);
   });
 
+  it("auto-scores fill_in_the_blank_dropdown questions with a shared pool", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-fill-pool",
+          type: "fill_in_the_blank_dropdown",
+          text: "Completa el texto",
+          options: [],
+          promptSegments: [
+            { id: "seg-1", kind: "text", text: "Ethernet usa " },
+            { id: "seg-2", kind: "blank", blankId: "blank-1" },
+            { id: "seg-3", kind: "text", text: " y ARP resuelve " },
+            { id: "seg-4", kind: "blank", blankId: "blank-2" },
+          ],
+          dropdownPoolOptions: [
+            { id: "opt-mac", text: "MAC", isCorrect: false },
+            { id: "opt-ip", text: "IP", isCorrect: false },
+            { id: "opt-port", text: "Puerto", isCorrect: false },
+          ],
+          dropdownPoolConsumesOptions: true,
+          dropdownBlanks: [
+            { id: "blank-1", correctOptionId: "opt-mac", options: [] },
+            { id: "blank-2", correctOptionId: "opt-ip", options: [] },
+          ],
+          points: 2,
+        },
+      ],
+    });
+    const attempt = createMockQuizAttempt({ points_earned: 1, points_total: 2 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const result = await submitQuizAttempt(
+      "step-1",
+      "activity-1",
+      {},
+      {},
+      {
+        "q-fill-pool": {
+          kind: "fill_in_the_blank_dropdown",
+          blanks: { "blank-1": "opt-mac", "blank-2": "opt-port" },
+        },
+      },
+      content
+    );
+
+    expect(result.data?.pointsEarned).toBe(1);
+    expect(result.data?.pointsTotal).toBe(2);
+  });
+
   it("auto-scores table_drag_drop questions when the same option is reused in multiple cells", async () => {
     const content = createMockQuizContent({
       questions: [

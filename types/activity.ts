@@ -180,6 +180,7 @@ export type QuizPromptSegment =
 
 export type QuizDropdownBlank = {
     id: string;
+    correctOptionId?: string;
     options: QuizOption[];
 };
 
@@ -267,6 +268,8 @@ export type QuizQuestion = {
     options: QuizOption[];    // empty if type === 'short_answer'
     promptSegments?: QuizPromptSegment[];
     dropdownBlanks?: QuizDropdownBlank[];
+    dropdownPoolOptions?: QuizOption[];
+    dropdownPoolConsumesOptions?: boolean;
     tableRowHeaderLabel?: string;
     tableColumns?: QuizTableColumn[];
     tableRows?: QuizTableRow[];

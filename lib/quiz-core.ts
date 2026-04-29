@@ -257,13 +257,13 @@ function createDefaultPromptSegments(blankId: string): QuizPromptSegment[] {
 
 function createDefaultDropdownBlanks(): QuizDropdownBlank[] {
     const blankId = crypto.randomUUID();
+    const correctOption = createDefaultOption("Respuesta correcta", true);
+    const distractorOption = createDefaultOption("Distractor", false);
     return [
         {
             id: blankId,
-            options: [
-                createDefaultOption("Respuesta correcta", true),
-                createDefaultOption("Distractor", false),
-            ],
+            correctOptionId: correctOption.id,
+            options: [correctOption, distractorOption],
         },
     ];
 }
@@ -398,6 +398,13 @@ export function shuffleQuestionResponses(question: QuizQuestion, seed: string): 
     }
 
     if (questionType === QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN) {
+        if (question.dropdownPoolOptions?.length) {
+            return {
+                ...question,
+                dropdownPoolOptions: seededShuffle(question.dropdownPoolOptions, `${seed}:dropdown-pool`),
+            };
+        }
+
         return {
             ...question,
             dropdownBlanks: (question.dropdownBlanks ?? []).map((blank) => ({
@@ -546,6 +553,8 @@ export function convertQuestionToType(question: QuizQuestion, type: QuizQuestion
         options: [],
         promptSegments: undefined,
         dropdownBlanks: undefined,
+        dropdownPoolOptions: undefined,
+        dropdownPoolConsumesOptions: undefined,
         tableColumns: undefined,
         tableRows: undefined,
         tableItems: undefined,
@@ -604,10 +613,13 @@ export function convertQuestionToType(question: QuizQuestion, type: QuizQuestion
 
     if (type === QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN) {
         const dropdownBlanks = createDefaultDropdownBlanks();
+        const dropdownPoolOptions = dropdownBlanks[0].options;
         return {
             ...baseQuestion,
             promptSegments: createDefaultPromptSegments(dropdownBlanks[0].id),
-            dropdownBlanks,
+            dropdownBlanks: dropdownBlanks.map((blank) => ({ ...blank, options: [] })),
+            dropdownPoolOptions,
+            dropdownPoolConsumesOptions: false,
         };
     }
 
@@ -670,8 +682,12 @@ function getCorrectOptionIds(question: QuizQuestion) {
     return (question.options ?? []).filter((option) => option.isCorrect).map((option) => option.id);
 }
 
-function getDropdownCorrectOptionId(blank: QuizDropdownBlank) {
-    return blank.options.find((option) => option.isCorrect)?.id;
+function getDropdownOptions(question: QuizQuestion, blank: QuizDropdownBlank) {
+    return question.dropdownPoolOptions?.length ? question.dropdownPoolOptions : blank.options;
+}
+
+function getDropdownCorrectOptionId(question: QuizQuestion, blank: QuizDropdownBlank) {
+    return blank.correctOptionId ?? blank.options.find((option) => option.isCorrect)?.id;
 }
 
 function normalizeIdArray(value?: string | string[]) {
@@ -867,7 +883,7 @@ function scoreStructuredQuestion(question: QuizQuestion, structuredAnswer?: Quiz
     if (questionType === QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN) {
         const blanks = question.dropdownBlanks ?? [];
         if (blanks.length === 0 || structuredAnswer?.kind !== QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN) return 0;
-        const correctCount = blanks.filter((blank) => structuredAnswer.blanks[blank.id] === getDropdownCorrectOptionId(blank)).length;
+        const correctCount = blanks.filter((blank) => structuredAnswer.blanks[blank.id] === getDropdownCorrectOptionId(question, blank)).length;
         return round2((questionPoints / blanks.length) * correctCount);
     }
 
@@ -1092,12 +1108,13 @@ export function buildQuestionReview(
                 const selectedId = structuredAnswer?.kind === QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN
                     ? structuredAnswer.blanks[blank.id]
                     : undefined;
-                const correctId = getDropdownCorrectOptionId(blank);
+                const options = getDropdownOptions(question, blank);
+                const correctId = getDropdownCorrectOptionId(question, blank);
                 return {
                     id: blank.id,
                     label: `Hueco ${index + 1}`,
-                    value: getOptionLabel(blank.options, selectedId),
-                    expectedValue: getOptionLabel(blank.options, correctId),
+                    value: getOptionLabel(options, selectedId),
+                    expectedValue: getOptionLabel(options, correctId),
                     isCorrect: selectedId ? selectedId === correctId : false,
                 };
             }),

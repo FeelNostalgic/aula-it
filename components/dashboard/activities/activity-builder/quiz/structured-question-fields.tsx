@@ -37,6 +37,7 @@ import type {
     QuizDropdownBlank,
     QuizMatchingOption,
     QuizMatchingPrompt,
+    QuizOption,
     QuizOrderingItem,
     QuizPromptSegment,
     QuizQuestion,
@@ -64,9 +65,12 @@ function createBlankSegment(blankId: string): QuizPromptSegment {
 }
 
 function createBlank(): QuizDropdownBlank {
+    const correctOption = createOption("Correcta", true);
+    const distractorOption = createOption("Distractor", false);
     return {
         id: crypto.randomUUID(),
-        options: [createOption("Correcta", true), createOption("Distractor", false)],
+        correctOptionId: correctOption.id,
+        options: [correctOption, distractorOption],
     };
 }
 
@@ -107,6 +111,25 @@ function reorderItemsById<T extends { id: string }>(items: T[], activeId: string
     const newIndex = items.findIndex((item) => item.id === overId);
     if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return items;
     return arrayMove(items, oldIndex, newIndex);
+}
+
+function getDropdownCorrectOptionId(blank: QuizDropdownBlank) {
+    return blank.correctOptionId ?? blank.options.find((option) => option.isCorrect)?.id ?? "";
+}
+
+function getDropdownPoolOptions(question: QuizQuestion, blanks: QuizDropdownBlank[]) {
+    if (question.dropdownPoolOptions?.length) return question.dropdownPoolOptions;
+
+    const optionsById = new Map<string, QuizOption>();
+    for (const blank of blanks) {
+        for (const option of blank.options) {
+            if (!optionsById.has(option.id)) {
+                optionsById.set(option.id, { ...option, isCorrect: false });
+            }
+        }
+    }
+
+    return Array.from(optionsById.values());
 }
 
 function SortableFieldRow({
@@ -219,8 +242,24 @@ function MultipleChoiceChecklist({
 }
 
 function FillInTheBlankFields({ question, onUpdate }: StructuredQuestionFieldsProps) {
-    const promptSegments = question.promptSegments ?? [createTextSegment(""), createBlankSegment((question.dropdownBlanks ?? [createBlank()])[0].id)];
-    const dropdownBlanks = question.dropdownBlanks ?? [createBlank()];
+    const fallbackBlank = createBlank();
+    const dropdownBlanks = (question.dropdownBlanks?.length ? question.dropdownBlanks : [fallbackBlank]).map((blank) => ({
+        ...blank,
+        correctOptionId: getDropdownCorrectOptionId(blank),
+    }));
+    const promptSegments = question.promptSegments ?? [createTextSegment(""), createBlankSegment(dropdownBlanks[0].id)];
+    const poolOptions = getDropdownPoolOptions(question, dropdownBlanks);
+    const consumesOptions = !!question.dropdownPoolConsumesOptions;
+    const segmentSensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    );
+
+    const handleSegmentDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+        onUpdate({ promptSegments: reorderItemsById(promptSegments, String(active.id), String(over.id)) });
+    };
 
     return (
         <div className="pl-14 space-y-4">
@@ -244,8 +283,10 @@ function FillInTheBlankFields({ question, onUpdate }: StructuredQuestionFieldsPr
                             className="h-8 text-xs"
                             onClick={() => {
                                 const blank = createBlank();
+                                const correctOptionId = poolOptions[0]?.id ?? getDropdownCorrectOptionId(blank);
                                 onUpdate({
-                                    dropdownBlanks: [...dropdownBlanks, blank],
+                                    dropdownBlanks: [...dropdownBlanks, { id: blank.id, correctOptionId, options: [] }],
+                                    dropdownPoolOptions: poolOptions.length ? poolOptions : blank.options,
                                     promptSegments: [...promptSegments, createBlankSegment(blank.id)],
                                 });
                             }}
@@ -255,47 +296,136 @@ function FillInTheBlankFields({ question, onUpdate }: StructuredQuestionFieldsPr
                     </div>
                 </div>
 
+                <DndContext sensors={segmentSensors} collisionDetection={closestCenter} onDragEnd={handleSegmentDragEnd}>
+                    <SortableContext items={promptSegments.map((segment) => segment.id)} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-2">
+                            {promptSegments.map((segment, index) => (
+                                <SortableFieldRow key={segment.id} id={segment.id} handleLabel="Reordenar segmento">
+                                    <div className="flex items-center gap-2">
+                                        {segment.kind === "text" ? (
+                                            <Input
+                                                value={segment.text}
+                                                onChange={(event) => {
+                                                    const nextSegments = [...promptSegments];
+                                                    nextSegments[index] = { ...segment, text: event.target.value };
+                                                    onUpdate({ promptSegments: nextSegments });
+                                                }}
+                                                placeholder="Bloque de texto..."
+                                                className="bg-background/60 border-border/40 text-sm"
+                                            />
+                                        ) : (
+                                            <div className="flex-1 rounded-lg border border-accent-blue/20 bg-accent-blue/8 px-3 py-2 text-sm font-semibold text-accent-blue">
+                                                Hueco {dropdownBlanks.findIndex((blank) => blank.id === segment.blankId) + 1}
+                                            </div>
+                                        )}
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            aria-label="Eliminar segmento"
+                                            className="size-8 text-text-muted hover:text-red-400"
+                                            onClick={() => {
+                                                const nextSegments = promptSegments.filter((candidate) => candidate.id !== segment.id);
+                                                if (segment.kind === "blank") {
+                                                    onUpdate({
+                                                        promptSegments: nextSegments,
+                                                        dropdownBlanks: dropdownBlanks.filter((blank) => blank.id !== segment.blankId),
+                                                        dropdownPoolOptions: poolOptions,
+                                                    });
+                                                    return;
+                                                }
+                                                onUpdate({ promptSegments: nextSegments });
+                                            }}
+                                        >
+                                            <Trash2 className="size-3.5" />
+                                        </Button>
+                                    </div>
+                                </SortableFieldRow>
+                            ))}
+                        </div>
+                    </SortableContext>
+                </DndContext>
+            </div>
+
+            <div className="rounded-xl border border-border/30 bg-surface/30 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Pool compartida</p>
+                        <p className="text-xs text-text-muted/70">Estas palabras aparecen en todos los huecos.</p>
+                    </div>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs text-text-muted hover:text-accent-blue"
+                        onClick={() => onUpdate({ dropdownPoolOptions: [...poolOptions, createOption("", false)] })}
+                    >
+                        <Plus className="size-3 mr-1" /> Añadir palabra
+                    </Button>
+                </div>
                 <div className="space-y-2">
-                    {promptSegments.map((segment, index) => (
-                        <div key={segment.id} className="flex items-center gap-2">
-                            {segment.kind === "text" ? (
-                                <Input
-                                    value={segment.text}
-                                    onChange={(event) => {
-                                        const nextSegments = [...promptSegments];
-                                        nextSegments[index] = { ...segment, text: event.target.value };
-                                        onUpdate({ promptSegments: nextSegments });
-                                    }}
-                                    placeholder="Bloque de texto..."
-                                    className="bg-background/60 border-border/40 text-sm"
-                                />
-                            ) : (
-                                <div className="flex-1 rounded-lg border border-accent-blue/20 bg-accent-blue/8 px-3 py-2 text-sm text-accent-blue">
-                                    Hueco {dropdownBlanks.findIndex((blank) => blank.id === segment.blankId) + 1}
-                                </div>
-                            )}
+                    {poolOptions.map((option, optionIndex) => (
+                        <div key={option.id} className="flex items-center gap-2">
+                            <span className="w-20 shrink-0 rounded-md border border-border/40 px-2 py-1 text-center text-[11px] font-bold uppercase tracking-widest text-text-muted">
+                                Opción {optionIndex + 1}
+                            </span>
+                            <Input
+                                value={option.text}
+                                onChange={(event) => onUpdate({
+                                    dropdownPoolOptions: poolOptions.map((candidate) => candidate.id === option.id ? { ...candidate, text: event.target.value } : candidate),
+                                })}
+                                placeholder="Palabra de la pool..."
+                                className="bg-background/60 border-border/40 text-sm"
+                            />
                             <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                aria-label="Eliminar segmento"
+                                aria-label="Eliminar palabra de la pool"
+                                disabled={poolOptions.length <= 2}
                                 className="size-8 text-text-muted hover:text-red-400"
                                 onClick={() => {
-                                    const nextSegments = promptSegments.filter((candidate) => candidate.id !== segment.id);
-                                    if (segment.kind === "blank") {
-                                        onUpdate({
-                                            promptSegments: nextSegments,
-                                            dropdownBlanks: dropdownBlanks.filter((blank) => blank.id !== segment.blankId),
-                                        });
-                                        return;
-                                    }
-                                    onUpdate({ promptSegments: nextSegments });
+                                    const fallbackOptionId = poolOptions.find((candidate) => candidate.id !== option.id)?.id ?? "";
+                                    onUpdate({
+                                        dropdownPoolOptions: poolOptions.filter((candidate) => candidate.id !== option.id),
+                                        dropdownBlanks: dropdownBlanks.map((blank) => getDropdownCorrectOptionId(blank) === option.id
+                                            ? { ...blank, correctOptionId: fallbackOptionId, options: [] }
+                                            : { ...blank, options: [] }),
+                                    });
                                 }}
                             >
                                 <Trash2 className="size-3.5" />
                             </Button>
                         </div>
                     ))}
+                </div>
+            </div>
+
+            <div className="rounded-xl border border-border/30 bg-surface/30 p-4 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Configuración de uso</p>
+                <div className="grid gap-2 md:grid-cols-2">
+                    <button
+                        type="button"
+                        onClick={() => onUpdate({ dropdownPoolConsumesOptions: true })}
+                        className={cn(
+                            "rounded-lg border p-3 text-left text-xs transition-colors",
+                            consumesOptions ? "border-accent-blue/40 bg-accent-blue/10 text-foreground" : "border-border/30 bg-background/40 text-text-muted hover:text-foreground"
+                        )}
+                    >
+                        <span className="block font-bold">La pool se va gastando</span>
+                        <span className="mt-1 block leading-relaxed">Cuando el alumno elige una palabra, desaparece del resto de huecos.</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onUpdate({ dropdownPoolConsumesOptions: false })}
+                        className={cn(
+                            "rounded-lg border p-3 text-left text-xs transition-colors",
+                            !consumesOptions ? "border-accent-blue/40 bg-accent-blue/10 text-foreground" : "border-border/30 bg-background/40 text-text-muted hover:text-foreground"
+                        )}
+                    >
+                        <span className="block font-bold">La pool no se gasta</span>
+                        <span className="mt-1 block leading-relaxed">La misma palabra puede seleccionarse en varios huecos.</span>
+                    </button>
                 </div>
             </div>
 
@@ -311,79 +441,34 @@ function FillInTheBlankFields({ question, onUpdate }: StructuredQuestionFieldsPr
                                 className="h-7 text-xs text-text-muted hover:text-red-400"
                                 onClick={() => onUpdate({
                                     dropdownBlanks: dropdownBlanks.filter((candidate) => candidate.id !== blank.id),
+                                    dropdownPoolOptions: poolOptions,
                                     promptSegments: promptSegments.filter((segment) => segment.kind !== "blank" || segment.blankId !== blank.id),
                                 })}
                             >
                                 <Trash2 className="size-3 mr-1" /> Eliminar
                             </Button>
                         </div>
-                        {blank.options.map((option, optionIndex) => (
-                            <div key={option.id} className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => onUpdate({
-                                        dropdownBlanks: dropdownBlanks.map((candidate) => candidate.id !== blank.id ? candidate : {
-                                            ...candidate,
-                                            options: candidate.options.map((candidateOption) => ({
-                                                ...candidateOption,
-                                                isCorrect: candidateOption.id === option.id,
-                                            })),
-                                        }),
-                                    })}
-                                    className={cn(
-                                        "rounded-md border px-2 py-1 text-[11px] font-bold uppercase tracking-widest",
-                                        option.isCorrect
-                                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                                            : "border-border/40 text-text-muted"
-                                    )}
-                                >
-                                    {option.isCorrect ? "Correcta" : `Opción ${optionIndex + 1}`}
-                                </button>
-                                <Input
-                                    value={option.text}
-                                    onChange={(event) => onUpdate({
-                                        dropdownBlanks: dropdownBlanks.map((candidate) => candidate.id !== blank.id ? candidate : {
-                                            ...candidate,
-                                            options: candidate.options.map((candidateOption) => candidateOption.id === option.id
-                                                ? { ...candidateOption, text: event.target.value }
-                                                : candidateOption),
-                                        }),
-                                    })}
-                                    placeholder="Texto de opción..."
-                                    className="bg-background/60 border-border/40 text-sm"
-                                />
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    aria-label="Eliminar opción del hueco"
-                                    disabled={blank.options.length <= 2}
-                                    className="size-8 text-text-muted hover:text-red-400"
-                                    onClick={() => onUpdate({
-                                        dropdownBlanks: dropdownBlanks.map((candidate) => candidate.id !== blank.id ? candidate : {
-                                            ...candidate,
-                                            options: candidate.options.filter((candidateOption) => candidateOption.id !== option.id),
-                                        }),
-                                    })}
-                                >
-                                    <Trash2 className="size-3.5" />
-                                </Button>
-                            </div>
-                        ))}
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs text-text-muted hover:text-accent-blue"
-                            onClick={() => onUpdate({
-                                dropdownBlanks: dropdownBlanks.map((candidate) => candidate.id !== blank.id ? candidate : {
-                                    ...candidate,
-                                    options: [...candidate.options, createOption("", false)],
-                                }),
+                        <Select
+                            value={getDropdownCorrectOptionId(blank) || "__empty__"}
+                            onValueChange={(value) => onUpdate({
+                                dropdownBlanks: dropdownBlanks.map((candidate) => candidate.id === blank.id
+                                    ? { ...candidate, correctOptionId: value === "__empty__" ? "" : value, options: [] }
+                                    : { ...candidate, options: [] }),
+                                dropdownPoolOptions: poolOptions,
                             })}
                         >
-                            <Plus className="size-3 mr-1" /> Añadir opción
-                        </Button>
+                            <SelectTrigger className="h-9 border-border/50 bg-background/60">
+                                <SelectValue placeholder="Selecciona la opción correcta..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="__empty__">Sin respuesta correcta</SelectItem>
+                                {poolOptions.map((option) => (
+                                    <SelectItem key={option.id} value={option.id}>
+                                        {option.text || "Opción sin texto"}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 ))}
             </div>

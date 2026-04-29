@@ -48,7 +48,7 @@ import {
     getTableDragUsedItemIds,
     QUIZ_QUESTION_TYPE,
 } from "@/lib/quiz-core";
-import type { QuizOrderingItem, QuizQuestion, QuizStructuredAnswers, QuizStructuredQuestionAnswer } from "@/types/activity";
+import type { QuizDropdownBlank, QuizOption, QuizOrderingItem, QuizQuestion, QuizStructuredAnswers, QuizStructuredQuestionAnswer } from "@/types/activity";
 import { CheckCircle2, Circle, GripVertical, X } from "lucide-react";
 
 type QuizQuestionAnswerFieldProps = {
@@ -152,6 +152,19 @@ function getAssignedItemLabel(question: QuizQuestion, itemId?: string) {
         ?? question.matchingOptions?.find((item) => item.id === itemId)?.text
         ?? question.categoryItems?.find((item) => item.id === itemId)?.text
         ?? "Sin texto";
+}
+
+function getDropdownPoolOptions(question: QuizQuestion, blanks: QuizDropdownBlank[]) {
+    if (question.dropdownPoolOptions?.length) return question.dropdownPoolOptions;
+
+    const optionsById = new Map<string, QuizOption>();
+    for (const blank of blanks) {
+        for (const option of blank.options) {
+            if (!optionsById.has(option.id)) optionsById.set(option.id, option);
+        }
+    }
+
+    return Array.from(optionsById.values());
 }
 
 function getTableCell(question: QuizQuestion, rowId: string, columnId: string) {
@@ -316,6 +329,9 @@ function FillInTheBlankAnswer({
     onStructuredAnswerChange,
 }: Pick<QuizQuestionAnswerFieldProps, "question" | "structuredAnswers" | "onStructuredAnswerChange">) {
     const currentAnswer = getFillBlankAnswer(question.id, structuredAnswers);
+    const blanks = question.dropdownBlanks ?? [];
+    const poolOptions = getDropdownPoolOptions(question, blanks);
+    const consumesOptions = !!question.dropdownPoolConsumesOptions;
 
     return (
         <div className={cn("space-y-3", QUESTION_CONTENT_OFFSET_CLASS)}>
@@ -327,11 +343,18 @@ function FillInTheBlankAnswer({
 
                     const blank = question.dropdownBlanks?.find((candidate) => candidate.id === segment.blankId);
                     if (!blank) return null;
+                    const selectedOptionId = currentAnswer.blanks[blank.id] || "";
+                    const usedOptionIds = new Set(Object.entries(currentAnswer.blanks)
+                        .filter(([blankId, optionId]) => blankId !== blank.id && optionId)
+                        .map(([, optionId]) => optionId));
+                    const availableOptions = consumesOptions
+                        ? poolOptions.filter((option) => option.id === selectedOptionId || !usedOptionIds.has(option.id))
+                        : poolOptions;
 
                     return (
                         <Select
                             key={segment.id}
-                            value={currentAnswer.blanks[blank.id] || "__empty__"}
+                            value={selectedOptionId || "__empty__"}
                             onValueChange={(value) => onStructuredAnswerChange(question.id, {
                                 kind: QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN,
                                 blanks: {
@@ -345,7 +368,7 @@ function FillInTheBlankAnswer({
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="__empty__">Sin responder</SelectItem>
-                                {blank.options.map((option) => (
+                                {availableOptions.map((option) => (
                                     <SelectItem key={option.id} value={option.id}>{option.text || "Opción sin texto"}</SelectItem>
                                 ))}
                             </SelectContent>
