@@ -3,31 +3,37 @@ import type { AnimationMeta } from "@/types/animations"
 export const arpSteps = [
   {
     id: "step-1",
-    label: "1. A quiere contactar a B",
+    label: "1. A quiere contactar a B usando su IP",
     description:
-      "PC A necesita enviar datos a PC B. Para ello, debe conocer su dirección MAC. Consulta su tabla ARP local… y no la encuentra. Debe preguntar a la red.",
+      "PC A conoce la IP de B, pero para enviar una trama dentro de la LAN necesita la MAC destino. Sin esa MAC, la capa de acceso no puede entregar la trama.",
   },
   {
     id: "step-2",
-    label: "2. ARP Request — Broadcast",
+    label: "2. A consulta su caché ARP local",
+    description:
+      "Antes de molestar a la red, A mira su tabla ARP. Si ya tuviera una entrada IP→MAC válida, usaría esa MAC directamente. En este caso no la tiene.",
+  },
+  {
+    id: "step-3",
+    label: "3. ARP Request — Broadcast",
     description:
       "A envía un ARP Request en broadcast (FF:FF:FF:FF:FF:FF). El mensaje dice: '¿Quién tiene la IP de B? Dime tu MAC.' Todos los equipos de la red lo reciben.",
   },
   {
-    id: "step-3",
-    label: "3. Solo B reconoce la petición",
+    id: "step-4",
+    label: "4. Solo B reconoce la petición",
     description:
       "Todos reciben el broadcast, pero solo PC B tiene esa IP. C lo ignora. B prepara una respuesta unicast directamente a A.",
   },
   {
-    id: "step-4",
-    label: "4. ARP Reply — Unicast de B a A",
+    id: "step-5",
+    label: "5. ARP Reply — Unicast de B a A",
     description:
       "B responde en unicast (solo a A): 'Yo tengo esa IP, mi MAC es B4:22:DA:FF:11:22.' A recibe la respuesta y ahora tiene la información que necesitaba.",
   },
   {
-    id: "step-5",
-    label: "5. A actualiza su tabla ARP",
+    id: "step-6",
+    label: "6. A actualiza su tabla ARP",
     description:
       "A guarda en su tabla ARP la asociación IP→MAC de B. A partir de ahora puede comunicarse directamente con B a nivel de capa 2, sin volver a preguntar.",
   },
@@ -103,6 +109,12 @@ export const ethernetSteps = [
     description:
       "PC B comprueba que la MAC destino coincide con la suya y acepta la trama. Así Ethernet consigue la entrega local entre equipos de la misma LAN.",
   },
+  {
+    id: "step-6",
+    label: "6. Ethernet decide por MAC, no por IP",
+    description:
+      "La idea clave es esta: en la LAN, Ethernet mueve tramas usando direcciones MAC y puertos del switch. La IP puede ir dentro, pero el switch no necesita abrirla para reenviar.",
+  },
 ]
 
 export const pppSteps = [
@@ -114,25 +126,31 @@ export const pppSteps = [
   },
   {
     id: "step-2",
-    label: "2. PPP establece el enlace",
+    label: "2. PPP negocia el enlace con LCP",
     description:
-      "Antes de enviar datos, los extremos negocian el enlace. Esta fase permite dejar preparada la comunicación entre ambos lados.",
+      "Antes de enviar datos, los extremos usan LCP para acordar parámetros del enlace. Esta fase deja preparada la comunicación entre ambos lados.",
   },
   {
     id: "step-3",
-    label: "3. Los datos se encapsulan en una trama PPP",
+    label: "3. Puede haber autenticación",
+    description:
+      "PPP puede incorporar autenticación, por ejemplo PAP o CHAP. No siempre aparece en todos los enlaces, pero es importante entender que forma parte de la preparación del acceso.",
+  },
+  {
+    id: "step-4",
+    label: "4. Los datos se encapsulan en una trama PPP",
     description:
       "PPP envuelve los datos en su propia trama, con campos de control y comprobación. Así define claramente que cruza el enlace punto a punto.",
   },
   {
-    id: "step-4",
-    label: "4. La trama cruza directamente al otro extremo",
+    id: "step-5",
+    label: "5. La trama cruza directamente al otro extremo",
     description:
       "Como solo hay dos extremos, la trama no necesita switch ni decisión por MAC destino. Va de un lado al otro por el mismo enlace.",
   },
   {
-    id: "step-5",
-    label: "5. El receptor desencapsula y entrega los datos",
+    id: "step-6",
+    label: "6. El receptor desencapsula y entrega los datos",
     description:
       "El equipo receptor elimina la cabecera PPP y entrega los datos a la capa superior. PPP resuelve el transporte ordenado de tramas en un enlace directo.",
   },
@@ -709,6 +727,90 @@ export const csmaCdSteps = [
     description:
       "Como los tiempos de espera ya no coinciden, uno de los equipos vuelve a intentarlo antes y consigue usar el medio sin chocar. Así CSMA/CD resuelve el acceso compartido por reintentos.",
   },
+  {
+    id: "step-6",
+    label: "6. Esto es Ethernet half-duplex antigua",
+    description:
+      "CSMA/CD es útil para entender medios compartidos, pero no describe el funcionamiento normal de Ethernet con switches full-duplex modernos, donde las colisiones desaparecen en la práctica.",
+  },
+]
+
+export const wifiSteps = [
+  {
+    id: "step-1",
+    label: "1. La estación detecta una red Wi-Fi",
+    description:
+      "Un portátil o móvil escucha beacons del punto de acceso. En Wi-Fi el medio no es un cable dedicado: es radio compartida.",
+  },
+  {
+    id: "step-2",
+    label: "2. Se asocia al punto de acceso",
+    description:
+      "La estación se autentica y se asocia al AP. A partir de ahí puede enviar tramas 802.11 a través de esa celda inalámbrica.",
+  },
+  {
+    id: "step-3",
+    label: "3. Se construye una trama 802.11",
+    description:
+      "Wi-Fi también trabaja con tramas de capa de acceso, pero sus campos no son iguales a Ethernet: necesita direcciones y control adaptados al entorno inalámbrico.",
+  },
+  {
+    id: "step-4",
+    label: "4. La trama viaja por radio",
+    description:
+      "La señal se propaga por el aire y puede verse afectada por distancia, interferencias y otros emisores. Por eso el acceso al medio es más delicado que en cable.",
+  },
+  {
+    id: "step-5",
+    label: "5. El AP recibe y reenvía",
+    description:
+      "El punto de acceso recibe la trama inalámbrica y puede reenviarla hacia la red cableada, normalmente convirtiendo el flujo a Ethernet.",
+  },
+  {
+    id: "step-6",
+    label: "6. Wi-Fi es acceso compartido inalámbrico",
+    description:
+      "La idea clave: Wi-Fi pertenece al acceso a la red, pero no se comporta como un cable con switch. Comparte radio, evita colisiones y necesita confirmaciones.",
+  },
+]
+
+export const csmaCaSteps = [
+  {
+    id: "step-1",
+    label: "1. Una estación quiere transmitir",
+    description:
+      "En Wi-Fi, una estación no puede asumir que el medio está libre. Primero debe escuchar el canal porque otros equipos pueden estar usando la misma radio.",
+  },
+  {
+    id: "step-2",
+    label: "2. Escucha el canal y espera DIFS",
+    description:
+      "Si el canal parece libre, espera un intervalo antes de transmitir. Esto reduce la probabilidad de que varias estaciones hablen al mismo tiempo.",
+  },
+  {
+    id: "step-3",
+    label: "3. Ejecuta un backoff aleatorio",
+    description:
+      "La estación cuenta hacia atrás un tiempo aleatorio. Si el canal se ocupa, pausa el contador. Si llega a cero, puede transmitir.",
+  },
+  {
+    id: "step-4",
+    label: "4. Envía la trama",
+    description:
+      "Cuando el contador termina, la estación transmite la trama por radio. A diferencia de CSMA/CD, no puede detectar colisiones de forma fiable mientras transmite.",
+  },
+  {
+    id: "step-5",
+    label: "5. El receptor confirma con ACK",
+    description:
+      "Si la trama llega bien, el receptor responde con un ACK. Esa confirmación es fundamental para saber que la transmisión fue válida.",
+  },
+  {
+    id: "step-6",
+    label: "6. Si no hay ACK, se reintenta",
+    description:
+      "Si no llega ACK, la estación asume pérdida o colisión y vuelve a intentarlo con otro backoff. Por eso Wi-Fi evita colisiones: no las detecta como Ethernet antigua.",
+  },
 ]
 
 export const animationRegistry: AnimationMeta[] = [
@@ -727,6 +829,14 @@ export const animationRegistry: AnimationMeta[] = [
       "Explica como varios equipos comparten un mismo medio, que ocurre cuando colisionan y por que el backoff aleatorio permite reintentar sin quedarse bloqueados.",
     topic: "Redes",
     steps: csmaCdSteps,
+  },
+  {
+    slug: "csma-ca",
+    title: "CSMA/CA",
+    description:
+      "Muestra como Wi-Fi evita colisiones escuchando el canal, esperando DIFS, aplicando backoff aleatorio y confirmando la entrega con ACK.",
+    topic: "Redes",
+    steps: csmaCaSteps,
   },
   {
     slug: "osi-tcp-ip",
@@ -751,6 +861,14 @@ export const animationRegistry: AnimationMeta[] = [
       "Entiende como PPP crea y mantiene un enlace punto a punto para encapsular y transportar datos entre dos extremos directos.",
     topic: "Redes",
     steps: pppSteps,
+  },
+  {
+    slug: "wifi",
+    title: "Wi-Fi 802.11",
+    description:
+      "Explica Wi-Fi como tecnología de acceso inalámbrico: asociación con el punto de acceso, tramas 802.11, radio compartida y reenvío hacia la red.",
+    topic: "Redes",
+    steps: wifiSteps,
   },
   {
     slug: "ip-basico",

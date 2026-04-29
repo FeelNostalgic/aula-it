@@ -107,7 +107,7 @@ export function PppAnimation() {
     gsap.set(q("#pkt-lcp-a"), { x: N.left.x, y: N.left.y })
     gsap.set(q("#pkt-lcp-b"), { x: N.right.x, y: N.right.y })
     gsap.set(q("#pkt-ppp"), { x: N.left.x, y: N.left.y })
-    gsap.set(q("#link-status, #frame-card, #accept-card"), { opacity: 0, y: 8 })
+    gsap.set(q("#link-status, #auth-card, #frame-card, #accept-card"), { opacity: 0, y: 8 })
 
     const tl = gsap.timeline({ paused: true })
 
@@ -127,16 +127,20 @@ export function PppAnimation() {
       .to(q("#node-right .node-circle"), { stroke: C.active, duration: 0.2 }, "<")
 
     tl.addLabel("step-3")
-      .to(q("#frame-card"), { opacity: 1, y: 0, duration: 0.35, ease: "back.out(1.3)" })
+      .to(q("#auth-card"), { opacity: 1, y: 0, duration: 0.34, ease: "back.out(1.25)" })
+      .to(q("#node-left .node-circle, #node-right .node-circle"), { stroke: C.warn, duration: 0.18 }, "<0.06")
 
     tl.addLabel("step-4")
+      .to(q("#frame-card"), { opacity: 1, y: 0, duration: 0.35, ease: "back.out(1.3)" })
+
+    tl.addLabel("step-5")
       .to(q("#pkt-ppp"), { opacity: 1, duration: 0.05 })
       .to(q("#pkt-ppp"), { x: N.right.x, y: N.right.y, duration: 0.9, ease: "power2.inOut" })
       .to(q("#pkt-ppp"), { opacity: 0, duration: 0.05 })
       .to(q("#beam"), { opacity: 0.95, duration: 0.2 }, "<0.1")
       .to(q("#node-right .node-circle"), { stroke: C.success, strokeWidth: 3, duration: 0.25 }, "<0.45")
 
-    tl.addLabel("step-5")
+    tl.addLabel("step-6")
       .to(q("#accept-card"), { opacity: 1, y: 0, duration: 0.35, ease: "back.out(1.3)" })
       .to(q("#node-left .node-circle"), { stroke: C.success, strokeWidth: 3, duration: 0.3 }, "<0.05")
 
@@ -196,6 +200,16 @@ export function PppAnimation() {
           </text>
           <text x="400" y="103" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
             LCP OK - dos extremos, un solo camino
+          </text>
+        </g>
+
+        <g id="auth-card" pointerEvents="none">
+          <rect x="300" y="124" width="200" height="42" rx="10" fill={C.panel} stroke={C.warn} strokeWidth="1.4" />
+          <text x="400" y="141" textAnchor="middle" fill={C.warn} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
+            AUTENTICACION OPCIONAL
+          </text>
+          <text x="400" y="155" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
+            PAP / CHAP si el enlace lo exige
           </text>
         </g>
 

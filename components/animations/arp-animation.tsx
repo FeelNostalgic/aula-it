@@ -136,7 +136,7 @@ export function ArpAnimation() {
 
     // Text / overlays: hidden
     gsap.set(q("#question-mark"), { opacity: 0, y: 0 })
-    gsap.set(q("#arp-table"), { opacity: 0, y: 8 })
+    gsap.set(q("#arp-table, #cache-miss, #arp-summary"), { opacity: 0, y: 8 })
     gsap.set(q("#label-bc"), { opacity: 0 })
 
     // ── Timeline ───────────────────────────────────────────────────────
@@ -153,9 +153,14 @@ export function ArpAnimation() {
       }, "<")
       .to(q("#question-mark"), { opacity: 1, y: -12, duration: 0.3 })
 
-    // STEP 2 — ARP Request broadcast
     tl.addLabel("step-2")
+      .to(q("#cache-miss"), { opacity: 1, y: 0, duration: 0.36, ease: "back.out(1.3)" })
+      .to(q("#node-a .node-circle"), { stroke: C.warn, strokeWidth: 3, duration: 0.25 }, "<")
+
+    // STEP 3 — ARP Request broadcast
+    tl.addLabel("step-3")
       .to(q("#question-mark"), { opacity: 0, y: -18, duration: 0.2 })
+      .to(q("#cache-miss"), { opacity: 0, y: -8, duration: 0.2 }, "<")
       .to(q("#node-a .node-circle"), { stroke: C.active, duration: 0.2 }, "<")
       // Packet: A → Router
       .to(q("#pkt-req"), { opacity: 1, duration: 0.05 })
@@ -173,8 +178,8 @@ export function ArpAnimation() {
       .to(q("#node-b .node-circle"), { stroke: C.active, strokeWidth: 2, duration: 0.3 }, "<")
       .to(q("#node-c .node-circle"), { stroke: C.active, strokeWidth: 2, duration: 0.3 }, "<")
 
-    // STEP 3 — Solo B reconoce la petición
-    tl.addLabel("step-3")
+    // STEP 4 — Solo B reconoce la petición
+    tl.addLabel("step-4")
       // C dims → not the target
       .to(q("#node-c .node-circle"), { stroke: C.idle, opacity: 0.35, duration: 0.4 })
       .to(q("#node-c"), { opacity: 0.4, duration: 0.4 }, "<")
@@ -183,8 +188,8 @@ export function ArpAnimation() {
       // B glows green
       .to(q("#node-b .node-circle"), { stroke: C.success, strokeWidth: 3, duration: 0.4 }, "<")
 
-    // STEP 4 — ARP Reply B → A (unicast)
-    tl.addLabel("step-4")
+    // STEP 5 — ARP Reply B → A (unicast)
+    tl.addLabel("step-5")
       // Restore A and C
       .to(q("#node-a"), { opacity: 1, duration: 0.2 })
       .to(q("#node-a .node-circle"), { stroke: C.idle, opacity: 1, duration: 0.2 }, "<")
@@ -199,11 +204,12 @@ export function ArpAnimation() {
       .to(q("#pkt-reply-down"), { x: N.a.x, y: N.a.y, duration: 0.65, ease: "power2.inOut" })
       .to(q("#pkt-reply-down"), { opacity: 0, duration: 0.25 })
 
-    // STEP 5 — A actualiza tabla ARP
-    tl.addLabel("step-5")
+    // STEP 6 — A actualiza tabla ARP
+    tl.addLabel("step-6")
       .to(q("#node-a .node-circle"), { stroke: C.success, strokeWidth: 3, duration: 0.4 })
       .to(q("#node-b .node-circle"), { stroke: C.success, strokeWidth: 3, duration: 0.4 }, "<")
       .to(q("#arp-table"), { opacity: 1, y: 0, duration: 0.5, ease: "back.out(1.5)" })
+      .to(q("#arp-summary"), { opacity: 1, y: 0, duration: 0.36, ease: "back.out(1.2)" }, "<0.12")
 
     registerTimeline(tl)
     return () => { tl.kill() }
@@ -267,6 +273,23 @@ export function ArpAnimation() {
             <text x="0" y="-77" fontSize="8" fill={C.fg} fontFamily="var(--font-mono)">IP (B)  → B4:22:DA:FF:11:22</text>
             <text x="0" y="-65" fontSize="8" fill={C.subText} fontFamily="var(--font-mono)">Interfaz: eth0</text>
           </g>
+        </g>
+
+        <g id="cache-miss" pointerEvents="none">
+          <rect x="238" y="182" width="324" height="42" rx="12" fill={C.bg} stroke={C.warn} strokeWidth="1.5" />
+          <text x="400" y="199" textAnchor="middle" fill={C.warn} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
+            CACHE ARP LOCAL
+          </text>
+          <text x="400" y="213" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
+            192.168.1.20 {"->"} ?  Todavia no hay MAC
+          </text>
+        </g>
+
+        <g id="arp-summary" pointerEvents="none">
+          <rect x="266" y="420" width="268" height="34" rx="17" fill={C.bg} stroke={C.success} strokeWidth="1.5" />
+          <text x="400" y="440" textAnchor="middle" fill={C.success} fontSize="9" fontWeight="800" fontFamily="var(--font-mono)">
+            ARP RESUELVE IP LOCAL {"->"} MAC LOCAL
+          </text>
         </g>
 
         {/* ── PC B ────────────────────────────────────────────────────── */}

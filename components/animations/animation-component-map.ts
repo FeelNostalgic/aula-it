@@ -19,9 +19,12 @@ import { TcpVsUdpAnimation } from "./tcp-vs-udp-animation"
 import { TftpAnimation } from "./tftp-animation"
 import { UdpAnimation } from "./udp-animation"
 import { CsmaCdAnimation } from "./csma-cd-animation"
+import { CsmaCaAnimation } from "./csma-ca-animation"
+import { WifiAnimation } from "./wifi-animation"
 
 export const animationComponentMap = {
   arp: ArpAnimation,
+  "csma-ca": CsmaCaAnimation,
   "csma-cd": CsmaCdAnimation,
   dhcp: DhcpAnimation,
   dns: DnsAnimation,
@@ -42,4 +45,5 @@ export const animationComponentMap = {
   "tcp-vs-udp": TcpVsUdpAnimation,
   tftp: TftpAnimation,
   udp: UdpAnimation,
+  wifi: WifiAnimation,
 } as const

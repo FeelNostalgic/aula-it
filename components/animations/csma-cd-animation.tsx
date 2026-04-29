@@ -10,8 +10,8 @@ import { PacketPill } from "./network-visual-primitives"
 import { NodeInfoCard, type NodeInfo } from "./node-info-card"
 import { useNodeTooltip } from "./use-node-tooltip"
 
-const VIEWBOX = { width: 800, height: 460 } as const
-const BUS_Y = 276
+const VIEWBOX = { width: 800, height: 540 } as const
+const BUS_Y = 316
 
 const N = {
   a: { x: 130, y: 124 },
@@ -127,7 +127,7 @@ export function CsmaCdAnimation() {
     gsap.set(q("#pkt-b"), { x: BUS_POINTS.b.x, y: BUS_POINTS.b.y, opacity: 0 })
     gsap.set(q("#pkt-ok"), { x: BUS_POINTS.a.x, y: BUS_POINTS.a.y, opacity: 0 })
     gsap.set(q("#jam-left, #jam-right"), { x: N.collision.x, y: N.collision.y, opacity: 0 })
-    gsap.set(q("#intro-card, #collision-card, #retry-card, #success-card, #backoff-a, #backoff-b"), { opacity: 0, y: 8 })
+    gsap.set(q("#intro-card, #collision-card, #retry-card, #success-card, #modern-card, #backoff-a, #backoff-b"), { opacity: 0, y: 8 })
     gsap.set(q("#collision-wave"), { opacity: 0, scale: 0.55, transformOrigin: "50% 50%" })
     gsap.set(q("#bus-core"), { stroke: C.idle, strokeWidth: 8 })
 
@@ -140,6 +140,7 @@ export function CsmaCdAnimation() {
       .to(q("#bus-core"), { stroke: C.active, duration: 0.28 }, "<")
 
     tl.addLabel("step-2")
+      .to(q("#intro-card"), { opacity: 0, y: -8, duration: 0.18 })
       .to(q("#pkt-a"), { opacity: 1, duration: 0.05 })
       .to(q("#pkt-b"), { opacity: 1, duration: 0.05 }, "<0.04")
       .to(q("#pkt-a"), { x: N.collision.x, y: N.collision.y, duration: 0.7, ease: "power2.inOut" })
@@ -179,6 +180,12 @@ export function CsmaCdAnimation() {
       .to(q("#node-b .node-circle"), { stroke: C.idle, strokeWidth: 1.5, duration: 0.18 }, "<")
       .to(q("#success-card"), { opacity: 1, y: 0, duration: 0.34, ease: "back.out(1.2)" }, "<0.08")
       .to(q("#bus-core"), { stroke: C.success, duration: 0.2 }, "<")
+      .to({}, { duration: 1.4 })
+
+    tl.addLabel("step-6")
+      .set(q("#intro-card, #collision-card, #retry-card, #success-card, #backoff-a, #backoff-b"), { opacity: 0, y: 8 })
+      .to(q("#modern-card"), { opacity: 1, y: 0, duration: 0.34, ease: "back.out(1.2)" })
+      .to(q("#bus-core"), { stroke: C.idle, duration: 0.2 }, "<")
 
     registerTimeline(tl)
     return () => {
@@ -249,39 +256,49 @@ export function CsmaCdAnimation() {
         </g>
 
         <g id="intro-card" pointerEvents="none">
-          <rect x="180" y="58" width="440" height="46" rx="12" fill={C.panel} stroke={C.warn} strokeWidth="1.4" />
-          <text x="400" y="76" textAnchor="middle" fill={C.warn} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
+          <rect x="218" y="194" width="364" height="44" rx="12" fill={C.panel} stroke={C.warn} strokeWidth="1.4" />
+          <text x="400" y="211" textAnchor="middle" fill={C.warn} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
             MEDIO COMPARTIDO
           </text>
-          <text x="400" y="91" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
+          <text x="400" y="226" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
             Todos escuchan el mismo canal antes de transmitir
           </text>
         </g>
 
         <g id="collision-card" pointerEvents="none">
-          <rect x="266" y="308" width="268" height="42" rx="12" fill={C.panel} stroke={C.danger} strokeWidth="1.4" />
-          <text x="400" y="325" textAnchor="middle" fill={C.danger} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
+          <rect x="266" y="356" width="268" height="42" rx="12" fill={C.panel} stroke={C.danger} strokeWidth="1.4" />
+          <text x="400" y="373" textAnchor="middle" fill={C.danger} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
             COLISION
           </text>
-          <text x="400" y="339" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
+          <text x="400" y="387" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
             Las tramas se pisan y ninguna llega válida
           </text>
         </g>
 
         <g id="retry-card" pointerEvents="none">
-          <rect x="214" y="356" width="372" height="42" rx="12" fill={C.panel} stroke={C.warn} strokeWidth="1.4" />
-          <text x="400" y="373" textAnchor="middle" fill={C.warn} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
+          <rect x="214" y="408" width="372" height="42" rx="12" fill={C.panel} stroke={C.warn} strokeWidth="1.4" />
+          <text x="400" y="425" textAnchor="middle" fill={C.warn} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
             JAM + BACKOFF ALEATORIO
           </text>
-          <text x="400" y="387" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
+          <text x="400" y="439" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
             Cada emisor espera distinto antes de volver a probar
           </text>
         </g>
 
         <g id="success-card" pointerEvents="none">
-          <rect x="182" y="404" width="436" height="38" rx="12" fill={C.panel} stroke={C.success} strokeWidth="1.4" />
-          <text x="400" y="427" textAnchor="middle" fill={C.success} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
+          <rect x="182" y="464" width="436" height="38" rx="12" fill={C.panel} stroke={C.success} strokeWidth="1.4" />
+          <text x="400" y="487" textAnchor="middle" fill={C.success} fontSize="9" fontWeight="700" fontFamily="var(--font-mono)">
             EL REINTENTO GANA PORQUE YA NO COINCIDEN LOS TIEMPOS
+          </text>
+        </g>
+
+        <g id="modern-card" pointerEvents="none">
+          <rect x="170" y="400" width="460" height="46" rx="12" fill={C.panel} stroke={C.active} strokeWidth="1.4" />
+          <text x="400" y="418" textAnchor="middle" fill={C.active} fontSize="8.6" fontWeight="800" fontFamily="var(--font-mono)">
+            OJO: NO ES ETHERNET FULL-DUPLEX MODERNA
+          </text>
+          <text x="400" y="432" textAnchor="middle" fill={C.fg} fontSize="8.3" fontFamily="var(--font-mono)">
+            CSMA/CD explica medio compartido antiguo; con switches full-duplex no hay colisiones
           </text>
         </g>
 
@@ -327,7 +344,7 @@ export function CsmaCdAnimation() {
           <PacketPill label="JAM" fill={C.jamFill} textColor={C.jamText} width={62} />
         </g>
 
-        <text x="400" y="294" textAnchor="middle" fill={C.busText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
+        <text x="400" y={BUS_Y + 18} textAnchor="middle" fill={C.busText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
           MEDIO COMPARTIDO
         </text>
       </svg>

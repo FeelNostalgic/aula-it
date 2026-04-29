@@ -138,7 +138,7 @@ export function EthernetAnimation() {
     gsap.set(q(".packet"), { opacity: 0 })
     gsap.set(q("#pkt-up"), { x: N.a.x, y: N.a.y })
     gsap.set(q("#pkt-b"), { x: N.sw.x, y: N.sw.y })
-    gsap.set(q("#frame-card, #switch-decision"), { opacity: 0, y: 8 })
+    gsap.set(q("#frame-card, #switch-decision, #ethernet-summary"), { opacity: 0, y: 8 })
 
     const tl = gsap.timeline({ paused: true })
 
@@ -179,6 +179,10 @@ export function EthernetAnimation() {
       .to(q("#node-c"), { opacity: 1, duration: 0.2 }, "<")
       .to(q("#node-c .node-circle"), { stroke: C.idle, opacity: 1, duration: 0.2 }, "<")
       .to(q("#frame-card .accept"), { opacity: 1, duration: 0.2 }, "<0.05")
+
+    tl.addLabel("step-6")
+      .to(q("#ethernet-summary"), { opacity: 1, y: 0, duration: 0.38, ease: "back.out(1.25)" })
+      .to(q("#switch-decision"), { opacity: 1, y: 0, duration: 0.2 }, "<")
 
     registerTimeline(tl)
     return () => {
@@ -273,6 +277,16 @@ export function EthernetAnimation() {
           </text>
           <text x="400" y="166" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
             Sale por Fa0/2
+          </text>
+        </g>
+
+        <g id="ethernet-summary" pointerEvents="none">
+          <rect x="202" y="420" width="396" height="38" rx="19" fill={C.panel} stroke={C.success} strokeWidth="1.4" />
+          <text x="400" y="435" textAnchor="middle" fill={C.success} fontSize="9" fontWeight="800" fontFamily="var(--font-mono)">
+            SWITCHING LOCAL
+          </text>
+          <text x="400" y="446" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
+            El switch reenvia por MAC destino; no necesita abrir la IP
           </text>
         </g>
 

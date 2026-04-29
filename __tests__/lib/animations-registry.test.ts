@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   animationRegistry,
   arpSteps,
+  csmaCaSteps,
   csmaCdSteps,
   dhcpSteps,
   dnsSteps,
@@ -22,6 +23,7 @@ import {
   tcpVsUdpSteps,
   tftpSteps,
   udpSteps,
+  wifiSteps,
 } from "@/lib/animations/registry";
 
 describe("animationRegistry", () => {
@@ -80,14 +82,14 @@ describe("animationRegistry", () => {
         ]);
     });
 
-    it("contains the 'ethernet' and 'ppp' entries with five ordered steps each", () => {
+    it("contains the 'ethernet' and 'ppp' entries with six ordered steps each", () => {
         const ethernetEntry = animationRegistry.find((e) => e.slug === "ethernet");
         const pppEntry = animationRegistry.find((e) => e.slug === "ppp");
 
         expect(ethernetEntry).toBeDefined();
         expect(pppEntry).toBeDefined();
-        expect(ethernetEntry!.steps).toHaveLength(5);
-        expect(pppEntry!.steps).toHaveLength(5);
+        expect(ethernetEntry!.steps).toHaveLength(6);
+        expect(pppEntry!.steps).toHaveLength(6);
         expect(ethernetEntry!.topic).toBe("Redes");
         expect(pppEntry!.topic).toBe("Redes");
     });
@@ -95,6 +97,7 @@ describe("animationRegistry", () => {
     it("contains all new IP, ICMP, TCP and UDP entries", () => {
         const expectedSlugs = [
             "csma-cd",
+            "csma-ca",
             "ip-basico",
             "ip-ruta",
             "ip-hop-by-hop",
@@ -111,6 +114,7 @@ describe("animationRegistry", () => {
             "dns",
             "dhcp",
             "tftp",
+            "wifi",
         ];
 
         for (const slug of expectedSlugs) {
@@ -137,9 +141,9 @@ describe("animationRegistry", () => {
 });
 
 describe("arpSteps", () => {
-    it("is an array with exactly 5 entries", () => {
+    it("is an array with exactly 6 entries", () => {
         expect(Array.isArray(arpSteps)).toBe(true);
-        expect(arpSteps).toHaveLength(5);
+        expect(arpSteps).toHaveLength(6);
     });
 
     it("each entry has id, label, and description fields", () => {
@@ -156,13 +160,13 @@ describe("arpSteps", () => {
         expect(uniqueIds.size).toBe(ids.length);
     });
 
-    it("first id is 'step-1' and last id is 'step-5'", () => {
+    it("first id is 'step-1' and last id is 'step-6'", () => {
         expect(arpSteps[0].id).toBe("step-1");
-        expect(arpSteps[4].id).toBe("step-5");
+        expect(arpSteps[5].id).toBe("step-6");
     });
 
-    it("ids follow sequential step-N pattern from step-1 to step-5", () => {
-        const expectedIds = ["step-1", "step-2", "step-3", "step-4", "step-5"];
+    it("ids follow sequential step-N pattern from step-1 to step-6", () => {
+        const expectedIds = ["step-1", "step-2", "step-3", "step-4", "step-5", "step-6"];
         const actualIds = arpSteps.map((s) => s.id);
         expect(actualIds).toEqual(expectedIds);
     });
@@ -206,13 +210,14 @@ describe("osiTcpIpSteps", () => {
 });
 
 describe("ethernetSteps", () => {
-    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+    it("uses the sequential step-N pattern from step-1 to step-6", () => {
         expect(ethernetSteps.map((step) => step.id)).toEqual([
             "step-1",
             "step-2",
             "step-3",
             "step-4",
             "step-5",
+            "step-6",
         ]);
     });
 
@@ -225,13 +230,14 @@ describe("ethernetSteps", () => {
 });
 
 describe("pppSteps", () => {
-    it("uses the sequential step-N pattern from step-1 to step-5", () => {
+    it("uses the sequential step-N pattern from step-1 to step-6", () => {
         expect(pppSteps.map((step) => step.id)).toEqual([
             "step-1",
             "step-2",
             "step-3",
             "step-4",
             "step-5",
+            "step-6",
         ]);
     });
 
@@ -348,8 +354,20 @@ describe("ftpSteps", () => {
 });
 
 describe("csmaCdSteps", () => {
-    it("uses the sequential step-N pattern from step-1 to step-5", () => {
-        expect(csmaCdSteps.map((step) => step.id)).toEqual(["step-1", "step-2", "step-3", "step-4", "step-5"]);
+    it("uses the sequential step-N pattern from step-1 to step-6", () => {
+        expect(csmaCdSteps.map((step) => step.id)).toEqual(["step-1", "step-2", "step-3", "step-4", "step-5", "step-6"]);
+    });
+});
+
+describe("csmaCaSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-6", () => {
+        expect(csmaCaSteps.map((step) => step.id)).toEqual(["step-1", "step-2", "step-3", "step-4", "step-5", "step-6"]);
+    });
+});
+
+describe("wifiSteps", () => {
+    it("uses the sequential step-N pattern from step-1 to step-6", () => {
+        expect(wifiSteps.map((step) => step.id)).toEqual(["step-1", "step-2", "step-3", "step-4", "step-5", "step-6"]);
     });
 });
 
@@ -397,7 +415,7 @@ describe("tftpSteps", () => {
 
 describe("new application protocol steps", () => {
     it("have non-empty labels and descriptions", () => {
-        const groups = [ftpSteps, httpHttpsSteps, smtpSteps, pop3Steps, sshSteps, dnsSteps, dhcpSteps, tftpSteps, csmaCdSteps];
+        const groups = [ftpSteps, httpHttpsSteps, smtpSteps, pop3Steps, sshSteps, dnsSteps, dhcpSteps, tftpSteps, csmaCdSteps, csmaCaSteps, wifiSteps];
         for (const group of groups) {
             for (const step of group) {
                 expect(step.label.trim().length).toBeGreaterThan(0);
