@@ -139,6 +139,7 @@ export type QuizStatsValueUnit = (typeof QUIZ_STATS_VALUE_UNIT)[keyof typeof QUI
 export const QUIZ_STATS_VISUALIZATION_KIND = {
     BAR: "bar",
     DONUT: "donut",
+    PIE: "pie",
     HISTOGRAM: "histogram",
 } as const;
 
@@ -160,14 +161,27 @@ export type QuizStatsSummaryMetric = {
     tone?: QuizStatsMetricTone;
 };
 
+export type QuizStatsVisualizationDimension = {
+    key: string;
+    label: string;
+    description?: string;
+    data: QuizStatsChartPoint[];
+    charts?: QuizStatsVisualizationDimension[];
+};
+
 export type QuizStatsVisualization = {
     key: string;
     kind: QuizStatsVisualizationKind;
+    allowedKinds?: QuizStatsVisualizationKind[];
+    defaultKind?: QuizStatsVisualizationKind;
     title: string;
     description?: string;
+    contextLabel?: string;
+    contextText?: string;
     valueLabel: string;
     valueUnit: QuizStatsValueUnit;
     data: QuizStatsChartPoint[];
+    dimensions?: QuizStatsVisualizationDimension[];
 };
 
 export type QuizQuestionStatsSnapshot = {
@@ -1355,6 +1369,228 @@ function getClassicResponseStateData(question: QuizQuestion, reviewedAttempts: Q
     ].filter((point) => point.value > 0);
 }
 
+function getCategoricalAllowedKinds(): QuizStatsVisualizationKind[] {
+    return [
+        QUIZ_STATS_VISUALIZATION_KIND.BAR,
+        QUIZ_STATS_VISUALIZATION_KIND.DONUT,
+        QUIZ_STATS_VISUALIZATION_KIND.PIE,
+    ];
+}
+
+function createResponsePoint(
+    key: string,
+    label: string,
+    value: number,
+    total: number,
+    correct: boolean,
+    index: number,
+): QuizStatsChartPoint {
+    return {
+        key,
+        label,
+        value,
+        correct,
+        color: correct ? "var(--chart-2)" : `var(--chart-${(index % 5) + 1})`,
+        count: value,
+        total,
+    };
+}
+
+function incrementCount(counts: Map<string, number>, key: string) {
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+}
+
+function getCountedResponsePoints(
+    counts: Map<string, number>,
+    labels: Map<string, string>,
+    correctKeys: string[],
+    total: number,
+): QuizStatsChartPoint[] {
+    const keys = [...new Set([...labels.keys(), ...counts.keys(), ...correctKeys])];
+
+    return keys
+        .map((key, index) => createResponsePoint(
+            key,
+            labels.get(key) ?? "Sin respuesta",
+            counts.get(key) ?? 0,
+            total,
+            correctKeys.includes(key),
+            index,
+        ))
+        .sort((left, right) => {
+            if (left.correct && !right.correct) return -1;
+            if (!left.correct && right.correct) return 1;
+            return right.value - left.value;
+        });
+}
+
+function getPromptTextWithBlanks(question: QuizQuestion) {
+    if (!question.promptSegments?.length) return question.text;
+
+    return question.promptSegments.map((segment) => {
+        if (segment.kind === "text") return segment.text;
+        const blankIndex = (question.dropdownBlanks ?? []).findIndex((blank) => blank.id === segment.blankId);
+        return `[Hueco ${blankIndex >= 0 ? blankIndex + 1 : "?"}]`;
+    }).join("");
+}
+
+function buildFillBlankResponseDimensions(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]): QuizStatsVisualizationDimension[] {
+    return (question.dropdownBlanks ?? []).map((blank, blankIndex) => {
+        const counts = new Map<string, number>();
+        const labels = new Map<string, string>();
+        const options = getDropdownOptions(question, blank);
+        const correctId = getDropdownCorrectOptionId(question, blank);
+
+        for (const option of options) {
+            labels.set(option.id, option.text || "Sin texto");
+        }
+
+        for (const { attempt } of reviewedAttempts) {
+            const structuredAnswer = attempt.structured_answers?.[question.id];
+            const selectedId = structuredAnswer?.kind === QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN
+                ? structuredAnswer.blanks[blank.id]
+                : undefined;
+            if (selectedId) incrementCount(counts, selectedId);
+        }
+
+        return {
+            key: blank.id,
+            label: `Hueco ${blankIndex + 1}`,
+            data: getCountedResponsePoints(counts, labels, correctId ? [correctId] : [], reviewedAttempts.length),
+        };
+    });
+}
+
+function buildTableRowResponseDimensions(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]): QuizStatsVisualizationDimension[] {
+    return (question.tableRows ?? []).map((row) => {
+        const rowCells = (question.tableCells ?? []).filter((cell) => cell.rowId === row.id);
+        const charts = rowCells.map((cell) => {
+            const counts = new Map<string, number>();
+            const labels = new Map<string, string>();
+            const columnLabel = question.tableColumns?.find((column) => column.id === cell.columnId)?.label ?? "Columna";
+            const correctIds = getTableCellCorrectItemIds(cell);
+            const correctKey = correctIds.join("|");
+
+            labels.set(correctKey, formatLabelList(correctIds.map((itemId) => getTableItemLabel(question.tableItems ?? [], itemId))));
+
+            for (const { attempt } of reviewedAttempts) {
+                const structuredAnswer = attempt.structured_answers?.[question.id];
+                const selectedIds = getTableAnswerItemIds(structuredAnswer, cell.id);
+                if (selectedIds.length === 0) continue;
+                const key = selectedIds.join("|");
+                labels.set(key, formatLabelList(selectedIds.map((itemId) => getTableItemLabel(question.tableItems ?? [], itemId))));
+                incrementCount(counts, key);
+            }
+
+            return {
+                key: cell.id,
+                label: columnLabel,
+                data: getCountedResponsePoints(counts, labels, [correctKey], reviewedAttempts.length),
+            };
+        });
+
+        const combinedCounts = new Map<string, number>();
+        const combinedLabels = new Map<string, string>();
+        const combinedCorrectKeys: string[] = [];
+
+        for (const chart of charts) {
+            for (const point of chart.data) {
+                const key = `${chart.key}:${point.key}`;
+                combinedLabels.set(key, `${chart.label}: ${point.label}`);
+                if (point.correct) combinedCorrectKeys.push(key);
+                if (point.value > 0) combinedCounts.set(key, point.value);
+            }
+        }
+
+        return {
+            key: row.id,
+            label: row.label || "Fila",
+            data: getCountedResponsePoints(combinedCounts, combinedLabels, combinedCorrectKeys, reviewedAttempts.length),
+            charts,
+        };
+    });
+}
+
+function buildMatchingResponseDimensions(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]): QuizStatsVisualizationDimension[] {
+    return (question.matchingPrompts ?? []).map((prompt) => {
+        const counts = new Map<string, number>();
+        const labels = new Map<string, string>();
+        const correctIds = getMatchingPromptCorrectMatchIds(prompt);
+        const correctKey = correctIds.join("|");
+
+        labels.set(correctKey, formatLabelList(correctIds.map((itemId) => getOptionLabel(question.matchingOptions ?? [], itemId))));
+
+        for (const { attempt } of reviewedAttempts) {
+            const structuredAnswer = attempt.structured_answers?.[question.id];
+            const selectedIds = getMatchingAnswerItemIds(structuredAnswer, prompt.id);
+            if (selectedIds.length === 0) continue;
+            const key = selectedIds.join("|");
+            labels.set(key, formatLabelList(selectedIds.map((itemId) => getOptionLabel(question.matchingOptions ?? [], itemId))));
+            incrementCount(counts, key);
+        }
+
+        return {
+            key: prompt.id,
+            label: prompt.text || "Concepto",
+            data: getCountedResponsePoints(counts, labels, [correctKey], reviewedAttempts.length),
+        };
+    });
+}
+
+function buildOrderingResponseDimensions(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]): QuizStatsVisualizationDimension[] {
+    return (question.orderingItems ?? []).map((item, positionIndex) => {
+        const counts = new Map<string, number>();
+        const labels = new Map<string, string>();
+
+        for (const candidate of question.orderingItems ?? []) {
+            labels.set(candidate.id, candidate.text || "Sin texto");
+        }
+
+        for (const { attempt } of reviewedAttempts) {
+            const structuredAnswer = attempt.structured_answers?.[question.id];
+            const selectedId = structuredAnswer?.kind === QUIZ_QUESTION_TYPE.ORDERING_SEQUENCE
+                ? structuredAnswer.orderedItemIds[positionIndex]
+                : undefined;
+            if (selectedId) incrementCount(counts, selectedId);
+        }
+
+        return {
+            key: `position-${positionIndex + 1}`,
+            label: `Posición ${positionIndex + 1}`,
+            description: item.text,
+            data: getCountedResponsePoints(counts, labels, [item.id], reviewedAttempts.length),
+        };
+    });
+}
+
+function buildCategorizationResponseDimensions(question: QuizQuestion, reviewedAttempts: QuizStatsReviewedAttempt[]): QuizStatsVisualizationDimension[] {
+    return (question.categories ?? []).map((category) => {
+        const counts = new Map<string, number>();
+        const labels = new Map<string, string>();
+        const correctKeys = (question.categoryItems ?? [])
+            .filter((item) => getCategoryItemCorrectCategoryIds(item).includes(category.id))
+            .map((item) => item.id);
+
+        for (const item of question.categoryItems ?? []) {
+            labels.set(item.id, item.text || "Sin texto");
+        }
+
+        for (const { attempt } of reviewedAttempts) {
+            const structuredAnswer = attempt.structured_answers?.[question.id];
+            for (const item of question.categoryItems ?? []) {
+                const selectedCategoryIds = getCategorizationAssignedCategoryIds(structuredAnswer, item.id);
+                if (selectedCategoryIds.includes(category.id)) incrementCount(counts, item.id);
+            }
+        }
+
+        return {
+            key: category.id,
+            label: category.label || "Categoría",
+            data: getCountedResponsePoints(counts, labels, correctKeys, reviewedAttempts.length),
+        };
+    });
+}
+
 function getTopPoint(points: QuizStatsChartPoint[]) {
     return [...points].sort((left, right) => right.value - left.value)[0];
 }
@@ -1451,6 +1687,8 @@ function buildLikertVisualizations(question: QuizQuestion, reviewedAttempts: Qui
         {
             key: "likert-distribution",
             kind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
+            allowedKinds: getCategoricalAllowedKinds(),
+            defaultKind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
             title: "Distribución de respuestas",
             description: "Muestra cuántos alumnos eligieron cada valor de la escala.",
             valueLabel: "Alumnos",
@@ -1463,6 +1701,8 @@ function buildLikertVisualizations(question: QuizQuestion, reviewedAttempts: Qui
         visualizations.push({
             key: "likert-justification",
             kind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
+            allowedKinds: getCategoricalAllowedKinds(),
+            defaultKind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
             title: "Justificación entregada",
             description: "Permite ver si la clase argumentó la valoración elegida.",
             valueLabel: "Alumnos",
@@ -1732,8 +1972,10 @@ function buildQuestionVisualizations(question: QuizQuestion, reviewedAttempts: Q
                 {
                     key: "classic-distribution",
                     kind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
+                    allowedKinds: getCategoricalAllowedKinds(),
+                    defaultKind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
                     title: "Reparto de respuestas",
-                    description: "Ideal para comentar qué opción concentró a la clase.",
+                    description: "¿Qué opción concentró más votos de la clase?",
                     valueLabel: "Alumnos",
                     valueUnit: QUIZ_STATS_VALUE_UNIT.COUNT,
                     data: donutData,
@@ -1745,6 +1987,8 @@ function buildQuestionVisualizations(question: QuizQuestion, reviewedAttempts: Q
             {
                 key: "classic-option-selection",
                 kind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
+                allowedKinds: getCategoricalAllowedKinds(),
+                defaultKind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
                 title: "Selección por opción",
                 description: "Cada barra indica cuántos alumnos marcaron esa opción.",
                 valueLabel: "Alumnos",
@@ -1754,6 +1998,8 @@ function buildQuestionVisualizations(question: QuizQuestion, reviewedAttempts: Q
             {
                 key: "classic-outcomes",
                 kind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
+                allowedKinds: getCategoricalAllowedKinds(),
+                defaultKind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
                 title: "Resultado global",
                 description: "Separa respuestas totalmente correctas, parciales, incorrectas y en blanco.",
                 valueLabel: "Alumnos",
@@ -1768,6 +2014,8 @@ function buildQuestionVisualizations(question: QuizQuestion, reviewedAttempts: Q
             {
                 key: "short-answer-presence",
                 kind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
+                allowedKinds: getCategoricalAllowedKinds(),
+                defaultKind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
                 title: "Participación",
                 description: "Cuántos alumnos contestaron frente a cuántos dejaron la pregunta en blanco.",
                 valueLabel: "Alumnos",
@@ -1795,6 +2043,8 @@ function buildQuestionVisualizations(question: QuizQuestion, reviewedAttempts: Q
             {
                 key: "numeric-presence",
                 kind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
+                allowedKinds: getCategoricalAllowedKinds(),
+                defaultKind: QUIZ_STATS_VISUALIZATION_KIND.DONUT,
                 title: "Participación",
                 description: "Distingue respuestas válidas de preguntas sin responder.",
                 valueLabel: "Alumnos",
@@ -1805,70 +2055,92 @@ function buildQuestionVisualizations(question: QuizQuestion, reviewedAttempts: Q
     }
 
     if (questionType === QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN) {
+        const dimensions = buildFillBlankResponseDimensions(question, reviewedAttempts);
         return [
             {
-                key: "fill-blank-accuracy",
+                key: "fill-blank-responses",
                 kind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
-                title: "Acierto por hueco",
-                description: "Permite detectar qué hueco concentró más errores.",
-                valueLabel: "Precisión",
-                valueUnit: QUIZ_STATS_VALUE_UNIT.PERCENT,
-                data: getRowAccuracyData((reviewedAttempts[0]?.studentRow.rows ?? []), reviewedAttempts),
+                allowedKinds: getCategoricalAllowedKinds(),
+                defaultKind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
+                title: "Respuestas por hueco",
+                description: "Selecciona un hueco para ver qué opción eligió la clase.",
+                contextLabel: "Texto completo",
+                contextText: getPromptTextWithBlanks(question),
+                valueLabel: "Alumnos",
+                valueUnit: QUIZ_STATS_VALUE_UNIT.COUNT,
+                data: dimensions[0]?.data ?? [],
+                dimensions,
             },
         ];
     }
 
     if (questionType === QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP) {
+        const dimensions = buildTableRowResponseDimensions(question, reviewedAttempts);
         return [
             {
-                key: "table-cell-accuracy",
+                key: "table-row-responses",
                 kind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
-                title: "Acierto por celda",
-                description: "Cada barra resume el porcentaje de alumnos que acertó esa celda.",
-                valueLabel: "Precisión",
-                valueUnit: QUIZ_STATS_VALUE_UNIT.PERCENT,
-                data: getRowAccuracyData((reviewedAttempts[0]?.studentRow.rows ?? []), reviewedAttempts),
+                allowedKinds: getCategoricalAllowedKinds(),
+                defaultKind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
+                title: "Respuestas por fila",
+                description: "Selecciona una fila para ver qué respuestas se colocaron en sus columnas.",
+                valueLabel: "Alumnos",
+                valueUnit: QUIZ_STATS_VALUE_UNIT.COUNT,
+                data: dimensions[0]?.data ?? [],
+                dimensions,
             },
         ];
     }
 
     if (questionType === QUIZ_QUESTION_TYPE.MATCHING_PAIRS) {
+        const dimensions = buildMatchingResponseDimensions(question, reviewedAttempts);
         return [
             {
-                key: "matching-prompt-accuracy",
+                key: "matching-prompt-responses",
                 kind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
-                title: "Acierto por prompt",
-                description: "Ayuda a localizar qué emparejamientos generaron más confusión.",
-                valueLabel: "Precisión",
-                valueUnit: QUIZ_STATS_VALUE_UNIT.PERCENT,
-                data: getRowAccuracyData((reviewedAttempts[0]?.studentRow.rows ?? []), reviewedAttempts),
+                allowedKinds: getCategoricalAllowedKinds(),
+                defaultKind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
+                title: "Respuestas por concepto",
+                description: "Selecciona un concepto para ver con qué opción lo emparejó la clase.",
+                valueLabel: "Alumnos",
+                valueUnit: QUIZ_STATS_VALUE_UNIT.COUNT,
+                data: dimensions[0]?.data ?? [],
+                dimensions,
             },
         ];
     }
 
     if (questionType === QUIZ_QUESTION_TYPE.ORDERING_SEQUENCE) {
+        const dimensions = buildOrderingResponseDimensions(question, reviewedAttempts);
         return [
             {
-                key: "ordering-position-accuracy",
+                key: "ordering-position-responses",
                 kind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
-                title: "Acierto por posición",
-                description: "Sirve para detectar en qué paso se rompe más la secuencia.",
-                valueLabel: "Precisión",
-                valueUnit: QUIZ_STATS_VALUE_UNIT.PERCENT,
-                data: getRowAccuracyData((reviewedAttempts[0]?.studentRow.rows ?? []), reviewedAttempts),
+                allowedKinds: getCategoricalAllowedKinds(),
+                defaultKind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
+                title: "Respuestas por posición",
+                description: "Selecciona una posición para ver qué elemento colocó ahí la clase.",
+                valueLabel: "Alumnos",
+                valueUnit: QUIZ_STATS_VALUE_UNIT.COUNT,
+                data: dimensions[0]?.data ?? [],
+                dimensions,
             },
         ];
     }
 
+    const dimensions = buildCategorizationResponseDimensions(question, reviewedAttempts);
     return [
         {
-            key: "categorization-category-accuracy",
+            key: "categorization-category-responses",
             kind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
-            title: "Precisión por categoría",
-            description: "Compara qué categorías entiende mejor la clase y cuáles generan más ruido.",
-            valueLabel: "Precisión",
-            valueUnit: QUIZ_STATS_VALUE_UNIT.PERCENT,
-            data: buildCategorizationCategoryAccuracyData(question, reviewedAttempts),
+            allowedKinds: getCategoricalAllowedKinds(),
+            defaultKind: QUIZ_STATS_VISUALIZATION_KIND.BAR,
+            title: "Respuestas por categoría",
+            description: "Selecciona una categoría para ver qué elementos le asignó la clase.",
+            valueLabel: "Alumnos",
+            valueUnit: QUIZ_STATS_VALUE_UNIT.COUNT,
+            data: dimensions[0]?.data ?? [],
+            dimensions,
         },
     ];
 }

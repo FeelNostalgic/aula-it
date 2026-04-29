@@ -486,4 +486,219 @@ describe("quiz stats snapshots", () => {
         expect(snapshot.visualizations[1]?.kind).toBe("donut");
         expect(snapshot.summaryMetrics.find((metric) => metric.key === "numeric-average")?.value).toBe("4.50");
     });
+
+    it("builds selectable response distributions for dropdown blanks with correct options visible at zero", () => {
+        const question = createQuestion(QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN, {
+            text: "Completa el texto",
+            promptSegments: [
+                { id: "segment-1", kind: "text", text: "HTTP usa " },
+                { id: "segment-2", kind: "blank", blankId: "blank-1" },
+                { id: "segment-3", kind: "text", text: " y DNS usa " },
+                { id: "segment-4", kind: "blank", blankId: "blank-2" },
+            ],
+            dropdownBlanks: [
+                {
+                    id: "blank-1",
+                    correctOptionId: "tcp",
+                    options: [
+                        { id: "tcp", text: "TCP", isCorrect: true },
+                        { id: "udp", text: "UDP", isCorrect: false },
+                    ],
+                },
+                {
+                    id: "blank-2",
+                    correctOptionId: "udp",
+                    options: [
+                        { id: "tcp", text: "TCP", isCorrect: false },
+                        { id: "udp", text: "UDP", isCorrect: true },
+                    ],
+                },
+            ],
+        });
+
+        const snapshot = buildQuestionStatsSnapshot(question, [
+            {
+                id: "attempt-1",
+                student_id: "student-1",
+                student_name: "Ana",
+                step_id: "step-1",
+                attempt_number: 1,
+                answers: {},
+                short_answers: {},
+                structured_answers: {
+                    "question-1": {
+                        kind: QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN,
+                        blanks: { "blank-1": "udp", "blank-2": "tcp" },
+                    },
+                },
+                short_answer_scores: {},
+                points_earned: 0,
+                points_total: 1,
+                completed_at: "2026-04-26T10:00:00.000Z",
+                short_answer_feedback: {},
+            },
+        ], false);
+
+        const visualization = snapshot.visualizations[0];
+        expect(visualization?.allowedKinds).toEqual(["bar", "donut", "pie"]);
+        expect(visualization?.contextText).toBe("HTTP usa [Hueco 1] y DNS usa [Hueco 2]");
+        expect(visualization?.dimensions).toHaveLength(2);
+        expect(visualization?.dimensions?.[0]?.data.find((point) => point.key === "tcp")).toMatchObject({
+            value: 0,
+            correct: true,
+        });
+        expect(visualization?.dimensions?.[0]?.data.find((point) => point.key === "udp")?.value).toBe(1);
+    });
+
+    it("builds selectable response distributions for structured drag/drop question types", () => {
+        const tableQuestion = createQuestion(QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP, {
+            tableRows: [
+                { id: "row-1", label: "Fila 1" },
+            ],
+            tableColumns: [
+                { id: "col-1", label: "Columna 1" },
+            ],
+            tableItems: [
+                { id: "item-a", text: "Correcta" },
+                { id: "item-b", text: "Distractor" },
+            ],
+            tableCells: [
+                { id: "cell-1", rowId: "row-1", columnId: "col-1", correctItemId: "item-a" },
+            ],
+        });
+        const matchingQuestion = createQuestion(QUIZ_QUESTION_TYPE.MATCHING_PAIRS, {
+            matchingPrompts: [
+                { id: "prompt-1", text: "HTTP", correctMatchId: "match-a" },
+            ],
+            matchingOptions: [
+                { id: "match-a", text: "Aplicación" },
+                { id: "match-b", text: "Transporte" },
+            ],
+        });
+        const orderingQuestion = createQuestion(QUIZ_QUESTION_TYPE.ORDERING_SEQUENCE, {
+            orderingItems: [
+                { id: "first", text: "Primero" },
+                { id: "second", text: "Segundo" },
+            ],
+        });
+        const categorizationQuestion = createQuestion(QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP, {
+            categories: [
+                { id: "cat-a", label: "Capa A" },
+            ],
+            categoryItems: [
+                { id: "item-a", text: "HTTP", correctCategoryId: "cat-a" },
+                { id: "item-b", text: "TCP", correctCategoryId: "cat-b" },
+            ],
+        });
+
+        const tableSnapshot = buildQuestionStatsSnapshot(tableQuestion, [
+            {
+                id: "attempt-1",
+                student_id: "student-1",
+                student_name: "Ana",
+                step_id: "step-1",
+                attempt_number: 1,
+                answers: {},
+                short_answers: {},
+                structured_answers: {
+                    "question-1": {
+                        kind: QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP,
+                        placements: { "cell-1": "item-b" },
+                    },
+                },
+                short_answer_scores: {},
+                points_earned: 0,
+                points_total: 1,
+                completed_at: "2026-04-26T10:00:00.000Z",
+                short_answer_feedback: {},
+            },
+        ], false);
+        const matchingSnapshot = buildQuestionStatsSnapshot(matchingQuestion, [
+            {
+                id: "attempt-1",
+                student_id: "student-1",
+                student_name: "Ana",
+                step_id: "step-1",
+                attempt_number: 1,
+                answers: {},
+                short_answers: {},
+                structured_answers: {
+                    "question-1": {
+                        kind: QUIZ_QUESTION_TYPE.MATCHING_PAIRS,
+                        matches: { "prompt-1": "match-b" },
+                    },
+                },
+                short_answer_scores: {},
+                points_earned: 0,
+                points_total: 1,
+                completed_at: "2026-04-26T10:00:00.000Z",
+                short_answer_feedback: {},
+            },
+        ], false);
+        const orderingSnapshot = buildQuestionStatsSnapshot(orderingQuestion, [
+            {
+                id: "attempt-1",
+                student_id: "student-1",
+                student_name: "Ana",
+                step_id: "step-1",
+                attempt_number: 1,
+                answers: {},
+                short_answers: {},
+                structured_answers: {
+                    "question-1": {
+                        kind: QUIZ_QUESTION_TYPE.ORDERING_SEQUENCE,
+                        orderedItemIds: ["second", "first"],
+                    },
+                },
+                short_answer_scores: {},
+                points_earned: 0,
+                points_total: 1,
+                completed_at: "2026-04-26T10:00:00.000Z",
+                short_answer_feedback: {},
+            },
+        ], false);
+        const categorizationSnapshot = buildQuestionStatsSnapshot(categorizationQuestion, [
+            {
+                id: "attempt-1",
+                student_id: "student-1",
+                student_name: "Ana",
+                step_id: "step-1",
+                attempt_number: 1,
+                answers: {},
+                short_answers: {},
+                structured_answers: {
+                    "question-1": {
+                        kind: QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP,
+                        assignments: { "item-b": "cat-a" },
+                    },
+                },
+                short_answer_scores: {},
+                points_earned: 0,
+                points_total: 1,
+                completed_at: "2026-04-26T10:00:00.000Z",
+                short_answer_feedback: {},
+            },
+        ], false);
+
+        expect(tableSnapshot.visualizations[0]?.dimensions?.[0]?.charts).toHaveLength(1);
+        expect(tableSnapshot.visualizations[0]?.dimensions?.[0]?.charts?.[0]?.label).toBe("Columna 1");
+        expect(tableSnapshot.visualizations[0]?.dimensions?.[0]?.charts?.[0]?.data.find((point) => point.key === "item-a")).toMatchObject({
+            value: 0,
+            correct: true,
+        });
+        expect(tableSnapshot.visualizations[0]?.dimensions?.[0]?.charts?.[0]?.data.find((point) => point.key === "item-b")?.value).toBe(1);
+        expect(matchingSnapshot.visualizations[0]?.dimensions?.[0]?.data.find((point) => point.key === "match-a")).toMatchObject({
+            value: 0,
+            correct: true,
+        });
+        expect(orderingSnapshot.visualizations[0]?.dimensions?.[0]?.data.find((point) => point.key === "first")).toMatchObject({
+            value: 0,
+            correct: true,
+        });
+        expect(categorizationSnapshot.visualizations[0]?.dimensions?.[0]?.data.find((point) => point.key === "item-a")).toMatchObject({
+            value: 0,
+            correct: true,
+        });
+        expect(categorizationSnapshot.visualizations[0]?.dimensions?.[0]?.data.find((point) => point.key === "item-b")?.value).toBe(1);
+    });
 });

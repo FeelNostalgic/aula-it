@@ -33,6 +33,7 @@ import {
     ChartTooltipContent,
     type ChartConfig,
 } from "@/components/ui/chart";
+import { Button } from "@/components/ui/button";
 import { getQuizFixedQuestions } from "@/lib/quiz-content";
 import {
     buildQuizStatsForAttempt,
@@ -49,13 +50,39 @@ import {
 import { cn } from "@/lib/utils";
 import type { QuizContent, QuizQuestionType } from "@/types/activity";
 import { Bar, BarChart, CartesianGrid, Cell, Label, Pie, PieChart, XAxis, YAxis } from "recharts";
-import { AlertCircle, BarChart3, RefreshCw, Users } from "lucide-react";
+import { AlertCircle, BarChart3, Eye, EyeOff, PieChart as PieChartIcon, RefreshCw, Users } from "lucide-react";
 
 type QuizStatsPanelProps = {
     stepId: string;
     content: QuizContent;
     visible: boolean;
 };
+
+type QuizStatsPanelPreferences = {
+    studentsOpenByQuestionId: Record<string, boolean>;
+    chartKindByVisualizationKey: Record<string, string>;
+    selectedDimensionByVisualizationKey: Record<string, string>;
+};
+
+const DEFAULT_STATS_PREFERENCES: QuizStatsPanelPreferences = {
+    studentsOpenByQuestionId: {},
+    chartKindByVisualizationKey: {},
+    selectedDimensionByVisualizationKey: {},
+};
+
+const CHART_SLICE_COLORS = [
+    "var(--chart-1)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+    "var(--chart-5)",
+    "#06B6D4",
+    "#EC4899",
+    "#84CC16",
+    "#F43F5E",
+    "#6366F1",
+    "#14B8A6",
+    "#FACC15",
+];
 
 function getQuestionTypeLabel(questionType: QuizQuestionType) {
     switch (questionType) {
@@ -75,19 +102,20 @@ function getQuestionTypeLabel(questionType: QuizQuestionType) {
 
 function getBarColor(isCorrect?: boolean) {
     if (isCorrect === true) return "var(--chart-2)";
-    if (isCorrect === false) return "var(--chart-5)";
     return "var(--chart-1)";
 }
 
-function getPointColor(entry: QuizStatsChartPoint, index: number) {
-    return entry.color ?? getBarColor(entry.correct) ?? `var(--chart-${(index % 5) + 1})`;
+function getPointColor(entry: QuizStatsChartPoint, index: number, chartKind: string = QUIZ_STATS_VISUALIZATION_KIND.BAR) {
+    if (entry.key === "blank" || entry.key === "empty") return "var(--muted-foreground)";
+    if (entry.correct === true) return getBarColor(entry.correct);
+    return CHART_SLICE_COLORS[index % CHART_SLICE_COLORS.length];
 }
 
-function buildChartConfig(visualization: QuizStatsVisualization): ChartConfig {
-    return visualization.data.reduce<ChartConfig>((config, point, index) => {
+function buildChartConfig(data: QuizStatsChartPoint[], visualization: QuizStatsVisualization, chartKind: string): ChartConfig {
+    return data.reduce<ChartConfig>((config, point, index) => {
         config[point.key] = {
             label: point.label,
-            color: getPointColor(point, index),
+            color: getPointColor(point, index, chartKind),
         };
         return config;
     }, {
@@ -96,6 +124,41 @@ function buildChartConfig(visualization: QuizStatsVisualization): ChartConfig {
             color: "var(--chart-1)",
         },
     });
+}
+
+function getVisualizationStorageKey(questionId: string, visualizationKey: string) {
+    return `${questionId}:${visualizationKey}`;
+}
+
+function getChartKindLabel(kind: string) {
+    if (kind === QUIZ_STATS_VISUALIZATION_KIND.BAR) return "Barras";
+    if (kind === QUIZ_STATS_VISUALIZATION_KIND.DONUT) return "Donut";
+    if (kind === QUIZ_STATS_VISUALIZATION_KIND.PIE) return "Tarta";
+    return "Histograma";
+}
+
+function getChartKindIcon(kind: string) {
+    if (kind === QUIZ_STATS_VISUALIZATION_KIND.BAR || kind === QUIZ_STATS_VISUALIZATION_KIND.HISTOGRAM) {
+        return <BarChart3 className="size-3.5" />;
+    }
+    return <PieChartIcon className="size-3.5" />;
+}
+
+function getStoredPreferences(stepId: string): QuizStatsPanelPreferences {
+    if (typeof window === "undefined") return DEFAULT_STATS_PREFERENCES;
+    const raw = window.localStorage.getItem(`aula-it:quiz-stats:${stepId}:preferences`);
+    if (!raw) return DEFAULT_STATS_PREFERENCES;
+
+    try {
+        const parsed = JSON.parse(raw) as Partial<QuizStatsPanelPreferences>;
+        return {
+            studentsOpenByQuestionId: parsed.studentsOpenByQuestionId ?? {},
+            chartKindByVisualizationKey: parsed.chartKindByVisualizationKey ?? {},
+            selectedDimensionByVisualizationKey: parsed.selectedDimensionByVisualizationKey ?? {},
+        };
+    } catch {
+        return DEFAULT_STATS_PREFERENCES;
+    }
 }
 
 function formatMetricTone(tone?: string) {
@@ -119,131 +182,270 @@ function formatPointValue(entry: QuizStatsChartPoint, visualization: QuizStatsVi
     return String(entry.value);
 }
 
-function VisualizationCard({ visualization }: { visualization: QuizStatsVisualization }) {
-    const chartConfig = buildChartConfig(visualization);
-    const totalValue = visualization.data.reduce((total, point) => total + point.value, 0);
+function ChartFigure({
+    title,
+    data,
+    visualization,
+    chartKind,
+}: {
+    title?: string;
+    data: QuizStatsChartPoint[];
+    visualization: QuizStatsVisualization;
+    chartKind: string;
+}) {
+    const chartConfig = buildChartConfig(data, visualization, chartKind);
+    const totalValue = data.reduce((total, point) => total + point.value, 0);
+
+    return (
+        <div className="space-y-3">
+            {title && (
+                <h5 className="text-xs font-bold uppercase tracking-widest text-text-muted">{title}</h5>
+            )}
+
+            {data.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                    {data.map((point, index) => (
+                        <div key={point.key} className="inline-flex items-center gap-2 rounded-lg border border-border/30 bg-surface/60 px-2.5 py-1.5 text-xs">
+                            <span
+                                className="size-2.5 shrink-0 rounded-sm"
+                                style={{ backgroundColor: getPointColor(point, index, chartKind) }}
+                            />
+                            <span className="max-w-56 truncate text-foreground">{point.label}</span>
+                            {point.correct && (
+                                <span className="rounded border border-accent-green/30 bg-accent-green/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent-green">
+                                    Correcta
+                                </span>
+                            )}
+                            <span className="font-mono text-text-muted">{formatPointValue(point, visualization)}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {data.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-border/40 py-12 text-center text-sm text-text-muted">
+                    Sin datos para esta vista.
+                </div>
+            ) : (
+                <ChartContainer config={chartConfig} className="h-[280px] w-full">
+                    {chartKind === QUIZ_STATS_VISUALIZATION_KIND.DONUT || chartKind === QUIZ_STATS_VISUALIZATION_KIND.PIE ? (
+                        <PieChart>
+                            <ChartTooltip
+                                cursor={false}
+                                content={(
+                                    <ChartTooltipContent
+                                        formatter={(_, __, item) => {
+                                            const point = item.payload as QuizStatsChartPoint;
+                                            return (
+                                                <div className="flex flex-1 justify-between gap-3 text-xs">
+                                                    <span className="text-muted-foreground">{point.label}</span>
+                                                    <span className="font-mono text-foreground">{formatPointValue(point, visualization)}</span>
+                                                </div>
+                                            );
+                                        }}
+                                    />
+                                )}
+                            />
+                            <Pie
+                                data={data}
+                                dataKey="value"
+                                nameKey="label"
+                                innerRadius={chartKind === QUIZ_STATS_VISUALIZATION_KIND.DONUT ? 70 : 0}
+                                strokeWidth={4}
+                            >
+                                {data.map((entry, index) => (
+                                    <Cell key={entry.key} fill={getPointColor(entry, index, chartKind)} />
+                                ))}
+                                {chartKind === QUIZ_STATS_VISUALIZATION_KIND.DONUT && (
+                                    <Label
+                                        content={({ viewBox }) => {
+                                            if (!viewBox || !("cx" in viewBox) || !("cy" in viewBox)) return null;
+                                            return (
+                                                <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
+                                                    <tspan x={viewBox.cx} y={viewBox.cy} className="fill-foreground text-2xl font-black">
+                                                        {totalValue}
+                                                    </tspan>
+                                                    <tspan x={viewBox.cx} y={(viewBox.cy ?? 0) + 18} className="fill-muted-foreground text-[11px] font-semibold">
+                                                        {visualization.valueLabel}
+                                                    </tspan>
+                                                </text>
+                                            );
+                                        }}
+                                    />
+                                )}
+                            </Pie>
+                            <ChartLegend content={<ChartLegendContent nameKey="label" className="flex flex-wrap justify-center gap-3" />} />
+                        </PieChart>
+                    ) : visualization.kind === QUIZ_STATS_VISUALIZATION_KIND.HISTOGRAM ? (
+                        <BarChart accessibilityLayer data={data} margin={{ left: 12, right: 12, top: 8 }}>
+                            <CartesianGrid vertical={false} />
+                            <XAxis dataKey="label" tickLine={false} axisLine={false} interval={0} angle={-18} textAnchor="end" height={58} className="text-[10px]" />
+                            <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                            <ChartTooltip
+                                cursor={false}
+                                content={(
+                                    <ChartTooltipContent
+                                        formatter={(_, __, item) => {
+                                            const point = item.payload as QuizStatsChartPoint;
+                                            return (
+                                                <div className="flex flex-1 justify-between gap-3 text-xs">
+                                                    <span className="text-muted-foreground">{point.label}</span>
+                                                    <span className="font-mono text-foreground">{formatPointValue(point, visualization)}</span>
+                                                </div>
+                                            );
+                                        }}
+                                    />
+                                )}
+                            />
+                            <Bar dataKey="value" radius={8}>
+                                {data.map((entry, index) => (
+                                    <Cell key={entry.key} fill={getPointColor(entry, index, chartKind)} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    ) : (
+                        <BarChart accessibilityLayer data={data} layout="vertical" margin={{ left: 24, right: 16 }}>
+                            <CartesianGrid horizontal={false} />
+                            <YAxis
+                                dataKey="label"
+                                type="category"
+                                tickLine={false}
+                                axisLine={false}
+                                width={150}
+                                className="text-[11px]"
+                            />
+                            <XAxis
+                                dataKey="value"
+                                type="number"
+                                allowDecimals={visualization.valueUnit === QUIZ_STATS_VALUE_UNIT.PERCENT}
+                                tickLine={false}
+                                axisLine={false}
+                                tickFormatter={visualization.valueUnit === QUIZ_STATS_VALUE_UNIT.PERCENT ? (value) => `${value}%` : undefined}
+                            />
+                            <ChartTooltip
+                                cursor={false}
+                                content={(
+                                    <ChartTooltipContent
+                                        indicator="line"
+                                        formatter={(_, __, item) => {
+                                            const point = item.payload as QuizStatsChartPoint;
+                                            return (
+                                                <div className="flex flex-1 justify-between gap-3 text-xs">
+                                                    <span className="text-muted-foreground">{point.label}</span>
+                                                    <span className="font-mono text-foreground">{formatPointValue(point, visualization)}</span>
+                                                </div>
+                                            );
+                                        }}
+                                    />
+                                )}
+                            />
+                            <Bar dataKey="value" radius={8}>
+                                {data.map((entry, index) => (
+                                    <Cell key={entry.key} fill={getPointColor(entry, index, chartKind)} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    )}
+                </ChartContainer>
+            )}
+        </div>
+    );
+}
+
+function VisualizationCard({
+    visualization,
+    storageKey,
+    selectedKind,
+    selectedDimensionKey,
+    onKindChange,
+    onDimensionChange,
+}: {
+    visualization: QuizStatsVisualization;
+    storageKey: string;
+    selectedKind?: string;
+    selectedDimensionKey?: string;
+    onKindChange: (storageKey: string, kind: string) => void;
+    onDimensionChange: (storageKey: string, dimensionKey: string) => void;
+}) {
+    const allowedKinds = visualization.allowedKinds ?? [visualization.kind];
+    const fallbackKind = visualization.defaultKind ?? visualization.kind;
+    const effectiveKind = allowedKinds.includes(selectedKind as QuizStatsVisualization["kind"])
+        ? selectedKind ?? fallbackKind
+        : fallbackKind;
+    const selectedDimension = visualization.dimensions?.find((dimension) => dimension.key === selectedDimensionKey)
+        ?? visualization.dimensions?.[0];
+    const chartData = selectedDimension?.data ?? visualization.data;
+    const chartGroups = selectedDimension?.charts?.length
+        ? selectedDimension.charts
+        : [{ key: "main", label: "", data: chartData }];
 
     return (
         <div className="rounded-xl border border-border/40 bg-background/40 p-4">
-            <div className="mb-3 space-y-1">
-                <h4 className="text-sm font-semibold text-foreground">{visualization.title}</h4>
-                {visualization.description && (
-                    <p className="text-xs text-text-muted">{visualization.description}</p>
-                )}
+            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-1">
+                    <h4 className="text-sm font-semibold text-foreground">{visualization.title}</h4>
+                    {visualization.description && (
+                        <p className="text-xs text-text-muted">{visualization.description}</p>
+                    )}
+                    {selectedDimension?.description && (
+                        <p className="text-xs font-medium text-foreground">Correcta: {selectedDimension.description}</p>
+                    )}
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                    {visualization.dimensions && visualization.dimensions.length > 1 && (
+                        <Select value={selectedDimension?.key} onValueChange={(value) => onDimensionChange(storageKey, value)}>
+                            <SelectTrigger className="h-9 min-w-44 border-border/50 bg-background text-xs">
+                                <SelectValue placeholder="Selecciona vista" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {visualization.dimensions.map((dimension) => (
+                                    <SelectItem key={dimension.key} value={dimension.key}>
+                                        {dimension.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                    {allowedKinds.length > 1 && (
+                        <Select value={effectiveKind} onValueChange={(value) => onKindChange(storageKey, value)}>
+                            <SelectTrigger className="h-9 min-w-36 border-border/50 bg-background text-xs">
+                                <SelectValue placeholder="Tipo de gráfico" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {allowedKinds.map((kind) => (
+                                    <SelectItem key={kind} value={kind}>
+                                        <span className="flex items-center gap-2">
+                                            {getChartKindIcon(kind)}
+                                            {getChartKindLabel(kind)}
+                                        </span>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                </div>
             </div>
 
-            <ChartContainer config={chartConfig} className="h-[280px] w-full">
-                {visualization.kind === QUIZ_STATS_VISUALIZATION_KIND.DONUT ? (
-                    <PieChart>
-                        <ChartTooltip
-                            cursor={false}
-                            content={(
-                                <ChartTooltipContent
-                                    formatter={(_, __, item) => {
-                                        const point = item.payload as QuizStatsChartPoint;
-                                        return (
-                                            <div className="flex flex-1 justify-between gap-3 text-xs">
-                                                <span className="text-muted-foreground">{point.label}</span>
-                                                <span className="font-mono text-foreground">{formatPointValue(point, visualization)}</span>
-                                            </div>
-                                        );
-                                    }}
-                                />
-                            )}
-                        />
-                        <Pie data={visualization.data} dataKey="value" nameKey="label" innerRadius={70} strokeWidth={4}>
-                            {visualization.data.map((entry, index) => (
-                                <Cell key={entry.key} fill={getPointColor(entry, index)} />
-                            ))}
-                            <Label
-                                content={({ viewBox }) => {
-                                    if (!viewBox || !("cx" in viewBox) || !("cy" in viewBox)) return null;
-                                    return (
-                                        <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
-                                            <tspan x={viewBox.cx} y={viewBox.cy} className="fill-foreground text-2xl font-black">
-                                                {totalValue}
-                                            </tspan>
-                                            <tspan x={viewBox.cx} y={(viewBox.cy ?? 0) + 18} className="fill-muted-foreground text-[11px] font-semibold">
-                                                {visualization.valueLabel}
-                                            </tspan>
-                                        </text>
-                                    );
-                                }}
-                            />
-                        </Pie>
-                        <ChartLegend content={<ChartLegendContent nameKey="label" className="flex flex-wrap justify-center gap-3" />} />
-                    </PieChart>
-                ) : visualization.kind === QUIZ_STATS_VISUALIZATION_KIND.HISTOGRAM ? (
-                    <BarChart accessibilityLayer data={visualization.data} margin={{ left: 12, right: 12, top: 8 }}>
-                        <CartesianGrid vertical={false} />
-                        <XAxis dataKey="label" tickLine={false} axisLine={false} interval={0} angle={-18} textAnchor="end" height={58} className="text-[10px]" />
-                        <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-                        <ChartTooltip
-                            cursor={false}
-                            content={(
-                                <ChartTooltipContent
-                                    formatter={(_, __, item) => {
-                                        const point = item.payload as QuizStatsChartPoint;
-                                        return (
-                                            <div className="flex flex-1 justify-between gap-3 text-xs">
-                                                <span className="text-muted-foreground">{point.label}</span>
-                                                <span className="font-mono text-foreground">{formatPointValue(point, visualization)}</span>
-                                            </div>
-                                        );
-                                    }}
-                                />
-                            )}
-                        />
-                        <Bar dataKey="value" radius={8}>
-                            {visualization.data.map((entry, index) => (
-                                <Cell key={entry.key} fill={getPointColor(entry, index)} />
-                            ))}
-                        </Bar>
-                    </BarChart>
-                ) : (
-                    <BarChart accessibilityLayer data={visualization.data} layout="vertical" margin={{ left: 24, right: 16 }}>
-                        <CartesianGrid horizontal={false} />
-                        <YAxis
-                            dataKey="label"
-                            type="category"
-                            tickLine={false}
-                            axisLine={false}
-                            width={150}
-                            className="text-[11px]"
-                        />
-                        <XAxis
-                            dataKey="value"
-                            type="number"
-                            allowDecimals={visualization.valueUnit === QUIZ_STATS_VALUE_UNIT.PERCENT}
-                            tickLine={false}
-                            axisLine={false}
-                            tickFormatter={visualization.valueUnit === QUIZ_STATS_VALUE_UNIT.PERCENT ? (value) => `${value}%` : undefined}
-                        />
-                        <ChartTooltip
-                            cursor={false}
-                            content={(
-                                <ChartTooltipContent
-                                    indicator="line"
-                                    formatter={(_, __, item) => {
-                                        const point = item.payload as QuizStatsChartPoint;
-                                        return (
-                                            <div className="flex flex-1 justify-between gap-3 text-xs">
-                                                <span className="text-muted-foreground">{point.label}</span>
-                                                <span className="font-mono text-foreground">{formatPointValue(point, visualization)}</span>
-                                            </div>
-                                        );
-                                    }}
-                                />
-                            )}
-                        />
-                        <Bar dataKey="value" radius={8}>
-                            {visualization.data.map((entry, index) => (
-                                <Cell key={entry.key} fill={getPointColor(entry, index)} />
-                            ))}
-                        </Bar>
-                    </BarChart>
-                )}
-            </ChartContainer>
+            {visualization.contextText && (
+                <div className="mb-4 rounded-lg border border-border/30 bg-surface/50 px-3 py-2">
+                    {visualization.contextLabel && (
+                        <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-text-muted">{visualization.contextLabel}</p>
+                    )}
+                    <p className="text-sm text-foreground">{visualization.contextText}</p>
+                </div>
+            )}
+
+            <div className="space-y-6">
+                {chartGroups.map((chartGroup) => (
+                    <ChartFigure
+                        key={chartGroup.key}
+                        title={chartGroup.label}
+                        data={chartGroup.data}
+                        visualization={visualization}
+                        chartKind={effectiveKind}
+                    />
+                ))}
+            </div>
         </div>
     );
 }
@@ -253,9 +455,48 @@ export function QuizStatsPanel({ stepId, content, visible }: QuizStatsPanelProps
     const [selectedAttempt, setSelectedAttempt] = useState<string>("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [preferences, setPreferences] = useState<QuizStatsPanelPreferences>(() => getStoredPreferences(stepId));
 
     const availability = getGroupStatsAvailability(content);
     const enabled = content.saveQuestionStats && availability.enabled;
+
+    useEffect(() => {
+        setPreferences(getStoredPreferences(stepId));
+    }, [stepId]);
+
+    useEffect(() => {
+        window.localStorage.setItem(`aula-it:quiz-stats:${stepId}:preferences`, JSON.stringify(preferences));
+    }, [preferences, stepId]);
+
+    function updateChartKind(storageKey: string, kind: string) {
+        setPreferences((current) => ({
+            ...current,
+            chartKindByVisualizationKey: {
+                ...current.chartKindByVisualizationKey,
+                [storageKey]: kind,
+            },
+        }));
+    }
+
+    function updateSelectedDimension(storageKey: string, dimensionKey: string) {
+        setPreferences((current) => ({
+            ...current,
+            selectedDimensionByVisualizationKey: {
+                ...current.selectedDimensionByVisualizationKey,
+                [storageKey]: dimensionKey,
+            },
+        }));
+    }
+
+    function toggleStudentRows(questionId: string) {
+        setPreferences((current) => ({
+            ...current,
+            studentsOpenByQuestionId: {
+                ...current.studentsOpenByQuestionId,
+                [questionId]: !current.studentsOpenByQuestionId[questionId],
+            },
+        }));
+    }
 
     useEffect(() => {
         if (!visible || !enabled) return;
@@ -415,7 +656,10 @@ export function QuizStatsPanel({ stepId, content, visible }: QuizStatsPanelProps
                 </CardContent>
             </Card>
 
-            {questionStats.map((question, index) => (
+            {questionStats.map((question, index) => {
+                const studentRowsOpen = !!preferences.studentsOpenByQuestionId[question.questionId];
+
+                return (
                 <Card key={question.questionId} className="border-border/50 bg-surface-dark/30">
                     <CardHeader className="gap-3">
                         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -471,82 +715,113 @@ export function QuizStatsPanel({ stepId, content, visible }: QuizStatsPanelProps
 
                         {question.visualizations.length > 0 && (
                             <div className={cn("grid gap-4", question.visualizations.length > 1 ? "xl:grid-cols-2" : "grid-cols-1")}>
-                                {question.visualizations.map((visualization) => (
-                                    <VisualizationCard key={visualization.key} visualization={visualization} />
-                                ))}
+                                {question.visualizations.map((visualization) => {
+                                    const storageKey = getVisualizationStorageKey(question.questionId, visualization.key);
+                                    return (
+                                        <VisualizationCard
+                                            key={visualization.key}
+                                            visualization={visualization}
+                                            storageKey={storageKey}
+                                            selectedKind={preferences.chartKindByVisualizationKey[storageKey]}
+                                            selectedDimensionKey={preferences.selectedDimensionByVisualizationKey[storageKey]}
+                                            onKindChange={updateChartKind}
+                                            onDimensionChange={updateSelectedDimension}
+                                        />
+                                    );
+                                })}
                             </div>
                         )}
 
-                        <div className="rounded-xl border border-border/40 bg-background/30 overflow-hidden">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow className="border-border/40">
-                                        <TableHead className="w-48">Alumno</TableHead>
-                                        <TableHead className="w-40">Resultado</TableHead>
-                                        <TableHead>Respuesta detallada</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {question.studentRows.map((studentRow) => (
-                                        <TableRow key={studentRow.studentId} className="border-border/30">
-                                            <TableCell className="font-medium text-foreground">{studentRow.studentName}</TableCell>
-                                            <TableCell>
-                                                <div className="space-y-1">
-                                                    <p className={cn(
-                                                        "text-sm font-semibold",
-                                                        studentRow.isFullyCorrect === true
-                                                            ? "text-emerald-400"
-                                                            : studentRow.isFullyCorrect === false
-                                                                ? "text-amber-300"
-                                                                : question.questionType === "short_answer"
-                                                                    ? "text-text-muted"
-                                                                    : "text-sky-300"
-                                                    )}>
-                                                        {studentRow.answerLabel}
-                                                    </p>
-                                                    <p className="text-xs text-text-muted">
-                                                        {studentRow.isFullyCorrect === true
-                                                            ? "Todo correcto"
-                                                            : studentRow.isFullyCorrect === false
-                                                                ? "Con errores"
-                                                                : question.questionType === "short_answer"
-                                                                    ? "Respuesta abierta"
-                                                                    : "Respuesta descriptiva"}
-                                                    </p>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="space-y-1.5">
-                                                    {studentRow.rows.map((row) => (
-                                                        <div key={row.id} className="rounded-lg border border-border/30 bg-surface/60 px-3 py-2">
-                                                            <div className="flex flex-wrap items-center gap-2 text-xs">
-                                                                <span className="font-semibold text-foreground">{row.label}</span>
-                                                                <span className="text-text-muted">→</span>
-                                                                <span className="text-foreground">{row.value}</span>
-                                                                {row.expectedValue && (
-                                                                    <span className="text-text-muted">· correcta: {row.expectedValue}</span>
-                                                                )}
-                                                                {row.isCorrect !== null && (
-                                                                    <span className={cn(
-                                                                        "ml-auto font-bold uppercase tracking-widest",
-                                                                        row.isCorrect ? "text-emerald-400" : "text-red-400"
-                                                                    )}>
-                                                                        {row.isCorrect ? "OK" : "Error"}
-                                                                    </span>
-                                                                )}
-                                                            </div>
+                        <div className="rounded-xl border border-border/40 bg-background/30">
+                            <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <p className="text-sm font-semibold text-foreground">Respuestas individuales</p>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full border-border/50 bg-background sm:w-auto"
+                                    onClick={() => toggleStudentRows(question.questionId)}
+                                >
+                                    {studentRowsOpen ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                                    {studentRowsOpen ? "Ocultar alumnos" : "Mostrar alumnos"}
+                                </Button>
+                            </div>
+                            {studentRowsOpen && (
+                                <div className="overflow-hidden border-t border-border/40">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow className="border-border/40">
+                                                <TableHead className="w-48">Alumno</TableHead>
+                                                <TableHead className="w-40">Resultado</TableHead>
+                                                <TableHead>Respuesta detallada</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {question.studentRows.map((studentRow) => (
+                                                <TableRow key={studentRow.studentId} className="border-border/30">
+                                                    <TableCell className="font-medium text-foreground">{studentRow.studentName}</TableCell>
+                                                    <TableCell>
+                                                        <div className="space-y-1">
+                                                            <p className={cn(
+                                                                "text-sm font-semibold",
+                                                                studentRow.isFullyCorrect === true
+                                                                    ? "text-emerald-400"
+                                                                    : studentRow.isFullyCorrect === false
+                                                                        ? "text-amber-300"
+                                                                        : question.questionType === "short_answer"
+                                                                            ? "text-text-muted"
+                                                                            : "text-sky-300"
+                                                            )}>
+                                                                {studentRow.answerLabel}
+                                                            </p>
+                                                            <p className="text-xs text-text-muted">
+                                                                {studentRow.isFullyCorrect === true
+                                                                    ? "Todo correcto"
+                                                                    : studentRow.isFullyCorrect === false
+                                                                        ? "Con errores"
+                                                                        : question.questionType === "short_answer"
+                                                                            ? "Respuesta abierta"
+                                                                            : "Respuesta descriptiva"}
+                                                            </p>
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="space-y-1.5">
+                                                            {studentRow.rows.map((row) => (
+                                                                <div key={row.id} className="rounded-lg border border-border/30 bg-surface/60 px-3 py-2">
+                                                                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                                                                        <span className="font-semibold text-foreground">{row.label}</span>
+                                                                        <span className="text-text-muted">→</span>
+                                                                        <span className="text-foreground">{row.value}</span>
+                                                                        {row.expectedValue && (
+                                                                            <span className="text-text-muted">· correcta: {row.expectedValue}</span>
+                                                                        )}
+                                                                        {row.isCorrect !== null && (
+                                                                            <span className={cn(
+                                                                                "ml-auto font-bold uppercase tracking-widest",
+                                                                                row.isCorrect ? "text-emerald-400" : "text-red-400"
+                                                                            )}>
+                                                                                {row.isCorrect ? "OK" : "Error"}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
-            ))}
+                );
+            })}
         </div>
     );
 }
