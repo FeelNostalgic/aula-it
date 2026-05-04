@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -81,6 +84,8 @@ jobs:
     outputs:
       bumped: ${{ steps.bump.outputs.bumped }}
       new_version: ${{ steps.bump.outputs.new_version }}
+      should_release: ${{ steps.bump.outputs.should_release }}
+      previous_tag: ${{ steps.bump.outputs.previous_tag }}
 
     steps:
       - uses: actions/checkout@v4
@@ -105,6 +110,9 @@ jobs:
           git fetch --tags origin || true
           
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            echo "previous_tag=${LAST_TAG}" >> $GITHUB_OUTPUT
+          fi
           
           if [ -z "$LAST_TAG" ]; then
             echo "No hay tags anteriores. Evaluando todos los commits."
@@ -128,6 +136,13 @@ jobs:
             BUMP="patch"
           else
             echo "No conventional commit prefix found. Skipping version bump."
+            if [ -n "$LAST_TAG" ]; then
+              echo "Ensuring GitHub Release exists for latest tag: $LAST_TAG"
+              echo "new_version=${LAST_TAG}" >> $GITHUB_OUTPUT
+              echo "should_release=true" >> $GITHUB_OUTPUT
+            else
+              echo "should_release=false" >> $GITHUB_OUTPUT
+            fi
             echo "bumped=false" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -147,15 +162,51 @@ jobs:
           git push origin main --follow-tags
           
           echo "bumped=true" >> $GITHUB_OUTPUT
+          echo "should_release=true" >> $GITHUB_OUTPUT
           echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
-        if: steps.bump.outputs.bumped == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.bump.outputs.new_version }}
-          name: ${{ steps.bump.outputs.new_version }}
-          generate_release_notes: true
+      - name: Ensure GitHub Release
+        if: steps.bump.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.bump.outputs.new_version }}
+          PREVIOUS_RELEASE_TAG: ${{ steps.bump.outputs.previous_tag }}
+        run: |
+          set -euo pipefail
+
+          ensure_release() {
+            local tag="$1"
+
+            if [ -z "$tag" ]; then
+              return 0
+            fi
+
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "GitHub Release already exists for $tag."
+              return 0
+            fi
+
+            for attempt in 1 2 3 4 5; do
+              echo "Creating GitHub Release for $tag (attempt ${attempt}/5)..."
+              if gh release create "$tag" --title "$tag" --generate-notes; then
+                return 0
+              fi
+
+              if [ "$attempt" -lt 5 ]; then
+                sleep_seconds=$((attempt * 20))
+                echo "Release creation failed. Retrying in ${sleep_seconds}s..."
+                sleep "$sleep_seconds"
+              fi
+            done
+
+            echo "GitHub Release creation failed for $tag after 5 attempts."
+            return 1
+          }
+
+          ensure_release "$PREVIOUS_RELEASE_TAG"
+          if [ "$RELEASE_TAG" != "$PREVIOUS_RELEASE_TAG" ]; then
+            ensure_release "$RELEASE_TAG"
+          fi
 
   deploy:
     name: Deploy to Vercel
