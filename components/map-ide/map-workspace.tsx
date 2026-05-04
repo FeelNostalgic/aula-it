@@ -27,7 +27,7 @@ import { MapBackground } from './map-background';
 import { StudentSidebar } from './student-sidebar';
 import { TeacherSidebar } from './teacher-sidebar';
 import { Button } from '@/components/ui/button';
-import { Cloud, CloudCheck, MousePointer2, Eraser, Trash2, Pencil, Target, Award, Wand2, Route } from 'lucide-react';
+import { Cloud, CloudCheck, MousePointer2, Eraser, Trash2, Pencil, Target, Award, Wand2, Route, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { UserNav } from '@/components/dashboard/layout/user-nav';
@@ -147,6 +147,11 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
     const [showBadgesOverlay, setShowBadgesOverlay] = useState(() => {
         if (typeof window === 'undefined') return true;
         const saved = localStorage.getItem('aula-it:map:badges-overlay');
+        return saved !== null ? saved === 'true' : true;
+    });
+    const [showTeacherDesignPanel, setShowTeacherDesignPanel] = useState(() => {
+        if (typeof window === 'undefined') return true;
+        const saved = localStorage.getItem('aula-it:map:teacher-design-panel-visible');
         return saved !== null ? saved === 'true' : true;
     });
 
@@ -867,18 +872,50 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                             hideNavigation
                         />
                     ) : (
-                        <div className="w-80 border-r border-border/50 flex flex-col">
-                            <TeacherSidebar
-                                unit={unit}
-                                activities={activities.filter(a => !nodes.find(n => n.id === toActivityNodeId(a.id)))}
-                                onAddActivity={() => undefined}
-                                moduleRole={moduleRole}
-                                modulePermissions={modulePermissions}
-                            />
+                        <div className={cn(
+                            "overflow-hidden border-r border-border/50 transition-[width] duration-200 ease-out",
+                            showTeacherDesignPanel ? "w-80" : "w-0 border-r-0"
+                        )}>
+                            {showTeacherDesignPanel && (
+                                <TeacherSidebar
+                                    unit={unit}
+                                    activities={activities.filter(a => !nodes.find(n => n.id === toActivityNodeId(a.id)))}
+                                    onAddActivity={() => undefined}
+                                    moduleRole={moduleRole}
+                                    modulePermissions={modulePermissions}
+                                />
+                            )}
                         </div>
                     )}
 
                     <main className={cn("flex-1 relative overflow-hidden bg-background", editingEdge && "cursor-crosshair")}>
+                            {isTeacher && (
+                                <div className="absolute left-4 top-4 z-30">
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="icon"
+                                                    onClick={() => {
+                                                        const next = !showTeacherDesignPanel;
+                                                        setShowTeacherDesignPanel(next);
+                                                        localStorage.setItem('aula-it:map:teacher-design-panel-visible', String(next));
+                                                    }}
+                                                    className="h-9 w-9 border-border bg-popover/85 text-foreground shadow-lg backdrop-blur hover:bg-popover"
+                                                    aria-label={showTeacherDesignPanel ? "Ocultar panel de diseño" : "Mostrar panel de diseño"}
+                                                >
+                                                    {showTeacherDesignPanel ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                {showTeacherDesignPanel ? "Ocultar panel de diseño" : "Mostrar panel de diseño"}
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                </div>
+                            )}
                             <ReactFlow
                                 nodes={enrichedNodes}
                                 edges={edges}
