@@ -242,6 +242,30 @@ describe("submitQuizAttempt", () => {
     expect(result).toEqual({ error: 'La pregunta "Explain X" permite como máximo 5 caracteres.' });
   });
 
+  it("returns error when a short answer minimum is greater than its maximum", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-sa",
+          type: "short_answer",
+          text: "Explain X",
+          options: [],
+          points: 1,
+          minLength: 10,
+          maxLength: 5,
+        },
+      ],
+    });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+    );
+
+    const result = await submitQuizAttempt("step-1", "activity-1", {}, { "q-sa": "answer" }, {}, content);
+
+    expect(result).toEqual({ error: 'La pregunta "Explain X" tiene un mínimo de caracteres mayor que el máximo.' });
+  });
+
   it("auto-scores correctly without penalization (correct answer)", async () => {
     // q-1 has 1 point, opt-2 is correct
     const content = createMockQuizContent({ penalizeWrongAnswers: false });

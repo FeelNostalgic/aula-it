@@ -1259,10 +1259,15 @@ function SortableQuestion({
                             <Input
                                 type="number"
                                 min={0}
+                                max={q.maxLength ?? undefined}
                                 value={q.minLength ?? ""}
                                 onChange={(event) => {
                                     const value = event.target.valueAsNumber;
-                                    onUpdate(q.id, { minLength: Number.isFinite(value) && value > 0 ? value : undefined });
+                                    const nextMinLength = Number.isFinite(value) && value > 0 ? value : undefined;
+                                    onUpdate(q.id, {
+                                        minLength: nextMinLength,
+                                        maxLength: nextMinLength && q.maxLength && q.maxLength < nextMinLength ? nextMinLength : q.maxLength,
+                                    });
                                 }}
                                 placeholder="Sin mínimo"
                                 className="h-9 bg-surface border-border text-sm"
@@ -1272,17 +1277,26 @@ function SortableQuestion({
                             <span className="text-[11px] font-bold uppercase tracking-widest text-text-muted">Máximo de caracteres</span>
                             <Input
                                 type="number"
-                                min={0}
+                                min={q.minLength ?? 0}
                                 value={q.maxLength ?? ""}
                                 onChange={(event) => {
                                     const value = event.target.valueAsNumber;
-                                    onUpdate(q.id, { maxLength: Number.isFinite(value) && value > 0 ? value : undefined });
+                                    const nextMaxLength = Number.isFinite(value) && value > 0 ? value : undefined;
+                                    onUpdate(q.id, {
+                                        maxLength: nextMaxLength,
+                                        minLength: nextMaxLength && q.minLength && q.minLength > nextMaxLength ? nextMaxLength : q.minLength,
+                                    });
                                 }}
                                 placeholder="Sin máximo"
                                 className="h-9 bg-surface border-border text-sm"
                             />
                         </label>
                     </div>
+                    {q.minLength && q.maxLength && q.minLength === q.maxLength && (
+                        <p className="text-[11px] text-text-muted">
+                            El alumno deberá escribir exactamente {q.minLength} caracteres.
+                        </p>
+                    )}
                 </div>
             )}
 

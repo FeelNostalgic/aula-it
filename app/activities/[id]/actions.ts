@@ -560,6 +560,18 @@ export async function submitQuizAttempt(
         return { error: `La pregunta "${missingRequiredQuestion.text || "obligatoria"}" es obligatoria.` };
     }
 
+    const invalidShortAnswerConfigQuestion = resolvedQuestions.find((question) =>
+        question.type === "short_answer"
+        && !!question.minLength
+        && !!question.maxLength
+        && question.minLength > question.maxLength
+    );
+    if (invalidShortAnswerConfigQuestion) {
+        return {
+            error: `La pregunta "${invalidShortAnswerConfigQuestion.text || "respuesta corta"}" tiene un mínimo de caracteres mayor que el máximo.`,
+        };
+    }
+
     const invalidShortAnswerQuestion = resolvedQuestions.find((question) => {
         if (question.type !== "short_answer") return false;
         const answer = shortAnswers[question.id] ?? "";
