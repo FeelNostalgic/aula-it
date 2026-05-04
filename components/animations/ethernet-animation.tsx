@@ -286,21 +286,21 @@ export function EthernetAnimation() {
             SWITCHING LOCAL
           </text>
           <text x="400" y="446" textAnchor="middle" fill={C.fg} fontSize="8.5" fontFamily="var(--font-mono)">
-            El switch reenvia por MAC destino; no necesita abrir la IP
+            El switch reenvía por MAC destino; no necesita abrir la IP
           </text>
         </g>
 
         <g id="pkt-up" className="packet" pointerEvents="none">
           <rect x="-34" y="-11" width="68" height="22" rx="5" fill={C.warn} />
           <text textAnchor="middle" y="4" fill={C.warnText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
-            ETH FRAME
+            TRAMA ETH
           </text>
         </g>
 
         <g id="pkt-b" className="packet" pointerEvents="none">
           <rect x="-34" y="-11" width="68" height="22" rx="5" fill={C.success} />
           <text textAnchor="middle" y="4" fill={C.successText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
-            ETH FRAME
+            TRAMA ETH
           </text>
         </g>
       </svg>

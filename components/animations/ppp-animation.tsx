@@ -256,7 +256,7 @@ export function PppAnimation() {
         <g id="pkt-ppp" className="packet" pointerEvents="none">
           <rect x="-34" y="-11" width="68" height="22" rx="5" fill={C.success} />
           <text textAnchor="middle" y="4" fill={C.successText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
-            PPP FRAME
+            TRAMA PPP
           </text>
         </g>
       </svg>
