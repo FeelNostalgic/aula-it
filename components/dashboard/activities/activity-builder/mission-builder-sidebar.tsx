@@ -229,12 +229,12 @@ function SortableStepItem({
                 <GripVertical className={iconSize} />
             </div>
 
-            <div className="min-w-0 space-y-1">
-                <div className="flex min-w-0 items-start gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <div className="flex min-w-[8rem] flex-1 items-center gap-2">
                     {isChild && (
-                        <div className="mt-0.5 w-3 shrink-0 font-mono leading-none text-border/40">└</div>
+                        <div className="w-3 shrink-0 font-mono leading-none text-border/40">└</div>
                     )}
-                    <div className="mt-0.5 shrink-0">
+                    <div className="shrink-0">
                         {getStepIcon(step.type)}
                     </div>
                     <span
@@ -249,7 +249,7 @@ function SortableStepItem({
                     </span>
                 </div>
 
-                <div className="flex min-w-0 items-center justify-end gap-1">
+                <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
                     <Button
                         variant="ghost"
                         size="icon"

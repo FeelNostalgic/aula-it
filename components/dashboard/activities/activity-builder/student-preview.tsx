@@ -409,7 +409,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
 
             <ResizablePanelGroup id="student-preview-panel-group" direction="horizontal" className="flex-1 overflow-hidden">
                 {/* === SIDEBAR (identical to teacher: mission-builder-sidebar.tsx line 604-753) === */}
-                <ResizablePanel id="sidebar-panel" defaultSize={20} minSize={18} maxSize={36} className="bg-background h-full flex flex-col print:hidden">
+                <ResizablePanel id="sidebar-panel" defaultSize={16} minSize={15} maxSize={35} className="bg-background h-full flex flex-col print:hidden">
                     <div className="p-4 border-b border-border/50 flex items-center justify-between shrink-0">
                         <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">Fases</h2>
                     </div>
@@ -475,14 +475,14 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                                <div className="min-w-0 space-y-1">
+                                                                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                                                                     <span
                                                                         title={step.title}
-                                                                        className="block min-w-[8rem] truncate font-semibold leading-snug text-foreground"
+                                                                        className="block min-w-[8rem] flex-1 truncate font-semibold leading-snug text-foreground"
                                                                     >
                                                                         {step.title}
                                                                     </span>
-                                                                    <div className="flex min-w-0 items-center justify-end gap-1.5">
+                                                                    <div className="ml-auto flex shrink-0 items-center justify-end gap-1.5">
                                                                         {classBadges
                                                                             ?.filter((b: any) => b.step_id === step.id && (!b.is_hidden || earnedBadgeIds?.includes(b.id)))
                                                                             .map((b: any) => (
@@ -528,11 +528,11 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                                                 {getStepIcon(child.type)}
                                                                             </div>
                                                                         </div>
-                                                                        <div className="min-w-0 space-y-1">
-                                                                            <span title={child.title} className="block min-w-[7rem] truncate font-medium text-foreground">
+                                                                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                                                                            <span title={child.title} className="block min-w-[7rem] flex-1 truncate font-medium text-foreground">
                                                                                 {child.title}
                                                                             </span>
-                                                                            <div className="flex items-center justify-end gap-1">
+                                                                            <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
                                                                                 <StepStatusBadge
                                                                                     status={submissionsMap?.[child.id]?.status}
                                                                                     type={child.type}

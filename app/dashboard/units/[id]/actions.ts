@@ -3139,7 +3139,7 @@ export async function createClassBadge(
     if (error) return { error: error.message };
 
     revalidatePath("/dashboard/units/[id]", "layout");
-    return { success: true, badge };
+    return badge ? { success: true, badge } : { success: true };
 }
 
 export async function updateClassBadge(
@@ -3169,7 +3169,7 @@ export async function updateClassBadge(
     if (error) return { error: error.message };
 
     revalidatePath("/dashboard/units/[id]", "layout");
-    return { success: true, badge };
+    return badge ? { success: true, badge } : { success: true };
 }
 
 export async function deleteClassBadge(badgeId: string, unitId: string) {
