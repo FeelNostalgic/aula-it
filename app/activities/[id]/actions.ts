@@ -560,6 +560,24 @@ export async function submitQuizAttempt(
         return { error: `La pregunta "${missingRequiredQuestion.text || "obligatoria"}" es obligatoria.` };
     }
 
+    const invalidShortAnswerQuestion = resolvedQuestions.find((question) => {
+        if (question.type !== "short_answer") return false;
+        const answer = shortAnswers[question.id] ?? "";
+        if (answer.trim().length === 0) return false;
+        if (question.minLength && answer.trim().length < question.minLength) return true;
+        if (question.maxLength && answer.length > question.maxLength) return true;
+        return false;
+    });
+    if (invalidShortAnswerQuestion) {
+        const answer = shortAnswers[invalidShortAnswerQuestion.id] ?? "";
+        if (invalidShortAnswerQuestion.minLength && answer.trim().length < invalidShortAnswerQuestion.minLength) {
+            return { error: `La pregunta "${invalidShortAnswerQuestion.text || "respuesta corta"}" requiere al menos ${invalidShortAnswerQuestion.minLength} caracteres.` };
+        }
+        if (invalidShortAnswerQuestion.maxLength && answer.length > invalidShortAnswerQuestion.maxLength) {
+            return { error: `La pregunta "${invalidShortAnswerQuestion.text || "respuesta corta"}" permite como máximo ${invalidShortAnswerQuestion.maxLength} caracteres.` };
+        }
+    }
+
     const pointsEarned = scoreSummary.pointsEarned;
     const pointsTotal = scoreSummary.pointsTotal;
 

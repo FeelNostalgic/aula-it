@@ -137,6 +137,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
     });
     const [isSaving, setIsSaving] = useState(false);
     const [justSaved, setJustSaved] = useState(false);
+    const [openingActivityId, setOpeningActivityId] = useState<string | null>(null);
     const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
     const [showMilestoneOverlay, setShowMilestoneOverlay] = useState(() => {
         if (typeof window === 'undefined') return true;
@@ -630,6 +631,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
     );
 
     const handleStartMission = useCallback((missionId: string) => {
+        setOpeningActivityId(missionId);
         router.push(`/activities/${missionId}`);
     }, [router]);
 
@@ -799,12 +801,12 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                 className="flex h-screen w-full bg-background text-foreground flex-col font-sans overflow-hidden select-none"
             >
                 {/* Standardized IDE Header */}
-                <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between px-6 shrink-0 z-40">
-                    <div className="flex items-center gap-4">
+                <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between gap-4 px-6 shrink-0 z-40 overflow-hidden">
+                    <div className="flex min-w-0 flex-1 items-center gap-4 overflow-hidden">
                         <DashboardBreadcrumb />
                     </div>
 
-                    <div className="flex items-center gap-6">
+                    <div className="flex shrink-0 items-center gap-6">
                         {canEditMap && (
                             <div className="flex items-center gap-1.5 h-8 px-2">
                                 <AnimatePresence mode="wait" initial={false}>
@@ -855,6 +857,7 @@ export function MapWorkspace({ unit, activities, role, user, profile, milestones
                             selectedActivity={selectedActivity}
                             moduleId={unit.module_id}
                             onStartMission={handleStartMission}
+                            openingActivityId={openingActivityId}
                             activeView="map"
                             milestones={milestones}
                             classBadges={classBadges}

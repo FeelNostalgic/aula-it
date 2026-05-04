@@ -150,6 +150,98 @@ describe("submitQuizAttempt", () => {
     expect(result).toEqual({ error: 'La pregunta "What is 2+2?" es obligatoria.' });
   });
 
+  it("accepts a required table drag/drop question with one answered cell", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-table",
+          type: "table_drag_drop",
+          text: "Complete the table",
+          options: [],
+          points: 2,
+          isRequired: true,
+          tableRows: [{ id: "row-1", label: "HTTP" }],
+          tableColumns: [
+            { id: "col-1", label: "Layer" },
+            { id: "col-2", label: "Transport" },
+          ],
+          tableItems: [
+            { id: "item-1", text: "Application" },
+            { id: "item-2", text: "TCP" },
+          ],
+          tableCells: [
+            { id: "cell-1", rowId: "row-1", columnId: "col-1", correctItemId: "item-1" },
+            { id: "cell-2", rowId: "row-1", columnId: "col-2", correctItemId: "item-2" },
+          ],
+        },
+      ],
+    });
+    const attempt = createMockQuizAttempt({ points_earned: 1, points_total: 2 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const result = await submitQuizAttempt("step-1", "activity-1", {}, {}, {
+      "q-table": {
+        kind: "table_drag_drop",
+        placements: { "cell-1": "item-1" },
+      },
+    }, content);
+
+    expect(result).not.toHaveProperty("error");
+    expect(result.data?.pointsEarned).toBe(1);
+  });
+
+  it("returns error when a short answer is shorter than its minimum", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-sa",
+          type: "short_answer",
+          text: "Explain X",
+          options: [],
+          points: 1,
+          minLength: 10,
+        },
+      ],
+    });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+    );
+
+    const result = await submitQuizAttempt("step-1", "activity-1", {}, { "q-sa": "short" }, {}, content);
+
+    expect(result).toEqual({ error: 'La pregunta "Explain X" requiere al menos 10 caracteres.' });
+  });
+
+  it("returns error when a short answer is longer than its maximum", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-sa",
+          type: "short_answer",
+          text: "Explain X",
+          options: [],
+          points: 1,
+          maxLength: 5,
+        },
+      ],
+    });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+    );
+
+    const result = await submitQuizAttempt("step-1", "activity-1", {}, { "q-sa": "too long" }, {}, content);
+
+    expect(result).toEqual({ error: 'La pregunta "Explain X" permite como máximo 5 caracteres.' });
+  });
+
   it("auto-scores correctly without penalization (correct answer)", async () => {
     // q-1 has 1 point, opt-2 is correct
     const content = createMockQuizContent({ penalizeWrongAnswers: false });

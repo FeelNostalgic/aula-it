@@ -479,19 +479,19 @@ export function isQuizQuestionAnswered(question: QuizQuestion, input: QuizStruct
     if (questionType === QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN) {
         if (structuredAnswer.kind !== QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN) return false;
         const blanks = question.dropdownBlanks ?? [];
-        return blanks.length > 0 && blanks.every(blank => !!structuredAnswer.blanks[blank.id]);
+        return blanks.length > 0 && blanks.some(blank => !!structuredAnswer.blanks[blank.id]);
     }
 
     if (questionType === QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP) {
         if (structuredAnswer.kind !== QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP) return false;
         const cells = question.tableCells ?? [];
-        return cells.length > 0 && cells.every(cell => getTableAnswerItemIds(structuredAnswer, cell.id).length > 0);
+        return cells.length > 0 && cells.some(cell => getTableAnswerItemIds(structuredAnswer, cell.id).length > 0);
     }
 
     if (questionType === QUIZ_QUESTION_TYPE.MATCHING_PAIRS) {
         if (structuredAnswer.kind !== QUIZ_QUESTION_TYPE.MATCHING_PAIRS) return false;
         const prompts = question.matchingPrompts ?? [];
-        return prompts.length > 0 && prompts.every(prompt => getMatchingAnswerItemIds(structuredAnswer, prompt.id).length > 0);
+        return prompts.length > 0 && prompts.some(prompt => getMatchingAnswerItemIds(structuredAnswer, prompt.id).length > 0);
     }
 
     if (questionType === QUIZ_QUESTION_TYPE.ORDERING_SEQUENCE) {
@@ -505,7 +505,7 @@ export function isQuizQuestionAnswered(question: QuizQuestion, input: QuizStruct
     if (questionType === QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP) {
         if (structuredAnswer.kind !== QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP) return false;
         const items = question.categoryItems ?? [];
-        return items.length > 0 && items.every(item => getCategorizationAssignedCategoryIds(structuredAnswer, item.id).length > 0);
+        return items.length > 0 && items.some(item => getCategorizationAssignedCategoryIds(structuredAnswer, item.id).length > 0);
     }
 
     return false;
@@ -584,6 +584,7 @@ export function convertQuestionToType(question: QuizQuestion, type: QuizQuestion
         categories: undefined,
         categoryItems: undefined,
         categorizationAllowReuse: undefined,
+        maxLength: undefined,
     };
 
     if (type === QUIZ_QUESTION_TYPE.TRUE_FALSE) {
@@ -600,6 +601,8 @@ export function convertQuestionToType(question: QuizQuestion, type: QuizQuestion
         return {
             ...baseQuestion,
             options: [],
+            minLength: question.minLength,
+            maxLength: question.maxLength,
         };
     }
 

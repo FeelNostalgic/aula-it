@@ -72,6 +72,8 @@ type ActiveStructuredDrag = {
 };
 
 const QUESTION_CONTENT_OFFSET_CLASS = "pl-0 sm:pl-6 lg:pl-8";
+const DRAGGABLE_POOL_CLASS = "flex max-h-[min(42dvh,26rem)] flex-wrap content-start gap-2 overflow-y-auto overscroll-contain pr-1 touch-pan-y";
+const DRAGGABLE_CHIP_CLASS = "max-w-full rounded-xl border border-accent-blue/30 bg-background px-3 py-1.5 text-left text-sm text-foreground transition-colors hover:border-accent-blue/50 hover:bg-accent-blue/8";
 
 function areStringArraysEqual(first: string[], second: string[]) {
     return first.length === second.length && first.every((item, index) => item === second[index]);
@@ -206,7 +208,8 @@ function DndDraggableAnswerChip({
             ref={setNodeRef}
             style={style}
             className={cn(
-                "rounded-full border border-accent-blue/30 bg-background px-3 py-1.5 text-sm text-foreground transition-colors hover:border-accent-blue/50 hover:bg-accent-blue/8 touch-none",
+                DRAGGABLE_CHIP_CLASS,
+                "touch-none",
                 isDragging && "opacity-50",
             )}
             {...attributes}
@@ -229,7 +232,7 @@ function NativeDraggableAnswerChip({
             draggable
             onDragStart={() => onDragStart(id)}
             onDragEnd={onDragEnd}
-            className="rounded-full border border-accent-blue/30 bg-background px-3 py-1.5 text-sm text-foreground transition-colors hover:border-accent-blue/50 hover:bg-accent-blue/8"
+            className={DRAGGABLE_CHIP_CLASS}
         >
             {label || "OpciÃ³n sin texto"}
         </button>
@@ -464,10 +467,10 @@ function TableDragDropAnswer({
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(220px,260px)] lg:items-start lg:gap-5">
                     <div className="overflow-x-auto">
                         <div
-                            className="grid min-w-[820px] gap-px rounded-2xl border border-border/30 bg-border/30"
-                            style={{ gridTemplateColumns: `minmax(170px, 1fr) repeat(${columns.length}, minmax(240px, 1fr))` }}
+                            className="grid min-w-[640px] gap-px rounded-2xl border border-border/30 bg-border/30 sm:min-w-[720px]"
+                            style={{ gridTemplateColumns: `minmax(96px, 128px) repeat(${columns.length}, minmax(180px, 1fr))` }}
                         >
-                            <div className="bg-surface px-4 py-3 text-xs font-bold uppercase tracking-widest text-text-muted">
+                            <div className="bg-surface px-3 py-3 text-xs font-bold uppercase tracking-widest text-text-muted">
                                 {rowHeaderLabel || "Columna fija"}
                             </div>
                             {columns.map((column) => (
@@ -478,7 +481,7 @@ function TableDragDropAnswer({
 
                             {rows.map((row) => (
                                 <div key={row.id} className="contents">
-                                    <div className="bg-background px-4 py-4 text-sm font-semibold text-foreground">
+                                    <div className="bg-background px-3 py-4 text-sm font-semibold text-foreground">
                                         {row.label || "Fila sin texto"}
                                     </div>
                                     {columns.map((column) => {
@@ -532,7 +535,7 @@ function TableDragDropAnswer({
                     <div className="lg:sticky lg:top-4 lg:self-start">
                         <div className="space-y-2 rounded-xl border border-dashed border-accent-blue/20 bg-accent-blue/5 p-3.5">
                             <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Opciones arrastrables</p>
-                            <div className="flex min-h-72 max-h-280 flex-wrap content-start gap-2 overflow-y-auto pr-1">
+                            <div className={cn(DRAGGABLE_POOL_CLASS, "min-h-32")}>
                                 {visibleTableItems.map((item) => (
                                     <DraggableAnswerChip
                                         key={item.id}
@@ -690,7 +693,7 @@ function MatchingPairsAnswer({
                     <div className="lg:sticky lg:top-4 lg:self-start">
                         <div className="space-y-2 rounded-xl border border-dashed border-accent-blue/20 bg-accent-blue/5 p-3">
                             <p className="text-xs font-bold uppercase tracking-widest text-text-muted">Matches</p>
-                            <div className="flex max-h-80 flex-wrap gap-2 overflow-y-auto pr-1">
+                            <div className={DRAGGABLE_POOL_CLASS}>
                                 {visibleOptions.map((option) => (
                                     <DraggableAnswerChip
                                         key={option.id}
@@ -816,7 +819,7 @@ function CategorizationAnswer({
 
     return (
         <div className={cn("space-y-4", QUESTION_CONTENT_OFFSET_CLASS)}>
-            <div className="flex flex-wrap gap-2 rounded-xl border border-dashed border-accent-blue/20 bg-accent-blue/5 p-3">
+            <div className={cn(DRAGGABLE_POOL_CLASS, "rounded-xl border border-dashed border-accent-blue/20 bg-accent-blue/5 p-3")}>
                 {poolItems.map((item) => (
                     <DraggableAnswerChip
                         key={item.id}
@@ -977,23 +980,57 @@ function NumericAnswer({
     );
 }
 
+function ShortAnswer({
+    question,
+    shortAnswers,
+    onShortAnswerChange,
+}: Pick<QuizQuestionAnswerFieldProps, "question" | "shortAnswers" | "onShortAnswerChange">) {
+    const value = shortAnswers[question.id] ?? "";
+    const minLength = question.minLength ?? 0;
+    const maxLength = question.maxLength ?? 0;
+    const trimmedLength = value.trim().length;
+    const currentLength = value.length;
+    const isTooShort = minLength > 0 && trimmedLength > 0 && trimmedLength < minLength;
+    const isAtMax = maxLength > 0 && currentLength >= maxLength;
+
+    return (
+        <div className={cn("space-y-1.5", QUESTION_CONTENT_OFFSET_CLASS)}>
+            <Textarea
+                value={value}
+                onChange={(event) => onShortAnswerChange(question.id, event.target.value)}
+                placeholder="Escribe tu respuesta..."
+                rows={3}
+                maxLength={maxLength > 0 ? maxLength : undefined}
+                className={cn(
+                    "resize-none border-border/50 bg-background/50 text-sm",
+                    isTooShort && "border-amber-500/50",
+                )}
+            />
+            {(minLength > 0 || maxLength > 0) && (
+                <div className="flex items-center justify-end gap-2 text-[10px]">
+                    {minLength > 0 && (
+                        <span className={cn(isTooShort ? "text-amber-400" : "text-text-muted/50")}>
+                            min {trimmedLength}/{minLength}
+                        </span>
+                    )}
+                    {maxLength > 0 && (
+                        <span className={cn(isAtMax ? "text-amber-400" : "text-text-muted/50")}>
+                            max {currentLength}/{maxLength}
+                        </span>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
 export function QuizQuestionAnswerField(props: QuizQuestionAnswerFieldProps) {
     const questionType = getQuestionType(props.question);
     const correctCount = props.question.options.filter((option) => option.isCorrect).length;
     const isSingleSelect = correctCount <= 1;
 
     if (questionType === QUIZ_QUESTION_TYPE.SHORT_ANSWER) {
-        return (
-            <div className={QUESTION_CONTENT_OFFSET_CLASS}>
-                <Textarea
-                    value={props.shortAnswers[props.question.id] ?? ""}
-                    onChange={(event) => props.onShortAnswerChange(props.question.id, event.target.value)}
-                    placeholder="Escribe tu respuesta..."
-                    rows={3}
-                    className="resize-none border-border/50 bg-background/50 text-sm"
-                />
-            </div>
-        );
+        return <ShortAnswer question={props.question} shortAnswers={props.shortAnswers} onShortAnswerChange={props.onShortAnswerChange} />;
     }
 
     if (questionType === QUIZ_QUESTION_TYPE.LIKERT) {

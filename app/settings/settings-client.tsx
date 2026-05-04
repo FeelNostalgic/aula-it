@@ -177,31 +177,31 @@ export function SettingsClient({
     return (
         <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
             {/* Header with Back Button */}
-            <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between px-6 shrink-0 z-40">
-                <div className="flex items-center gap-6">
+            <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between gap-4 px-6 shrink-0 z-40 overflow-hidden">
+                <div className="flex min-w-0 flex-1 items-center gap-6 overflow-hidden">
                     <Button
                         variant="outline"
                         size="icon"
                         onClick={() => router.back()}
-                        className="size-8 rounded-lg border-border/50 hover:bg-accent/10 transition-colors"
+                        className="size-8 shrink-0 rounded-lg border-border/50 transition-colors hover:bg-accent/10"
                     >
                         <ArrowLeft className="size-5" />
                         <span className="sr-only">Volver</span>
                     </Button>
-                    <div className="flex items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2 overflow-hidden">
                         <Link href="/dashboard" className="flex items-center gap-2 group cursor-pointer transition-opacity hover:opacity-80">
                             <div className="size-8 bg-primary rounded-md flex items-center justify-center">
                                 <span className="font-bold text-white text-xs tracking-tighter">AIT</span>
                             </div>
                         </Link>
 
-                        <div className="flex items-center gap-1.5 font-mono text-xs font-medium">
-                            <span className="text-muted-foreground">root /</span>
-                            <span className="text-foreground font-bold">Perfil</span>
+                        <div className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap font-mono text-xs font-medium">
+                            <span className="shrink-0 text-muted-foreground">root /</span>
+                            <span className="truncate font-bold text-foreground">Perfil</span>
                         </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-6">
+                <div className="flex shrink-0 items-center gap-6">
                     <UserNav
                         userEmail={userEmail}
                         userName={fullName}

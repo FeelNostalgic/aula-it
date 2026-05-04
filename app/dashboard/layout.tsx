@@ -53,10 +53,12 @@ export default async function DashboardLayout({
         <PresenceProvider userId={user.id}>
           <div className="h-screen bg-background text-foreground flex flex-col font-sans overflow-hidden">
             {/* Top Nav Bar */}
-            <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between px-6 shrink-0 z-40">
-              <DashboardBreadcrumb />
+            <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between gap-4 px-6 shrink-0 z-40 overflow-hidden">
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <DashboardBreadcrumb />
+              </div>
 
-              <div className="flex items-center gap-6">
+              <div className="flex shrink-0 items-center gap-6">
                 {/* User Navigation */}
                 <UserNav
                   userEmail={user.email || ""}

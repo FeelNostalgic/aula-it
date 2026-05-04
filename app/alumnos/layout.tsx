@@ -29,9 +29,11 @@ export default async function AlumnosLayout({
     <BreadcrumbProvider>
       <SessionTimeoutGuard>
         <div className="h-screen bg-background text-foreground flex flex-col font-sans overflow-hidden">
-          <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between px-6 shrink-0 z-40">
-            <DashboardBreadcrumb />
-            <div className="flex items-center gap-6">
+          <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between gap-4 px-6 shrink-0 z-40 overflow-hidden">
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <DashboardBreadcrumb />
+            </div>
+            <div className="flex shrink-0 items-center gap-6">
               <UserNav
                 userEmail={user.email || ""}
                 userName={user.user_metadata?.full_name || "Usuario"}

@@ -28,16 +28,20 @@ export default async function AdminLayout({
     <BreadcrumbProvider>
       <SessionTimeoutGuard>
         <div className="h-screen bg-background text-foreground flex flex-col font-sans overflow-hidden">
-          <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between px-6 shrink-0 z-40">
-            <DashboardBreadcrumb />
-            <UserNav
+          <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between gap-4 px-6 shrink-0 z-40 overflow-hidden">
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <DashboardBreadcrumb />
+            </div>
+            <div className="shrink-0">
+              <UserNav
               userEmail={user.email || ""}
               userName={user.user_metadata?.full_name || "Admin"}
               isTeacher={false}
               isAdmin={true}
               userId={user.id}
               userAvatar={user.user_metadata?.avatar_url}
-            />
+              />
+            </div>
           </header>
           <div className="flex flex-1 overflow-hidden">
             <AdminSidebar />

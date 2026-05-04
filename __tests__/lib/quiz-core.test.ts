@@ -17,6 +17,7 @@ import {
     getTableCellCorrectItemIds,
     getTableDragDuplicateCorrectItemIds,
     getTableDragUsedItemIds,
+    isQuizQuestionAnswered,
     QUIZ_QUESTION_TYPE,
     QUIZ_STATS_MODE,
     shuffleQuestionResponses,
@@ -54,6 +55,80 @@ describe("supportsResponseRandomization", () => {
 
         expect(supportedTypes.every((type) => supportsResponseRandomization(type))).toBe(true);
         expect(unsupportedTypes.every((type) => !supportsResponseRandomization(type))).toBe(true);
+    });
+});
+
+describe("isQuizQuestionAnswered", () => {
+    it("counts structured questions as answered when at least one sub-response exists", () => {
+        const fillQuestion = createQuestion(QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN, {
+            dropdownBlanks: [
+                { id: "blank-1", options: [] },
+                { id: "blank-2", options: [] },
+            ],
+        });
+        const tableQuestion = createQuestion(QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP, {
+            tableCells: [
+                { id: "cell-1", rowId: "row-1", columnId: "col-1", correctItemId: "item-1" },
+                { id: "cell-2", rowId: "row-1", columnId: "col-2", correctItemId: "item-2" },
+            ],
+        });
+        const matchingQuestion = createQuestion(QUIZ_QUESTION_TYPE.MATCHING_PAIRS, {
+            matchingPrompts: [
+                { id: "prompt-1", text: "P1", correctMatchId: "match-1" },
+                { id: "prompt-2", text: "P2", correctMatchId: "match-2" },
+            ],
+        });
+        const categorizationQuestion = createQuestion(QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP, {
+            categoryItems: [
+                { id: "item-1", text: "I1", correctCategoryId: "cat-1" },
+                { id: "item-2", text: "I2", correctCategoryId: "cat-2" },
+            ],
+        });
+
+        expect(isQuizQuestionAnswered(fillQuestion, {
+            answers: {},
+            shortAnswers: {},
+            structuredAnswers: {
+                "question-1": { kind: QUIZ_QUESTION_TYPE.FILL_IN_THE_BLANK_DROPDOWN, blanks: { "blank-1": "option-1" } },
+            },
+        })).toBe(true);
+        expect(isQuizQuestionAnswered(tableQuestion, {
+            answers: {},
+            shortAnswers: {},
+            structuredAnswers: {
+                "question-1": { kind: QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP, placements: { "cell-1": "item-1" } },
+            },
+        })).toBe(true);
+        expect(isQuizQuestionAnswered(matchingQuestion, {
+            answers: {},
+            shortAnswers: {},
+            structuredAnswers: {
+                "question-1": { kind: QUIZ_QUESTION_TYPE.MATCHING_PAIRS, matches: { "prompt-1": "match-1" } },
+            },
+        })).toBe(true);
+        expect(isQuizQuestionAnswered(categorizationQuestion, {
+            answers: {},
+            shortAnswers: {},
+            structuredAnswers: {
+                "question-1": { kind: QUIZ_QUESTION_TYPE.CATEGORIZATION_DRAG_DROP, assignments: { "item-1": "cat-1" } },
+            },
+        })).toBe(true);
+    });
+
+    it("keeps structured questions unanswered when every sub-response is blank", () => {
+        const tableQuestion = createQuestion(QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP, {
+            tableCells: [
+                { id: "cell-1", rowId: "row-1", columnId: "col-1", correctItemId: "item-1" },
+            ],
+        });
+
+        expect(isQuizQuestionAnswered(tableQuestion, {
+            answers: {},
+            shortAnswers: {},
+            structuredAnswers: {
+                "question-1": { kind: QUIZ_QUESTION_TYPE.TABLE_DRAG_DROP, placements: {} },
+            },
+        })).toBe(false);
     });
 });
 

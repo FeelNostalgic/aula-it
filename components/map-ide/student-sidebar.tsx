@@ -6,6 +6,7 @@ import {
     Zap,
     ChevronRight,
     Lock,
+    Loader2,
     Target,
     Award,
     Network,
@@ -22,6 +23,7 @@ interface StudentSidebarProps {
     selectedActivity: any | null;
     moduleId: string;
     onStartMission?: (id: string) => void;
+    openingActivityId?: string | null;
     activeView?: 'map' | 'resources';
     onViewChange?: (view: 'map' | 'resources') => void;
     milestones?: any[];
@@ -50,10 +52,11 @@ const getDifficultyConfig = (difficulty?: string | null) => {
     }
 };
 
-export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMission, activeView = 'map', onViewChange, milestones = [], classBadges = [], studentBadges = [], showMilestoneOverlay, showBadgesOverlay, onToggleMilestone, onToggleBadges, hideNavigation = false }: StudentSidebarProps) {
+export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMission, openingActivityId = null, activeView = 'map', onViewChange, milestones = [], classBadges = [], studentBadges = [], showMilestoneOverlay, showBadgesOverlay, onToggleMilestone, onToggleBadges, hideNavigation = false }: StudentSidebarProps) {
     const isBlocked = selectedActivity?.status === 'blocked';
     const isDraft = selectedActivity?.status === 'draft';
-    const isDisabled = isBlocked || isDraft;
+    const isOpening = !!selectedActivity && openingActivityId === selectedActivity.id;
+    const isDisabled = isBlocked || isDraft || isOpening;
 
     const hasMilestones = milestones.some(m => m.status === 'active' || m.status === 'completed');
     const visibleBadges = classBadges.filter(b => !b.is_hidden || studentBadges.some((sb: any) => sb.badge_id === b.id));
@@ -281,6 +284,11 @@ export function StudentSidebar({ unit, selectedActivity, moduleId, onStartMissio
                                     <div className="flex items-center gap-2">
                                         <Lock className="size-3.5" />
                                         Borrador
+                                    </div>
+                                ) : isOpening ? (
+                                    <div className="flex items-center gap-2">
+                                        <Loader2 className="size-3.5 animate-spin" />
+                                        Abriendo...
                                     </div>
                                 ) : (
                                     <div className="flex items-center gap-2">

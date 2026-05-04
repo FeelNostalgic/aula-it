@@ -530,6 +530,15 @@ function BuiltinQuizViewer({
         && !isQuizQuestionAnswered(question, { answers: selectedAnswers, shortAnswers, structuredAnswers })
     );
     const hasUnansweredRequiredQuestions = unansweredRequiredQuestions.length > 0;
+    const invalidShortAnswerQuestions = displayQuestions.filter((question) => {
+        if (getQuestionType(question) !== QUIZ_QUESTION_TYPE.SHORT_ANSWER) return false;
+        const answer = shortAnswers[question.id] ?? "";
+        if (answer.trim().length === 0) return false;
+        if (question.minLength && answer.trim().length < question.minLength) return true;
+        if (question.maxLength && answer.length > question.maxLength) return true;
+        return false;
+    });
+    const hasInvalidShortAnswerQuestions = invalidShortAnswerQuestions.length > 0;
 
     function toggleOption(qId: string, optId: string, singleSelect: boolean) {
         setSelectedAnswers(prev => {
@@ -574,6 +583,14 @@ function BuiltinQuizViewer({
         if (hasUnansweredRequiredQuestions) {
             const firstQuestionIndex = displayQuestions.findIndex(question => question.id === unansweredRequiredQuestions[0]?.id);
             toast.error(`Responde las preguntas obligatorias antes de enviar. Falta la ${firstQuestionIndex + 1}.`);
+            if (qpp && firstQuestionIndex >= 0) {
+                setCurrentPage(Math.floor(firstQuestionIndex / qpp));
+            }
+            return;
+        }
+        if (hasInvalidShortAnswerQuestions) {
+            const firstQuestionIndex = displayQuestions.findIndex(question => question.id === invalidShortAnswerQuestions[0]?.id);
+            toast.error(`Revisa el límite de caracteres de la pregunta ${firstQuestionIndex + 1}.`);
             if (qpp && firstQuestionIndex >= 0) {
                 setCurrentPage(Math.floor(firstQuestionIndex / qpp));
             }
@@ -997,7 +1014,7 @@ function BuiltinQuizViewer({
                     <div className="flex flex-col items-center justify-center gap-2 pt-8">
                         <Button
                             onClick={() => setShowConfirm(true)}
-                            disabled={isPending || !stepId || !activityId || isPreview || isClosed || hasUnansweredRequiredQuestions}
+                            disabled={isPending || !stepId || !activityId || isPreview || isClosed || hasUnansweredRequiredQuestions || hasInvalidShortAnswerQuestions}
                             className="bg-emerald-500 hover:bg-emerald-600 text-white px-10 h-12 text-base font-bold rounded-full shadow-lg shadow-emerald-500/20"
                         >
                             {isPending ? "Enviando..." : isExamActive ? "Entregar Examen" : "Enviar Cuestionario"}
@@ -1005,6 +1022,11 @@ function BuiltinQuizViewer({
                         {hasUnansweredRequiredQuestions && (
                             <p className="text-center text-xs text-amber-400/80">
                                 Faltan {unansweredRequiredQuestions.length} pregunta{unansweredRequiredQuestions.length === 1 ? "" : "s"} obligatoria{unansweredRequiredQuestions.length === 1 ? "" : "s"}.
+                            </p>
+                        )}
+                        {hasInvalidShortAnswerQuestions && (
+                            <p className="text-center text-xs text-amber-400/80">
+                                Revisa el límite de caracteres de {invalidShortAnswerQuestions.length} respuesta{invalidShortAnswerQuestions.length === 1 ? "" : "s"} corta{invalidShortAnswerQuestions.length === 1 ? "" : "s"}.
                             </p>
                         )}
                         {isPreview && (
@@ -1028,7 +1050,7 @@ function BuiltinQuizViewer({
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
                     <AlertDialogAction
                         onClick={handleSubmit}
-                        disabled={isPending}
+                        disabled={isPending || hasUnansweredRequiredQuestions || hasInvalidShortAnswerQuestions}
                         className="bg-emerald-500 hover:bg-emerald-600 text-white"
                     >
                         {isPending ? "Enviando..." : "Entregar"}

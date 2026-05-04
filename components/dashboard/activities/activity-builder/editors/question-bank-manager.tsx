@@ -235,10 +235,40 @@ function SortableBankQuestion({
             )}
 
             {qType === QUIZ_QUESTION_TYPE.SHORT_ANSWER && (
-                <div className="pl-14">
+                <div className="pl-14 space-y-3">
                     <div className="flex items-center gap-2 p-3 rounded-lg bg-surface border border-border/30 text-text-muted text-sm">
                         <AlignLeft className="size-4 shrink-0" />
                         <span>El alumno escribirá su respuesta en texto libre. Requiere corrección manual.</span>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="space-y-1.5">
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-text-muted">Mínimo de caracteres</span>
+                            <Input
+                                type="number"
+                                min={0}
+                                value={q.minLength ?? ""}
+                                onChange={(event) => {
+                                    const value = event.target.valueAsNumber;
+                                    onUpdate(q.id, { minLength: Number.isFinite(value) && value > 0 ? value : undefined });
+                                }}
+                                placeholder="Sin mínimo"
+                                className="h-9 bg-surface border-border text-sm"
+                            />
+                        </label>
+                        <label className="space-y-1.5">
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-text-muted">Máximo de caracteres</span>
+                            <Input
+                                type="number"
+                                min={0}
+                                value={q.maxLength ?? ""}
+                                onChange={(event) => {
+                                    const value = event.target.valueAsNumber;
+                                    onUpdate(q.id, { maxLength: Number.isFinite(value) && value > 0 ? value : undefined });
+                                }}
+                                placeholder="Sin máximo"
+                                className="h-9 bg-surface border-border text-sm"
+                            />
+                        </label>
                     </div>
                 </div>
             )}

@@ -291,6 +291,7 @@ export type QuizQuestion = {
     isRequired?: boolean;     // if true, the student must answer before submitting the quiz
     // short_answer / likert specific
     minLength?: number;           // minimum character count for valid answer
+    maxLength?: number;           // maximum character count for short-answer responses
     requireJustification?: boolean; // likert: requires a text justification alongside scale selection
     // likert specific
     likertScale?: number;         // @deprecated — usa likertMin/likertMax

@@ -342,12 +342,12 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
             {!hideHeader && (
                 <>
                     {/* === HEADER (identical to teacher: edit/client.tsx line 132) === */}
-                    <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between px-6 shrink-0 z-40 print:hidden">
-                        <div className="flex items-center gap-4">
+                    <header className="h-[68px] border-b border-border/50 bg-background flex items-center justify-between gap-4 px-6 shrink-0 z-40 overflow-hidden print:hidden">
+                        <div className="flex min-w-0 flex-1 items-center gap-4 overflow-hidden">
                             <Button
                                 variant="outline"
                                 size="icon"
-                                className="size-8 rounded-lg border-border/50 hover:bg-accent/10 transition-colors"
+                                className="size-8 shrink-0 rounded-lg border-border/50 transition-colors hover:bg-accent/10"
                                 onClick={onExitPreview}
                             >
                                 <ArrowLeft className="size-4" />
@@ -355,7 +355,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                             <DashboardBreadcrumb />
                         </div>
 
-                        <div className="flex items-center gap-6">
+                        <div className="flex shrink-0 items-center gap-6">
                             {/*
                             <div className="flex items-center gap-2 px-3 py-1 bg-accent-blue/5 border border-accent-blue/20 rounded-full">
                                 
