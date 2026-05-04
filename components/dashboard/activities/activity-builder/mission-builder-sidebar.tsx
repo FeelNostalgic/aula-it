@@ -202,8 +202,8 @@ function SortableStepItem({
     const iconSize = isChild ? "size-3.5" : "size-3.5";
     const btnSize = isChild ? "size-5" : "size-6";
     const textSize = isChild ? "text-xs" : "text-sm";
-    const paddingLeft = isChild ? "pl-10" : "pl-8";
-    const py = isChild ? "py-1.5" : "py-2";
+    const paddingLeft = isChild ? "pl-8" : "pl-5";
+    const py = isChild ? "py-2" : "py-2.5";
 
     return (
         <div
@@ -213,7 +213,7 @@ function SortableStepItem({
             data-step-id={step.id}
             data-step-title={step.title}
             className={cn(
-                `group flex items-center gap-2 ${py} px-3 ${paddingLeft} ${textSize} cursor-pointer transition-colors border-l-2`,
+                `group grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 ${py} pr-2 ${paddingLeft} ${textSize} cursor-pointer transition-colors border-l-2`,
                 isSelected
                     ? "bg-surface border-accent-blue text-foreground"
                     : "border-transparent hover:bg-surface-dark text-text-muted hover:text-foreground",
@@ -223,85 +223,98 @@ function SortableStepItem({
             <div
                 {...attributes}
                 {...listeners}
-                className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-text-muted hover:text-foreground shrink-0 mr-1"
+                className="mt-0.5 cursor-grab text-text-muted opacity-0 transition-opacity hover:text-foreground active:cursor-grabbing group-hover:opacity-100"
                 onClick={(e) => e.stopPropagation()}
             >
                 <GripVertical className={iconSize} />
             </div>
 
-            {isChild && (
-                <div className="w-3 shrink-0 text-border/40 font-mono leading-none">└</div>
-            )}
-
-            {getStepIcon(step.type)}
-
-            <span className={cn("flex-1 truncate", step.is_visible === false && "line-through opacity-50")}>{step.title}</span>
-
-            <div className="flex items-center gap-1 min-w-[40px] justify-end">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={step.is_visible !== false ? "Ocultar actividad" : "Mostrar actividad"}
-                    title={step.is_visible !== false ? "Ocultar actividad" : "Mostrar actividad"}
-                    className={cn(
-                        `${btnSize} transition-all`,
-                        step.is_visible !== false ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-accent-blue"
+            <div className="min-w-0 space-y-1">
+                <div className="flex min-w-0 items-start gap-2">
+                    {isChild && (
+                        <div className="mt-0.5 w-3 shrink-0 font-mono leading-none text-border/40">└</div>
                     )}
-                    onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}
-                >
-                    {step.is_visible !== false ? <Eye className={iconSize} /> : <EyeOff className={iconSize} />}
-                </Button>
+                    <div className="mt-0.5 shrink-0">
+                        {getStepIcon(step.type)}
+                    </div>
+                    <span
+                        title={step.title}
+                        className={cn(
+                            "block min-w-[8rem] flex-1 truncate font-semibold leading-snug text-foreground",
+                            isChild && "min-w-[7rem]",
+                            step.is_visible === false && "line-through opacity-50",
+                        )}
+                    >
+                        {step.title || STEP_TYPE_LABELS[step.type]}
+                    </span>
+                </div>
 
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={!step.is_locked ? "Bloquear actividad" : "Desbloquear actividad"}
-                    title={!step.is_locked ? "Bloquear actividad" : "Desbloquear actividad"}
-                    className={cn(
-                        `${btnSize} transition-all`,
-                        !step.is_locked ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-muted-foreground"
-                    )}
-                    onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
-                >
-                    <CalendarClock className={iconSize} />
-                </Button>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={!step.is_activity_closed ? "Cerrar entregas" : "Abrir entregas"}
-                    title={!step.is_activity_closed ? "Cerrar entregas" : "Abrir entregas"}
-                    className={cn(
-                        `${btnSize} transition-all`,
-                        !step.is_activity_closed ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-amber-500"
-                    )}
-                    onClick={(e) => { e.stopPropagation(); onToggleActivityClosed(); }}
-                >
-                    {!step.is_activity_closed ? <Unlock className={iconSize} /> : <Lock className={iconSize} />}
-                </Button>
-            </div>
-
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className={`${btnSize} opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted`} onClick={e => e.stopPropagation()}>
-                        <MoreVertical className={iconSize} />
+                <div className="flex min-w-0 items-center justify-end gap-1">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={step.is_visible !== false ? "Ocultar actividad" : "Mostrar actividad"}
+                        title={step.is_visible !== false ? "Ocultar actividad" : "Mostrar actividad"}
+                        className={cn(
+                            `${btnSize} transition-all`,
+                            step.is_visible !== false ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-accent-blue"
+                        )}
+                        onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}
+                    >
+                        {step.is_visible !== false ? <Eye className={iconSize} /> : <EyeOff className={iconSize} />}
                     </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-surface-dark border-border-strong w-32 z-50">
-                    <DropdownMenuItem
-                        className="cursor-pointer text-xs"
-                        onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={!step.is_locked ? "Bloquear actividad" : "Desbloquear actividad"}
+                        title={!step.is_locked ? "Bloquear actividad" : "Desbloquear actividad"}
+                        className={cn(
+                            `${btnSize} transition-all`,
+                            !step.is_locked ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-muted-foreground"
+                        )}
+                        onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
                     >
-                        <Copy className="size-3.5 mr-2" /> Duplicar
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator className="bg-border-subtle" />
-                    <DropdownMenuItem
-                        className="text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer text-xs"
-                        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                        <CalendarClock className={iconSize} />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={!step.is_activity_closed ? "Cerrar entregas" : "Abrir entregas"}
+                        title={!step.is_activity_closed ? "Cerrar entregas" : "Abrir entregas"}
+                        className={cn(
+                            `${btnSize} transition-all`,
+                            !step.is_activity_closed ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted hover:text-foreground" : "opacity-100 text-amber-500"
+                        )}
+                        onClick={(e) => { e.stopPropagation(); onToggleActivityClosed(); }}
                     >
-                        <Trash2 className="size-3.5 mr-2" /> Eliminar
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
+                        {!step.is_activity_closed ? <Unlock className={iconSize} /> : <Lock className={iconSize} />}
+                    </Button>
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className={`${btnSize} opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-text-muted`} onClick={e => e.stopPropagation()}>
+                                <MoreVertical className={iconSize} />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-surface-dark border-border-strong w-32 z-50">
+                            <DropdownMenuItem
+                                className="cursor-pointer text-xs"
+                                onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+                            >
+                                <Copy className="size-3.5 mr-2" /> Duplicar
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="bg-border-subtle" />
+                            <DropdownMenuItem
+                                className="text-red-400 focus:bg-red-400/10 focus:text-red-400 cursor-pointer text-xs"
+                                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                            >
+                                <Trash2 className="size-3.5 mr-2" /> Eliminar
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+            </div>
         </div>
     );
 }

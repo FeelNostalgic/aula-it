@@ -338,7 +338,7 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user, 
                 ) : (
                     <ResizablePanelGroup id="activity-builder-layout" direction="horizontal" className="flex-1 overflow-hidden">
                         {/* Left Sidebar - Structure Builder */}
-                        <ResizablePanel id="sidebar-panel" defaultSize={17} minSize={14} maxSize={30} className="bg-background h-full flex flex-col">
+                        <ResizablePanel id="sidebar-panel" defaultSize={20} minSize={18} maxSize={36} className="bg-background h-full flex flex-col">
                             <MissionBuilderSidebar
                                 activityId={activity.id}
                                 phases={phases}
@@ -349,7 +349,12 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user, 
                             />
                         </ResizablePanel>
 
-                        <ResizableHandle className="hover:bg-accent-blue/50 data-resize-handle-active:bg-accent-blue transition-colors" />
+                        <ResizableHandle
+                            withHandle
+                            aria-label="Cambiar tamaño del panel de fases"
+                            title="Arrastra para cambiar el tamaño del panel de fases"
+                            className="w-2 cursor-col-resize bg-border/60 transition-colors after:w-3 hover:bg-accent-blue/50 data-resize-handle-active:bg-accent-blue"
+                        />
 
                         {/* Central Step Editor */}
                         <ResizablePanel id="editor-panel" defaultSize={80} className="h-full bg-background relative flex flex-col">

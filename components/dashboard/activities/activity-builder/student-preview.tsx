@@ -409,7 +409,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
 
             <ResizablePanelGroup id="student-preview-panel-group" direction="horizontal" className="flex-1 overflow-hidden">
                 {/* === SIDEBAR (identical to teacher: mission-builder-sidebar.tsx line 604-753) === */}
-                <ResizablePanel id="sidebar-panel" defaultSize={14} minSize={14} maxSize={30} className="bg-background h-full flex flex-col print:hidden">
+                <ResizablePanel id="sidebar-panel" defaultSize={20} minSize={18} maxSize={36} className="bg-background h-full flex flex-col print:hidden">
                     <div className="p-4 border-b border-border/50 flex items-center justify-between shrink-0">
                         <h2 className="font-bold text-sm tracking-tight text-foreground uppercase">Fases</h2>
                     </div>
@@ -456,7 +456,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                                 data-step-title={step.title}
                                                                 onClick={() => !isLocked && handleStepSelect(step.id)}
                                                                 className={cn(
-                                                                    "group flex items-center gap-2.5 py-2.5 px-3 pl-8 text-[13px] cursor-pointer transition-all border-l-2",
+                                                                    "group grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 py-2.5 pr-2 pl-5 text-[13px] cursor-pointer transition-all border-l-2",
                                                                     isActive
                                                                         ? "bg-surface/50 border-accent-blue text-foreground shadow-sm"
                                                                         : isLocked
@@ -464,36 +464,45 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                                             : "border-transparent hover:bg-surface-dark/50 text-text-muted hover:text-foreground",
                                                                 )}
                                                             >
-                                                                {isLocked ? (
-                                                                    <CalendarClock className="size-3.5 text-muted-foreground shrink-0" />
-                                                                ) : step.is_activity_closed ? (
-                                                                    <Lock className="size-3.5 text-amber-500 shrink-0" />
-                                                                ) : (
-                                                                    <div className={cn("shrink-0", isActive ? "text-accent-blue" : "text-text-muted group-hover:text-foreground")}>
-                                                                        {getStepIcon(step.type)}
+                                                                <div className="mt-0.5 shrink-0">
+                                                                    {isLocked ? (
+                                                                        <CalendarClock className="size-3.5 text-muted-foreground" />
+                                                                    ) : step.is_activity_closed ? (
+                                                                        <Lock className="size-3.5 text-amber-500" />
+                                                                    ) : (
+                                                                        <div className={cn(isActive ? "text-accent-blue" : "text-text-muted group-hover:text-foreground")}>
+                                                                            {getStepIcon(step.type)}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div className="min-w-0 space-y-1">
+                                                                    <span
+                                                                        title={step.title}
+                                                                        className="block min-w-[8rem] truncate font-semibold leading-snug text-foreground"
+                                                                    >
+                                                                        {step.title}
+                                                                    </span>
+                                                                    <div className="flex min-w-0 items-center justify-end gap-1.5">
+                                                                        {classBadges
+                                                                            ?.filter((b: any) => b.step_id === step.id && (!b.is_hidden || earnedBadgeIds?.includes(b.id)))
+                                                                            .map((b: any) => (
+                                                                                <BadgeDisplay
+                                                                                    key={b.id}
+                                                                                    badge={b}
+                                                                                    isEarned={earnedBadgeIds?.includes(b.id) ?? false}
+                                                                                    variant="icon"
+                                                                                />
+                                                                            ))
+                                                                        }
+                                                                        <StepStatusBadge
+                                                                            status={submissionsMap?.[step.id]?.status}
+                                                                            type={step.type}
+                                                                            isViewed={localViews[step.id]}
+                                                                            isCompleted={localCompletions[step.id]}
+                                                                            completionMode={step.completion_mode}
+                                                                        />
+                                                                        <StepXpBadge xp={step.xp || 0} />
                                                                     </div>
-                                                                )}
-                                                                <span className="flex-1 truncate font-medium">{step.title}</span>
-                                                                <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                                                                    {classBadges
-                                                                        ?.filter((b: any) => b.step_id === step.id && (!b.is_hidden || earnedBadgeIds?.includes(b.id)))
-                                                                        .map((b: any) => (
-                                                                            <BadgeDisplay
-                                                                                key={b.id}
-                                                                                badge={b}
-                                                                                isEarned={earnedBadgeIds?.includes(b.id) ?? false}
-                                                                                variant="icon"
-                                                                            />
-                                                                        ))
-                                                                    }
-                                                                    <StepStatusBadge
-                                                                        status={submissionsMap?.[step.id]?.status}
-                                                                        type={step.type}
-                                                                        isViewed={localViews[step.id]}
-                                                                        isCompleted={localCompletions[step.id]}
-                                                                        completionMode={step.completion_mode}
-                                                                    />
-                                                                    <StepXpBadge xp={step.xp || 0} />
                                                                 </div>
                                                             </div>
                                                             {/* Child steps (self_eval / peer_eval) */}
@@ -505,7 +514,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                                         key={child.id}
                                                                         onClick={() => !isChildLocked && handleStepSelect(child.id)}
                                                                         className={cn(
-                                                                            "flex items-center gap-2 py-2 px-3 pl-8 text-xs cursor-pointer transition-all",
+                                                                            "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 py-2 pr-2 pl-8 text-xs cursor-pointer transition-all",
                                                                             isChildActive
                                                                                 ? "bg-surface/50 text-foreground"
                                                                                 : isChildLocked
@@ -513,19 +522,25 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                                                                                     : "hover:bg-surface-dark/50 text-text-muted hover:text-foreground"
                                                                         )}
                                                                     >
-                                                                        <div className="w-3 shrink-0 text-border/40 font-mono leading-none">└</div>
-                                                                        <div className={cn("shrink-0", isChildActive ? "text-accent-blue" : "text-text-muted")}>
-                                                                            {getStepIcon(child.type)}
+                                                                        <div className="mt-0.5 flex items-center gap-2">
+                                                                            <div className="w-3 shrink-0 text-border/40 font-mono leading-none">└</div>
+                                                                            <div className={cn("shrink-0", isChildActive ? "text-accent-blue" : "text-text-muted")}>
+                                                                                {getStepIcon(child.type)}
+                                                                            </div>
                                                                         </div>
-                                                                        <span className="flex-1 truncate">{child.title}</span>
-                                                                        <div className="flex items-center gap-1 shrink-0 ml-auto">
-                                                                            <StepStatusBadge
-                                                                                status={submissionsMap?.[child.id]?.status}
-                                                                                type={child.type}
-                                                                                isViewed={localViews[child.id]}
-                                                                                isCompleted={localCompletions[child.id]}
-                                                                                completionMode={child.completion_mode}
-                                                                            />
+                                                                        <div className="min-w-0 space-y-1">
+                                                                            <span title={child.title} className="block min-w-[7rem] truncate font-medium text-foreground">
+                                                                                {child.title}
+                                                                            </span>
+                                                                            <div className="flex items-center justify-end gap-1">
+                                                                                <StepStatusBadge
+                                                                                    status={submissionsMap?.[child.id]?.status}
+                                                                                    type={child.type}
+                                                                                    isViewed={localViews[child.id]}
+                                                                                    isCompleted={localCompletions[child.id]}
+                                                                                    completionMode={child.completion_mode}
+                                                                                />
+                                                                            </div>
                                                                         </div>
                                                                     </div>
                                                                 );
@@ -548,7 +563,12 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                     </div>
                 </ResizablePanel>
 
-                <ResizableHandle className="w-0 border-r border-border/50 hover:border-accent-blue/50 transition-colors data-resize-handle-active:border-accent-blue" />
+                <ResizableHandle
+                    withHandle
+                    aria-label="Cambiar tamaño del panel de fases"
+                    title="Arrastra para cambiar el tamaño del panel de fases"
+                    className="w-2 cursor-col-resize bg-border/60 transition-colors after:w-3 hover:bg-accent-blue/50 data-resize-handle-active:bg-accent-blue"
+                />
 
                 {/* === MAIN CONTENT AREA === */}
                 <ResizablePanel id="main-content" defaultSize={80} className="h-full bg-background relative flex flex-col min-w-0">
