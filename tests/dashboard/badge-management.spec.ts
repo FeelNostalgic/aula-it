@@ -95,27 +95,12 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
 
             // Submit
             await dialog.getByRole("button", { name: "Guardar Insignia" }).click();
+            await expect(page.getByText("Insignia creada")).toBeVisible({ timeout: 10000 });
+            await closeDialogIfStillOpen(page, dialog);
 
-            // The dialog can stay mounted depending on focus handling; close it if still open.
-            if (await dialog.isVisible().catch(() => false)) {
-                await page.keyboard.press("Escape");
-            }
-
-            // Assert success toast
-            const createdToast = page.getByText("Insignia creada");
-            if (await createdToast.isVisible().catch(() => false)) {
-                await expect(createdToast).toBeVisible({ timeout: 8000 });
-            }
-
-            // Assert badge appears in the list. Reload once if the list does not refresh immediately.
+            // Assert badge appears in the list. The manager updates local state after create,
+            // so reloading here would only add auth/session flakiness to the assertion.
             const createdBadgeTitle = page.locator('h4').filter({ hasText: "Insignia de Prueba E2E" }).first();
-            if (!(await createdBadgeTitle.isVisible({ timeout: 5000 }).catch(() => false))) {
-                await page.reload({ waitUntil: "domcontentloaded" });
-                await expect(page).toHaveURL(new RegExp(`/dashboard/units/${testUnitId}/insignias`), { timeout: 15000 });
-            }
-            if (!(await createdBadgeTitle.isVisible({ timeout: 5000 }).catch(() => false))) {
-                test.skip(true, "La insignia creada no se refleja en el listado en esta ejecución local.");
-            }
             await expect(createdBadgeTitle).toBeVisible({ timeout: 15000 });
         }
     );
@@ -145,9 +130,8 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
                 await createDialog.getByLabel("Título de la insignia").fill("Insignia de Prueba E2E");
                 await createDialog.getByLabel("Descripción").fill("Descripción de prueba para el test E2E.");
                 await createDialog.getByRole("button", { name: "Guardar Insignia" }).click();
-                if (await createDialog.isVisible().catch(() => false)) {
-                    await page.keyboard.press("Escape");
-                }
+                await expect(page.getByText("Insignia creada")).toBeVisible({ timeout: 10000 });
+                await closeDialogIfStillOpen(page, createDialog);
             }
             await expect(badgeCard).toBeVisible({ timeout: 10000 });
 
@@ -171,12 +155,9 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
             // Submit
             await dialog.getByRole("button", { name: "Guardar Insignia" }).click();
 
-            if (await dialog.isVisible().catch(() => false)) {
-                await page.keyboard.press("Escape");
-            }
-
             // Assert success toast
             await expect(page.getByText("Insignia actualizada")).toBeVisible({ timeout: 8000 });
+            await closeDialogIfStillOpen(page, dialog);
 
             // Assert updated title is visible in the list
             await expect(page.locator('h4').filter({ hasText: "Insignia de Prueba Editada" }).first()).toBeVisible({ timeout: 10000 });
@@ -206,9 +187,8 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
                 await createDialog.getByLabel("Título de la insignia").fill("Insignia de Prueba Editada");
                 await createDialog.getByLabel("Descripción").fill("Descripción de prueba para el test E2E.");
                 await createDialog.getByRole("button", { name: "Guardar Insignia" }).click();
-                if (await createDialog.isVisible().catch(() => false)) {
-                    await page.keyboard.press("Escape");
-                }
+                await expect(page.getByText("Insignia creada")).toBeVisible({ timeout: 10000 });
+                await closeDialogIfStillOpen(page, createDialog);
             }
             await expect(badgeCard).toBeVisible({ timeout: 10000 });
 
@@ -256,6 +236,18 @@ async function openCreateBadgeDialog(page: import("@playwright/test").Page) {
 
     await expect(dialog).toBeVisible({ timeout: 10000 });
     return dialog;
+}
+
+async function closeDialogIfStillOpen(
+    page: import("@playwright/test").Page,
+    dialog: import("@playwright/test").Locator
+) {
+    if (await dialog.isHidden({ timeout: 5000 }).catch(() => false)) {
+        return;
+    }
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden({ timeout: 5000 });
 }
 
 async function gotoUnitBadgesPage(page: import("@playwright/test").Page, unitId: string) {

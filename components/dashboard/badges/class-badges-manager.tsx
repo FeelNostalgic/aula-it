@@ -145,7 +145,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
         if (!title) return toast.error("El título es obligatorio");
         setIsLoading(true);
 
-        const { error } = await createClassBadge(unitId, {
+        const { badge, error } = await createClassBadge(unitId, {
             title,
             description,
             icon_url: iconUrl || null,
@@ -161,6 +161,9 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
             toast.error(error);
         } else {
             toast.success("Insignia creada");
+            if (badge) {
+                setLocalBadges((current) => [badge, ...current.filter((item) => item.id !== badge.id)]);
+            }
             resetForm();
         }
     };
@@ -169,7 +172,7 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
         if (!title) return toast.error("El título es obligatorio");
         setIsLoading(true);
 
-        const { error } = await updateClassBadge(id, unitId, {
+        const { badge, error } = await updateClassBadge(id, unitId, {
             title,
             description,
             icon_url: iconUrl || null,
@@ -185,6 +188,9 @@ export default function ClassBadgesManager({ badges, unitId, activityId, steps =
             toast.error(error);
         } else {
             toast.success("Insignia actualizada");
+            if (badge) {
+                setLocalBadges((current) => current.map((item) => item.id === badge.id ? badge : item));
+            }
             setIsEditing(null);
         }
     };

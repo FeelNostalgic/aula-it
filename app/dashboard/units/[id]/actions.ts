@@ -3120,7 +3120,7 @@ export async function createClassBadge(
     const permission = await requireUnitPermission(unitId, "canEditModuleContent");
     if ("error" in permission) return { error: permission.error };
 
-    const { error } = await permission.admin
+    const { data: badge, error } = await permission.admin
         .from("class_badges")
         .insert({
             unit_id: unitId,
@@ -3132,12 +3132,14 @@ export async function createClassBadge(
             is_hidden: data.is_hidden,
             condition_payload: data.condition_payload,
             xp_reward: data.xp_reward ?? 0,
-        });
+        })
+        .select("*")
+        .single();
 
     if (error) return { error: error.message };
 
     revalidatePath("/dashboard/units/[id]", "layout");
-    return { success: true };
+    return { success: true, badge };
 }
 
 export async function updateClassBadge(
@@ -3157,15 +3159,17 @@ export async function updateClassBadge(
     const permission = await requireUnitPermission(unitId, "canEditModuleContent");
     if ("error" in permission) return { error: permission.error };
 
-    const { error } = await permission.admin
+    const { data: badge, error } = await permission.admin
         .from("class_badges")
         .update(data)
-        .eq("id", badgeId);
+        .eq("id", badgeId)
+        .select("*")
+        .single();
 
     if (error) return { error: error.message };
 
     revalidatePath("/dashboard/units/[id]", "layout");
-    return { success: true };
+    return { success: true, badge };
 }
 
 export async function deleteClassBadge(badgeId: string, unitId: string) {
