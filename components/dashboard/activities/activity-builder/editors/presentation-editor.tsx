@@ -41,7 +41,7 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
         const content = (step.content as PresentationContent) || defaultContent;
         setSlidesUrl(content.slidesUrl || "");
         setNotes(content.notes || "");
-        setIsDirty(false);
+        setIsDirty(!!step.client_dirty);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [step.id]);
 
@@ -58,7 +58,7 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
         const normalized = normalizeSlidesEmbedUrl(val) ?? val;
         setSlidesUrl(normalized);
         setIsDirty(true);
-        onUpdate({ ...step, content: { slidesUrl: normalized, notes } });
+        onUpdate({ ...step, content: { slidesUrl: normalized, notes }, client_dirty: true });
     };
 
     const handlePickFromDrive = async () => {
@@ -80,7 +80,7 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
     const handleNotesChange = (val: string) => {
         setNotes(val);
         setIsDirty(true);
-        onUpdate({ ...step, content: { slidesUrl, notes: val } });
+        onUpdate({ ...step, content: { slidesUrl, notes: val }, client_dirty: true });
     };
 
     const handleSave = async () => {
@@ -103,6 +103,7 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
         onUpdate({ ...step, content: newContent });
         setIsSaving(false);
         setIsDirty(false);
+        onUpdate({ ...step, content: newContent, client_dirty: false });
     };
 
     return (
@@ -232,7 +233,7 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
             </TabsContent>
 
             <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) setIsDirty(true); }} />
+                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) { setIsDirty(true); onUpdate({ ...step, client_dirty: true }); } }} />
             </TabsContent>
         </Tabs>
     );

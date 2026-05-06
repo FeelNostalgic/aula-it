@@ -71,13 +71,13 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
     useEffect(() => {
         const newContent = (step.content as ResourceContent) || { items: [], markdownHeader: '' };
         setContent(newContent);
-        setIsDirty(false);
+        setIsDirty(!!step.client_dirty);
     }, [step.id]);
 
     const handleUpdate = (newContent: ResourceContent) => {
         setContent(newContent);
         setIsDirty(true);
-        onUpdate({ ...step, content: newContent });
+        onUpdate({ ...step, content: newContent, client_dirty: true });
     };
 
     const handleSave = async () => {
@@ -98,6 +98,7 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
         }
         setIsSaving(false);
         setIsDirty(false);
+        onUpdate({ ...step, content, client_dirty: false });
     };
 
     const addResource = (type: 'file' | 'link') => {
@@ -283,7 +284,7 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
             </TabsContent>
 
             <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) setIsDirty(true); }} />
+                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) { setIsDirty(true); onUpdate({ ...step, client_dirty: true }); } }} />
             </TabsContent>
         </Tabs>
     );

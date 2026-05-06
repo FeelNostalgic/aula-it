@@ -61,7 +61,7 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
         const newContent = (step.content as DeliverableContent) || { templateUrl: "", instructionsMarkdown: "", deliveryMode: "manual" };
         setContent(newContent);
         setDueDate(step.due_date ?? null);
-        setIsDirty(false);
+        setIsDirty(!!step.client_dirty);
     }, [step.id, step.due_date]);
 
     useEffect(() => {
@@ -77,7 +77,7 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
         const newContent = { ...content, [field]: value };
         setContent(newContent);
         setIsDirty(true);
-        onUpdate({ ...step, content: newContent });
+        onUpdate({ ...step, content: newContent, client_dirty: true });
     };
 
     const handleDeliveryModeChange = (mode: DeliveryMode) => {
@@ -119,14 +119,14 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
         const newContent = { ...content, is_group_submission: value };
         setContent(newContent);
         setIsDirty(true);
-        onUpdate({ ...step, content: newContent });
+        onUpdate({ ...step, content: newContent, client_dirty: true });
     };
 
     const handleRubricChange = (newRubric: RubricCriteria[]) => {
         const newContent = { ...content, rubric: newRubric };
         setContent(newContent);
         setIsDirty(true);
-        onUpdate({ ...step, content: newContent });
+        onUpdate({ ...step, content: newContent, client_dirty: true });
     };
 
     const handleDueDateChange = (value: string | null) => {
@@ -158,6 +158,7 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
         }
         setIsSaving(false);
         setIsDirty(false);
+        onUpdate({ ...step, content, due_date: dueDate, client_dirty: false });
     };
 
     const handleDistribute = () => {
@@ -702,7 +703,7 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
                 </div>
             </TabsContent>
             <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) setIsDirty(true); }} />
+                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) { setIsDirty(true); onUpdate({ ...step, client_dirty: true }); } }} />
             </TabsContent>
         </Tabs>
     );

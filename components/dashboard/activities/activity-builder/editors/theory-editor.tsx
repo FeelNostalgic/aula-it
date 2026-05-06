@@ -40,7 +40,7 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
     useEffect(() => {
         const newContent = (step.content as TheoryContent) || { markdown: "" };
         setContent(newContent);
-        setIsDirty(false);
+        setIsDirty(!!step.client_dirty);
     }, [step.id]);
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -48,7 +48,7 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
         const newContent: TheoryContent = { ...content, markdown: newValue };
         setContent(newContent);
         setIsDirty(true);
-        onUpdate({ ...step, content: newContent });
+        onUpdate({ ...step, content: newContent, client_dirty: true });
     };
 
     const handleSave = async () => {
@@ -69,6 +69,7 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
         }
         setIsSaving(false);
         setIsDirty(false);
+        onUpdate({ ...step, content, client_dirty: false });
     };
 
     return (
@@ -181,7 +182,7 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
             </TabsContent>
 
             <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) setIsDirty(true); }} />
+                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) { setIsDirty(true); onUpdate({ ...step, client_dirty: true }); } }} />
             </TabsContent>
         </Tabs>
     );

@@ -60,13 +60,13 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
 
     useEffect(() => {
         setContent((step.content as SelfEvaluationContent) || defaultContent);
-        setIsDirty(false);
+        setIsDirty(!!step.client_dirty);
     }, [step.id]);
 
     const save = (newContent: SelfEvaluationContent) => {
         setContent(newContent);
         setIsDirty(true);
-        onUpdate({ ...step, content: newContent });
+        onUpdate({ ...step, content: newContent, client_dirty: true });
     };
 
     const handleSave = async () => {
@@ -87,6 +87,7 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
         }
         setIsSaving(false);
         setIsDirty(false);
+        onUpdate({ ...step, content, client_dirty: false });
     };
 
     const evalMode = content.evalMode ?? "rubric";
@@ -421,7 +422,7 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
             </TabsContent>
 
             <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) setIsDirty(true); }} />
+                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) { setIsDirty(true); onUpdate({ ...step, client_dirty: true }); } }} />
             </TabsContent>
         </Tabs>
     );

@@ -483,6 +483,7 @@ export type ActivityStepContent =
 export type ActivityStepWithClientState = ActivityStep & {
     isExpanded?: boolean;
     isSelected?: boolean;
+    client_dirty?: boolean;
     content: TheoryContent | DeliverableContent | AnimationContent | QuizContent | PresentationContent | ResourceContent | FileUploadContent | SelfEvaluationContent | PeerEvaluationContent;
     children?: ActivityStepWithClientState[];  // hijos self_eval / peer_eval
 };

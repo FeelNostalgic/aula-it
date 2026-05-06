@@ -151,7 +151,7 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
 
     useEffect(() => {
         setContent(getInitialContent(step.content));
-        setIsDirty(false);
+        setIsDirty(!!step.client_dirty);
     }, [step.id, step.parent_step_id]);
 
     const handleUpdate = (newContent: QuizContent) => {
@@ -164,7 +164,7 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
             : { ...normalizedContent, saveQuestionStats: false };
         setContent(nextContent);
         setIsDirty(true);
-        onUpdate({ ...step, content: nextContent });
+        onUpdate({ ...step, content: nextContent, client_dirty: true });
     };
 
     const handleSave = async () => {
@@ -191,6 +191,7 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
         }
         setIsSaving(false);
         setIsDirty(false);
+        onUpdate({ ...step, content, client_dirty: false });
     };
 
     const fixedBlocks = getQuizFixedBlocks(content);
@@ -1014,7 +1015,7 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
             </TabsContent>
 
             <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) setIsDirty(true); }} />
+                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) { setIsDirty(true); onUpdate({ ...step, client_dirty: true }); } }} />
             </TabsContent>
 
             <GoogleFormCsvImport

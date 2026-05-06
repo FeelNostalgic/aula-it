@@ -101,13 +101,13 @@ export function FileUploadEditor({ step, onUpdate, activityId, moduleId }: FileU
         setIsCustomSize(newCustom.isCustom);
         setCustomSizeValue(newCustom.value);
         setCustomSizeUnit(newCustom.unit);
-        setIsDirty(false);
+        setIsDirty(!!step.client_dirty);
     }, [step.id, step.due_date]);
 
     const saveContent = (newContent: FileUploadContent) => {
         setContent(newContent);
         setIsDirty(true);
-        onUpdate({ ...step, content: newContent });
+        onUpdate({ ...step, content: newContent, client_dirty: true });
     };
 
     const handleDueDateChange = (value: string | null) => {
@@ -141,6 +141,7 @@ export function FileUploadEditor({ step, onUpdate, activityId, moduleId }: FileU
         }
         setIsSaving(false);
         setIsDirty(false);
+        onUpdate({ ...step, content, due_date: dueDate, client_dirty: false });
     };
 
     const toggleAllowedType = (type: AllowedFileType) => {
@@ -553,7 +554,7 @@ export function FileUploadEditor({ step, onUpdate, activityId, moduleId }: FileU
                 </div>
             </TabsContent>
             <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) setIsDirty(true); }} />
+                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) { setIsDirty(true); onUpdate({ ...step, client_dirty: true }); } }} />
             </TabsContent>
         </Tabs>
     );
