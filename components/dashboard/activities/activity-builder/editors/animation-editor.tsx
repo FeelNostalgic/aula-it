@@ -14,6 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { useStepEditorTab } from "./use-step-editor-tab";
 import { StepVisibilityTab } from "./step-visibility-tab";
+import { EditorSaveButton } from "./editor-save-button";
+import type { StepVisibilityTabHandle } from "./step-visibility-tab";
 
 interface AnimationEditorProps {
     step: ActivityStepWithClientState;
@@ -25,25 +27,41 @@ export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
     const { activeTab, setActiveTab } = useStepEditorTab(step.id, "animacion", ["animacion", "configuracion", "visibilidad"]);
     const [content, setContent] = useState<AnimationContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const [isDirty, setIsDirty] = useState(false);
+    const visibilityRef = useRef<StepVisibilityTabHandle | null>(null);
     const configSectionIds = ["experience", "completion-mode"];
     const sectionState = useConfigSectionState(step.id, configSectionIds);
 
     useEffect(() => {
         const newContent = (step.content as AnimationContent) || { componentUrl: "" };
         setContent(newContent);
-    }, [step.id, step.content]);
+        setIsDirty(false);
+    }, [step.id]);
 
     const save = (newContent: AnimationContent) => {
         setContent(newContent);
+        setIsDirty(true);
         onUpdate({ ...step, content: newContent });
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+
+    const handleSave = async () => {
+        if (!isDirty || isSaving) return;
         setIsSaving(true);
-        timeoutRef.current = setTimeout(async () => {
-            const res = await updateStepContent(step.id, newContent);
-            if (res.error) toast.error("Error al guardar la animación");
+        const res = await updateStepContent(step.id, content);
+        if (res.error) {
+            toast.error("Error al guardar la animación");
             setIsSaving(false);
-        }, 1000);
+            return;
+        }
+        if (visibilityRef.current?.isDirty()) {
+            const visibilitySaved = await visibilityRef.current.save();
+            if (!visibilitySaved) {
+                setIsSaving(false);
+                return;
+            }
+        }
+        setIsSaving(false);
+        setIsDirty(false);
     };
 
     const handleSlugSelect = (slug: string) => {
@@ -77,11 +95,7 @@ export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
                     <TabsTrigger value="visibilidad" className={tabTriggerClass}>Visibilidad</TabsTrigger>
                 </TabsList>
                 <div className="ml-auto">
-                    {isSaving ? (
-                        <span className="text-[10px] text-accent-blue animate-pulse">Guardando...</span>
-                    ) : (
-                        <span className="text-[10px] text-text-muted/50">Guardado automáticamente</span>
-                    )}
+                    <EditorSaveButton isSaving={isSaving} isDirty={isDirty} onSave={handleSave} />
                 </div>
             </div>
 
@@ -195,7 +209,7 @@ export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
             </TabsContent>
 
             <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <StepVisibilityTab step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} />
+                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) setIsDirty(true); }} />
             </TabsContent>
         </Tabs>
     );

@@ -22,6 +22,8 @@ import { StepSubmissionsPanel, STEP_SUBMISSIONS_PANEL_TYPES } from "@/components
 import { useStepEditorTab } from "./use-step-editor-tab";
 import { StepVisibilityTab } from "./step-visibility-tab";
 import { MarkdownHelpPopover } from "./markdown-help-popover";
+import { EditorSaveButton } from "./editor-save-button";
+import type { StepVisibilityTabHandle } from "./step-visibility-tab";
 
 const ALLOWED_TYPE_OPTIONS: { value: AllowedFileType; label: string }[] = [
     { value: 'pdf', label: 'PDF' },
@@ -77,14 +79,14 @@ export function FileUploadEditor({ step, onUpdate, activityId, moduleId }: FileU
     const initCustom = initCustomSizeState(defaultContent.maxFileSizeMb);
     const [content, setContent] = useState<FileUploadContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
+    const [isDirty, setIsDirty] = useState(false);
+    const visibilityRef = useRef<StepVisibilityTabHandle | null>(null);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
     const [rubricModalOpen, setRubricModalOpen] = useState(false);
     const [dueDate, setDueDate] = useState<string | null>(step.due_date ?? null);
     const [isCustomSize, setIsCustomSize] = useState(initCustom.isCustom);
     const [customSizeValue, setCustomSizeValue] = useState(initCustom.value);
     const [customSizeUnit, setCustomSizeUnit] = useState<SizeUnit>(initCustom.unit);
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const dueDateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         const newContent = (step.content as FileUploadContent) || {
@@ -99,31 +101,46 @@ export function FileUploadEditor({ step, onUpdate, activityId, moduleId }: FileU
         setIsCustomSize(newCustom.isCustom);
         setCustomSizeValue(newCustom.value);
         setCustomSizeUnit(newCustom.unit);
-    }, [step.id, step.content, step.due_date]);
+        setIsDirty(false);
+    }, [step.id, step.due_date]);
 
     const saveContent = (newContent: FileUploadContent) => {
         setContent(newContent);
+        setIsDirty(true);
         onUpdate({ ...step, content: newContent });
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        setIsSaving(true);
-        timeoutRef.current = setTimeout(async () => {
-            const res = await updateStepContent(step.id, newContent);
-            if (res.error) toast.error("Error al guardar");
-            setIsSaving(false);
-        }, 1000);
     };
 
     const handleDueDateChange = (value: string | null) => {
         // Convert local datetime-local string to UTC ISO before saving
         const isoUtc = value ? new Date(value).toISOString() : null;
         setDueDate(isoUtc);
-        if (dueDateTimeoutRef.current) clearTimeout(dueDateTimeoutRef.current);
+        setIsDirty(true);
+    };
+
+    const handleSave = async () => {
+        if (!isDirty || isSaving) return;
         setIsSaving(true);
-        dueDateTimeoutRef.current = setTimeout(async () => {
-            const res = await updateStepDueDate(step.id, isoUtc);
-            if (res.error) toast.error("Error al guardar la fecha límite");
+        const contentRes = await updateStepContent(step.id, content);
+        if (contentRes.error) {
+            toast.error("Error al guardar");
             setIsSaving(false);
-        }, 1000);
+            return;
+        }
+        const dueDateRes = await updateStepDueDate(step.id, dueDate);
+        if (dueDateRes.error) {
+            toast.error("Error al guardar la fecha límite");
+            setIsSaving(false);
+            return;
+        }
+        if (visibilityRef.current?.isDirty()) {
+            const visibilitySaved = await visibilityRef.current.save();
+            if (!visibilitySaved) {
+                setIsSaving(false);
+                return;
+            }
+        }
+        setIsSaving(false);
+        setIsDirty(false);
     };
 
     const toggleAllowedType = (type: AllowedFileType) => {
@@ -171,11 +188,7 @@ export function FileUploadEditor({ step, onUpdate, activityId, moduleId }: FileU
                     <TabsTrigger value="visibilidad" className={tabTriggerClass}>Visibilidad</TabsTrigger>
                 </TabsList>
                 <div className="ml-auto">
-                    {isSaving ? (
-                        <span className="text-[10px] text-accent-blue animate-pulse">Guardando...</span>
-                    ) : (
-                        <span className="text-[10px] text-text-muted/50">Guardado automáticamente</span>
-                    )}
+                    <EditorSaveButton isSaving={isSaving} isDirty={isDirty} onSave={handleSave} />
                 </div>
             </div>
 
@@ -540,7 +553,7 @@ export function FileUploadEditor({ step, onUpdate, activityId, moduleId }: FileU
                 </div>
             </TabsContent>
             <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <StepVisibilityTab step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} />
+                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) setIsDirty(true); }} />
             </TabsContent>
         </Tabs>
     );

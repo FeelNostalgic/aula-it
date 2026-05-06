@@ -5,8 +5,6 @@ import { ActivityStepWithClientState, CompletionMode, STEP_XP_AWARD_TRIGGER, typ
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Zap, HelpCircle, Minus, ClipboardCheck, Eye, ChevronDown, Send, Star } from "lucide-react";
-import { updateStepXp, updateStepCompletionMode, updateStepXpAwardTrigger } from "@/app/activities/[id]/edit/actions";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { isSubmissionStepType } from "@/lib/activity-progression";
 import {
@@ -195,9 +193,6 @@ export function StepConfigSection({ step, onUpdateStep, sectionState }: StepConf
     const [xp, setXp] = useState<string>(step.xp?.toString() || "0");
     const [completionMode, setCompletionMode] = useState<CompletionMode>(step.completion_mode ?? "none");
     const [xpAwardTrigger, setXpAwardTrigger] = useState<StepXpAwardTrigger>(step.xp_award_trigger ?? STEP_XP_AWARD_TRIGGER.GRADE);
-    const xpTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const modeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const triggerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const showsSubmissionTrigger = isSubmissionStepType(step.type);
 
     useEffect(() => {
@@ -211,31 +206,16 @@ export function StepConfigSection({ step, onUpdateStep, sectionState }: StepConf
         const numVal = parseInt(val, 10);
         const finalVal = isNaN(numVal) ? 0 : numVal;
         onUpdateStep({ ...step, xp: finalVal });
-        if (xpTimeoutRef.current) clearTimeout(xpTimeoutRef.current);
-        xpTimeoutRef.current = setTimeout(async () => {
-            const res = await updateStepXp(step.id, finalVal);
-            if (res.error) toast.error("Error al guardar XP");
-        }, 1000);
     };
 
     const handleModeChange = (mode: CompletionMode) => {
         setCompletionMode(mode);
         onUpdateStep({ ...step, completion_mode: mode });
-        if (modeTimeoutRef.current) clearTimeout(modeTimeoutRef.current);
-        modeTimeoutRef.current = setTimeout(async () => {
-            const res = await updateStepCompletionMode(step.id, mode);
-            if (res.error) toast.error("Error al guardar el modo de completado");
-        }, 1000);
     };
 
     const handleXpAwardTriggerChange = (trigger: StepXpAwardTrigger) => {
         setXpAwardTrigger(trigger);
         onUpdateStep({ ...step, xp_award_trigger: trigger });
-        if (triggerTimeoutRef.current) clearTimeout(triggerTimeoutRef.current);
-        triggerTimeoutRef.current = setTimeout(async () => {
-            const res = await updateStepXpAwardTrigger(step.id, trigger);
-            if (res.error) toast.error("Error al guardar cuándo se entrega la XP");
-        }, 1000);
     };
 
     const xpNum = parseInt(xp, 10);

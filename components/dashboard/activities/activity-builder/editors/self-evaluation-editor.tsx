@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { ActivityStepWithClientState, SelfEvaluationContent, RubricCriteria, ActivityPhaseWithSteps, QuizQuestion } from "@/types/activity";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,8 @@ import { LikertQuestionConfig } from "../quiz/likert-question-config";
 import { useStepEditorTab } from "./use-step-editor-tab";
 import { StepVisibilityTab } from "./step-visibility-tab";
 import { MarkdownHelpPopover } from "./markdown-help-popover";
+import { EditorSaveButton } from "./editor-save-button";
+import type { StepVisibilityTabHandle } from "./step-visibility-tab";
 
 interface SelfEvaluationEditorProps {
     step: ActivityStepWithClientState;
@@ -51,24 +53,40 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
         (step.content as SelfEvaluationContent) || defaultContent
     );
     const [isSaving, setIsSaving] = useState(false);
+    const [isDirty, setIsDirty] = useState(false);
+    const visibilityRef = useRef<StepVisibilityTabHandle | null>(null);
     const [rubricModalOpen, setRubricModalOpen] = useState(false);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         setContent((step.content as SelfEvaluationContent) || defaultContent);
-    }, [step.id, step.content]);
+        setIsDirty(false);
+    }, [step.id]);
 
     const save = (newContent: SelfEvaluationContent) => {
         setContent(newContent);
+        setIsDirty(true);
         onUpdate({ ...step, content: newContent });
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+
+    const handleSave = async () => {
+        if (!isDirty || isSaving) return;
         setIsSaving(true);
-        timeoutRef.current = setTimeout(async () => {
-            const res = await updateStepContent(step.id, newContent);
-            if (res.error) toast.error("Error al guardar");
+        const res = await updateStepContent(step.id, content);
+        if (res.error) {
+            toast.error("Error al guardar");
             setIsSaving(false);
-        }, 800);
+            return;
+        }
+        if (visibilityRef.current?.isDirty()) {
+            const visibilitySaved = await visibilityRef.current.save();
+            if (!visibilitySaved) {
+                setIsSaving(false);
+                return;
+            }
+        }
+        setIsSaving(false);
+        setIsDirty(false);
     };
 
     const evalMode = content.evalMode ?? "rubric";
@@ -133,10 +151,7 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
                     <TabsTrigger value="visibilidad" className={tabTriggerClass}>Visibilidad</TabsTrigger>
                 </TabsList>
                 <div className="ml-auto">
-                    {isSaving
-                        ? <span className="text-[10px] text-accent-blue animate-pulse">Guardando...</span>
-                        : <span className="text-[10px] text-text-muted/50">Guardado automáticamente</span>
-                    }
+                    <EditorSaveButton isSaving={isSaving} isDirty={isDirty} onSave={handleSave} />
                 </div>
             </div>
 
@@ -406,7 +421,7 @@ export function SelfEvaluationEditor({ step, onUpdate, phases }: SelfEvaluationE
             </TabsContent>
 
             <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <StepVisibilityTab step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} />
+                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) setIsDirty(true); }} />
             </TabsContent>
         </Tabs>
     );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState, useTransition } from "react";
 import { Eye, Loader2, Users, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { ActivityStepWithClientState, STEP_AUDIENCE_MODE, type StepAudienceMode } from "@/types/activity";
@@ -15,13 +15,19 @@ interface StepVisibilityTabProps {
     step: ActivityStepWithClientState;
     onUpdateStep: (updated: ActivityStepWithClientState) => void;
     visible: boolean;
+    onDirtyChange?: (dirty: boolean) => void;
+}
+
+export interface StepVisibilityTabHandle {
+    save: () => Promise<boolean>;
+    isDirty: () => boolean;
 }
 
 function toggleSelection(values: string[], id: string) {
     return values.includes(id) ? values.filter((value) => value !== id) : [...values, id];
 }
 
-export function StepVisibilityTab({ step, onUpdateStep, visible }: StepVisibilityTabProps) {
+export const StepVisibilityTab = forwardRef<StepVisibilityTabHandle, StepVisibilityTabProps>(function StepVisibilityTab({ step, onUpdateStep, visible, onDirtyChange }: StepVisibilityTabProps, ref) {
     const [context, setContext] = useState<StepAudienceContextPayload | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [mode, setMode] = useState<StepAudienceMode>(STEP_AUDIENCE_MODE.ALL);
@@ -31,6 +37,13 @@ export function StepVisibilityTab({ step, onUpdateStep, visible }: StepVisibilit
     const [studentSearch, setStudentSearch] = useState("");
     const [groupSearch, setGroupSearch] = useState("");
     const [isSaving, startSavingTransition] = useTransition();
+    const [isDirty, setIsDirty] = useState(false);
+    const [baseline, setBaseline] = useState<{
+        mode: StepAudienceMode;
+        inheritFromParent: boolean;
+        studentIds: string[];
+        groupIds: string[];
+    } | null>(null);
 
     useEffect(() => {
         if (!visible) return;
@@ -53,6 +66,13 @@ export function StepVisibilityTab({ step, onUpdateStep, visible }: StepVisibilit
             setInheritFromParent(nextContext.step.inheritFromParent);
             setSelectedStudentIds(nextContext.step.visibleStudentIds);
             setSelectedGroupIds(nextContext.step.visibleGroupIds);
+            setBaseline({
+                mode: nextContext.step.audienceMode,
+                inheritFromParent: nextContext.step.inheritFromParent,
+                studentIds: nextContext.step.visibleStudentIds,
+                groupIds: nextContext.step.visibleGroupIds,
+            });
+            setIsDirty(false);
             setStudentSearch("");
             setGroupSearch("");
             setIsLoading(false);
@@ -108,10 +128,10 @@ export function StepVisibilityTab({ step, onUpdateStep, visible }: StepVisibilit
         setMode(nextMode);
     };
 
-    const handleSave = () => {
-        if (!context) return;
-
-        startSavingTransition(async () => {
+    const runSave = async () => {
+        if (!context) return false;
+        return await new Promise<boolean>((resolve) => {
+            startSavingTransition(async () => {
             const result = await updateStepAudience(
                 step.id,
                 mode,
@@ -122,6 +142,7 @@ export function StepVisibilityTab({ step, onUpdateStep, visible }: StepVisibilit
 
             if (result.error || !result.data) {
                 toast.error(result.error ?? "No se pudo guardar la visibilidad.");
+                resolve(false);
                 return;
             }
 
@@ -132,9 +153,38 @@ export function StepVisibilityTab({ step, onUpdateStep, visible }: StepVisibilit
                 visible_group_ids: result.data.visible_group_ids ?? selectedGroupIds,
                 inherit_audience_from_parent: result.data.inherit_audience_from_parent ?? inheritFromParent,
             });
-            toast.success("Visibilidad guardada.");
+            setBaseline({
+                mode,
+                inheritFromParent,
+                studentIds: [...selectedStudentIds].sort(),
+                groupIds: [...selectedGroupIds].sort(),
+            });
+            setIsDirty(false);
+            resolve(true);
+            });
         });
     };
+
+    useImperativeHandle(ref, () => ({
+        save: runSave,
+        isDirty: () => isDirty,
+    }), [isDirty, mode, inheritFromParent, selectedStudentIds, selectedGroupIds, context, step.id]);
+
+    useEffect(() => {
+        if (!baseline) return;
+        const currentStudents = [...selectedStudentIds].sort();
+        const currentGroups = [...selectedGroupIds].sort();
+        const baselineStudents = [...baseline.studentIds].sort();
+        const baselineGroups = [...baseline.groupIds].sort();
+        const dirtyNow = (
+            mode !== baseline.mode
+            || inheritFromParent !== baseline.inheritFromParent
+            || currentStudents.join("|") !== baselineStudents.join("|")
+            || currentGroups.join("|") !== baselineGroups.join("|")
+        );
+        setIsDirty(dirtyNow);
+        onDirtyChange?.(dirtyNow);
+    }, [baseline, mode, inheritFromParent, selectedStudentIds, selectedGroupIds, onDirtyChange]);
 
     return (
         <div className="max-w-6xl mx-auto p-8 space-y-6">
@@ -318,22 +368,9 @@ export function StepVisibilityTab({ step, onUpdateStep, visible }: StepVisibilit
                         </div>
                     )}
 
-                    <div className="flex items-center justify-end">
-                        <Button
-                            onClick={handleSave}
-                            disabled={isSaving}
-                            className="min-w-44"
-                        >
-                            {isSaving ? (
-                                <>
-                                    <Loader2 className="size-4 mr-2 animate-spin" />
-                                    Guardando...
-                                </>
-                            ) : "Guardar visibilidad"}
-                        </Button>
-                    </div>
+                    <div className="hidden" />
                 </>
             )}
         </div>
     );
-}
+});

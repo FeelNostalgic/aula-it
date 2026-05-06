@@ -14,6 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { useStepEditorTab } from "./use-step-editor-tab";
 import { StepVisibilityTab } from "./step-visibility-tab";
+import { EditorSaveButton } from "./editor-save-button";
+import type { StepVisibilityTabHandle } from "./step-visibility-tab";
 
 interface PresentationEditorProps {
     step: ActivityStepWithClientState;
@@ -28,8 +30,9 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
     const [slidesUrl, setSlidesUrl] = useState(initialContent.slidesUrl || "");
     const [notes, setNotes] = useState(initialContent.notes || "");
     const [isSaving, setIsSaving] = useState(false);
+    const [isDirty, setIsDirty] = useState(false);
+    const visibilityRef = useRef<StepVisibilityTabHandle | null>(null);
 
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
     const configSectionIds = ["experience", "completion-mode", "teacher-notes"];
     const sectionState = useConfigSectionState(step.id, configSectionIds);
@@ -38,25 +41,9 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
         const content = (step.content as PresentationContent) || defaultContent;
         setSlidesUrl(content.slidesUrl || "");
         setNotes(content.notes || "");
+        setIsDirty(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [step.id]);
-
-    const triggerSave = (newUrl: string, newNotes: string) => {
-        setIsSaving(true);
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
-        const newContent: PresentationContent = { slidesUrl: newUrl, notes: newNotes };
-
-        timeoutRef.current = setTimeout(async () => {
-            const res = await updateStepContent(step.id, newContent);
-            if (res.error) {
-                toast.error("Error al guardar la presentación");
-            } else {
-                onUpdate({ ...step, content: newContent });
-            }
-            setIsSaving(false);
-        }, 1000);
-    };
 
     const isLocalPathLike = (value: string) => {
         const trimmed = value.trim();
@@ -70,7 +57,8 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
         }
         const normalized = normalizeSlidesEmbedUrl(val) ?? val;
         setSlidesUrl(normalized);
-        triggerSave(normalized, notes);
+        setIsDirty(true);
+        onUpdate({ ...step, content: { slidesUrl: normalized, notes } });
     };
 
     const handlePickFromDrive = async () => {
@@ -91,7 +79,30 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
 
     const handleNotesChange = (val: string) => {
         setNotes(val);
-        triggerSave(slidesUrl, val);
+        setIsDirty(true);
+        onUpdate({ ...step, content: { slidesUrl, notes: val } });
+    };
+
+    const handleSave = async () => {
+        if (!isDirty || isSaving) return;
+        setIsSaving(true);
+        const newContent: PresentationContent = { slidesUrl, notes };
+        const res = await updateStepContent(step.id, newContent);
+        if (res.error) {
+            toast.error("Error al guardar la presentación");
+            setIsSaving(false);
+            return;
+        }
+        if (visibilityRef.current?.isDirty()) {
+            const visibilitySaved = await visibilityRef.current.save();
+            if (!visibilitySaved) {
+                setIsSaving(false);
+                return;
+            }
+        }
+        onUpdate({ ...step, content: newContent });
+        setIsSaving(false);
+        setIsDirty(false);
     };
 
     return (
@@ -120,11 +131,7 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
                 </TabsList>
 
                 <div className="ml-auto">
-                    {isSaving ? (
-                        <span className="text-[10px] text-accent-blue animate-pulse">Guardando...</span>
-                    ) : (
-                        <span className="text-[10px] text-text-muted/50">Guardado automáticamente</span>
-                    )}
+                    <EditorSaveButton isSaving={isSaving} isDirty={isDirty} onSave={handleSave} />
                 </div>
             </div>
 
@@ -225,7 +232,7 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
             </TabsContent>
 
             <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <StepVisibilityTab step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} />
+                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) setIsDirty(true); }} />
             </TabsContent>
         </Tabs>
     );

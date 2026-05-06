@@ -26,6 +26,8 @@ import { StepSubmissionsPanel, STEP_SUBMISSIONS_PANEL_TYPES } from "@/components
 import { useStepEditorTab } from "./use-step-editor-tab";
 import { StepVisibilityTab } from "./step-visibility-tab";
 import { MarkdownHelpPopover } from "./markdown-help-popover";
+import { EditorSaveButton } from "./editor-save-button";
+import type { StepVisibilityTabHandle } from "./step-visibility-tab";
 
 interface DeliverableEditorProps {
     step: ActivityStepWithClientState;
@@ -46,20 +48,21 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
     const { activeTab, setActiveTab } = useStepEditorTab(step.id, "instrucciones", ["instrucciones", "configuracion", "entregas", "visibilidad"]);
     const [content, setContent] = useState<DeliverableContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
+    const [isDirty, setIsDirty] = useState(false);
+    const visibilityRef = useRef<StepVisibilityTabHandle | null>(null);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
     const [driveConnected, setDriveConnected] = useState<boolean | null>(null);
     const [rubricModalOpen, setRubricModalOpen] = useState(false);
     const [dueDate, setDueDate] = useState<string | null>(step.due_date ?? null);
     const [isDistributing, setIsDistributing] = useState(false);
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const dueDateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
 
     useEffect(() => {
         const newContent = (step.content as DeliverableContent) || { templateUrl: "", instructionsMarkdown: "", deliveryMode: "manual" };
         setContent(newContent);
         setDueDate(step.due_date ?? null);
-    }, [step.id, step.content, step.due_date]);
+        setIsDirty(false);
+    }, [step.id, step.due_date]);
 
     useEffect(() => {
         if (content.deliveryMode === "teacher_copy" && driveConnected === null) {
@@ -73,15 +76,8 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
     const handleChange = (field: keyof DeliverableContent, value: string | DeliveryMode) => {
         const newContent = { ...content, [field]: value };
         setContent(newContent);
+        setIsDirty(true);
         onUpdate({ ...step, content: newContent });
-
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        setIsSaving(true);
-        timeoutRef.current = setTimeout(async () => {
-            const res = await updateStepContent(step.id, newContent);
-            if (res.error) toast.error("Error al guardar el entregable");
-            setIsSaving(false);
-        }, 1000);
     };
 
     const handleDeliveryModeChange = (mode: DeliveryMode) => {
@@ -122,38 +118,46 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
     const handleGroupToggle = (value: boolean) => {
         const newContent = { ...content, is_group_submission: value };
         setContent(newContent);
+        setIsDirty(true);
         onUpdate({ ...step, content: newContent });
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        setIsSaving(true);
-        timeoutRef.current = setTimeout(async () => {
-            const res = await updateStepContent(step.id, newContent);
-            if (res.error) toast.error("Error al guardar configuración");
-            setIsSaving(false);
-        }, 500);
     };
 
     const handleRubricChange = (newRubric: RubricCriteria[]) => {
         const newContent = { ...content, rubric: newRubric };
         setContent(newContent);
+        setIsDirty(true);
         onUpdate({ ...step, content: newContent });
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        setIsSaving(true);
-        timeoutRef.current = setTimeout(async () => {
-            const res = await updateStepContent(step.id, newContent);
-            if (res.error) toast.error("Error al guardar la rúbrica");
-            setIsSaving(false);
-        }, 1000);
     };
 
     const handleDueDateChange = (value: string | null) => {
         setDueDate(value);
-        if (dueDateTimeoutRef.current) clearTimeout(dueDateTimeoutRef.current);
+        setIsDirty(true);
+    };
+
+    const handleSave = async () => {
+        if (!isDirty || isSaving) return;
         setIsSaving(true);
-        dueDateTimeoutRef.current = setTimeout(async () => {
-            const res = await updateStepDueDate(step.id, value);
-            if (res.error) toast.error("Error al guardar la fecha límite");
+        const contentRes = await updateStepContent(step.id, content);
+        if (contentRes.error) {
+            toast.error("Error al guardar el entregable");
             setIsSaving(false);
-        }, 1000);
+            return;
+        }
+        const dueDateRes = await updateStepDueDate(step.id, dueDate);
+        if (dueDateRes.error) {
+            toast.error("Error al guardar la fecha límite");
+            setIsSaving(false);
+            return;
+        }
+        if (visibilityRef.current?.isDirty()) {
+            const visibilitySaved = await visibilityRef.current.save();
+            if (!visibilitySaved) {
+                setIsSaving(false);
+                return;
+            }
+        }
+        setIsSaving(false);
+        setIsDirty(false);
     };
 
     const handleDistribute = () => {
@@ -237,11 +241,7 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
                 </TabsList>
 
                 <div className="ml-auto">
-                    {isSaving ? (
-                        <span className="text-[10px] text-accent-blue animate-pulse">Guardando...</span>
-                    ) : (
-                        <span className="text-[10px] text-text-muted/50">Guardado automáticamente</span>
-                    )}
+                    <EditorSaveButton isSaving={isSaving} isDirty={isDirty} onSave={handleSave} />
                 </div>
             </div>
 
@@ -554,14 +554,8 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
                             if (newTotal > 100) return;
                             const newContent = { ...content, gradeComposition: newComp };
                             setContent(newContent);
+                            setIsDirty(true);
                             onUpdate({ ...step, content: newContent });
-                            if (timeoutRef.current) clearTimeout(timeoutRef.current);
-                            setIsSaving(true);
-                            timeoutRef.current = setTimeout(async () => {
-                                const res = await updateStepContent(step.id, newContent);
-                                if (res.error) toast.error("Error al guardar ponderación");
-                                setIsSaving(false);
-                            }, 1000);
                         };
 
                         return (
@@ -708,7 +702,7 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
                 </div>
             </TabsContent>
             <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <StepVisibilityTab step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} />
+                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) setIsDirty(true); }} />
             </TabsContent>
         </Tabs>
     );

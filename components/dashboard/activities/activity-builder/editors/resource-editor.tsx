@@ -41,6 +41,8 @@ import { useStepEditorTab } from "./use-step-editor-tab";
 import { StepVisibilityTab } from "./step-visibility-tab";
 import { GoogleDriveGlyph } from "@/components/icons/google-drive-glyph";
 import { MarkdownHelpPopover } from "./markdown-help-popover";
+import { EditorSaveButton } from "./editor-save-button";
+import type { StepVisibilityTabHandle } from "./step-visibility-tab";
 
 interface ResourceEditorProps {
     step: ActivityStepWithClientState;
@@ -52,8 +54,9 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
     const { activeTab, setActiveTab } = useStepEditorTab(step.id, "instrucciones", ["instrucciones", "recursos", "configuracion", "visibilidad"]);
     const [content, setContent] = useState<ResourceContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
+    const [isDirty, setIsDirty] = useState(false);
+    const visibilityRef = useRef<StepVisibilityTabHandle | null>(null);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const { openPicker, isLoading: isDriveLoading } = useGoogleDrivePicker();
     const configSectionIds = ["experience", "completion-mode"];
     const sectionState = useConfigSectionState(step.id, configSectionIds);
@@ -68,22 +71,33 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
     useEffect(() => {
         const newContent = (step.content as ResourceContent) || { items: [], markdownHeader: '' };
         setContent(newContent);
-    }, [step.id, step.content]);
-
-    const saveToServer = (newContent: ResourceContent) => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        setIsSaving(true);
-        timeoutRef.current = setTimeout(async () => {
-            const res = await updateStepContent(step.id, newContent);
-            if (res.error) toast.error("Error al guardar los recursos");
-            setIsSaving(false);
-        }, 1200);
-    };
+        setIsDirty(false);
+    }, [step.id]);
 
     const handleUpdate = (newContent: ResourceContent) => {
         setContent(newContent);
+        setIsDirty(true);
         onUpdate({ ...step, content: newContent });
-        saveToServer(newContent);
+    };
+
+    const handleSave = async () => {
+        if (!isDirty || isSaving) return;
+        setIsSaving(true);
+        const res = await updateStepContent(step.id, content);
+        if (res.error) {
+            toast.error("Error al guardar los recursos");
+            setIsSaving(false);
+            return;
+        }
+        if (visibilityRef.current?.isDirty()) {
+            const visibilitySaved = await visibilityRef.current.save();
+            if (!visibilitySaved) {
+                setIsSaving(false);
+                return;
+            }
+        }
+        setIsSaving(false);
+        setIsDirty(false);
     };
 
     const addResource = (type: 'file' | 'link') => {
@@ -155,11 +169,7 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
                     <TabsTrigger value="visibilidad" className={tabTriggerClass}>Visibilidad</TabsTrigger>
                 </TabsList>
                 <div className="ml-auto">
-                    {isSaving ? (
-                        <span className="text-[10px] text-accent-blue animate-pulse">Guardando...</span>
-                    ) : (
-                        <span className="text-[10px] text-text-muted/50">Guardado automáticamente</span>
-                    )}
+                    <EditorSaveButton isSaving={isSaving} isDirty={isDirty} onSave={handleSave} />
                 </div>
             </div>
 
@@ -273,7 +283,7 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
             </TabsContent>
 
             <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <StepVisibilityTab step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} />
+                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) setIsDirty(true); }} />
             </TabsContent>
         </Tabs>
     );

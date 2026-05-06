@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { ArrowLeft, FileText, Settings as SettingsIcon, Eye, Award, Play, Lock, EyeOff, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +13,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ActivityPhaseWithSteps, ActivityStepWithClientState } from "@/types/activity";
 import { toast } from "sonner";
-import { MissionBuilderSidebar } from "@/components/dashboard/activities/activity-builder/mission-builder-sidebar";
 import { StepEditorPanel } from "@/components/dashboard/activities/activity-builder/step-editor-panel";
 import { ActivitySettingsPanel } from "@/components/dashboard/activities/activity-builder/activity-settings-panel";
 import { ActivityBadgesPanel } from "@/components/dashboard/activities/activity-builder/activity-badges-panel";
@@ -32,6 +32,11 @@ import {
 } from "@/lib/module-collaborator-defs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+const MissionBuilderSidebar = dynamic(
+    () => import("@/components/dashboard/activities/activity-builder/mission-builder-sidebar").then((mod) => ({ default: mod.MissionBuilderSidebar })),
+    { ssr: false }
+);
 
 interface ActivityBuilderClientProps {
     activity: any;
@@ -74,22 +79,30 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user, 
     const router = useRouter();
     const normalizedInitialPhases = normalizeNestedActivityPhases(initialPhases);
     const [phases, setPhases] = useState<ActivityPhaseWithSteps[]>(normalizedInitialPhases);
-    const [selectedStepId, setSelectedStepId] = useState<string | null>(() => {
-        try {
-            const saved = localStorage.getItem(`aula-it:activity-editor:${activity.id}:selected-tab`);
-            const allStepIds = normalizedInitialPhases.flatMap(p => p.steps.flatMap((s: any) => [s.id, ...(s.children ?? []).map((c: any) => c.id)]));
-            return saved && (allStepIds.includes(saved) || saved === 'settings' || saved === 'badges') ? saved : null;
-        } catch { return null; }
-    });
-    const [openedStepsIds, setOpenedStepsIds] = useState<string[]>(() => {
-        try {
-            const saved = JSON.parse(localStorage.getItem(`aula-it:activity-editor:${activity.id}:open-tabs`) ?? '[]');
-            const allStepIds = normalizedInitialPhases.flatMap(p => p.steps.flatMap((s: any) => [s.id, ...(s.children ?? []).map((c: any) => c.id)]));
-            return (saved as string[]).filter(id => allStepIds.includes(id) || id === 'settings' || id === 'badges');
-        } catch { return []; }
-    });
+    const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+    const [openedStepsIds, setOpenedStepsIds] = useState<string[]>([]);
     const [activityData, setActivityData] = useState(activity);
     const [isPreviewMode, setIsPreviewMode] = useState(false);
+
+    const clearQuizLocalStorage = () => {
+        if (typeof window === "undefined") return;
+        const keysToRemove: string[] = [];
+        for (let index = 0; index < window.localStorage.length; index += 1) {
+            const key = window.localStorage.key(index);
+            if (!key) continue;
+            if (
+                key.startsWith("aula-quiz-draft:")
+                || key.startsWith("aula-quiz-session:")
+                || key.startsWith("exam-session:")
+                || key === "aula-exam-active"
+            ) {
+                keysToRemove.push(key);
+            }
+        }
+        for (const key of keysToRemove) {
+            window.localStorage.removeItem(key);
+        }
+    };
 
     // Update local state when activity prop changes (e.g. after server revalidation)
     useEffect(() => {
@@ -99,6 +112,26 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user, 
     useEffect(() => {
         setPhases(normalizeNestedActivityPhases(initialPhases));
     }, [initialPhases]);
+
+    useEffect(() => {
+        try {
+            const allStepIds = normalizeNestedActivityPhases(initialPhases)
+                .flatMap((p) => p.steps.flatMap((s: any) => [s.id, ...(s.children ?? []).map((c: any) => c.id)]));
+            const savedTab = localStorage.getItem(`aula-it:activity-editor:${activity.id}:selected-tab`);
+            const savedTabsRaw = localStorage.getItem(`aula-it:activity-editor:${activity.id}:open-tabs`);
+            const savedTabs = savedTabsRaw ? JSON.parse(savedTabsRaw) as string[] : [];
+            const filteredTabs = savedTabs.filter((id) => allStepIds.includes(id) || id === "settings" || id === "badges");
+            setOpenedStepsIds(filteredTabs);
+            if (savedTab && (allStepIds.includes(savedTab) || savedTab === "settings" || savedTab === "badges")) {
+                setSelectedStepId(savedTab);
+            } else {
+                setSelectedStepId(filteredTabs.length > 0 ? filteredTabs[filteredTabs.length - 1] : null);
+            }
+        } catch {
+            setOpenedStepsIds([]);
+            setSelectedStepId(null);
+        }
+    }, [activity.id, initialPhases]);
 
     // Persist open tabs and selected tab to localStorage
     useEffect(() => {
@@ -305,7 +338,10 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user, 
                                 <Button
                                     variant={isPreviewMode ? "secondary" : "ghost"}
                                     size="sm"
-                                    onClick={() => setIsPreviewMode(!isPreviewMode)}
+                                    onClick={() => {
+                                        clearQuizLocalStorage();
+                                        setIsPreviewMode(!isPreviewMode);
+                                    }}
                                     className="h-8 gap-2 px-3 text-xs"
                                     title={isPreviewMode ? "Volver al Editor" : "Vista Alumno"}
                                 >
@@ -329,7 +365,10 @@ export function ActivityBuilderClient({ activity, initialPhases, profile, user, 
                     <StudentPreview
                         activity={activityData}
                         phases={phases}
-                        onExitPreview={() => setIsPreviewMode(false)}
+                        onExitPreview={() => {
+                            clearQuizLocalStorage();
+                            setIsPreviewMode(false);
+                        }}
                         user={user}
                         profile={profile}
                         hideHeader={true}

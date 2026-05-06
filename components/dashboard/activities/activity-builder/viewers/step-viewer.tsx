@@ -408,6 +408,7 @@ function BuiltinQuizViewer({
     const [isExamActive, setIsExamActive] = useState(false);
     const [timeRemainingMs, setTimeRemainingMs] = useState<number | null>(null);
     const [attemptSession, setAttemptSession] = useState<{ startedAt: string; expiresAt: string } | null>(null);
+    const [hasHydratedDraft, setHasHydratedDraft] = useState(false);
 
     const draftStorageKey = stepId ? `aula-quiz-draft:${stepId}` : null;
     const sessionStorageKey = stepId ? `aula-quiz-session:${stepId}` : null;
@@ -423,6 +424,7 @@ function BuiltinQuizViewer({
         setLastAttempt(null);
         setCurrentPage(0);
         setBankQuestions({});
+        setHasHydratedDraft(false);
         setLoadingAttempts(true);
         Promise.all([
             getQuizAttempts(stepId),
@@ -470,9 +472,12 @@ function BuiltinQuizViewer({
             if (hasLockdownSession || (isLockdown && hasActiveSession)) {
                 setIsExamActive(true);
                 setPhase("answering");
+            } else if (hasActiveSession) {
+                setPhase("answering");
             } else if (hasActiveSession || isLimited || data.length > 0 || isLockdown || hasTimeLimit) {
                 setPhase('list');
             }
+            setHasHydratedDraft(true);
             setLoadingAttempts(false);
         });
     }, [stepId, content?.bankSelections, content?.maxAttempts, draftStorageKey, hasTimeLimit, isLockdown, sessionStorageKey]);
@@ -506,9 +511,9 @@ function BuiltinQuizViewer({
 
     // Auto-save answers to localStorage while answering.
     useEffect(() => {
-        if (phase !== "answering" || !draftStorageKey) return;
+        if (phase !== "answering" || !draftStorageKey || !hasHydratedDraft) return;
         localStorage.setItem(draftStorageKey, JSON.stringify({ selectedAnswers, shortAnswers, structuredAnswers }));
-    }, [selectedAnswers, shortAnswers, structuredAnswers, phase, draftStorageKey]);
+    }, [selectedAnswers, shortAnswers, structuredAnswers, phase, draftStorageKey, hasHydratedDraft]);
 
     useEffect(() => {
         if (!attemptSession) {
@@ -751,7 +756,7 @@ function BuiltinQuizViewer({
                         ) : (
                             <Button onClick={startAttempt} size="sm" className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white">
                                 <Plus className="size-3.5" />
-                                {attemptSession ? "Continuar intento" : "Nuevo intento"}
+                                {"Nuevo intento"}
                             </Button>
                         )
                     )}
@@ -1033,10 +1038,40 @@ function BuiltinQuizViewer({
                 </div>
             )}
             {hasTimeLimit && phase === "answering" && (
-                <div className="sticky top-0 z-20 rounded-xl border border-amber-500/30 bg-background/95 px-4 py-2 backdrop-blur">
-                    <p className="text-xs font-mono text-amber-300">
-                        Tiempo restante: {timeRemainingMs !== null ? `${Math.floor(timeRemainingMs / 60_000)}:${String(Math.floor((timeRemainingMs % 60_000) / 1000)).padStart(2, "0")}` : "—"}
-                    </p>
+                <div className="sticky top-0 z-20 rounded-xl border border-border/60 bg-background/95 px-4 py-3 backdrop-blur">
+                    <div className="flex flex-wrap items-start gap-4">
+                        <div className="shrink-0">
+                            <p className="text-xs font-mono text-foreground">
+                                Tiempo restante: {timeRemainingMs !== null ? `${Math.floor(timeRemainingMs / 60_000)}:${String(Math.floor((timeRemainingMs % 60_000) / 1000)).padStart(2, "0")}` : "—"}
+                            </p>
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Estado de preguntas</p>
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                                {(qpp && totalPages > 1
+                                    ? displayQuestions.slice(currentPage * qpp, (currentPage + 1) * qpp)
+                                    : displayQuestions
+                                ).map((question) => {
+                                    const isAnswered = isQuizQuestionAnswered(question, { answers: selectedAnswers, shortAnswers, structuredAnswers });
+                                    const questionNumber = questionNumberById.get(question.id) ?? 0;
+                                    return (
+                                        <div
+                                            key={question.id}
+                                            className={cn(
+                                                "size-7 rounded-md border text-[11px] font-bold flex items-center justify-center",
+                                                isAnswered
+                                                    ? "border-emerald-500/60 bg-emerald-500/20 text-emerald-200"
+                                                    : "border-slate-400/50 bg-slate-700/20 text-slate-200"
+                                            )}
+                                            title={isAnswered ? "Respondida" : "Pendiente"}
+                                        >
+                                            {questionNumber}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -1156,7 +1191,7 @@ function BuiltinQuizViewer({
                 <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
                     <AlertDialogAction
-                        onClick={handleSubmit}
+                        onClick={() => handleSubmit()}
                         disabled={isPending || hasUnansweredRequiredQuestions || hasInvalidShortAnswerQuestions}
                         className="bg-emerald-500 hover:bg-emerald-600 text-white"
                     >

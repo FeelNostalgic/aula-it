@@ -18,6 +18,8 @@ import { ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from 
 import { useStepEditorTab } from "./use-step-editor-tab";
 import { StepVisibilityTab } from "./step-visibility-tab";
 import { MarkdownHelpPopover } from "./markdown-help-popover";
+import { EditorSaveButton } from "./editor-save-button";
+import type { StepVisibilityTabHandle } from "./step-visibility-tab";
 
 interface TheoryEditorProps {
     step: ActivityStepWithClientState;
@@ -30,29 +32,43 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
     const [content, setContent] = useState<TheoryContent>(defaultContent);
     const [isSaving, setIsSaving] = useState(false);
     const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const [isDirty, setIsDirty] = useState(false);
+    const visibilityRef = useRef<StepVisibilityTabHandle | null>(null);
     const configSectionIds = ["experience", "completion-mode"];
     const sectionState = useConfigSectionState(step.id, configSectionIds);
 
     useEffect(() => {
         const newContent = (step.content as TheoryContent) || { markdown: "" };
         setContent(newContent);
-    }, [step.id, step.content]);
+        setIsDirty(false);
+    }, [step.id]);
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newValue = e.target.value;
         const newContent: TheoryContent = { ...content, markdown: newValue };
         setContent(newContent);
+        setIsDirty(true);
         onUpdate({ ...step, content: newContent });
+    };
 
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(async () => {
-            const res = await updateStepContent(step.id, newContent);
-            if (res.error) {
-                toast.error("Error al guardar el contenido de la actividad");
-            }
+    const handleSave = async () => {
+        if (!isDirty || isSaving) return;
+        setIsSaving(true);
+        const res = await updateStepContent(step.id, content);
+        if (res.error) {
+            toast.error("Error al guardar el contenido de la actividad");
             setIsSaving(false);
-        }, 1000);
+            return;
+        }
+        if (visibilityRef.current?.isDirty()) {
+            const visibilitySaved = await visibilityRef.current.save();
+            if (!visibilitySaved) {
+                setIsSaving(false);
+                return;
+            }
+        }
+        setIsSaving(false);
+        setIsDirty(false);
     };
 
     return (
@@ -80,13 +96,8 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
                     </TabsTrigger>
                 </TabsList>
 
-                {/* Save indicator — only relevant while on Contenido tab */}
                 <div className="ml-auto">
-                    {isSaving ? (
-                        <span className="text-[10px] text-accent-blue animate-pulse">Guardando...</span>
-                    ) : (
-                        <span className="text-[10px] text-text-muted/50">Guardado automáticamente</span>
-                    )}
+                    <EditorSaveButton isSaving={isSaving} isDirty={isDirty} onSave={handleSave} />
                 </div>
             </div>
 
@@ -170,7 +181,7 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
             </TabsContent>
 
             <TabsContent value="visibilidad" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <StepVisibilityTab step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} />
+                <StepVisibilityTab ref={visibilityRef} step={step} onUpdateStep={onUpdate} visible={activeTab === "visibilidad"} onDirtyChange={(dirty) => { if (dirty) setIsDirty(true); }} />
             </TabsContent>
         </Tabs>
     );
