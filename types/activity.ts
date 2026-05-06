@@ -341,6 +341,7 @@ export type QuizContent = {
     bankSelections?: QuizBankSelection[];  // global bank references (replaces per-quiz pools)
     passingScore?: number;          // % (0–100)
     maxAttempts?: number;           // undefined = unlimited
+    timeLimitMinutes?: number;      // undefined = sin limite
     showCorrectAnswers?: boolean;
     randomizeQuestions?: boolean;
     randomizeOptions?: boolean;

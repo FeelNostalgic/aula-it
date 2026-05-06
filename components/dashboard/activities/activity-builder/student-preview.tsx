@@ -187,7 +187,11 @@ function SortableTab({
 }
 
 export function StudentPreview({ activity, phases, onExitPreview, user, profile, hideHeader = false, submissionsMap, viewsMap, completionsMap, googleEmail, isPreview = false, classBadges, earnedBadgeIds, groupId, groupName, groupColor }: StudentPreviewProps) {
-    const stepLookup = useMemo(() => buildStepLookupFromPhases(phases), [phases]);
+    const orderedPhases = useMemo(
+        () => [...phases].sort((left, right) => (left.order_index ?? 0) - (right.order_index ?? 0)),
+        [phases],
+    );
+    const stepLookup = useMemo(() => buildStepLookupFromPhases(orderedPhases), [orderedPhases]);
     const audienceContext = useMemo(
         () => ({
             studentId: user?.id ?? null,
@@ -198,11 +202,11 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
     );
 
     const allSteps = useMemo(() => {
-        return phases.flatMap(p => p.steps
+        return orderedPhases.flatMap(p => p.steps
             .filter((s: any) => isStepVisibleForStudent(s, audienceContext, stepLookup))
             .flatMap((s: any) => [s, ...(s.children ?? []).filter((c: any) => isStepVisibleForStudent(c, audienceContext, stepLookup))])
         );
-    }, [audienceContext, phases, stepLookup]);
+    }, [audienceContext, orderedPhases, stepLookup]);
     const accessibleSteps = useMemo(() => {
         return allSteps.filter((step) => !step.is_locked);
     }, [allSteps]);
@@ -230,7 +234,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
 
     // Restore persisted tab state when visible step tree changes.
     useEffect(() => {
-        const allIds = phases.flatMap((p) => p.steps
+        const allIds = orderedPhases.flatMap((p) => p.steps
             .filter((s: any) => isStepVisibleForStudent(s, audienceContext, stepLookup) && !s.is_locked)
             .flatMap((s: any) => [s.id, ...(s.children ?? []).filter((c: any) => isStepVisibleForStudent(c, audienceContext, stepLookup) && !c.is_locked).map((c: any) => c.id)])
         );
@@ -241,7 +245,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
             const validTabs = (savedTabs as string[]).filter((id) => allIds.includes(id));
             if (validTabs.length > 0) setOpenStepIds(validTabs);
         } catch {}
-    }, [activity.id, audienceContext, phases, stepLookup]); // intentionally load when visible tree changes
+    }, [activity.id, audienceContext, orderedPhases, stepLookup]); // intentionally load when visible tree changes
 
     useEffect(() => {
         localStorage.setItem(`aula-it:activity-view:${activity.id}:open-tabs`, JSON.stringify(openStepIds));
@@ -415,7 +419,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-3 space-y-4">
-                        {phases.map(phase => {
+                        {orderedPhases.map(phase => {
                             const isExpanded = !collapsedPhases.includes(phase.id);
                             const visibleSteps = phase.steps.filter((s: any) => isStepVisibleForStudent(s, audienceContext, stepLookup));
 
@@ -555,7 +559,7 @@ export function StudentPreview({ activity, phases, onExitPreview, user, profile,
                             );
                         })}
 
-                        {phases.length === 0 && (
+                        {orderedPhases.length === 0 && (
                             <div className="text-center p-6 text-sm text-text-muted">
                                 No hay fases en esta actividad.
                             </div>

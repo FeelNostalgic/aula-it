@@ -3331,6 +3331,112 @@ export async function bulkReopenSubmissions(submissionIds: string[]): Promise<{ 
     return { success: true };
 }
 
+export async function bulkMarkSubmissionsGraded(submissionIds: string[]): Promise<{ success?: boolean; error?: string }> {
+    if (submissionIds.length === 0) return { error: "No hay entregas seleccionadas." };
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Solo profesores." };
+
+    const admin = createAdminClient();
+    const { error } = await admin
+        .from("activity_submissions")
+        .update({
+            status: "graded",
+            graded_at: new Date().toISOString(),
+            published_at: null,
+            grading_mode: "complete",
+        })
+        .in("id", submissionIds)
+        .eq("status", "submitted");
+
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { success: true };
+}
+
+export async function bulkGradeQuizSubmissionsFromLatestAttempt(
+    submissionIds: string[],
+): Promise<{ success?: boolean; error?: string; graded?: number; skipped?: number }> {
+    if (submissionIds.length === 0) return { error: "No hay entregas seleccionadas." };
+    const userClient = await createClient();
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return { error: "No autenticado." };
+
+    const { data: profile } = await userClient.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return { error: "Solo profesores." };
+
+    const admin = createAdminClient();
+    const { data: submissions, error: submissionsError } = await admin
+        .from("activity_submissions")
+        .select("id, student_id, step_id, status, activity_steps!inner(type)")
+        .in("id", submissionIds);
+
+    if (submissionsError) return { error: submissionsError.message };
+
+    const quizSubs = (submissions ?? []).filter((submission: any) => submission.activity_steps?.type === "quiz");
+    if (quizSubs.length === 0) return { success: true, graded: 0, skipped: submissionIds.length };
+
+    const stepIds = [...new Set(quizSubs.map((submission: any) => submission.step_id))];
+    const studentIds = [...new Set(quizSubs.map((submission: any) => submission.student_id))];
+    const { data: attempts, error: attemptsError } = await admin
+        .from("quiz_attempts")
+        .select("id, student_id, step_id, points_earned, points_total, attempt_number, completed_at")
+        .in("step_id", stepIds)
+        .in("student_id", studentIds);
+    if (attemptsError) return { error: attemptsError.message };
+
+    const latestAttemptByKey = new Map<string, any>();
+    for (const attempt of attempts ?? []) {
+        const key = `${attempt.student_id}:${attempt.step_id}`;
+        const current = latestAttemptByKey.get(key);
+        if (!current) {
+            latestAttemptByKey.set(key, attempt);
+            continue;
+        }
+        const currentTs = new Date(current.completed_at ?? 0).getTime();
+        const nextTs = new Date(attempt.completed_at ?? 0).getTime();
+        if (nextTs > currentTs || (nextTs === currentTs && (attempt.attempt_number ?? 0) > (current.attempt_number ?? 0))) {
+            latestAttemptByKey.set(key, attempt);
+        }
+    }
+
+    let graded = 0;
+    let skipped = 0;
+    for (const submission of quizSubs) {
+        const key = `${submission.student_id}:${submission.step_id}`;
+        const latestAttempt = latestAttemptByKey.get(key);
+        if (!latestAttempt) {
+            skipped += 1;
+            continue;
+        }
+        const pointsTotal = Number(latestAttempt.points_total ?? 0);
+        const pointsEarned = Number(latestAttempt.points_earned ?? 0);
+        const scoreOutOf10 = pointsTotal > 0 ? Math.round((pointsEarned / pointsTotal) * 1000) / 100 : 0;
+
+        const { error: updateError } = await admin
+            .from("activity_submissions")
+            .update({
+                status: "graded",
+                graded_at: new Date().toISOString(),
+                published_at: null,
+                grading_mode: "score",
+                score: scoreOutOf10,
+            })
+            .eq("id", submission.id)
+            .eq("status", "submitted");
+
+        if (updateError) return { error: updateError.message };
+        graded += 1;
+    }
+
+    skipped += Math.max(0, submissionIds.length - quizSubs.length);
+    revalidatePath("/dashboard/units/[id]", "layout");
+    return { success: true, graded, skipped };
+}
+
 export async function createDeadlineExtension(
     stepId: string,
     studentId: string,

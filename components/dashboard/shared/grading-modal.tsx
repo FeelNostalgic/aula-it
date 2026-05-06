@@ -165,7 +165,7 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                 } else {
                     toast.success("Evaluación guardada.");
                     onGraded(submission.id, scoreNum, feedback.trim() || null, true, 'score');
-                    onClose();
+                    if (hasNext) onNext?.();
                 }
             });
         } else if (gradingMode === 'rubric') {
@@ -180,7 +180,7 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                 } else {
                     toast.success("Evaluación guardada.");
                     onGraded(submission.id, null, feedback.trim() || null, true, 'rubric');
-                    onClose();
+                    if (hasNext) onNext?.();
                 }
             });
         } else {
@@ -197,7 +197,7 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
                 } else {
                     toast.success(isSelfEval ? "Autoevaluación revisada." : "Entrega marcada como completada.");
                     onGraded(submission.id, null, feedback.trim() || null, true, 'complete');
-                    onClose();
+                    if (hasNext) onNext?.();
                 }
             });
         }

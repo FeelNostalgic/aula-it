@@ -813,6 +813,30 @@ export const csmaCaSteps = [
   },
 ]
 
+export const ripSteps = [
+  { id: "step-1", label: "1. RIP intercambia rutas entre vecinos", description: "Los routers envían periódicamente su tabla de rutas a los vecinos directos para mantener una vista básica de la red." },
+  { id: "step-2", label: "2. Métrica: número de saltos", description: "RIP decide por hop count: menos saltos significa mejor ruta. El máximo útil son 15 saltos; 16 se considera inalcanzable." },
+  { id: "step-3", label: "3. Convergencia por actualizaciones periódicas", description: "Las rutas se corrigen cuando llegan nuevos anuncios. Es simple de configurar, pero converge más lento en cambios grandes." },
+  { id: "step-4", label: "4. Evita bucles con temporizadores y split horizon", description: "RIP usa reglas de prevención de bucles para reducir rutas inestables o información contradictoria." },
+  { id: "step-5", label: "5. Uso recomendado: redes pequeñas", description: "Por simplicidad, RIP encaja mejor en topologías reducidas donde la velocidad de convergencia no es crítica." },
+]
+
+export const ospfSteps = [
+  { id: "step-1", label: "1. OSPF crea vecindad y descubre enlaces", description: "Los routers OSPF forman adyacencias y comparten información de estado de enlace de forma fiable." },
+  { id: "step-2", label: "2. LSDB común dentro del área", description: "Cada router construye una base de datos de estado de enlace (LSDB) con la topología del área." },
+  { id: "step-3", label: "3. SPF calcula rutas óptimas", description: "Con la LSDB, cada router ejecuta Dijkstra (SPF) y obtiene el mejor camino según el costo." },
+  { id: "step-4", label: "4. Convergencia rápida ante cambios", description: "Cuando cae un enlace, OSPF inunda el cambio y recalcula rutas de forma más rápida que protocolos de vector-distancia clásicos." },
+  { id: "step-5", label: "5. Escalable por áreas", description: "La división por áreas reduce overhead y mejora escalabilidad en redes medianas y grandes." },
+]
+
+export const bgpSteps = [
+  { id: "step-1", label: "1. BGP intercambia prefijos entre AS", description: "BGP conecta sistemas autónomos distintos y anuncia qué redes (prefijos) puede alcanzar cada uno." },
+  { id: "step-2", label: "2. Selección por políticas, no solo distancia", description: "La mejor ruta BGP depende de atributos y políticas (local-pref, AS-path, MED), no solo del camino más corto." },
+  { id: "step-3", label: "3. AS-PATH evita bucles entre dominios", description: "Si un AS aparece repetido en AS-PATH, la ruta se descarta para evitar loops interdominio." },
+  { id: "step-4", label: "4. eBGP e iBGP cumplen roles distintos", description: "eBGP comunica AS diferentes; iBGP distribuye esas rutas dentro del mismo AS." },
+  { id: "step-5", label: "5. Base del enrutamiento en Internet", description: "BGP es el protocolo de referencia para publicar y enrutar prefijos a escala global." },
+]
+
 export const animationRegistry: AnimationMeta[] = [
   {
     slug: "arp",
@@ -837,6 +861,27 @@ export const animationRegistry: AnimationMeta[] = [
       "Muestra como Wi-Fi evita colisiones escuchando el canal, esperando DIFS, aplicando backoff aleatorio y confirmando la entrega con ACK.",
     topic: "Redes",
     steps: csmaCaSteps,
+  },
+  {
+    slug: "rip",
+    title: "Protocolo RIP",
+    description: "Explica RIP como protocolo de vector-distancia basado en número de saltos y actualizaciones periódicas.",
+    topic: "Redes",
+    steps: ripSteps,
+  },
+  {
+    slug: "ospf",
+    title: "Protocolo OSPF",
+    description: "Visualiza OSPF con LSDB, cálculo SPF y convergencia rápida basada en estado de enlace.",
+    topic: "Redes",
+    steps: ospfSteps,
+  },
+  {
+    slug: "bgp",
+    title: "Protocolo BGP",
+    description: "Introduce BGP para enrutamiento entre AS, selección por políticas y uso en Internet.",
+    topic: "Redes",
+    steps: bgpSteps,
   },
   {
     slug: "osi-tcp-ip",

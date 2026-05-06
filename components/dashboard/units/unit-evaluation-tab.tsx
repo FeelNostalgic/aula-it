@@ -26,6 +26,8 @@ import {
     updateStepWeight,
     bulkPublishSubmissions,
     bulkReopenSubmissions,
+    bulkMarkSubmissionsGraded,
+    bulkGradeQuizSubmissionsFromLatestAttempt,
     createDeadlineExtension,
     bulkCreateDeadlineExtensions,
     publishGroupGrade,
@@ -1458,8 +1460,19 @@ function BulkActionBar({ selectedIds, rows, onClear, onSubmissionsChange, allSub
 }) {
     const [isPendingPublish, startPublish] = useTransition();
     const [isPendingReopen, startReopen] = useTransition();
+    const [isPendingMarkGraded, startMarkGraded] = useTransition();
+    const [isPendingQuizGrade, startQuizGrade] = useTransition();
 
     const gradedSelected = rows.filter(r => r.status === 'graded' && !r.published_at && !r.synthetic);
+    const submittedNonQuizSelected = rows.filter(
+        (row) => !row.synthetic && row.status === "submitted" && row.step_type !== "quiz",
+    );
+    const submittedQuizSelected = rows.filter(
+        (row) => !row.synthetic && row.status === "submitted" && row.step_type === "quiz",
+    );
+    const submittedQuizWithoutGradeSelected = submittedQuizSelected.filter(
+        (row) => row.score === null || row.score === undefined,
+    );
 
     function handleBulkPublish() {
         startPublish(async () => {
@@ -1489,6 +1502,97 @@ function BulkActionBar({ selectedIds, rows, onClear, onSubmissionsChange, allSub
         });
     }
 
+    function handleBulkMarkGraded() {
+        startMarkGraded(async () => {
+            const ids = submittedNonQuizSelected.map((row) => row.id);
+            if (ids.length === 0) {
+                toast.error("No hay entregas no-quiz enviadas para corregir.");
+                return;
+            }
+            const res = await bulkMarkSubmissionsGraded(ids);
+            if (res.error) {
+                toast.error(res.error);
+                return;
+            }
+            const now = new Date().toISOString();
+            toast.success(`${ids.length} entregas marcadas como corregidas`);
+            onSubmissionsChange(allSubmissions.map((submission) =>
+                ids.includes(submission.id)
+                    ? { ...submission, status: "graded", graded_at: now, published_at: null, grading_mode: "complete" }
+                    : submission
+            ));
+            onClear();
+        });
+    }
+
+    function handleBulkMarkQuizCompleted() {
+        startMarkGraded(async () => {
+            const ids = submittedQuizSelected.map((row) => row.id);
+            if (ids.length === 0) {
+                toast.error("No hay quizzes enviados para marcar como corregidos.");
+                return;
+            }
+            const res = await bulkMarkSubmissionsGraded(ids);
+            if (res.error) {
+                toast.error(res.error);
+                return;
+            }
+            const now = new Date().toISOString();
+            toast.success(`${ids.length} quizzes marcados como corregidos`);
+            onSubmissionsChange(allSubmissions.map((submission) =>
+                ids.includes(submission.id)
+                    ? { ...submission, status: "graded", graded_at: now, published_at: null, grading_mode: "complete", score: null }
+                    : submission
+            ));
+            onClear();
+        });
+    }
+
+    function handleBulkGradeQuizFromExisting() {
+        startQuizGrade(async () => {
+            const ids = submittedQuizSelected.map((row) => row.id);
+            if (ids.length === 0) {
+                toast.error("No hay quizzes enviados seleccionados.");
+                return;
+            }
+            const res = await bulkGradeQuizSubmissionsFromLatestAttempt(ids);
+            if (res.error) {
+                toast.error(res.error);
+                return;
+            }
+
+            const now = new Date().toISOString();
+            onSubmissionsChange(allSubmissions.map((submission) => {
+                if (!ids.includes(submission.id)) return submission;
+                const latestAttempt = (submission.quiz_attempts ?? []).length > 0
+                    ? [...(submission.quiz_attempts ?? [])].sort((left, right) => {
+                        const leftTs = new Date(left.completed_at).getTime();
+                        const rightTs = new Date(right.completed_at).getTime();
+                        if (leftTs === rightTs) return (left.attempt_number ?? 0) - (right.attempt_number ?? 0);
+                        return leftTs - rightTs;
+                    })[(submission.quiz_attempts ?? []).length - 1]
+                    : submission.quiz_attempt;
+                const scoreOutOf10 = latestAttempt && latestAttempt.points_total > 0
+                    ? Math.round((latestAttempt.points_earned / latestAttempt.points_total) * 1000) / 100
+                    : submission.score;
+                return {
+                    ...submission,
+                    status: "graded",
+                    graded_at: now,
+                    published_at: null,
+                    grading_mode: "score",
+                    score: scoreOutOf10 ?? null,
+                };
+            }));
+
+            toast.success(`${res.graded ?? 0} quizzes corregidos desde nota existente`);
+            if ((res.skipped ?? 0) > 0) {
+                toast.warning(`${res.skipped} seleccionados sin intento/nota, omitidos.`);
+            }
+            onClear();
+        });
+    }
+
     return (
         <div className="flex items-center gap-3 px-4 py-2.5 bg-accent-blue/5 border border-accent-blue/20 rounded-2xl text-[10px] font-black uppercase tracking-widest">
             <span className="text-accent-blue">{selectedIds.size} seleccionados</span>
@@ -1497,6 +1601,24 @@ function BulkActionBar({ selectedIds, rows, onClear, onSubmissionsChange, allSub
                 <Button size="sm" variant="outline" onClick={handleBulkPublish} disabled={isPendingPublish}
                     className="h-7 text-[9px] font-black uppercase gap-1.5 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10">
                     <Star className="size-3" /> Publicar notas ({gradedSelected.length})
+                </Button>
+            )}
+            {submittedNonQuizSelected.length > 0 && (
+                <Button size="sm" variant="outline" onClick={handleBulkMarkGraded} disabled={isPendingMarkGraded}
+                    className="h-7 text-[9px] font-black uppercase gap-1.5 border-blue-500/20 text-blue-400 hover:bg-blue-500/10">
+                    <CheckCircle2 className="size-3" /> Marcar corregidas ({submittedNonQuizSelected.length})
+                </Button>
+            )}
+            {submittedQuizSelected.length > 0 && (
+                <Button size="sm" variant="outline" onClick={handleBulkMarkQuizCompleted} disabled={isPendingMarkGraded}
+                    className="h-7 text-[9px] font-black uppercase gap-1.5 border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/10">
+                    <CheckCircle2 className="size-3" /> Quiz: marcar corregidos ({submittedQuizSelected.length})
+                </Button>
+            )}
+            {submittedQuizWithoutGradeSelected.length > 0 && (
+                <Button size="sm" variant="outline" onClick={handleBulkGradeQuizFromExisting} disabled={isPendingQuizGrade}
+                    className="h-7 text-[9px] font-black uppercase gap-1.5 border-violet-500/20 text-violet-400 hover:bg-violet-500/10">
+                    <CheckSquare className="size-3" /> Quiz: guardar nota existente ({submittedQuizWithoutGradeSelected.length})
                 </Button>
             )}
             <Button size="sm" variant="outline" onClick={handleBulkReopen} disabled={isPendingReopen}

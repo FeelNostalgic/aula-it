@@ -122,7 +122,9 @@ export default async function ActivityPage({
         studentGroupId = progressContext.groupId;
         const visiblePhases = getStudentVisiblePhasesForActivity(progressContext, id);
         const unlockedStepIds = getStudentUnlockedStepIdsForActivity(progressContext, id);
-        initialPhases = visiblePhases.map((phase: any) => ({
+        initialPhases = [...visiblePhases]
+            .sort((left: any, right: any) => (left.order_index ?? 0) - (right.order_index ?? 0))
+            .map((phase: any) => ({
             ...phase,
             steps: (phase.steps ?? []).map((step: any) => ({
                 ...step,

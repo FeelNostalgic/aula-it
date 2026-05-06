@@ -24,6 +24,7 @@ import { WifiAnimation } from "./wifi-animation"
 
 export const animationComponentMap = {
   arp: ArpAnimation,
+  bgp: IpEncapsulationAnimation,
   "csma-ca": CsmaCaAnimation,
   "csma-cd": CsmaCdAnimation,
   dhcp: DhcpAnimation,
@@ -37,6 +38,7 @@ export const animationComponentMap = {
   "ip-hop-by-hop": IpHopByHopAnimation,
   "ip-ruta": IpRouteAnimation,
   "osi-tcp-ip": OsiTcpIpAnimation,
+  ospf: IpHopByHopAnimation,
   ppp: PppAnimation,
   pop3: Pop3Animation,
   smtp: SmtpAnimation,
@@ -45,5 +47,6 @@ export const animationComponentMap = {
   "tcp-vs-udp": TcpVsUdpAnimation,
   tftp: TftpAnimation,
   udp: UdpAnimation,
+  rip: IpRouteAnimation,
   wifi: WifiAnimation,
 } as const

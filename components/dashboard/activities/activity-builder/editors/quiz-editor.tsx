@@ -860,7 +860,7 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
                                 open={sectionState.isSectionOpen("evaluation")}
                                 onToggle={() => sectionState.toggleSection("evaluation")}
                             >
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-3 gap-4">
                                     <div className="space-y-1.5">
                                         <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Nota mínima para aprobar (%)</label>
                                         <Input type="number" min={0} max={100}
@@ -876,6 +876,18 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
                                             onChange={(e) => handleUpdate({ ...content, maxAttempts: e.target.value ? Number(e.target.value) : undefined })}
                                             placeholder="Ilimitados" className="bg-surface border-border w-32 font-mono" />
                                         <p className="text-xs text-text-muted/70">Vacío = intentos ilimitados.</p>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Tiempo límite (min)</label>
+                                        <Input
+                                            type="number"
+                                            min={1}
+                                            value={content.timeLimitMinutes ?? ""}
+                                            onChange={(e) => handleUpdate({ ...content, timeLimitMinutes: e.target.value ? Number(e.target.value) : undefined })}
+                                            placeholder="Sin límite"
+                                            className="bg-surface border-border w-32 font-mono"
+                                        />
+                                        <p className="text-xs text-text-muted/70">Vacío = sin tiempo límite por intento.</p>
                                     </div>
                                 </div>
                                 <ConfigToggle
