@@ -85,6 +85,24 @@ test.describe("Student Management (/alumnos)", () => {
 });
 
 async function gotoAlumnos(page: import("@playwright/test").Page) {
+    try {
+        await page.goto("/alumnos", { waitUntil: "domcontentloaded", timeout: 60000 });
+        await page.waitForURL(/\/alumnos/, { timeout: 15000, waitUntil: "domcontentloaded" });
+        return;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message.includes("ERR_ABORTED")) throw error;
+    }
+
+    // Fallback path for flaky chromium navigation aborts.
+    const alumnosLink = page.getByRole("link", { name: /gestión de alumnos/i }).first();
+    if (await alumnosLink.isVisible({ timeout: 10000 }).catch(() => false)) {
+        await alumnosLink.click();
+        await page.waitForURL(/\/alumnos/, { timeout: 15000, waitUntil: "domcontentloaded" });
+        return;
+    }
+
+    // Last retry if sidebar link isn't available immediately.
     await page.goto("/alumnos", { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForURL(/\/alumnos/, { timeout: 15000, waitUntil: "domcontentloaded" });
 }

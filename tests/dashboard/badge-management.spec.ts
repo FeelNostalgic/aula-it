@@ -225,16 +225,29 @@ async function openCreateBadgeDialog(page: import("@playwright/test").Page) {
     });
 
     const primaryTrigger = page.getByRole("button", { name: "NUEVA INSIGNIA", exact: true });
+    const cardTrigger = page.getByRole("button", { name: /Nueva insignia Crear una nueva recompensa visual/i });
     const emptyStateTrigger = page.getByRole("button", { name: /Crear Primera Insignia/i });
 
-    if (await primaryTrigger.isVisible().catch(() => false)) {
-        await primaryTrigger.click();
-    } else {
-        await expect(emptyStateTrigger).toBeVisible({ timeout: 10000 });
-        await emptyStateTrigger.click();
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (await primaryTrigger.isVisible().catch(() => false)) {
+            await primaryTrigger.click();
+            await expect(dialog).toBeVisible({ timeout: 10000 });
+            return dialog;
+        }
+        if (await cardTrigger.isVisible().catch(() => false)) {
+            await cardTrigger.click();
+            await expect(dialog).toBeVisible({ timeout: 10000 });
+            return dialog;
+        }
+        if (await emptyStateTrigger.isVisible().catch(() => false)) {
+            await emptyStateTrigger.click();
+            await expect(dialog).toBeVisible({ timeout: 10000 });
+            return dialog;
+        }
+        await page.waitForTimeout(500);
     }
 
-    await expect(dialog).toBeVisible({ timeout: 10000 });
+    await expect(primaryTrigger.or(cardTrigger).or(emptyStateTrigger)).toBeVisible({ timeout: 10000 });
     return dialog;
 }
 
