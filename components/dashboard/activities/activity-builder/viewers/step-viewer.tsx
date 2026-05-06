@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { ResourceIcon } from "@/components/dashboard/shared/resource-icon";
-import { toSlidesDownloadUrl, toDriveDownloadUrl } from "@/lib/google-drive-urls";
+import { toSlidesDownloadUrl, toDriveDownloadUrl, normalizeSlidesEmbedUrl } from "@/lib/google-drive-urls";
 import { buildQuizRenderItems, getPaginatedQuizRenderItems, getQuizFixedQuestions } from "@/lib/quiz-content";
 import { selectQuestionsForAttempt } from "@/lib/quiz-pool-selection";
 import { buildQuestionReview, getQuestionType, getQuizAttemptQuestions, isQuizQuestionAnswered, QUIZ_QUESTION_TYPE, shuffleQuestionResponses } from "@/lib/quiz-core";
@@ -392,6 +392,7 @@ function BuiltinQuizViewer({
     isClosed?: boolean;
     isLockdown?: boolean;
 }) {
+    const hasTimeLimit = (content?.timeLimitMinutes ?? 0) > 0;
     const quizContentShellClassName = "mx-auto w-full max-w-[92vw] px-2 py-4 sm:px-3 lg:px-4 2xl:max-w-[1500px]";
     const [phase, setPhase] = useState<'answering' | 'result' | 'list'>('answering');
     const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string[]>>({});
@@ -405,6 +406,11 @@ function BuiltinQuizViewer({
     const [currentPage, setCurrentPage] = useState(0);
     const [bankQuestions, setBankQuestions] = useState<Record<string, any[]>>({});
     const [isExamActive, setIsExamActive] = useState(false);
+    const [timeRemainingMs, setTimeRemainingMs] = useState<number | null>(null);
+    const [attemptSession, setAttemptSession] = useState<{ startedAt: string; expiresAt: string } | null>(null);
+
+    const draftStorageKey = stepId ? `aula-quiz-draft:${stepId}` : null;
+    const sessionStorageKey = stepId ? `aula-quiz-session:${stepId}` : null;
 
     useEffect(() => {
         if (!stepId) { setLoadingAttempts(false); return; }
@@ -426,25 +432,50 @@ function BuiltinQuizViewer({
             setBankQuestions(bq);
             const isLimited = content?.maxAttempts != null;
 
-            // Lockdown: check if exam was active before F5/refresh
-            if (isLockdown && localStorage.getItem(`exam-session:${stepId}`)) {
+            const rawDraft = draftStorageKey ? localStorage.getItem(draftStorageKey) : null;
+            if (rawDraft) {
                 try {
-                    const raw = localStorage.getItem(`exam-draft:${stepId}`);
-                    if (raw) {
-                        const { selectedAnswers: sa, shortAnswers: sha, structuredAnswers: sqa } = JSON.parse(raw);
-                        setSelectedAnswers(sa || {});
-                        setShortAnswers(sha || {});
-                        setStructuredAnswers(sqa || {});
+                    const { selectedAnswers: sa, shortAnswers: sha, structuredAnswers: sqa } = JSON.parse(rawDraft);
+                    setSelectedAnswers(sa || {});
+                    setShortAnswers(sha || {});
+                    setStructuredAnswers(sqa || {});
+                } catch {}
+            }
+
+            let hasActiveSession = false;
+            if (hasTimeLimit && sessionStorageKey) {
+                const rawSession = localStorage.getItem(sessionStorageKey);
+                if (rawSession) {
+                    try {
+                        const parsed = JSON.parse(rawSession) as { startedAt?: string; expiresAt?: string };
+                        const expiresAtMs = parsed.expiresAt ? new Date(parsed.expiresAt).getTime() : NaN;
+                        if (!Number.isNaN(expiresAtMs) && expiresAtMs > Date.now()) {
+                            hasActiveSession = true;
+                            setAttemptSession({
+                                startedAt: parsed.startedAt ?? new Date().toISOString(),
+                                expiresAt: parsed.expiresAt!,
+                            });
+                            setTimeRemainingMs(Math.max(0, expiresAtMs - Date.now()));
+                        } else {
+                            localStorage.removeItem(sessionStorageKey);
+                        }
+                    } catch {
+                        localStorage.removeItem(sessionStorageKey);
                     }
-                } catch { /* corrupt draft, start fresh */ }
+                }
+            }
+
+            const hasLockdownSession = isLockdown && localStorage.getItem(`exam-session:${stepId}`) === "1";
+
+            if (hasLockdownSession || (isLockdown && hasActiveSession)) {
                 setIsExamActive(true);
-                setPhase('answering');
-            } else if (isLimited || data.length > 0 || isLockdown) {
+                setPhase("answering");
+            } else if (hasActiveSession || isLimited || data.length > 0 || isLockdown || hasTimeLimit) {
                 setPhase('list');
             }
             setLoadingAttempts(false);
         });
-    }, [stepId]);
+    }, [stepId, content?.bankSelections, content?.maxAttempts, draftStorageKey, hasTimeLimit, isLockdown, sessionStorageKey]);
 
     // Block browser navigation while exam is active
     useEffect(() => {
@@ -473,11 +504,32 @@ function BuiltinQuizViewer({
         }
     }, [isExamActive, stepId, activityId]);
 
-    // Auto-save answers to localStorage while exam is active
+    // Auto-save answers to localStorage while answering.
     useEffect(() => {
-        if (!isExamActive || !stepId) return;
-        localStorage.setItem(`exam-draft:${stepId}`, JSON.stringify({ selectedAnswers, shortAnswers, structuredAnswers }));
-    }, [selectedAnswers, shortAnswers, structuredAnswers, isExamActive, stepId]);
+        if (phase !== "answering" || !draftStorageKey) return;
+        localStorage.setItem(draftStorageKey, JSON.stringify({ selectedAnswers, shortAnswers, structuredAnswers }));
+    }, [selectedAnswers, shortAnswers, structuredAnswers, phase, draftStorageKey]);
+
+    useEffect(() => {
+        if (!attemptSession) {
+            setTimeRemainingMs(null);
+            return;
+        }
+        const tick = () => {
+            const remaining = Math.max(0, new Date(attemptSession.expiresAt).getTime() - Date.now());
+            setTimeRemainingMs(remaining);
+        };
+        tick();
+        const id = window.setInterval(tick, 1000);
+        return () => window.clearInterval(id);
+    }, [attemptSession]);
+
+    useEffect(() => {
+        if (phase !== "answering" || !attemptSession || !stepId || !activityId || isPending) return;
+        if ((timeRemainingMs ?? 1) > 0) return;
+        setShowConfirm(false);
+        handleSubmit(true);
+    }, [activityId, attemptSession, isPending, phase, stepId, timeRemainingMs]);
 
     const currentAttemptNumber = (attempts.length ?? 0) + 1;
 
@@ -550,10 +602,10 @@ function BuiltinQuizViewer({
         });
     }
 
-    function startExam() {
+    function startAttempt() {
         if (stepId) {
             try {
-                    const raw = localStorage.getItem(`exam-draft:${stepId}`);
+                    const raw = draftStorageKey ? localStorage.getItem(draftStorageKey) : null;
                     if (raw) {
                         const { selectedAnswers: sa, shortAnswers: sha, structuredAnswers: sqa } = JSON.parse(raw);
                         setSelectedAnswers(sa || {});
@@ -569,18 +621,40 @@ function BuiltinQuizViewer({
                     setShortAnswers({});
                     setStructuredAnswers({});
                 }
-            // Persist session so F5 restores the exam
-            localStorage.setItem(`exam-session:${stepId}`, '1');
+            if (hasTimeLimit && sessionStorageKey) {
+                const existingSession = localStorage.getItem(sessionStorageKey);
+                let startedAt = new Date().toISOString();
+                let expiresAt = new Date(Date.now() + (content.timeLimitMinutes ?? 0) * 60_000).toISOString();
+                if (existingSession) {
+                    try {
+                        const parsed = JSON.parse(existingSession) as { startedAt?: string; expiresAt?: string };
+                        const parsedExpiresAt = parsed.expiresAt ? new Date(parsed.expiresAt).getTime() : NaN;
+                        if (!Number.isNaN(parsedExpiresAt) && parsedExpiresAt > Date.now()) {
+                            startedAt = parsed.startedAt ?? startedAt;
+                            expiresAt = parsed.expiresAt!;
+                        }
+                    } catch {}
+                }
+                const nextSession = { startedAt, expiresAt };
+                localStorage.setItem(sessionStorageKey, JSON.stringify(nextSession));
+                setAttemptSession(nextSession);
+            } else {
+                setAttemptSession(null);
+            }
+            // Persist session so F5 restores lockdown exam mode
+            if (isLockdown) {
+                localStorage.setItem(`exam-session:${stepId}`, '1');
+            }
         }
         setLastAttempt(null);
-            setCurrentPage(0);
-            setIsExamActive(true);
-            setPhase('answering');
+        setCurrentPage(0);
+        setIsExamActive(!!isLockdown);
+        setPhase('answering');
     }
 
-    function handleSubmit() {
+    function handleSubmit(isTimeoutSubmit = false) {
         if (!stepId || !activityId) return;
-        if (hasUnansweredRequiredQuestions) {
+        if (!isTimeoutSubmit && hasUnansweredRequiredQuestions) {
             const firstQuestionIndex = displayQuestions.findIndex(question => question.id === unansweredRequiredQuestions[0]?.id);
             toast.error(`Responde las preguntas obligatorias antes de enviar. Falta la ${firstQuestionIndex + 1}.`);
             if (qpp && firstQuestionIndex >= 0) {
@@ -588,7 +662,7 @@ function BuiltinQuizViewer({
             }
             return;
         }
-        if (hasInvalidShortAnswerQuestions) {
+        if (!isTimeoutSubmit && hasInvalidShortAnswerQuestions) {
             const firstQuestionIndex = displayQuestions.findIndex(question => question.id === invalidShortAnswerQuestions[0]?.id);
             toast.error(`Revisa el límite de caracteres de la pregunta ${firstQuestionIndex + 1}.`);
             if (qpp && firstQuestionIndex >= 0) {
@@ -597,17 +671,28 @@ function BuiltinQuizViewer({
             return;
         }
         startTransition(async () => {
-            const result = await submitQuizAttempt(stepId, activityId, selectedAnswers, shortAnswers, structuredAnswers, content);
+            const result = await submitQuizAttempt(
+                stepId,
+                activityId,
+                selectedAnswers,
+                shortAnswers,
+                structuredAnswers,
+                content,
+                { timeoutSubmit: isTimeoutSubmit },
+            );
             if (result.error) {
                 toast.error(result.error);
                 return;
             }
             if (stepId) {
-                localStorage.removeItem(`exam-draft:${stepId}`);
+                if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+                if (sessionStorageKey) localStorage.removeItem(sessionStorageKey);
                 localStorage.removeItem(`exam-session:${stepId}`);
             }
             localStorage.removeItem('aula-exam-active');
             setIsExamActive(false);
+            setAttemptSession(null);
+            setTimeRemainingMs(null);
             const newAttempt = result.data!.attempt;
             setAttempts(prev => [...prev, newAttempt]);
             if (isLockdown || !gradesVisible) {
@@ -626,7 +711,11 @@ function BuiltinQuizViewer({
         setStructuredAnswers({});
         setLastAttempt(null);
         setCurrentPage(0);
-        setPhase('answering');
+        setAttemptSession(null);
+        setTimeRemainingMs(null);
+        if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+        if (sessionStorageKey) localStorage.removeItem(sessionStorageKey);
+        setPhase('list');
     }
 
     if (getQuizFixedQuestions(content).length === 0 && !content?.bankSelections?.length) {
@@ -655,14 +744,14 @@ function BuiltinQuizViewer({
                     </div>
                     {!attemptsExhausted && !isClosed && (
                         isLockdown ? (
-                            <Button onClick={startExam} size="sm" className="gap-2 bg-destructive hover:bg-destructive/90 text-white">
+                            <Button onClick={startAttempt} size="sm" className="gap-2 bg-destructive hover:bg-destructive/90 text-white">
                                 <Shield className="size-3.5" />
                                 Iniciar Examen
                             </Button>
                         ) : (
-                            <Button onClick={handleRetry} size="sm" className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white">
+                            <Button onClick={startAttempt} size="sm" className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white">
                                 <Plus className="size-3.5" />
-                                Nuevo intento
+                                {attemptSession ? "Continuar intento" : "Nuevo intento"}
                             </Button>
                         )
                     )}
@@ -677,6 +766,17 @@ function BuiltinQuizViewer({
                     <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-destructive/8 border border-destructive/20 text-destructive text-xs">
                         <Shield className="size-3.5 shrink-0 mt-0.5" />
                         <span>Al iniciar el examen, la pantalla se bloqueará. No podrás salir hasta entregar. Tus respuestas se guardan automáticamente si hay algún problema de conexión.</span>
+                    </div>
+                )}
+                {hasTimeLimit && (
+                    <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-500/8 border border-amber-500/20 text-amber-300 text-xs">
+                        <Clock className="size-3.5 shrink-0 mt-0.5" />
+                        <span>
+                            Tiempo límite por intento: <strong>{content.timeLimitMinutes} min</strong>.
+                            {attemptSession && timeRemainingMs !== null
+                                ? ` Intento en curso: ${Math.ceil(timeRemainingMs / 60_000)} min restantes.`
+                                : ""}
+                        </span>
                     </div>
                 )}
 
@@ -932,6 +1032,13 @@ function BuiltinQuizViewer({
                     </p>
                 </div>
             )}
+            {hasTimeLimit && phase === "answering" && (
+                <div className="sticky top-0 z-20 rounded-xl border border-amber-500/30 bg-background/95 px-4 py-2 backdrop-blur">
+                    <p className="text-xs font-mono text-amber-300">
+                        Tiempo restante: {timeRemainingMs !== null ? `${Math.floor(timeRemainingMs / 60_000)}:${String(Math.floor((timeRemainingMs % 60_000) / 1000)).padStart(2, "0")}` : "—"}
+                    </p>
+                </div>
+            )}
 
                 {isClosed && (
                     <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-500/8 border border-red-500/20 text-red-400 text-sm font-medium">
@@ -1014,7 +1121,7 @@ function BuiltinQuizViewer({
                     <div className="flex flex-col items-center justify-center gap-2 pt-8">
                         <Button
                             onClick={() => setShowConfirm(true)}
-                            disabled={isPending || !stepId || !activityId || isPreview || isClosed || hasUnansweredRequiredQuestions || hasInvalidShortAnswerQuestions}
+                            disabled={isPending || !stepId || !activityId || isPreview || isClosed || hasUnansweredRequiredQuestions || hasInvalidShortAnswerQuestions || (timeRemainingMs !== null && timeRemainingMs <= 0)}
                             className="bg-emerald-500 hover:bg-emerald-600 text-white px-10 h-12 text-base font-bold rounded-full shadow-lg shadow-emerald-500/20"
                         >
                             {isPending ? "Enviando..." : isExamActive ? "Entregar Examen" : "Enviar Cuestionario"}
@@ -1097,10 +1204,14 @@ function BuiltinQuizViewer({
 }
 
 function PresentationViewer({ content }: { content: PresentationContent }) {
+    const rawSlidesUrl = content?.slidesUrl?.trim() ?? "";
+    const hasLocalPath = /^file:/i.test(rawSlidesUrl) || /^[A-Za-z]:\\/.test(rawSlidesUrl);
+    const safeSlidesUrl = hasLocalPath ? "" : (normalizeSlidesEmbedUrl(rawSlidesUrl) ?? rawSlidesUrl);
+
     return (
         <div className="w-full flex flex-col gap-8">
-            {content?.slidesUrl && (() => {
-                const downloadUrl = toSlidesDownloadUrl(content.slidesUrl);
+            {safeSlidesUrl && (() => {
+                const downloadUrl = toSlidesDownloadUrl(safeSlidesUrl);
                 return (
                     <div className="flex items-center justify-between">
                         <h4 className="text-lg font-bold">Presentación</h4>
@@ -1110,27 +1221,31 @@ function PresentationViewer({ content }: { content: PresentationContent }) {
                                     <Download className="size-4" /> Descargar
                                 </Button>
                             )}
-                            <Button onClick={() => window.open(content.slidesUrl, '_blank')} variant="ghost" size="sm" className="gap-2">
+                            <Button onClick={() => window.open(safeSlidesUrl, '_blank')} variant="ghost" size="sm" className="gap-2">
                                 <ExternalLink className="size-4" /> Abrir en nueva pestaña
                             </Button>
                         </div>
                     </div>
                 );
             })()}
-            <div className="aspect-video w-full rounded-2xl overflow-hidden border border-border shadow-2xl bg-surface-dark flex items-center justify-center relative">
-                {content?.slidesUrl ? (
+            <div className="aspect-video w-full rounded-2xl overflow-hidden border border-border shadow-2xl bg-surface-dark flex items-center justify-center relative overscroll-contain">
+                {safeSlidesUrl ? (
                     <iframe
-                        src={content.slidesUrl}
+                        src={safeSlidesUrl}
                         width="100%"
                         height="100%"
                         allowFullScreen
                         className="border-none"
+                        tabIndex={-1}
+                        scrolling="no"
                         title="Presentation"
                     />
                 ) : (
                     <div className="text-center p-12">
                         <MonitorPlay className="size-16 text-text-muted/20 mx-auto mb-4" />
-                        <p className="text-text-muted uppercase tracking-widest text-xs font-mono">No hay presentación configurada</p>
+                        <p className="text-text-muted uppercase tracking-widest text-xs font-mono">
+                            {hasLocalPath ? "URL local bloqueada por el navegador (usa https://...)" : "No hay presentación configurada"}
+                        </p>
                     </div>
                 )}
             </div>

@@ -92,7 +92,7 @@ export function urlToPreviewUrl(url: string, mimeType?: string | null): string |
     if (!fileId) return null;
 
     if (mimeType === GOOGLE_MIME.PRESENTATION || url.includes('docs.google.com/presentation')) {
-        return `https://docs.google.com/presentation/d/${fileId}/embed?start=false&loop=false&delayms=3000`;
+        return normalizeSlidesEmbedUrl(url);
     }
     if (mimeType === GOOGLE_MIME.DOCUMENT || url.includes('docs.google.com/document')) {
         return `https://docs.google.com/document/d/${fileId}/preview`;
@@ -113,4 +113,25 @@ export function toSlidesDownloadUrl(embedUrl: string): string | null {
     const id = extractGoogleFileId(embedUrl);
     if (!id) return null;
     return `https://docs.google.com/presentation/d/${id}/export/pptx`;
+}
+
+/**
+ * Normalize Google Slides URL to an embeddable URL.
+ * Supports both standard file URLs (/d/{id}/...) and published URLs (/d/e/{pubId}/...).
+ */
+export function normalizeSlidesEmbedUrl(url: string): string | null {
+    if (!url) return null;
+    const trimmed = url.trim();
+    if (!trimmed.includes("docs.google.com/presentation")) return null;
+
+    // Published URL: /presentation/d/e/{pubId}/pub or /pubembed
+    const publishedMatch = trimmed.match(/docs\.google\.com\/presentation\/d\/e\/([a-zA-Z0-9_-]+)/);
+    if (publishedMatch) {
+        return `https://docs.google.com/presentation/d/e/${publishedMatch[1]}/pubembed?start=false&loop=false&delayms=3000`;
+    }
+
+    // Standard file URL: /presentation/d/{id}/edit|view|present|embed
+    const fileId = extractGoogleFileId(trimmed);
+    if (!fileId) return null;
+    return `https://docs.google.com/presentation/d/${fileId}/embed?start=false&loop=false&delayms=3000`;
 }

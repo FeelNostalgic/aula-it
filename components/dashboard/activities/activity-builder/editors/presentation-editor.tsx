@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { HardDrive } from "lucide-react";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
-import { toEmbedUrl, GOOGLE_MIME } from "@/lib/google-drive-urls";
+import { toEmbedUrl, GOOGLE_MIME, normalizeSlidesEmbedUrl } from "@/lib/google-drive-urls";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { useStepEditorTab } from "./use-step-editor-tab";
@@ -58,9 +58,19 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
         }, 1000);
     };
 
+    const isLocalPathLike = (value: string) => {
+        const trimmed = value.trim();
+        return /^file:/i.test(trimmed) || /^[A-Za-z]:\\/.test(trimmed);
+    };
+
     const handleUrlChange = (val: string) => {
-        setSlidesUrl(val);
-        triggerSave(val, notes);
+        if (isLocalPathLike(val)) {
+            toast.error("URL local no válida. Usa una URL pública/embebible (https://...)");
+            return;
+        }
+        const normalized = normalizeSlidesEmbedUrl(val) ?? val;
+        setSlidesUrl(normalized);
+        triggerSave(normalized, notes);
     };
 
     const handlePickFromDrive = async () => {

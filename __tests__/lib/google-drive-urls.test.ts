@@ -7,6 +7,7 @@ import {
     toFormEmbedUrl,
     extractGoogleFileId,
     toSlidesDownloadUrl,
+    normalizeSlidesEmbedUrl,
 } from "@/lib/google-drive-urls";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -156,5 +157,27 @@ describe("toSlidesDownloadUrl", () => {
     it("returns null when the URL contains no extractable file ID", () => {
         const badUrl = "https://docs.google.com/presentation/";
         expect(toSlidesDownloadUrl(badUrl)).toBeNull();
+    });
+});
+
+describe("normalizeSlidesEmbedUrl", () => {
+    it("normalizes a standard slides URL to /embed", () => {
+        expect(
+            normalizeSlidesEmbedUrl("https://docs.google.com/presentation/d/pres-123/edit?usp=sharing")
+        ).toBe(
+            "https://docs.google.com/presentation/d/pres-123/embed?start=false&loop=false&delayms=3000"
+        );
+    });
+
+    it("normalizes a published slides URL to /pubembed", () => {
+        expect(
+            normalizeSlidesEmbedUrl("https://docs.google.com/presentation/d/e/2PACX-abc/pub?start=false")
+        ).toBe(
+            "https://docs.google.com/presentation/d/e/2PACX-abc/pubembed?start=false&loop=false&delayms=3000"
+        );
+    });
+
+    it("returns null for non-slides URLs", () => {
+        expect(normalizeSlidesEmbedUrl("https://docs.google.com/document/d/doc-1/edit")).toBeNull();
     });
 });
