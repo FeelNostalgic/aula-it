@@ -227,25 +227,25 @@ export const ipHopByHopSteps = [
     id: "step-1",
     label: "1. El paquete llega al primer router",
     description:
-      "El equipo origen no cruza toda la ruta de golpe. Primero entrega el paquete al primer router, que será quien tome la siguiente decisión.",
+      "Ejemplo: Host A (192.168.10.34/24) quiere llegar a 172.16.30.20/24. Como no está en su red 192.168.10.0/24, entrega el paquete al gateway R1.",
   },
   {
     id: "step-2",
     label: "2. Router 1 decide el siguiente salto",
     description:
-      "Router 1 consulta la red destino y decide a quin reenviar el paquete. No lo deja ahí: lo acerca al siguiente router del camino.",
+      "R1 no busca el host exacto: busca la red destino 172.16.30.0/24 en su tabla. Al ver la ruta '172.16.30.0/24 via 10.0.12.2', reenvía hacia R2.",
   },
   {
     id: "step-3",
     label: "3. Router 2 vuelve a reenviar hacia delante",
     description:
-      "El proceso se repite. Cada router usa el destino IP para mover el mismo paquete un paso más cerca de la red final.",
+      "R2 repite la misma lógica con su tabla: si tiene '172.16.30.0/24 via 10.0.23.3', manda el paquete a R3. Cada salto decide por prefijos de red.",
   },
   {
     id: "step-4",
     label: "4. El último router ya ve la red de destino",
     description:
-      "Cuando el paquete alcanza un router conectado a la red correcta, ese router hace el último reenvio hacia el host destino.",
+      "Cuando un router tiene la red 172.16.30.0/24 como conectada directamente, ya no busca otro salto: hace ARP y entrega al host 172.16.30.20.",
   },
   {
     id: "step-5",

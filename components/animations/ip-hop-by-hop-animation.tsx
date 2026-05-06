@@ -32,19 +32,19 @@ const NODE_INFO: Record<string, NodeInfo> = {
   src: {
     id: "src",
     label: "PC A",
-    ip: "192.168.1.10",
+    ip: "192.168.10.34",
     mask: "24",
-    gateway: "192.168.1.1",
+    gateway: "192.168.10.1",
     facts: [
       { label: "envía", value: "Paquete IP" },
-      { label: "dest", value: "172.16.0.20" },
+      { label: "dest", value: "172.16.30.20" },
     ],
   },
   r1: {
     id: "r1",
     label: "Router 1",
     routingTable: [
-      { dest: "172.16.0.0", mask: "24", gateway: "10.0.12.2", iface: "s0/0" },
+      { dest: "172.16.30.0", mask: "24", gateway: "10.0.12.2", iface: "s0/0" },
       { dest: "0.0.0.0", mask: "0", gateway: "10.0.12.2", iface: "s0/0" },
     ],
   },
@@ -52,24 +52,24 @@ const NODE_INFO: Record<string, NodeInfo> = {
     id: "r2",
     label: "Router 2",
     routingTable: [
-      { dest: "172.16.0.0", mask: "24", gateway: "10.0.23.2", iface: "s0/1" },
-      { dest: "192.168.1.0", mask: "24", gateway: "10.0.12.1", iface: "s0/0" },
+      { dest: "172.16.30.0", mask: "24", gateway: "10.0.23.3", iface: "s0/1" },
+      { dest: "192.168.10.0", mask: "24", gateway: "10.0.12.1", iface: "s0/0" },
     ],
   },
   r3: {
     id: "r3",
     label: "Router 3",
     routingTable: [
-      { dest: "172.16.0.0", mask: "24", gateway: "", iface: "g0/0" },
-      { dest: "192.168.1.0", mask: "24", gateway: "10.0.23.1", iface: "s0/1" },
+      { dest: "172.16.30.0", mask: "24", gateway: "", iface: "g0/0" },
+      { dest: "192.168.10.0", mask: "24", gateway: "10.0.23.2", iface: "s0/1" },
     ],
   },
   dst: {
     id: "dst",
     label: "Servidor B",
-    ip: "172.16.0.20",
+    ip: "172.16.30.20",
     mask: "24",
-    gateway: "172.16.0.1",
+    gateway: "172.16.30.1",
     facts: [
       { label: "rol", value: "Red final" },
       { label: "recibe", value: "Paquete del último salto" },
@@ -194,12 +194,27 @@ export function IpHopByHopAnimation() {
         <line x1={N.r1.x} y1={N.r1.y} x2={N.r2.x} y2={N.r2.y} stroke={C.idle} strokeWidth="1.6" strokeDasharray="6 4" />
         <line x1={N.r2.x} y1={N.r2.y} x2={N.r3.x} y2={N.r3.y} stroke={C.idle} strokeWidth="1.6" strokeDasharray="6 4" />
         <line x1={N.r3.x} y1={N.r3.y} x2={N.dst.x} y2={N.dst.y} stroke={C.idle} strokeWidth="1.6" strokeDasharray="6 4" />
+        <text x="148" y="184" textAnchor="middle" fill={C.subText} fontSize="8" fontFamily="var(--font-mono)">
+          192.168.10.0/24
+        </text>
+        <text x="314" y="184" textAnchor="middle" fill={C.subText} fontSize="8" fontFamily="var(--font-mono)">
+          10.0.12.0/30
+        </text>
+        <text x="486" y="184" textAnchor="middle" fill={C.subText} fontSize="8" fontFamily="var(--font-mono)">
+          10.0.23.0/30
+        </text>
+        <text x="646" y="184" textAnchor="middle" fill={C.subText} fontSize="8" fontFamily="var(--font-mono)">
+          172.16.30.0/24
+        </text>
 
         <g id="node-src" onMouseEnter={() => handleNodeEnter("src")} onMouseLeave={scheduleHide} className="cursor-default">
           <circle className="node-circle" r={NETWORK_DEVICE_STYLE.pc.radius} fill={C.bg} stroke={C.idle} strokeWidth="1.5" />
           <PcGlyph stroke={C.fg} />
           <text y={NETWORK_DEVICE_STYLE.pc.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="13" fontWeight="600" fontFamily="var(--font-mono)">
             PC A
+          </text>
+          <text y={NETWORK_DEVICE_STYLE.pc.labelOffsetY + 12} textAnchor="middle" fill={C.subText} fontSize="7.5" fontFamily="var(--font-mono)">
+            192.168.10.34/24
           </text>
         </g>
 
@@ -209,6 +224,9 @@ export function IpHopByHopAnimation() {
           <text y={NETWORK_DEVICE_STYLE.router.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="12.5" fontWeight="600" fontFamily="var(--font-mono)">
             Router 1
           </text>
+          <text y={NETWORK_DEVICE_STYLE.router.labelOffsetY + 11} textAnchor="middle" fill={C.subText} fontSize="7.2" fontFamily="var(--font-mono)">
+            172.16.30.0/24 via 10.0.12.2
+          </text>
         </g>
 
         <g id="node-r2" onMouseEnter={() => handleNodeEnter("r2")} onMouseLeave={scheduleHide} className="cursor-default">
@@ -216,6 +234,9 @@ export function IpHopByHopAnimation() {
           <RouterGlyph stroke={C.fg} />
           <text y={NETWORK_DEVICE_STYLE.router.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="12.5" fontWeight="600" fontFamily="var(--font-mono)">
             Router 2
+          </text>
+          <text y={NETWORK_DEVICE_STYLE.router.labelOffsetY + 11} textAnchor="middle" fill={C.subText} fontSize="7.2" fontFamily="var(--font-mono)">
+            172.16.30.0/24 via 10.0.23.3
           </text>
         </g>
 
@@ -225,6 +246,9 @@ export function IpHopByHopAnimation() {
           <text y={NETWORK_DEVICE_STYLE.router.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="12.5" fontWeight="600" fontFamily="var(--font-mono)">
             Router 3
           </text>
+          <text y={NETWORK_DEVICE_STYLE.router.labelOffsetY + 11} textAnchor="middle" fill={C.subText} fontSize="7.2" fontFamily="var(--font-mono)">
+            172.16.30.0/24 conectada
+          </text>
         </g>
 
         <g id="node-dst" onMouseEnter={() => handleNodeEnter("dst")} onMouseLeave={scheduleHide} className="cursor-default">
@@ -232,6 +256,9 @@ export function IpHopByHopAnimation() {
           <ServerGlyph stroke={C.fg} />
           <text y={NETWORK_DEVICE_STYLE.server.labelOffsetY} textAnchor="middle" fill={C.fg} fontSize="13" fontWeight="600" fontFamily="var(--font-mono)">
             Servidor B
+          </text>
+          <text y={NETWORK_DEVICE_STYLE.server.labelOffsetY + 12} textAnchor="middle" fill={C.subText} fontSize="7.5" fontFamily="var(--font-mono)">
+            172.16.30.20/24
           </text>
         </g>
 
@@ -243,8 +270,8 @@ export function IpHopByHopAnimation() {
         </g>
 
         <g id="hop-note-2" className="hop-note" pointerEvents="none">
-          <rect x="286" y="298" width="228" height="26" rx="13" fill={C.noteFill} />
-          <text x="400" y="314" textAnchor="middle" fill={C.noteText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
+          <rect x="286" y="325" width="228" height="26" rx="13" fill={C.noteFill} />
+          <text x="400" y="340" textAnchor="middle" fill={C.noteText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
             Router 2 lo reenvía más cerca
           </text>
         </g>
@@ -257,8 +284,8 @@ export function IpHopByHopAnimation() {
         </g>
 
         <g id="hop-note-4" className="hop-note" pointerEvents="none">
-          <rect x="528" y="290" width="256" height="26" rx="13" fill={C.noteFill} />
-          <text x="656" y="306" textAnchor="middle" fill={C.noteText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
+          <rect x="528" y="312" width="256" height="26" rx="13" fill={C.noteFill} />
+          <text x="656" y="328" textAnchor="middle" fill={C.noteText} fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
             Ultimo salto a la red final
           </text>
         </g>
