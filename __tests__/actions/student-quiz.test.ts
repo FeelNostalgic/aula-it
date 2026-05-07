@@ -150,6 +150,47 @@ describe("submitQuizAttempt", () => {
     expect(result).toEqual({ error: 'La pregunta "What is 2+2?" es obligatoria.' });
   });
 
+  it("auto-submits unanswered required questions when the timeout flag is enabled", async () => {
+    const content = createMockQuizContent({
+      questions: [
+        {
+          id: "q-1",
+          type: "multiple_choice",
+          text: "What is 2+2?",
+          options: [
+            { id: "opt-1", text: "3", isCorrect: false },
+            { id: "opt-2", text: "4", isCorrect: true },
+          ],
+          points: 1,
+          isRequired: true,
+        },
+      ],
+    });
+    const attempt = createMockQuizAttempt({ points_earned: 0, points_total: 1 });
+    mockAuthWithClient(
+      new SupabaseMockBuilder()
+        .mockQuery("quiz_attempts", { data: null, count: 0, error: null })
+        .mockInsert("quiz_attempts", { data: attempt, error: null })
+        .mockQuery("activity_submissions", { data: null, error: null })
+        .mockUpsert("activity_submissions", { data: null, error: null })
+    );
+
+    const result = await submitQuizAttempt(
+      "step-1",
+      "activity-1",
+      {},
+      {},
+      {},
+      content,
+      { timeoutSubmit: true }
+    );
+
+    expect(result).not.toHaveProperty("error");
+    expect(result.data?.attempt).toBeDefined();
+    expect(result.data?.pointsEarned).toBe(0);
+    expect(result.data?.pointsTotal).toBe(1);
+  });
+
   it("accepts a required table drag/drop question with one answered cell", async () => {
     const content = createMockQuizContent({
       questions: [
