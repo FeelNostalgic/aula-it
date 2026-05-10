@@ -816,24 +816,30 @@ function Toggle({
     description?: string;
 }) {
     return (
-        <button
-            role="switch"
-            aria-checked={value}
-            aria-label={label}
-            title={description}
-            onClick={() => onChange(!value)}
-            className={cn(
-                "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
-                value ? "bg-accent-blue" : "bg-surface-dark border border-border/50"
-            )}
-        >
-            <span
+        <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+                {label && <p className="text-sm font-medium text-foreground">{label}</p>}
+                {description && <p className="text-xs text-text-muted mt-0.5 leading-relaxed">{description}</p>}
+            </div>
+            <button
+                type="button"
+                role="switch"
+                aria-checked={value}
+                aria-label={label}
+                onClick={() => onChange(!value)}
                 className={cn(
-                    "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transition-transform",
-                    value ? "translate-x-5" : "translate-x-0"
+                    "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                    value ? "bg-accent-blue" : "bg-surface-dark border border-border/50"
                 )}
-            />
-        </button>
+            >
+                <span
+                    className={cn(
+                        "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transition-transform",
+                        value ? "translate-x-5" : "translate-x-0"
+                    )}
+                />
+            </button>
+        </div>
     );
 }
 
