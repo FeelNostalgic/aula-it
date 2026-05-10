@@ -66,7 +66,7 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
 
     const isQuiz = submission?.step_type === "quiz";
     const isSelfEval = submission?.step_type === "self_evaluation";
-    const isSelfEvalRubric = isSelfEval && submission?.step_eval_mode === 'rubric';
+    const isSelfEvalRubric = isSelfEval && (submission?.step_eval_mode === 'rubric' || submission?.step_eval_mode === 'combined');
     const quizContent = submission?.quiz_content ?? null;
     
     // We try to get the attempt for evaluation.
@@ -556,15 +556,14 @@ export function GradingModal({ submission, rubric, open, onClose, hasPrev, hasNe
 // ---------------------------------------------------------------------------
 
 function SelfEvalAnswersPanel({ submission }: { submission: StepSubmissionRow }) {
-    const evalMode = submission.step_eval_mode ?? 'rubric';
+    const evalMode = submission.step_eval_mode ?? "rubric";
     const rubric = submission.step_eval_rubric ?? [];
     const questions = (submission.step_eval_questions ?? []) as QuizQuestion[];
     const rubricScores = submission.self_eval_rubric_scores ?? {};
     const justifications = submission.self_eval_justifications ?? {};
-
-    const hasData = evalMode === 'questions'
-        ? Object.keys(justifications).length > 0
-        : Object.keys(rubricScores).length > 0;
+    const showsRubric = evalMode === "rubric" || evalMode === "combined";
+    const showsQuestions = evalMode === "questions" || evalMode === "combined";
+    const hasData = (showsRubric && Object.keys(rubricScores).length > 0) || (showsQuestions && Object.keys(justifications).length > 0);
 
     if (!hasData) {
         return (
@@ -573,8 +572,8 @@ function SelfEvalAnswersPanel({ submission }: { submission: StepSubmissionRow })
                     <UserCheck className="size-8 text-text-muted" />
                 </div>
                 <div className="space-y-1">
-                    <h3 className="text-lg font-semibold text-foreground">Sin autoevaluación</h3>
-                    <p className="text-sm text-text-muted max-w-[220px]">El alumno aún no ha enviado su autoevaluación.</p>
+                    <h3 className="text-lg font-semibold text-foreground">Sin autoevaluacion</h3>
+                    <p className="text-sm text-text-muted max-w-[220px]">El alumno aun no ha enviado su autoevaluacion.</p>
                 </div>
             </div>
         );
@@ -583,59 +582,61 @@ function SelfEvalAnswersPanel({ submission }: { submission: StepSubmissionRow })
     return (
         <div className="h-full overflow-y-auto p-5 space-y-5">
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-400">
-                {evalMode === 'questions' ? <MessageSquare className="size-3.5" /> : <UserCheck className="size-3.5" />}
-                Autoevaluación — {evalMode === 'questions' ? 'Preguntas abiertas' : 'Rúbrica'}
+                {showsQuestions && !showsRubric ? <MessageSquare className="size-3.5" /> : <UserCheck className="size-3.5" />}
+                Autoevaluacion - {evalMode === "combined" ? "Rubrica + preguntas" : evalMode === "questions" ? "Preguntas abiertas" : "Rubrica"}
             </div>
 
-            {evalMode === 'rubric' ? (
-                rubric.map(criterion => {
-                    const selectedPts = rubricScores[criterion.id];
-                    const selectedLevel = criterion.levels.find(l => l.points === selectedPts);
-                    const justification = justifications[criterion.id];
-                    return (
-                        <div key={criterion.id} className="space-y-2">
-                            <p className="text-xs font-semibold text-foreground">{criterion.name}</p>
-                            {criterion.description && <p className="text-[11px] text-text-muted">{criterion.description}</p>}
-                            {selectedLevel ? (
-                                <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold text-indigo-400">{selectedLevel.label}</span>
-                                        <span className="text-[10px] font-mono text-indigo-400">{selectedLevel.points} pts</span>
-                                    </div>
-                                    {selectedLevel.description && (
-                                        <p className="text-[10px] text-text-muted mt-1">{selectedLevel.description}</p>
-                                    )}
+            {showsRubric && rubric.map((criterion) => {
+                const selectedPts = rubricScores[criterion.id];
+                const selectedLevel = criterion.levels.find((level) => level.points === selectedPts);
+                const justification = justifications[criterion.id];
+                return (
+                    <div key={criterion.id} className="space-y-2">
+                        <p className="text-xs font-semibold text-foreground">{criterion.name}</p>
+                        {criterion.description && <p className="text-[11px] text-text-muted">{criterion.description}</p>}
+                        {selectedLevel ? (
+                            <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-indigo-400">{selectedLevel.label}</span>
+                                    <span className="text-[10px] font-mono text-indigo-400">{selectedLevel.points} pts</span>
                                 </div>
-                            ) : (
-                                <p className="text-xs text-text-muted/50 italic">Sin selección</p>
-                            )}
-                            {justification && (
-                                <div className="px-3 py-2 rounded-lg bg-surface border border-border/50">
-                                    <p className="text-[11px] text-text-muted leading-relaxed whitespace-pre-wrap">{justification}</p>
-                                </div>
-                            )}
-                        </div>
-                    );
-                })
-            ) : (
-                questions.map((q, idx) => {
-                    const answer = justifications[q.id] ?? "";
-                    return (
-                        <div key={q.id} className="space-y-1.5">
-                            <p className="text-xs font-semibold text-foreground">
-                                <span className="text-text-muted font-normal mr-1">{idx + 1}.</span>{q.text}
-                            </p>
-                            {answer.trim() ? (
-                                <div className="px-3 py-2 rounded-lg bg-surface border border-border/50">
-                                    <p className="text-[11px] text-text-muted leading-relaxed whitespace-pre-wrap">{answer}</p>
-                                </div>
-                            ) : (
-                                <p className="text-xs text-text-muted/50 italic">Sin respuesta</p>
-                            )}
-                        </div>
-                    );
-                })
-            )}
+                                {selectedLevel.description && (
+                                    <p className="text-[10px] text-text-muted mt-1">{selectedLevel.description}</p>
+                                )}
+                            </div>
+                        ) : (
+                            <p className="text-xs text-text-muted/50 italic">Sin seleccion</p>
+                        )}
+                        {justification && (
+                            <div className="px-3 py-2 rounded-lg bg-surface border border-border/50">
+                                <p className="text-[11px] text-text-muted leading-relaxed whitespace-pre-wrap">{justification}</p>
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+
+            {showsQuestions && questions.map((question, index) => {
+                const answer = justifications[question.id] ?? "";
+                const justification = justifications[`${question.id}:justification`] ?? "";
+                return (
+                    <div key={question.id} className="space-y-1.5">
+                        <p className="text-xs font-semibold text-foreground">
+                            <span className="text-text-muted font-normal mr-1">{index + 1}.</span>{question.text}
+                        </p>
+                        {answer.trim() ? (
+                            <div className="px-3 py-2 rounded-lg bg-surface border border-border/50 space-y-2">
+                                <p className="text-[11px] text-text-muted leading-relaxed whitespace-pre-wrap">{answer}</p>
+                                {justification.trim() && (
+                                    <p className="text-[11px] text-text-muted/80 leading-relaxed whitespace-pre-wrap">Justificacion: {justification}</p>
+                                )}
+                            </div>
+                        ) : (
+                            <p className="text-xs text-text-muted/50 italic">Sin respuesta</p>
+                        )}
+                    </div>
+                );
+            })}
         </div>
     );
 }

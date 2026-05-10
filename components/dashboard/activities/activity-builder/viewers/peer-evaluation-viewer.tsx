@@ -343,6 +343,8 @@ function PeerEvalModal({
     const evalMode = content.evalMode ?? "rubric";
     const rubric = content.rubric ?? [];
     const questions = (content.questions ?? []) as QuizQuestion[];
+    const showsRubric = evalMode === "rubric" || evalMode === "combined";
+    const showsQuestions = evalMode === "questions" || evalMode === "combined";
     const isCompleted = !!assignment.eval_submission_id;
 
     const [scores, setScores] = useState<Record<string, number>>({});
@@ -381,8 +383,8 @@ function PeerEvalModal({
         : null;
     const previewUrl = rawDriveUrl ? urlToPreviewUrl(rawDriveUrl) ?? rawDriveUrl : null;
 
-    const allScored = evalMode === "questions" || rubric.every(c => scores[c.id] !== undefined);
-    const allAnswered = evalMode !== "questions" || questions.every(q => {
+    const allScored = !showsRubric || rubric.every(c => scores[c.id] !== undefined);
+    const allAnswered = !showsQuestions || questions.every(q => {
         const ans = (answers[q.id] ?? "").trim();
         if (!ans) return false;
         if (q.type === "numeric") {
@@ -399,7 +401,7 @@ function PeerEvalModal({
         if (q.type === "short_answer" && q.minLength && ans.length < q.minLength) return false;
         return true;
     });
-    const allJustified = evalMode !== "rubric" || !content.requireJustification
+    const allJustified = !showsRubric || !content.requireJustification
         || rubric.every(c => {
             const text = answers[c.id] ?? "";
             const minLen = content.minJustificationLength ?? 0;
@@ -409,7 +411,7 @@ function PeerEvalModal({
 
     function handleSubmit() {
         startTransition(async () => {
-            const rubricScores = evalMode === "questions" ? {} : scores;
+            const rubricScores = showsRubric ? scores : {};
             const res = await submitPeerEvaluation(
                 assignment.id,
                 activityId,
@@ -421,7 +423,7 @@ function PeerEvalModal({
                 toast.error(res.error);
             } else {
                 toast.success("Evaluación enviada correctamente.");
-                onCompleted(assignment.id, evalMode === "questions" ? {} : scores, answers, qaNotes);
+                onCompleted(assignment.id, showsRubric ? scores : {}, answers, qaNotes);
             }
         });
     }
@@ -556,7 +558,7 @@ function PeerEvalModal({
                                     )}
 
                                     {/* Rubric mode */}
-                                    {evalMode === "rubric" && (() => {
+                                    {showsRubric && (() => {
                                         return (
                                             <div className="space-y-6">
                                                 <h3 className="text-xs font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
@@ -580,7 +582,7 @@ function PeerEvalModal({
                                     })()}
 
                                     {/* Questions mode */}
-                                    {evalMode === "questions" && (() => {
+                                    {showsQuestions && (() => {
                                         return (
                                             <div className="space-y-6">
                                                 <h3 className="text-xs font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">

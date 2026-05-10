@@ -1394,7 +1394,7 @@ export async function getUnitStepSubmissions(
                     for (const a of assignments) {
                         const sub = a.eval_submission;
                         if (!sub) continue;
-                        if (intraInfo.evalMode === 'rubric') {
+                        if (intraInfo.evalMode === 'rubric' || intraInfo.evalMode === 'combined') {
                             const scores = sub.self_eval_rubric_scores as Record<string, number> | null;
                             if (!scores) continue;
                             const rubricMax = intraInfo.rubric.reduce((s: number, c: any) =>

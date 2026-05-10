@@ -418,13 +418,14 @@ export type EvalQuestion = {
     description?: string;   // contexto/pista opcional
 };
 
-export type EvalMode = 'rubric' | 'questions';
+export type EvalMode = 'rubric' | 'questions' | 'combined';
 
 // 8. Self-Evaluation (autoevaluación del alumno mediante rúbrica o preguntas abiertas)
 export type SelfEvaluationContent = {
-    evalMode?: EvalMode;            // 'rubric' (default) | 'questions'
-    rubric: RubricCriteria[];       // usado cuando evalMode = 'rubric'
-    questions?: QuizQuestion[];     // usado cuando evalMode = 'questions' (tipos: short_answer | likert)
+    evalMode?: EvalMode;            // 'rubric' (default) | 'questions' | 'combined'
+    rubric: RubricCriteria[];       // usado cuando evalMode incluye rÃºbrica
+    questions?: QuizQuestion[];     // proyecciÃ³n lineal de blocks para compatibilidad
+    blocks?: QuizFixedBlock[];      // usado cuando evalMode incluye preguntas
     bankSelections?: QuizBankSelection[]; // cargar preguntas desde bancos (sólo short_answer)
     referenceStepId?: string;       // ID del deliverable vinculado (para countsTowardGrade + badge UI)
     requireJustification: boolean;  // en modo rúbrica: exige texto de justificación por criterio
@@ -440,8 +441,9 @@ export type OutlierSensitivity = 'strict' | 'normal' | 'lenient';
 export type NonEvaluatorPolicy = 'none' | 'fallback_teacher' | 'grade_penalty';
 
 export type PeerEvaluationContent = {
-    evalMode?: EvalMode;            // 'rubric' (default) | 'questions'
-    questions?: QuizQuestion[];     // usado cuando evalMode = 'questions' (tipos: short_answer | likert)
+    evalMode?: EvalMode;            // 'rubric' (default) | 'questions' | 'combined'
+    questions?: QuizQuestion[];     // proyecciÃ³n lineal de blocks para compatibilidad
+    blocks?: QuizFixedBlock[];      // usado cuando evalMode incluye preguntas
     mode: PeerEvaluationMode;
     sourceStepId?: string;              // @deprecated — usa parent_step_id en su lugar; mantenido para BC
     rubric: RubricCriteria[];

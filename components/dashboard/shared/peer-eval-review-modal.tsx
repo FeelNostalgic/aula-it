@@ -6,13 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { setAssignmentOutlier, setQuestionValidation } from "@/app/dashboard/units/[id]/actions";
-import { RubricCriteria, QuizQuestion } from "@/types/activity";
+import { RubricCriteria, QuizQuestion, type EvalMode } from "@/types/activity";
 import { extractPeerEvaluationLiveNotes } from "@/lib/peer-evaluation-live-notes";
 import { toast } from "sonner";
 import { CheckCircle2, Clock, AlertTriangle, ChevronLeft, ChevronRight, ShieldCheck, ShieldOff, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type EvalMode = "rubric" | "questions";
 
 type AssignmentForReview = {
     id: string;
@@ -243,6 +242,25 @@ export function PeerEvalReviewModal({
                                             qaNotes={extractPeerEvaluationLiveNotes(selected.evalSubmission.files)}
                                             showLivePresentationNotes={showLivePresentationNotes}
                                         />
+                                    ) : evalMode === "combined" ? (
+                                        <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+                                            <RubricAnswersPanel
+                                                rubric={rubric}
+                                                scores={selected.evalSubmission.self_eval_rubric_scores ?? {}}
+                                                justifications={selected.evalSubmission.self_eval_justifications ?? {}}
+                                                qaNotes={null}
+                                                showLivePresentationNotes={false}
+                                            />
+                                            <QuestionsAnswersPanel
+                                                questions={evalQuestions}
+                                                answers={selected.evalSubmission.self_eval_justifications ?? {}}
+                                                qaNotes={extractPeerEvaluationLiveNotes(selected.evalSubmission.files)}
+                                                showLivePresentationNotes={showLivePresentationNotes}
+                                                validatedNumericAnswers={selected.validatedNumericAnswers ?? {}}
+                                                onValidateQuestion={handleValidateQuestion}
+                                                validatingQuestion={validatingQuestion}
+                                            />
+                                        </div>
                                     ) : (
                                         <QuestionsAnswersPanel
                                             questions={evalQuestions}

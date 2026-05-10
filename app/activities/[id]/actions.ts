@@ -704,8 +704,12 @@ export async function submitSelfEvaluation(
 
     const stepContent = step?.content as any;
 
+    const evalMode = stepContent?.evalMode ?? "rubric";
+    const includesRubric = evalMode === "rubric" || evalMode === "combined";
+    const includesQuestions = evalMode === "questions" || evalMode === "combined";
+
     // Validate minJustificationLength for rubric mode
-    if ((!stepContent?.evalMode || stepContent?.evalMode === 'rubric') && stepContent?.requireJustification && stepContent?.minJustificationLength) {
+    if (includesRubric && stepContent?.requireJustification && stepContent?.minJustificationLength) {
         const minLen = stepContent.minJustificationLength as number;
         const rubric: any[] = stepContent?.rubric ?? [];
         for (const c of rubric) {
@@ -716,16 +720,30 @@ export async function submitSelfEvaluation(
         }
     }
 
-    // Validate minLength for questions in questions mode
-    if (stepContent?.evalMode === 'questions' && Array.isArray(stepContent?.questions)) {
+    // Validate minLength for questions in questions/combined mode
+    if (includesQuestions && Array.isArray(stepContent?.questions)) {
         for (const q of stepContent.questions as any[]) {
+            const ans = (justifications[q.id] ?? "").trim();
+            if (!ans) {
+                return { error: `La pregunta "${q.text}" es obligatoria.` };
+            }
             if (q.type === 'short_answer' && q.minLength) {
-                const ans = (justifications[q.id] ?? "").trim();
                 if (ans.length < q.minLength) {
                     return { error: `La pregunta "${q.text}" requiere al menos ${q.minLength} caracteres.` };
                 }
             }
-            if (q.type === 'likert' && q.requireJustification && q.minLength) {
+            if (q.type === 'numeric') {
+                const value = Number.parseFloat(ans);
+                if (Number.isNaN(value)) {
+                    return { error: `La pregunta "${q.text}" requiere un número válido.` };
+                }
+                const min = q.numericMin ?? 0;
+                const max = q.numericMax ?? 10;
+                if (value < min || value > max) {
+                    return { error: `La pregunta "${q.text}" debe estar entre ${min} y ${max}.` };
+                }
+            }
+            if ((q.type === 'likert' || q.type === 'numeric') && q.requireJustification && q.minLength) {
                 const just = (justifications[`${q.id}:justification`] ?? "").trim();
                 if (just.length < q.minLength) {
                     return { error: `La justificación de "${q.text}" requiere al menos ${q.minLength} caracteres.` };
@@ -1074,6 +1092,56 @@ export async function submitPeerEvaluation(
     }
     const access = await assertStudentStepAccess(user.id, assignment.step_id);
     if (!access.ok) return { error: access.error };
+
+    const { data: step } = await supabase
+        .from("activity_steps")
+        .select("content")
+        .eq("id", assignment.step_id)
+        .single();
+    const stepContent = step?.content as any;
+    const evalMode = stepContent?.evalMode ?? "rubric";
+    const includesRubric = evalMode === "rubric" || evalMode === "combined";
+    const includesQuestions = evalMode === "questions" || evalMode === "combined";
+
+    if (includesRubric && stepContent?.requireJustification && stepContent?.minJustificationLength) {
+        const minLen = stepContent.minJustificationLength as number;
+        const rubric: any[] = stepContent?.rubric ?? [];
+        for (const criterion of rubric) {
+            const text = (justifications[criterion.id] ?? "").trim();
+            if (text.length < minLen) {
+                return { error: `La justificación de "${criterion.name}" requiere al menos ${minLen} caracteres.` };
+            }
+        }
+    }
+
+    if (includesQuestions && Array.isArray(stepContent?.questions)) {
+        for (const question of stepContent.questions as any[]) {
+            const answer = (justifications[question.id] ?? "").trim();
+            if (!answer) {
+                return { error: `La pregunta "${question.text}" es obligatoria.` };
+            }
+            if (question.type === "short_answer" && question.minLength && answer.length < question.minLength) {
+                return { error: `La pregunta "${question.text}" requiere al menos ${question.minLength} caracteres.` };
+            }
+            if (question.type === "numeric") {
+                const value = Number.parseFloat(answer);
+                if (Number.isNaN(value)) {
+                    return { error: `La pregunta "${question.text}" requiere un número válido.` };
+                }
+                const min = question.numericMin ?? 0;
+                const max = question.numericMax ?? 10;
+                if (value < min || value > max) {
+                    return { error: `La pregunta "${question.text}" debe estar entre ${min} y ${max}.` };
+                }
+            }
+            if ((question.type === "likert" || question.type === "numeric") && question.requireJustification && question.minLength) {
+                const text = (justifications[`${question.id}:justification`] ?? "").trim();
+                if (text.length < question.minLength) {
+                    return { error: `La justificación de "${question.text}" requiere al menos ${question.minLength} caracteres.` };
+                }
+            }
+        }
+    }
 
     // Each assignment gets its own activity_submissions row, keyed by peer_assignment_id.
     // Upsert on peer_assignment_id avoids the unique-constraint bug on (student_id, step_id)

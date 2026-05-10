@@ -10,6 +10,7 @@ const STEP_SUBMISSIONS_PANEL_TYPES = {
     QUIZ: "quiz",
     DELIVERABLE: "deliverable",
     FILE_UPLOAD: "file_upload",
+    SELF_EVALUATION: "self_evaluation",
 } as const;
 
 type StepSubmissionsPanelType = (typeof STEP_SUBMISSIONS_PANEL_TYPES)[keyof typeof STEP_SUBMISSIONS_PANEL_TYPES];

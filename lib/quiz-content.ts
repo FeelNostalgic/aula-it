@@ -1,11 +1,15 @@
 import type {
     QuizAttempt,
-    QuizContent,
     QuizFixedBlock,
     QuizQuestion,
     QuizQuestionBlock,
     QuizSectionBlock,
 } from "@/types/activity";
+
+type QuizFixedContent = {
+    blocks?: QuizFixedBlock[];
+    questions?: QuizQuestion[];
+};
 
 export type QuizRenderSectionItem = {
     kind: "section";
@@ -65,7 +69,7 @@ function normalizeSectionBlock(block: QuizSectionBlock): QuizSectionBlock {
     };
 }
 
-export function getQuizFixedBlocks(content: Pick<QuizContent, "blocks" | "questions">): QuizFixedBlock[] {
+export function getQuizFixedBlocks(content: QuizFixedContent): QuizFixedBlock[] {
     if (content.blocks?.length) {
         return content.blocks.reduce<QuizFixedBlock[]>((blocks, block) => {
             if (block.kind === "section") {
@@ -82,13 +86,13 @@ export function getQuizFixedBlocks(content: Pick<QuizContent, "blocks" | "questi
     return (content.questions ?? []).map((question) => createQuizQuestionBlock(question));
 }
 
-export function getQuizFixedQuestions(content: Pick<QuizContent, "blocks" | "questions">): QuizQuestion[] {
+export function getQuizFixedQuestions(content: QuizFixedContent): QuizQuestion[] {
     return getQuizFixedBlocks(content)
         .filter(isQuizQuestionBlock)
         .map((block) => block.question);
 }
 
-export function syncQuizContent(content: QuizContent): QuizContent {
+export function syncQuizContent<T extends QuizFixedContent>(content: T): T & { blocks: QuizFixedBlock[]; questions: QuizQuestion[] } {
     const blocks = getQuizFixedBlocks(content);
 
     return {
@@ -98,13 +102,13 @@ export function syncQuizContent(content: QuizContent): QuizContent {
     };
 }
 
-export function getQuizResolvedQuestions(content: Pick<QuizContent, "blocks" | "questions">, attempt?: QuizAttempt | null): QuizQuestion[] {
+export function getQuizResolvedQuestions(content: QuizFixedContent, attempt?: QuizAttempt | null): QuizQuestion[] {
     if (attempt?.resolved_questions?.length) return attempt.resolved_questions;
     return getQuizFixedQuestions(content);
 }
 
 export function buildQuizRenderItems(
-    content: Pick<QuizContent, "blocks" | "questions">,
+    content: QuizFixedContent,
     resolvedQuestions?: QuizQuestion[],
 ): QuizRenderItem[] {
     const fixedBlocks = getQuizFixedBlocks(content);

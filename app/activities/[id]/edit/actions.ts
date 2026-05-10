@@ -1555,6 +1555,7 @@ const STEP_SUBMISSIONS_ALLOWED_TYPES = {
     QUIZ: "quiz",
     DELIVERABLE: "deliverable",
     FILE_UPLOAD: "file_upload",
+    SELF_EVALUATION: "self_evaluation",
 } as const;
 
 type StepSubmissionsAllowedType = (typeof STEP_SUBMISSIONS_ALLOWED_TYPES)[keyof typeof STEP_SUBMISSIONS_ALLOWED_TYPES];
@@ -1604,6 +1605,7 @@ export async function getStepSubmissionsContext(
         STEP_SUBMISSIONS_ALLOWED_TYPES.QUIZ,
         STEP_SUBMISSIONS_ALLOWED_TYPES.DELIVERABLE,
         STEP_SUBMISSIONS_ALLOWED_TYPES.FILE_UPLOAD,
+        STEP_SUBMISSIONS_ALLOWED_TYPES.SELF_EVALUATION,
     ];
     if (!allowedTypes.includes(step.type as StepSubmissionsAllowedType)) {
         return { error: options?.invalidTypeError ?? "Este tipo de paso no permite visualizar entregas." };

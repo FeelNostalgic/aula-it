@@ -4,21 +4,18 @@ import { useState, useEffect, useTransition, useMemo, useRef } from "react";
 import {
     ActivityStepWithClientState, ActivityPhaseWithSteps,
     PeerEvaluationContent, PeerEvaluationMode,
-    OutlierSensitivity, NonEvaluatorPolicy, RubricCriteria, QuizQuestion,
+    OutlierSensitivity, NonEvaluatorPolicy, RubricCriteria,
 } from "@/types/activity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { ListChecks, Users, User, MessageSquare, Plus, Trash2, GripVertical, PanelRightClose, PanelRightOpen, Link2, CheckCircle2, Clock, Hash } from "lucide-react";
+import { ListChecks, Users, User, MessageSquare, PanelRightClose, PanelRightOpen, Link2, CheckCircle2, Clock, Trash2 } from "lucide-react";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSection, ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { cn } from "@/lib/utils";
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -27,23 +24,27 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { generatePeerAssignments, deletePeerAssignments, getPeerEvaluationResults } from "@/app/dashboard/units/[id]/actions";
-import { LikertQuestionConfig } from "../quiz/likert-question-config";
 import { useStepEditorTab } from "./use-step-editor-tab";
 import { StepVisibilityTab } from "./step-visibility-tab";
 import { MarkdownHelpPopover } from "./markdown-help-popover";
 import { EditorSaveButton } from "./editor-save-button";
+import { EvaluationQuestionBuilder } from "./evaluation-question-builder";
+import { PeerEvalResponsesPanel } from "../evaluation/peer-eval-responses-panel";
 import type { StepVisibilityTabHandle } from "./step-visibility-tab";
 
 interface PeerEvaluationEditorProps {
     step: ActivityStepWithClientState;
     onUpdate: (updated: ActivityStepWithClientState) => void;
     phases?: ActivityPhaseWithSteps[];
+    activityId?: string;
     moduleId?: string;
 }
 
 const defaultContent: PeerEvaluationContent = {
     mode: "individual",
     rubric: [],
+    blocks: [],
+    questions: [],
     requireJustification: false,
     submissionsPerEvaluator: 2,
     anonymousEvaluation: true,
@@ -67,7 +68,7 @@ const NON_EVALUATOR_OPTIONS: { value: NonEvaluatorPolicy; label: string; desc: s
     { value: "grade_penalty", label: "Penalización", desc: "Se descuenta una cantidad de puntos de su nota final." },
 ];
 
-export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerEvaluationEditorProps) {
+export function PeerEvaluationEditor({ step, onUpdate, phases, activityId, moduleId }: PeerEvaluationEditorProps) {
     const [content, setContent] = useState<PeerEvaluationContent>(
         (step.content as PeerEvaluationContent) || defaultContent
     );
@@ -127,39 +128,18 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
 
     const evalMode = content.evalMode ?? "rubric";
     const questions = content.questions ?? [];
+    const showsRubric = evalMode === "rubric" || evalMode === "combined";
+    const showsQuestions = evalMode === "questions" || evalMode === "combined";
     const availableTabs = useMemo(
-        () => evalMode === "questions"
-            ? ["instrucciones", "configuracion", "preguntas", "visibilidad"]
-            : ["instrucciones", "configuracion", "visibilidad"],
-        [evalMode],
+        () => {
+            const tabs = ["instrucciones", "configuracion"];
+            if (showsQuestions) tabs.push("preguntas");
+            tabs.push("respuestas", "visibilidad");
+            return tabs;
+        },
+        [showsQuestions],
     );
     const { activeTab, setActiveTab } = useStepEditorTab(step.id, "configuracion", availableTabs);
-
-    function generateId() { return Math.random().toString(36).slice(2, 10); }
-    function addQuestion() {
-        const newQ: QuizQuestion = { id: generateId(), type: 'short_answer', text: "", options: [], points: 0 };
-        save({ ...content, questions: [...questions, newQ] });
-    }
-    function updateQuestion(id: string, patch: Partial<QuizQuestion>) {
-        save({ ...content, questions: (questions as QuizQuestion[]).map(q => q.id === id ? { ...q, ...patch } : q) });
-    }
-    function removeQuestion(id: string) {
-        save({ ...content, questions: questions.filter(q => q.id !== id) });
-    }
-
-    const sensors = useSensors(
-        useSensor(PointerSensor),
-        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-    );
-
-    function handleDragEnd(event: DragEndEvent) {
-        const { active, over } = event;
-        if (!over || active.id === over.id) return;
-        const qs = questions as QuizQuestion[];
-        const oldIdx = qs.findIndex(q => q.id === active.id);
-        const newIdx = qs.findIndex(q => q.id === over.id);
-        save({ ...content, questions: arrayMove(qs, oldIdx, newIdx) });
-    }
 
     // Find the parent step for this eval step
     const parentStep = step.parent_step_id
@@ -172,7 +152,7 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
         "mode",
         "parent-step",
         "evaluation-mode",
-        ...(evalMode === "rubric" ? ["rubric"] : []),
+        ...(showsRubric ? ["rubric"] : []),
         ...(content.mode === "individual" ? ["distribution-individual", "integrity"] : []),
         ...(content.mode === "group" ? ["distribution-groups"] : []),
         ...(content.mode === "intra_group" ? ["distribution-intra-group"] : []),
@@ -188,11 +168,12 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                 <TabsList className="bg-transparent h-auto p-0 gap-0 rounded-none">
                     <TabsTrigger value="instrucciones" className={tabTriggerClass}>Instrucciones</TabsTrigger>
                     <TabsTrigger value="configuracion" className={tabTriggerClass}>Configuración</TabsTrigger>
-                    {evalMode === "questions" && (
+                    {showsQuestions && (
                         <TabsTrigger value="preguntas" className={tabTriggerClass}>
                             Preguntas {questions.length > 0 && <span className="ml-1 text-[9px] font-bold bg-accent-blue/20 text-accent-blue px-1.5 py-0.5 rounded-full">{questions.length}</span>}
                         </TabsTrigger>
                     )}
+                    <TabsTrigger value="respuestas" className={tabTriggerClass}>Respuestas</TabsTrigger>
                     <TabsTrigger value="visibilidad" className={tabTriggerClass}>Visibilidad</TabsTrigger>
                 </TabsList>
                 <div className="ml-auto">
@@ -382,6 +363,18 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                                     <MessageSquare className="size-3.5" />
                                     Preguntas abiertas
                                 </button>
+                                <button
+                                    onClick={() => save({ ...content, evalMode: "combined" })}
+                                    className={cn(
+                                        "flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
+                                        evalMode === "combined"
+                                            ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue"
+                                            : "bg-surface border-border/50 text-text-muted hover:text-foreground hover:bg-surface-dark"
+                                    )}
+                                >
+                                    <ListChecks className="size-3.5" />
+                                    Combinado
+                                </button>
                             </div>
                             <p className="text-xs text-text-muted">
                                 {evalMode === "rubric"
@@ -391,7 +384,7 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                     </ConfigSection>
 
                     {/* Rubric — only in rubric mode */}
-                    {evalMode === "rubric" && (
+                    {showsRubric && (
                         <>
                             <ConfigSection
                                 title="Rúbrica"
@@ -769,46 +762,28 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
                 </div>
             </TabsContent>
 
-            {/* Preguntas tab — only visible in questions mode */}
+            {/* Preguntas tab */}
             <TabsContent value="preguntas" className="mt-0 flex-1 min-h-0 overflow-y-auto">
-                <div className="max-w-4xl mx-auto p-8 space-y-4 pb-32">
-                    <div className="mb-2">
-                        <h3 className="text-lg font-bold text-foreground">Preguntas de evaluación</h3>
-                        <p className="text-sm text-text-muted mt-1">El evaluador responderá estas preguntas sobre el trabajo revisado.</p>
-                    </div>
+                <EvaluationQuestionBuilder
+                    content={content}
+                    onChange={save}
+                    heading="Preguntas de evaluacion"
+                    description="Anade secciones y preguntas que el evaluador respondera sobre el trabajo revisado."
+                    emptyTitle="No hay preguntas todavia."
+                    emptyDescription="Empieza creando preguntas o una seccion para ordenar el feedback."
+                />
+            </TabsContent>
 
-                    {questions.length === 0 ? (
-                        <div className="text-center p-12 border border-dashed border-border/50 rounded-xl bg-surface/20">
-                            <p className="text-text-muted mb-4">No hay preguntas todavía.</p>
-                            <Button onClick={addQuestion} variant="outline" className="text-accent-blue border-accent-blue/30 hover:bg-accent-blue/10">
-                                <Plus className="size-4 mr-2" /> Añadir la primera pregunta
-                            </Button>
-                        </div>
-                    ) : (
-                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                            <SortableContext items={(questions as QuizQuestion[]).map(q => q.id)} strategy={verticalListSortingStrategy}>
-                                <div className="space-y-4">
-                                    {(questions as QuizQuestion[]).map((q, idx) => (
-                                        <SortablePeerEvalQuestion
-                                            key={q.id}
-                                            q={q}
-                                            idx={idx}
-                                            onUpdate={updateQuestion}
-                                            onRemove={removeQuestion}
-                                        />
-                                    ))}
-                                </div>
-                            </SortableContext>
-                        </DndContext>
-                    )}
-
-                    {questions.length > 0 && (
-                        <div className="flex justify-center pt-4">
-                            <Button onClick={addQuestion} className="bg-surface hover:bg-surface-dark text-foreground border border-border/50">
-                                <Plus className="size-4 mr-2" /> Nueva Pregunta
-                            </Button>
-                        </div>
-                    )}
+            <TabsContent value="respuestas" className="mt-0 flex-1 min-h-0 overflow-y-auto">
+                <div className="w-full max-w-none mx-auto p-4 sm:p-6 pb-16">
+                    <PeerEvalResponsesPanel
+                        stepId={step.id}
+                        activityId={activityId}
+                        moduleId={moduleId}
+                        stepTitle={step.title}
+                        isActivityClosed={step.is_activity_closed}
+                        visible={activeTab === "respuestas"}
+                    />
                 </div>
             </TabsContent>
 
@@ -819,246 +794,36 @@ export function PeerEvaluationEditor({ step, onUpdate, phases, moduleId }: PeerE
     );
 }
 
-// ─── SortablePeerEvalQuestion ────────────────────────────────────────────────
-
-type SortablePeerEvalQuestionProps = {
-    q: QuizQuestion;
-    idx: number;
-    onUpdate: (id: string, patch: Partial<QuizQuestion>) => void;
-    onRemove: (id: string) => void;
-};
-
-function SortablePeerEvalQuestion({ q, idx, onUpdate, onRemove }: SortablePeerEvalQuestionProps) {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: q.id });
-    const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
-
-    const TYPES: { value: 'short_answer' | 'likert' | 'numeric'; label: string }[] = [
-        { value: 'short_answer', label: 'Respuesta libre' },
-        { value: 'likert', label: 'Escala Likert' },
-        { value: 'numeric', label: 'Numérico' },
-    ];
-
-    return (
-        <div ref={setNodeRef} style={style} className="p-6 bg-surface-dark border border-white/5 rounded-xl space-y-4 shadow-sm relative group">
-            {/* Header row */}
-            <div className="flex items-start gap-3">
-                <button
-                    {...attributes}
-                    {...listeners}
-                    className="mt-1 cursor-grab active:cursor-grabbing text-text-muted/40 hover:text-text-muted transition-colors shrink-0"
-                >
-                    <GripVertical className="size-4" />
-                </button>
-
-                <span className="shrink-0 bg-surface text-text-muted font-bold px-3 py-1 rounded-md text-xs mt-0.5">
-                    Q{idx + 1}
-                </span>
-
-                <Input
-                    value={q.text}
-                    onChange={(e) => onUpdate(q.id, { text: e.target.value })}
-                    placeholder="Escribe la pregunta..."
-                    className="flex-1 bg-surface border-border font-medium text-sm"
-                />
-
-                <button
-                    onClick={() => onRemove(q.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-text-muted/50 hover:text-red-400 shrink-0 mt-1"
-                >
-                    <Trash2 className="size-4" />
-                </button>
-            </div>
-
-            {/* Type pills + content */}
-            <div className="pl-14 space-y-4">
-                <div className="flex gap-1 p-0.5 bg-surface rounded-lg border border-border/30 w-fit">
-                    {TYPES.map(t => (
-                        <button
-                            key={t.value}
-                            onClick={() => onUpdate(q.id, { type: t.value })}
-                            className={cn(
-                                "px-3 py-1 rounded-md text-xs font-medium transition-colors",
-                                q.type === t.value
-                                    ? "bg-accent-blue/15 text-accent-blue"
-                                    : "text-text-muted hover:text-foreground"
-                            )}
-                        >
-                            {t.label}
-                        </button>
-                    ))}
-                </div>
-
-                {q.type === 'short_answer' && (
-                    <div className="flex items-center justify-between gap-4">
-                        <div>
-                            <p className="text-sm text-foreground font-medium">Mínimo de caracteres</p>
-                            <p className="text-xs text-text-muted mt-0.5">0 = sin mínimo.</p>
-                        </div>
-                        <input
-                            type="number" min={0} max={2000}
-                            value={q.minLength ?? 0}
-                            onChange={(e) => onUpdate(q.id, { minLength: Number(e.target.value) || undefined })}
-                            className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
-                        />
-                    </div>
-                )}
-
-                {q.type === 'likert' && (
-                    <div className="space-y-3">
-                        <LikertQuestionConfig
-                            question={q}
-                            onUpdate={(updates) => onUpdate(q.id, updates)}
-                            className="pl-0"
-                        />
-                        <div className="flex items-center justify-between gap-4">
-                            <div>
-                                <p className="text-sm text-foreground font-medium">Justificación obligatoria</p>
-                                <p className="text-xs text-text-muted mt-0.5">El evaluador debe razonar su elección.</p>
-                            </div>
-                            <LikertJustifToggle
-                                value={q.requireJustification ?? false}
-                                onChange={(v) => onUpdate(q.id, { requireJustification: v })}
-                            />
-                        </div>
-                        {q.requireJustification && (
-                            <div className="flex items-center justify-between gap-4 pl-4 border-l-2 border-border/30">
-                                <div>
-                                    <p className="text-sm text-foreground font-medium">Mínimo de caracteres</p>
-                                    <p className="text-xs text-text-muted mt-0.5">Por justificación.</p>
-                                </div>
-                                <input
-                                    type="number" min={0} max={2000}
-                                    value={q.minLength ?? 0}
-                                    onChange={(e) => onUpdate(q.id, { minLength: Number(e.target.value) || undefined })}
-                                    className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
-                                />
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {q.type === 'numeric' && (
-                    <div className="space-y-3">
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2 flex-1">
-                                <Hash className="size-3.5 text-text-muted shrink-0" />
-                                <span className="text-sm text-foreground font-medium">Rango</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-text-muted">Mín</span>
-                                <input
-                                    type="number"
-                                    value={q.numericMin ?? 0}
-                                    onChange={(e) => onUpdate(q.id, { numericMin: Number(e.target.value) })}
-                                    className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
-                                />
-                                <span className="text-xs text-text-muted">Máx</span>
-                                <input
-                                    type="number"
-                                    value={q.numericMax ?? 10}
-                                    onChange={(e) => onUpdate(q.id, { numericMax: Number(e.target.value) })}
-                                    className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
-                                />
-                            </div>
-                        </div>
-                        <div className="flex items-center justify-between gap-4">
-                            <div>
-                                <p className="text-sm text-foreground font-medium">% en la nota</p>
-                                <p className="text-xs text-text-muted mt-0.5">0 = solo descriptivo, &gt;0 = contribuye a la nota del entregable.</p>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <input
-                                    type="number" min={0} max={100} step={1}
-                                    value={q.points ?? 0}
-                                    onChange={(e) => onUpdate(q.id, { points: Number(e.target.value) })}
-                                    className="h-9 w-16 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
-                                />
-                                <span className="text-xs text-text-muted">%</span>
-                            </div>
-                        </div>
-                        <div className="flex items-center justify-between gap-4">
-                            <div>
-                                <p className="text-sm text-foreground font-medium">Justificación obligatoria</p>
-                                <p className="text-xs text-text-muted mt-0.5">El evaluador debe razonar su valoración numérica.</p>
-                            </div>
-                            <LikertJustifToggle
-                                value={q.requireJustification ?? false}
-                                onChange={(v) => onUpdate(q.id, { requireJustification: v })}
-                            />
-                        </div>
-                        {q.requireJustification && (
-                            <div className="flex items-center justify-between gap-4 pl-4 border-l-2 border-border/30">
-                                <div>
-                                    <p className="text-sm text-foreground font-medium">Mínimo de caracteres</p>
-                                    <p className="text-xs text-text-muted mt-0.5">Por justificación.</p>
-                                </div>
-                                <input
-                                    type="number" min={0} max={2000}
-                                    value={q.minLength ?? 0}
-                                    onChange={(e) => onUpdate(q.id, { minLength: Number(e.target.value) || undefined })}
-                                    className="h-9 w-20 rounded-md border border-border/50 bg-surface px-3 text-sm text-foreground text-center focus:outline-none focus:ring-1 focus:ring-accent-blue"
-                                />
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function LikertJustifToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+    value,
+    onChange,
+    label,
+    description,
+}: {
+    value: boolean;
+    onChange: (value: boolean) => void;
+    label?: string;
+    description?: string;
+}) {
     return (
         <button
             role="switch"
             aria-checked={value}
+            aria-label={label}
+            title={description}
             onClick={() => onChange(!value)}
             className={cn(
                 "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
                 value ? "bg-accent-blue" : "bg-surface-dark border border-border/50"
             )}
         >
-            <span className={cn(
-                "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transition-transform",
-                value ? "translate-x-5" : "translate-x-0"
-            )} />
+            <span
+                className={cn(
+                    "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transition-transform",
+                    value ? "translate-x-5" : "translate-x-0"
+                )}
+            />
         </button>
     );
 }
 
-function Toggle({
-    label,
-    description,
-    value,
-    onChange,
-}: {
-    label: string;
-    description: string;
-    value: boolean;
-    onChange: (v: boolean) => void;
-}) {
-    return (
-        <div className="flex items-center justify-between gap-4">
-            <div>
-                <p className="text-sm text-foreground font-medium">{label}</p>
-                <p className="text-xs text-text-muted mt-0.5">{description}</p>
-            </div>
-            <button
-                role="switch"
-                aria-checked={value}
-                onClick={() => onChange(!value)}
-                className={cn(
-                    "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
-                    value ? "bg-accent-blue" : "bg-surface-dark border border-border/50"
-                )}
-            >
-                <span className={cn(
-                    "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transition-transform",
-                    value ? "translate-x-5" : "translate-x-0"
-                )} />
-            </button>
-        </div>
-    );
-}

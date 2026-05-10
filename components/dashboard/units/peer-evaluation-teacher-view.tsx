@@ -24,7 +24,7 @@ import {
 import { updateStepActivityClosed } from "@/app/activities/[id]/edit/actions";
 import { PeerEvalReviewModal } from "@/components/dashboard/shared/peer-eval-review-modal";
 import { toast } from "sonner";
-import { RubricCriteria, QuizQuestion } from "@/types/activity";
+import { RubricCriteria, QuizQuestion, type EvalMode } from "@/types/activity";
 
 interface PeerEvaluationTeacherViewProps {
     stepId: string;
@@ -104,7 +104,7 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle, activit
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [feedbackVisible, setFeedbackVisible] = useState(false);
     const [mode, setMode] = useState<string>("individual");
-    const [evalMode, setEvalMode] = useState<"rubric" | "questions">("rubric");
+    const [evalMode, setEvalMode] = useState<EvalMode>("rubric");
     const [livePresentationMode, setLivePresentationMode] = useState(false);
     const [rubric, setRubric] = useState<RubricCriteria[]>([]);
     const [evalQuestions, setEvalQuestions] = useState<QuizQuestion[]>([]);
@@ -137,7 +137,7 @@ export function PeerEvaluationTeacherView({ stepId, moduleId, stepTitle, activit
             setFeedbackVisible(res.peerFeedbackVisibleToStudents ?? false);
             setMode(loadedMode);
             setLivePresentationMode(res.livePresentationMode ?? false);
-            setEvalMode((res.evalMode as "rubric" | "questions") ?? "rubric");
+            setEvalMode((res.evalMode as EvalMode) ?? "rubric");
             setRubric(res.rubric ?? []);
             setEvalQuestions(res.evalQuestions ?? []);
             setGroupByStudentId(res.groupByStudentId ?? {});
@@ -1072,14 +1072,14 @@ function GroupEvalTable({ rows, onReview }: {
 
 function computeAvgReceivedScore(
     receivedAssignments: Assignment[],
-    evalMode: "rubric" | "questions",
+    evalMode: EvalMode,
     rubric: RubricCriteria[],
     evalQuestions: QuizQuestion[],
 ): number | null {
     const completed = receivedAssignments.filter(a => a.eval_submission !== null && !a.is_outlier);
     if (completed.length === 0) return null;
 
-    if (evalMode === "rubric") {
+    if (evalMode === "rubric" || evalMode === "combined") {
         const rubricMax = rubric.reduce((sum, c) =>
             sum + Math.max(0, ...(c.levels ?? []).map(l => l.points)), 0);
         if (rubricMax === 0) return null;
@@ -1120,7 +1120,7 @@ function computeAvgReceivedScore(
 function IntraGroupTable({ rows, onReview, evalMode, rubric, evalQuestions }: {
     rows: IntraGroupRow[];
     onReview: (row: IntraGroupRow) => void;
-    evalMode: "rubric" | "questions";
+    evalMode: EvalMode;
     rubric: RubricCriteria[];
     evalQuestions: QuizQuestion[];
 }) {

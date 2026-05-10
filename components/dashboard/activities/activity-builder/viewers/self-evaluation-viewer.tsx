@@ -7,13 +7,15 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
-import { UserCheck, CheckCircle2, Link2, ClipboardList, MessageSquare } from "lucide-react";
+import { CheckCircle2, ClipboardList, Link2, MessageSquare, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { SelfEvaluationContent, ActivitySubmission, RubricCriteria, criteriaMaxPoints, QuizQuestion } from "@/types/activity";
 import { submitSelfEvaluation } from "@/app/activities/[id]/actions";
-import { toast } from "sonner";
+import { buildQuizRenderItems } from "@/lib/quiz-content";
 import { cn } from "@/lib/utils";
+import type { ActivitySubmission, QuizQuestion, RubricCriteria, SelfEvaluationContent } from "@/types/activity";
+import { criteriaMaxPoints } from "@/types/activity";
+import { toast } from "sonner";
 import { EvaluationQuestionResponse } from "../quiz/evaluation-question-response";
 
 interface SelfEvaluationViewerProps {
@@ -22,10 +24,11 @@ interface SelfEvaluationViewerProps {
     activityId: string;
     initialSubmission?: ActivitySubmission | null;
     referenceStepTitle?: string | null;
-    referenceScore?: number | null;  // published score of the linked deliverable (after weighting)
+    referenceScore?: number | null;
     isPreview?: boolean;
     isClosed?: boolean;
 }
+
 export function SelfEvaluationViewer({
     content,
     stepId,
@@ -39,103 +42,67 @@ export function SelfEvaluationViewer({
     const evalMode = content.evalMode ?? "rubric";
     const rubric = content.rubric ?? [];
     const questions = (content.questions ?? []) as QuizQuestion[];
-
-    const hasSubmitted = !!(
-        evalMode === "questions"
-            ? initialSubmission?.self_eval_justifications
-            : initialSubmission?.self_eval_rubric_scores
-    );
+    const showsRubric = evalMode === "rubric" || evalMode === "combined";
+    const showsQuestions = evalMode === "questions" || evalMode === "combined";
+    const hasSubmitted = !!((showsQuestions ? initialSubmission?.self_eval_justifications : null) || (showsRubric ? initialSubmission?.self_eval_rubric_scores : null));
     const isPublished = initialSubmission?.status === "published";
 
-    const [scores, setScores] = useState<Record<string, number>>(
-        initialSubmission?.self_eval_rubric_scores ?? {}
-    );
-    const [answers, setAnswers] = useState<Record<string, string>>(
-        initialSubmission?.self_eval_justifications ?? {}
-    );
+    const [scores, setScores] = useState<Record<string, number>>(initialSubmission?.self_eval_rubric_scores ?? {});
+    const [answers, setAnswers] = useState<Record<string, string>>(initialSubmission?.self_eval_justifications ?? {});
     const [isPending, startTransition] = useTransition();
 
-    // Validation
-    const allScored = evalMode === "questions" || rubric.every(c => scores[c.id] !== undefined);
-    const allAnswered = evalMode !== "questions" || questions.every(q => {
-        const ans = (answers[q.id] ?? "").trim();
-        if (!ans) return false;
-        if (q.type === 'numeric') {
-            const val = parseFloat(ans);
-            if (isNaN(val)) return false;
-            const min = q.numericMin ?? 0, max = q.numericMax ?? 10;
-            if (val < min || val > max) return false;
-            return true;
-        }
-        if (q.type === 'short_answer' && q.minLength && ans.length < q.minLength) return false;
-        if (q.type === 'likert') {
-            if (q.requireJustification) {
-                const just = (answers[`${q.id}:justification`] ?? "").trim();
-                if (!just) return false;
-                if (q.minLength && just.length < q.minLength) return false;
-            }
-        }
-        return true;
-    });
+    const questionItems = buildQuizRenderItems(content);
+    const allScored = !showsRubric || rubric.every((criterion) => scores[criterion.id] !== undefined);
+    const allAnswered = !showsQuestions || questions.every((question) => isValidQuestionAnswer(question, answers));
     const minJustLen = content.minJustificationLength ?? 0;
-    const allJustified = evalMode !== "rubric" || !content.requireJustification || rubric.every(c => {
-        const j = (answers[c.id] ?? "").trim();
-        if (!j) return false;
-        if (minJustLen > 0 && j.length < minJustLen) return false;
-        return true;
+    const allJustified = !showsRubric || !content.requireJustification || rubric.every((criterion) => {
+        const text = (answers[criterion.id] ?? "").trim();
+        return text.length >= (minJustLen > 0 ? minJustLen : 1);
     });
     const canSubmit = allScored && allAnswered && allJustified && !isPreview && !isClosed && !hasSubmitted;
 
     function handleSubmit() {
         if (!canSubmit) return;
         startTransition(async () => {
-            const rubricScores = evalMode === "questions" ? {} : scores;
-            const result = await submitSelfEvaluation(stepId, activityId, rubricScores, answers);
+            const result = await submitSelfEvaluation(stepId, activityId, showsRubric ? scores : {}, answers);
             if (result.error) {
                 toast.error(result.error);
-            } else {
-                toast.success("Autoevaluación enviada correctamente.");
+                return;
             }
+            toast.success("Autoevaluación enviada correctamente.");
         });
     }
 
-    // Numeric comparison (rubric mode only)
-    const rubricMax = rubric.reduce((sum, c) => sum + criteriaMaxPoints(c), 0);
-    const selfTotal = Object.values(scores).reduce((a, b) => a + b, 0);
+    const rubricMax = rubric.reduce((sum, criterion) => sum + criteriaMaxPoints(criterion), 0);
+    const selfTotal = Object.values(scores).reduce((sum, value) => sum + value, 0);
     const selfNormalized = rubricMax > 0 ? Math.round((selfTotal / rubricMax) * 1000) / 100 : 0;
 
     return (
         <div className="max-w-4xl mx-auto space-y-8">
-            {/* Submitted message */}
             {hasSubmitted && (
                 <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium">
                     <CheckCircle2 className="size-4 shrink-0" />
                     {isPublished
-                        ? (evalMode === "rubric"
+                        ? (showsRubric
                             ? "Autoevaluación publicada. Ya puedes ver tu nota comparativa abajo."
                             : "Autoevaluación completada.")
                         : "Autoevaluación enviada. El profesor la revisará pronto."}
                 </div>
             )}
 
-            {/* Instructions */}
             {content.instructionsMarkdown && (
                 <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-4">
                     <h3 className="text-sm font-bold text-accent-blue flex items-center gap-2 uppercase tracking-widest">
                         <UserCheck className="size-4" /> Instrucciones
                     </h3>
                     <div className="prose dark:prose-invert prose-sm max-w-none text-text-muted font-sans">
-                        <ReactMarkdown
-                            remarkPlugins={[remarkGfm, remarkMath]}
-                            rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
-                        >
+                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}>
                             {content.instructionsMarkdown}
                         </ReactMarkdown>
                     </div>
                 </div>
             )}
 
-            {/* Linked deliverable badge */}
             {referenceStepTitle && (
                 <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-dark border border-white/5 text-xs text-text-muted">
                     <Link2 className="size-3.5 text-accent-blue shrink-0" />
@@ -143,12 +110,8 @@ export function SelfEvaluationViewer({
                 </div>
             )}
 
-            {/* Published comparison banner — rubric mode, student has submitted */}
-            {evalMode === "rubric" && isPublished && hasSubmitted && (
-                <div className={cn(
-                    "grid gap-4",
-                    content.countsTowardGrade && referenceScore != null ? "grid-cols-2" : "grid-cols-1 max-w-xs"
-                )}>
+            {showsRubric && isPublished && hasSubmitted && (
+                <div className={cn("grid gap-4", content.countsTowardGrade && referenceScore != null ? "grid-cols-2" : "grid-cols-1 max-w-xs")}>
                     <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
                         <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-1">Tu autoevaluación</span>
                         <span className="text-2xl font-black font-mono text-indigo-400">{selfNormalized} / 10</span>
@@ -165,14 +128,13 @@ export function SelfEvaluationViewer({
                 </div>
             )}
 
-            {/* ── RUBRIC MODE ── */}
-            {evalMode === "rubric" && (
+            {showsRubric && (
                 rubric.length > 0 ? (
                     <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-6">
                         <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
                             <ClipboardList className="size-4" /> Rúbrica de autoevaluación
                         </h3>
-                        {rubric.map(criterion => (
+                        {rubric.map((criterion) => (
                             <CriterionBlock
                                 key={criterion.id}
                                 criterion={criterion}
@@ -181,8 +143,8 @@ export function SelfEvaluationViewer({
                                 requireJustification={content.requireJustification}
                                 minJustificationLength={content.minJustificationLength}
                                 readOnly={hasSubmitted || !!isPreview || !!isClosed}
-                                onSelect={(pts) => setScores(prev => ({ ...prev, [criterion.id]: pts }))}
-                                onJustify={(text) => setAnswers(prev => ({ ...prev, [criterion.id]: text }))}
+                                onSelect={(points) => setScores((prev) => ({ ...prev, [criterion.id]: points }))}
+                                onJustify={(text) => setAnswers((prev) => ({ ...prev, [criterion.id]: text }))}
                             />
                         ))}
                     </div>
@@ -193,25 +155,30 @@ export function SelfEvaluationViewer({
                 )
             )}
 
-            {/* ── QUESTIONS MODE ── */}
-            {evalMode === "questions" && (
+            {showsQuestions && (
                 questions.length > 0 ? (
                     <div className="p-6 bg-surface-dark border border-white/5 rounded-2xl space-y-6">
                         <h3 className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
                             <MessageSquare className="size-4" /> Reflexión
                         </h3>
-                        {questions.map((q, idx) => (
-                            <EvaluationQuestionResponse
-                                key={q.id}
-                                question={q}
-                                index={idx}
-                                answer={answers[q.id] ?? ""}
-                                justification={answers[`${q.id}:justification`] ?? ""}
-                                readOnly={hasSubmitted || !!isPreview || !!isClosed}
-                                surfaceClassName="bg-surface border-border/50"
-                                onAnswer={(value) => !hasSubmitted && !isPreview && !isClosed && setAnswers(prev => ({ ...prev, [q.id]: value }))}
-                                onJustification={(value) => !hasSubmitted && !isPreview && !isClosed && setAnswers(prev => ({ ...prev, [`${q.id}:justification`]: value }))}
-                            />
+                        {questionItems.map((item, index) => (
+                            item.kind === "section" ? (
+                                <div key={item.id} className="rounded-xl border border-accent-blue/20 bg-accent-blue/5 px-4 py-3">
+                                    <p className="text-xs font-black uppercase tracking-[0.18em] text-accent-blue">{item.section.title || "Sección"}</p>
+                                </div>
+                            ) : (
+                                <EvaluationQuestionResponse
+                                    key={item.id}
+                                    question={item.question}
+                                    index={index}
+                                    answer={answers[item.question.id] ?? ""}
+                                    justification={answers[`${item.question.id}:justification`] ?? ""}
+                                    readOnly={hasSubmitted || !!isPreview || !!isClosed}
+                                    surfaceClassName="bg-surface border-border/50"
+                                    onAnswer={(value) => !hasSubmitted && !isPreview && !isClosed && setAnswers((prev) => ({ ...prev, [item.question.id]: value }))}
+                                    onJustification={(value) => !hasSubmitted && !isPreview && !isClosed && setAnswers((prev) => ({ ...prev, [`${item.question.id}:justification`]: value }))}
+                                />
+                            )
                         ))}
                     </div>
                 ) : (
@@ -221,34 +188,42 @@ export function SelfEvaluationViewer({
                 )
             )}
 
-            {/* Submit button */}
-            {!hasSubmitted && (evalMode === "rubric" ? rubric.length > 0 : questions.length > 0) && (
+            {!hasSubmitted && ((showsRubric && rubric.length > 0) || (showsQuestions && questions.length > 0)) && (
                 <div className="flex justify-end">
-                    <Button
-                        onClick={handleSubmit}
-                        disabled={!canSubmit || isPending}
-                        className="gap-2 px-8"
-                    >
+                    <Button onClick={handleSubmit} disabled={!canSubmit || isPending} className="gap-2 px-8">
                         <CheckCircle2 className="size-4" />
                         {isPending ? "Enviando..." : "Enviar autoevaluación"}
                     </Button>
                 </div>
             )}
-
-            {hasSubmitted && (
-                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium">
-                    <CheckCircle2 className="size-4 shrink-0" />
-                    {isPublished
-                        ? (evalMode === "rubric"
-                            ? "Autoevaluación publicada. Ya puedes ver tu nota comparativa abajo."
-                            : "Autoevaluación completada.")
-                        : "Autoevaluación enviada. El profesor la revisará pronto."}
-                </div>
-            )}
         </div>
     );
 }
-// ─── Sub-component: criterion block (rubric mode) ─────────────────────────────
+
+function isValidQuestionAnswer(question: QuizQuestion, answers: Record<string, string>) {
+    const answer = (answers[question.id] ?? "").trim();
+    if (!answer) return false;
+
+    if (question.type === "numeric") {
+        const value = parseFloat(answer);
+        if (Number.isNaN(value)) return false;
+        const min = question.numericMin ?? 0;
+        const max = question.numericMax ?? 10;
+        if (value < min || value > max) return false;
+    }
+
+    if (question.type === "short_answer" && question.minLength && answer.length < question.minLength) {
+        return false;
+    }
+
+    if ((question.type === "likert" || question.type === "numeric") && question.requireJustification) {
+        const justification = (answers[`${question.id}:justification`] ?? "").trim();
+        if (!justification) return false;
+        if (question.minLength && justification.length < question.minLength) return false;
+    }
+
+    return true;
+}
 
 function CriterionBlock({
     criterion,
@@ -266,7 +241,7 @@ function CriterionBlock({
     requireJustification: boolean;
     minJustificationLength?: number;
     readOnly: boolean;
-    onSelect: (pts: number) => void;
+    onSelect: (points: number) => void;
     onJustify: (text: string) => void;
 }) {
     const charCount = justification.trim().length;
@@ -280,7 +255,7 @@ function CriterionBlock({
                 {criterion.description && <p className="text-xs text-text-muted mt-0.5">{criterion.description}</p>}
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {criterion.levels.map(level => {
+                {criterion.levels.map((level) => {
                     const isSelected = selected === level.points;
                     return (
                         <button
@@ -300,9 +275,7 @@ function CriterionBlock({
                                 {isSelected && <CheckCircle2 className="size-3 text-indigo-400 shrink-0" />}
                             </div>
                             <p className={cn("text-[10px] font-mono", isSelected ? "text-indigo-400" : "text-accent-blue")}>{level.points} pts</p>
-                            {level.description && (
-                                <p className="text-[10px] text-text-muted mt-1 leading-snug">{level.description}</p>
-                            )}
+                            {level.description && <p className="text-[10px] text-text-muted mt-1 leading-snug">{level.description}</p>}
                         </button>
                     );
                 })}
@@ -311,7 +284,7 @@ function CriterionBlock({
                 <div className="space-y-1">
                     <Textarea
                         value={justification}
-                        onChange={(e) => !readOnly && onJustify(e.target.value)}
+                        onChange={(event) => !readOnly && onJustify(event.target.value)}
                         readOnly={readOnly}
                         placeholder={requireJustification ? "Justifica tu puntuación (obligatorio)..." : "Justificación (opcional)..."}
                         className={cn(
@@ -320,10 +293,8 @@ function CriterionBlock({
                             showWarning && "border-amber-500/50"
                         )}
                     />
-                    {minLen > 0 && !readOnly && (
-                        <p className={cn("text-[10px] text-right", showWarning ? "text-amber-400" : "text-text-muted/50")}>
-                            {charCount}/{minLen} caracteres mínimos
-                        </p>
+                    {showWarning && (
+                        <p className="text-[11px] text-amber-400">Faltan {minLen - charCount} caracteres para cumplir el mínimo.</p>
                     )}
                 </div>
             )}
