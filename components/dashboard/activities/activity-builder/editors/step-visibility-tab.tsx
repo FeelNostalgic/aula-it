@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useState, useTransition } from "react";
+import { forwardRef, useEffect, useEffectEvent, useImperativeHandle, useMemo, useState, useTransition } from "react";
 import { Eye, Loader2, Users, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { ActivityStepWithClientState, STEP_AUDIENCE_MODE, type StepAudienceMode } from "@/types/activity";
@@ -44,6 +44,9 @@ export const StepVisibilityTab = forwardRef<StepVisibilityTabHandle, StepVisibil
         studentIds: string[];
         groupIds: string[];
     } | null>(null);
+    const emitDirtyChange = useEffectEvent((dirty: boolean) => {
+        onDirtyChange?.(dirty);
+    });
 
     useEffect(() => {
         if (!visible) return;
@@ -182,9 +185,10 @@ export const StepVisibilityTab = forwardRef<StepVisibilityTabHandle, StepVisibil
             || currentStudents.join("|") !== baselineStudents.join("|")
             || currentGroups.join("|") !== baselineGroups.join("|")
         );
+        if (dirtyNow === isDirty) return;
         setIsDirty(dirtyNow);
-        onDirtyChange?.(dirtyNow);
-    }, [baseline, mode, inheritFromParent, selectedStudentIds, selectedGroupIds, onDirtyChange]);
+        emitDirtyChange(dirtyNow);
+    }, [baseline, mode, inheritFromParent, selectedStudentIds, selectedGroupIds, isDirty, emitDirtyChange]);
 
     return (
         <div className="max-w-6xl mx-auto p-8 space-y-6">
