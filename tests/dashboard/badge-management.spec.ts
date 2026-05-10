@@ -10,6 +10,9 @@ let testUnitId: string;
 let testEmail: string;
 let testUserId: string;
 const password = "password123";
+const badgeTitleSeed = Date.now();
+const createdBadgeTitle = `Insignia de Prueba E2E ${badgeTitleSeed}`;
+const editedBadgeTitle = `Insignia de Prueba Editada ${badgeTitleSeed}`;
 
 test.describe("Badge Management (Gestión de Insignias)", () => {
     test.beforeAll(async () => {
@@ -88,7 +91,7 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
             await expect(dialog.getByRole("heading", { name: "Nueva insignia" })).toBeVisible();
 
             // Fill in the title (identified via label "Título de la Insignia")
-            await dialog.getByLabel(/t[íi]tulo de la insignia/i).fill("Insignia de Prueba E2E");
+            await dialog.getByLabel(/t[íi]tulo de la insignia/i).fill(createdBadgeTitle);
 
             // Fill in the description
             await dialog.getByLabel(/descripci[óo]n/i).fill("Descripción de prueba para el test E2E.");
@@ -100,8 +103,7 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
 
             // Assert badge appears in the list. The manager updates local state after create,
             // so reloading here would only add auth/session flakiness to the assertion.
-            const createdBadgeTitle = page.locator('h4').filter({ hasText: "Insignia de Prueba E2E" }).first();
-            await expect(createdBadgeTitle).toBeVisible({ timeout: 15000 });
+            await expect(getBadgeCard(page, createdBadgeTitle).first()).toBeVisible({ timeout: 15000 });
         }
     );
 
@@ -120,14 +122,12 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
             await expect(page.getByText("Gestión de insignias globales")).toBeVisible({ timeout: 10000 });
 
             // Verify the badge from the previous test is present
-            const badgeCard = page.locator("div.group").filter({
-                has: page.locator('h4', { hasText: "Insignia de Prueba E2E" }),
-            }).first();
+            const badgeCard = getBadgeCard(page, createdBadgeTitle).first();
             if (!(await badgeCard.isVisible({ timeout: 3000 }).catch(() => false))) {
                 await page.getByRole("button", { name: "NUEVA INSIGNIA", exact: true }).click();
                 const createDialog = page.locator('div[role="dialog"]');
                 await expect(createDialog).toBeVisible();
-                await createDialog.getByLabel("Título de la insignia").fill("Insignia de Prueba E2E");
+                await createDialog.getByLabel("Título de la insignia").fill(createdBadgeTitle);
                 await createDialog.getByLabel("Descripción").fill("Descripción de prueba para el test E2E.");
                 await createDialog.getByRole("button", { name: "Guardar Insignia" }).click();
                 await expect(page.getByText("Insignia creada")).toBeVisible({ timeout: 10000 });
@@ -150,7 +150,7 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
             // Clear and update the title
             const titleInput = dialog.getByLabel("Título de la insignia");
             await titleInput.clear();
-            await titleInput.fill("Insignia de Prueba Editada");
+            await titleInput.fill(editedBadgeTitle);
 
             // Submit
             await dialog.getByRole("button", { name: "Guardar Insignia" }).click();
@@ -160,7 +160,7 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
             await closeDialogIfStillOpen(page, dialog);
 
             // Assert updated title is visible in the list
-            await expect(page.locator('h4').filter({ hasText: "Insignia de Prueba Editada" }).first()).toBeVisible({ timeout: 10000 });
+            await expect(getBadgeCard(page, editedBadgeTitle).first()).toBeVisible({ timeout: 10000 });
         }
     );
 
@@ -179,12 +179,10 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
             await expect(page.getByText("Gestión de insignias globales")).toBeVisible({ timeout: 10000 });
 
             // Verify badge from previous test is present
-            const badgeCard = page.locator("div.group").filter({
-                has: page.locator('h4', { hasText: "Insignia de Prueba Editada" }),
-            }).first();
+            const badgeCard = getBadgeCard(page, editedBadgeTitle).first();
             if (!(await badgeCard.isVisible({ timeout: 3000 }).catch(() => false))) {
                 const createDialog = await openCreateBadgeDialog(page);
-                await createDialog.getByLabel("Título de la insignia").fill("Insignia de Prueba Editada");
+                await createDialog.getByLabel("Título de la insignia").fill(editedBadgeTitle);
                 await createDialog.getByLabel("Descripción").fill("Descripción de prueba para el test E2E.");
                 await createDialog.getByRole("button", { name: "Guardar Insignia" }).click();
                 await expect(page.getByText("Insignia creada")).toBeVisible({ timeout: 10000 });
@@ -195,8 +193,10 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
             // Hover to reveal the action buttons and click delete (second icon button)
             await badgeCard.hover();
 
-            const actionButtons = badgeCard.locator("div.absolute.top-2.right-2 button, div.shrink-0.ml-auto button");
-            await actionButtons.nth(1).click();
+            const deleteButton = badgeCard.locator("button").filter({
+                has: page.locator("svg.lucide-trash-2"),
+            }).first();
+            await deleteButton.click();
 
             // Confirm in AlertDialog
             const alertDialog = page.locator('div[role="alertdialog"]');
@@ -213,11 +213,44 @@ test.describe("Badge Management (Gestión de Insignias)", () => {
             await expect(page.getByText("Insignia eliminada")).toBeVisible({ timeout: 8000 });
 
             // The client badge manager updates local state after delete; verify the targeted badge disappears.
-            await expect(page.locator('h4', { hasText: "Insignia de Prueba Editada" })).toHaveCount(0, { timeout: 10000 });
+            await deleteAllMatchingBadges(page, editedBadgeTitle);
+            await expect(getBadgeCard(page, editedBadgeTitle)).toHaveCount(0, { timeout: 10000 });
             await expect(page.getByText("Gestión de insignias globales")).toBeVisible({ timeout: 10000 });
         }
     );
 });
+
+function getBadgeCard(page: import("@playwright/test").Page, title: string) {
+    return page.locator("div.group").filter({
+        has: page.locator("h4", { hasText: new RegExp(`^${escapeRegExp(title)}$`) }),
+    });
+}
+
+async function deleteAllMatchingBadges(page: import("@playwright/test").Page, title: string) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+        const cards = getBadgeCard(page, title);
+        if ((await cards.count()) === 0) {
+            return;
+        }
+
+        const badgeCard = cards.first();
+        await badgeCard.hover();
+
+        const deleteButton = badgeCard.locator("button").filter({
+            has: page.locator("svg.lucide-trash-2"),
+        }).first();
+        await deleteButton.click();
+
+        const alertDialog = page.locator('div[role="alertdialog"]');
+        await expect(alertDialog).toBeVisible();
+        await alertDialog.getByRole("button", { name: "Eliminar Insignia" }).click();
+        await expect(page.getByText("Insignia eliminada")).toBeVisible({ timeout: 8000 });
+    }
+}
+
+function escapeRegExp(value: string) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 async function openCreateBadgeDialog(page: import("@playwright/test").Page) {
     const dialog = page.getByRole("dialog").filter({

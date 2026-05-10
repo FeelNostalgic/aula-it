@@ -116,9 +116,9 @@ test.describe("Dashboard Activity Builder", () => {
         }
 
         // Status toggle
-        await expect(builder.btnPublishToggle).toHaveText(/Borrador/i);
+        await expect(builder.btnPublishToggle).toHaveAccessibleName(/Borrador/i);
         await builder.toggleStatus();
-        await expect(builder.btnPublishToggle).toHaveText(/Publicado/i);
+        await expect(builder.btnPublishToggle).toHaveAccessibleName(/Publicado/i);
     });
 
     test("User can create phases and steps", { tag: ["@e2e", "@activity-builder", "@high", "@AB-E2E-002"] }, async ({ page }) => {
