@@ -380,6 +380,21 @@ describe("submitPeerEvaluation", () => {
           };
         }
 
+        if (table === "activity_steps") {
+          return {
+            select: vi.fn(() => createChain({
+              data: {
+                content: {
+                  evalMode: "rubric",
+                  rubric: [],
+                  requireJustification: false,
+                },
+              },
+              error: null,
+            })),
+          };
+        }
+
         throw new Error(`Unexpected server table: ${table}`);
       }),
     };
