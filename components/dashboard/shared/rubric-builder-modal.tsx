@@ -27,6 +27,7 @@ import {
     Layers,
     X,
     Sparkles,
+    Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -775,6 +776,55 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
         toast.success("Criterio quitado del constructor");
     }
 
+    function handleDownloadCSV() {
+        if (rubric.length === 0) return;
+
+        // Determinar el máximo número de niveles para las cabeceras
+        const maxLevels = rubric.reduce((max, c) => Math.max(max, c.levels?.length ?? 0), 0);
+        
+        const headers = ["Criterio", "Descripción"];
+        for (let i = 1; i <= maxLevels; i++) {
+            headers.push(`Nivel ${i}`);
+        }
+
+        const rows = rubric.map(criterion => {
+            const row = [
+                criterion.name,
+                criterion.description ?? ""
+            ];
+
+            // Añadir cada nivel como "Etiqueta (Puntos pts) - Descripción"
+            for (let i = 0; i < maxLevels; i++) {
+                const level = criterion.levels?.[i];
+                if (level) {
+                    const levelText = `${level.label} (${level.points} pts)${level.description ? ` - ${level.description}` : ""}`;
+                    row.push(levelText);
+                } else {
+                    row.push("");
+                }
+            }
+            return row;
+        });
+
+        const csvContent = [headers, ...rows]
+            .map(row => row.map(cell => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))
+            .join("\n");
+
+        const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const fileName = (rubricSaveName || buildRubricDraftName(rubric)).replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g, "-");
+        
+        a.href = url;
+        a.download = `${fileName}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        toast.success("Rúbrica descargada en CSV");
+    }
+
     const ownCriteria = libraryCriteria.filter((criterion) => criterion.is_owner);
     const publicCriteria = libraryCriteria.filter((criterion) => !criterion.is_owner && criterion.visibility === "public");
     const ownRubrics = libraryRubrics.filter((savedRubric) => savedRubric.is_owner);
@@ -832,6 +882,17 @@ export function RubricBuilderModal({ rubric, open, onClose, onChange }: RubricBu
                                 >
                                     <X className="size-3.5" />
                                     {linkedLibraryRubric ? "Desvincular de la actividad" : "Quitar rúbrica"}
+                                </Button>
+                            )}
+                            {rubric.length > 0 && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleDownloadCSV}
+                                    className="h-8 border-border-strong bg-background text-text-muted hover:bg-surface-dark hover:text-foreground"
+                                >
+                                    <Download className="size-3.5" />
+                                    Descargar CSV
                                 </Button>
                             )}
                             <Button
