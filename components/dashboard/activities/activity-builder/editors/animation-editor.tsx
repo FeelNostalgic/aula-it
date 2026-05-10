@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ActivityStepWithClientState, AnimationContent } from "@/types/activity";
 import { Input } from "@/components/ui/input";
-import { updateStepContent } from "@/app/activities/[id]/edit/actions";
+import { updateStepConfiguration, updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { PlaySquare, Zap } from "lucide-react";
 import { animationComponentMap } from "@/components/animations/animation-component-map";
@@ -50,6 +50,16 @@ export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
         const res = await updateStepContent(step.id, content);
         if (res.error) {
             toast.error("Error al guardar la animación");
+            setIsSaving(false);
+            return;
+        }
+        const configRes = await updateStepConfiguration(step.id, {
+            xp: step.xp ?? 0,
+            completion_mode: step.completion_mode ?? "none",
+            xp_award_trigger: step.xp_award_trigger ?? null,
+        });
+        if (configRes.error) {
+            toast.error("Error al guardar la configuración de la actividad");
             setIsSaving(false);
             return;
         }
@@ -205,7 +215,7 @@ export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
                         allSectionsOpen={sectionState.allSectionsOpen}
                         onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
                     />
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} onDirtyChange={setIsDirty} />
                 </div>
             </TabsContent>
 

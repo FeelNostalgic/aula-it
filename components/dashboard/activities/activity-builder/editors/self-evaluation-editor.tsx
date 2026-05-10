@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { updateStepContent } from "@/app/activities/[id]/edit/actions";
+import { updateStepConfiguration, updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { RubricBuilderModal } from "@/components/dashboard/shared/rubric-builder-modal";
 import { cn } from "@/lib/utils";
 import type {
@@ -75,6 +75,16 @@ export function SelfEvaluationEditor({ step, onUpdate, phases, activityId, modul
         const result = await updateStepContent(step.id, content);
         if (result.error) {
             toast.error("Error al guardar");
+            setIsSaving(false);
+            return;
+        }
+        const configRes = await updateStepConfiguration(step.id, {
+            xp: step.xp ?? 0,
+            completion_mode: step.completion_mode ?? "none",
+            xp_award_trigger: step.xp_award_trigger ?? null,
+        });
+        if (configRes.error) {
+            toast.error("Error al guardar la configuración de la actividad");
             setIsSaving(false);
             return;
         }
@@ -201,7 +211,7 @@ export function SelfEvaluationEditor({ step, onUpdate, phases, activityId, modul
                         allSectionsOpen={sectionState.allSectionsOpen}
                         onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
                     />
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} onDirtyChange={setIsDirty} />
 
                     <ConfigSection
                         title="Modo de evaluación"

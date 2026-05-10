@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ActivityStepWithClientState, TheoryContent } from "@/types/activity";
 import { Textarea } from "@/components/ui/textarea";
-import { updateStepContent } from "@/app/activities/[id]/edit/actions";
+import { updateStepConfiguration, updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -57,6 +57,16 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
         const res = await updateStepContent(step.id, content);
         if (res.error) {
             toast.error("Error al guardar el contenido de la actividad");
+            setIsSaving(false);
+            return;
+        }
+        const configRes = await updateStepConfiguration(step.id, {
+            xp: step.xp ?? 0,
+            completion_mode: step.completion_mode ?? "none",
+            xp_award_trigger: step.xp_award_trigger ?? null,
+        });
+        if (configRes.error) {
+            toast.error("Error al guardar la configuración de la actividad");
             setIsSaving(false);
             return;
         }
@@ -177,7 +187,7 @@ export function TheoryEditor({ step, onUpdate }: TheoryEditorProps) {
                         allSectionsOpen={sectionState.allSectionsOpen}
                         onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
                     />
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} onDirtyChange={setIsDirty} />
                 </div>
             </TabsContent>
 

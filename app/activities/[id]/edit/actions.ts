@@ -168,6 +168,39 @@ export async function updateStepContent(stepId: string, content: any) {
     return { data };
 }
 
+export async function updateStepConfiguration(
+    stepId: string,
+    config: {
+        xp: number;
+        completion_mode: CompletionMode;
+        xp_award_trigger: StepXpAwardTrigger | null;
+    }
+) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "No autenticado." };
+    if (!await verifyTeacherOwnsStep(stepId, user.id)) return { error: "Sin permisos." };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+        .from("activity_steps")
+        .update({
+            xp: config.xp,
+            completion_mode: config.completion_mode,
+            xp_award_trigger: config.xp_award_trigger,
+        })
+        .eq("id", stepId)
+        .select()
+        .single();
+
+    if (error) {
+        console.error("Error updating step configuration:", error);
+        return { error: error.message };
+    }
+
+    return { data };
+}
+
 export async function updateStepTitle(stepId: string, title: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

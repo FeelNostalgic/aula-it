@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ActivityStepWithClientState, DeliverableContent, DeliveryMode, GradeComposition, PeerEvaluationContent, QuizContent, RubricCriteria } from "@/types/activity";
 import { Input } from "@/components/ui/input";
-import { updateStepContent, updateStepDueDate } from "@/app/activities/[id]/edit/actions";
+import { updateStepConfiguration, updateStepContent, updateStepDueDate } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Link2, HardDrive, CheckCircle2, Copy, MousePointer, ExternalLink, ListChecks, Send, Users, Scale } from "lucide-react";
@@ -140,6 +140,16 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
         const contentRes = await updateStepContent(step.id, content);
         if (contentRes.error) {
             toast.error("Error al guardar el entregable");
+            setIsSaving(false);
+            return;
+        }
+        const configRes = await updateStepConfiguration(step.id, {
+            xp: step.xp ?? 0,
+            completion_mode: step.completion_mode ?? "none",
+            xp_award_trigger: step.xp_award_trigger ?? null,
+        });
+        if (configRes.error) {
+            toast.error("Error al guardar la configuración de la actividad");
             setIsSaving(false);
             return;
         }
@@ -336,7 +346,7 @@ export function DeliverableEditor({ step, onUpdate, activityId, moduleId }: Deli
                         allSectionsOpen={sectionState.allSectionsOpen}
                         onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
                     />
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} onDirtyChange={setIsDirty} />
 
                     {/* Delivery mode */}
                     <ConfigSection

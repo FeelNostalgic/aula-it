@@ -5,7 +5,7 @@ import { ActivityStepWithClientState, ResourceContent, ResourceItem } from "@/ty
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { updateStepContent } from "@/app/activities/[id]/edit/actions";
+import { updateStepConfiguration, updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
 import { Trash2, Link as LinkIcon, FileText, ExternalLink, GripVertical, Eye, EyeOff, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -86,6 +86,16 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
         const res = await updateStepContent(step.id, content);
         if (res.error) {
             toast.error("Error al guardar los recursos");
+            setIsSaving(false);
+            return;
+        }
+        const configRes = await updateStepConfiguration(step.id, {
+            xp: step.xp ?? 0,
+            completion_mode: step.completion_mode ?? "none",
+            xp_award_trigger: step.xp_award_trigger ?? null,
+        });
+        if (configRes.error) {
+            toast.error("Error al guardar la configuración de la actividad");
             setIsSaving(false);
             return;
         }
@@ -279,7 +289,7 @@ export function ResourceEditor({ step, onUpdate }: ResourceEditorProps) {
                         allSectionsOpen={sectionState.allSectionsOpen}
                         onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
                     />
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} onDirtyChange={setIsDirty} />
                 </div>
             </TabsContent>
 

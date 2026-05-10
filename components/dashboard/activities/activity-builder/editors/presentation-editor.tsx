@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { HardDrive } from "lucide-react";
-import { updateStepContent } from "@/app/activities/[id]/edit/actions";
+import { updateStepConfiguration, updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { useGoogleDrivePicker } from "@/hooks/use-google-drive-picker";
 import { toEmbedUrl, GOOGLE_MIME, normalizeSlidesEmbedUrl } from "@/lib/google-drive-urls";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -90,6 +90,16 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
         const res = await updateStepContent(step.id, newContent);
         if (res.error) {
             toast.error("Error al guardar la presentación");
+            setIsSaving(false);
+            return;
+        }
+        const configRes = await updateStepConfiguration(step.id, {
+            xp: step.xp ?? 0,
+            completion_mode: step.completion_mode ?? "none",
+            xp_award_trigger: step.xp_award_trigger ?? null,
+        });
+        if (configRes.error) {
+            toast.error("Error al guardar la configuración de la actividad");
             setIsSaving(false);
             return;
         }
@@ -210,7 +220,7 @@ export function PresentationEditor({ step, onUpdate }: PresentationEditorProps) 
                         allSectionsOpen={sectionState.allSectionsOpen}
                         onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
                     />
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} onDirtyChange={setIsDirty} />
 
                     {/* Teacher notes */}
                     <ConfigSection

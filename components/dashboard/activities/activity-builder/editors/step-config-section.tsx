@@ -187,9 +187,10 @@ interface StepConfigSectionProps {
     step: ActivityStepWithClientState;
     onUpdateStep: (updated: ActivityStepWithClientState) => void;
     sectionState?: ConfigSectionState;
+    onDirtyChange?: (dirty: boolean) => void;
 }
 
-export function StepConfigSection({ step, onUpdateStep, sectionState }: StepConfigSectionProps) {
+export function StepConfigSection({ step, onUpdateStep, sectionState, onDirtyChange }: StepConfigSectionProps) {
     const [xp, setXp] = useState<string>(step.xp?.toString() || "0");
     const [completionMode, setCompletionMode] = useState<CompletionMode>(step.completion_mode ?? "none");
     const [xpAwardTrigger, setXpAwardTrigger] = useState<StepXpAwardTrigger>(step.xp_award_trigger ?? STEP_XP_AWARD_TRIGGER.GRADE);
@@ -205,17 +206,20 @@ export function StepConfigSection({ step, onUpdateStep, sectionState }: StepConf
         setXp(val);
         const numVal = parseInt(val, 10);
         const finalVal = isNaN(numVal) ? 0 : numVal;
-        onUpdateStep({ ...step, xp: finalVal });
+        onDirtyChange?.(true);
+        onUpdateStep({ ...step, xp: finalVal, client_dirty: true });
     };
 
     const handleModeChange = (mode: CompletionMode) => {
         setCompletionMode(mode);
-        onUpdateStep({ ...step, completion_mode: mode });
+        onDirtyChange?.(true);
+        onUpdateStep({ ...step, completion_mode: mode, client_dirty: true });
     };
 
     const handleXpAwardTriggerChange = (trigger: StepXpAwardTrigger) => {
         setXpAwardTrigger(trigger);
-        onUpdateStep({ ...step, xp_award_trigger: trigger });
+        onDirtyChange?.(true);
+        onUpdateStep({ ...step, xp_award_trigger: trigger, client_dirty: true });
     };
 
     const xpNum = parseInt(xp, 10);

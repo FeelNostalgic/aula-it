@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { updateStepContent, getQuestionBanks, updateStepLockdown, addQuestionToBank } from "@/app/activities/[id]/edit/actions";
+import { updateStepConfiguration, updateStepContent, getQuestionBanks, updateStepLockdown, addQuestionToBank } from "@/app/activities/[id]/edit/actions";
 import { QuestionBankManagerDialog } from "./question-bank-manager";
 import { ConfigSection, ConfigSectionsToolbar, ConfigToggle, StepConfigSection, useConfigSectionState } from "./step-config-section";
 import { toast } from "sonner";
@@ -173,6 +173,16 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
         const res = await updateStepContent(step.id, content);
         if (res.error) {
             toast.error("Error al guardar el cuestionario");
+            setIsSaving(false);
+            return;
+        }
+        const configRes = await updateStepConfiguration(step.id, {
+            xp: step.xp ?? 0,
+            completion_mode: step.completion_mode ?? "none",
+            xp_award_trigger: step.xp_award_trigger ?? null,
+        });
+        if (configRes.error) {
+            toast.error("Error al guardar la configuración de la actividad");
             setIsSaving(false);
             return;
         }
@@ -803,7 +813,7 @@ export function QuizEditor({ step, onUpdate, activityId, moduleId }: QuizEditorP
                         allSectionsOpen={sectionState.allSectionsOpen}
                         onToggleAll={() => sectionState.setAllSectionsOpen(!sectionState.allSectionsOpen)}
                     />
-                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} />
+                    <StepConfigSection step={step} onUpdateStep={onUpdate} sectionState={sectionState} onDirtyChange={setIsDirty} />
 
                     {/* Quiz mode selector — global config */}
                     <ConfigSection
