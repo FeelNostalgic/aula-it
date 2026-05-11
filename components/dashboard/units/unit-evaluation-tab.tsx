@@ -7,7 +7,7 @@ import {
     FileText, CheckCircle2, Clock, Circle, ExternalLink, Copy, Lock, Send, PencilLine,
     ChevronDown, Star, Undo2, BookOpen, Paperclip, CalendarPlus,
     LayoutGrid, ListFilter, Search, Users, User, FolderRoot, GraduationCap, ArrowRight,
-    PenTool, PlaySquare, CheckSquare, MonitorPlay, FolderDown, UserCheck, Users2,
+    PenTool, PlaySquare, CheckSquare, MonitorPlay, FolderDown, UserCheck, Users2, Save,
     ArrowUp, ArrowDown, ArrowUpDown, Download
 } from "lucide-react";
 import {
@@ -1898,6 +1898,10 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
         const activitiesWithEval = activities.filter(a => (a.evaluableSteps ?? []).length > 0);
         return initPercentages(activitiesWithEval.map(a => ({ id: a.id, weight: a.grade_weight ?? 1.0 })));
     });
+    const [savedWeights, setSavedWeights] = useState<Record<string, number>>(() => {
+        const activitiesWithEval = activities.filter(a => (a.evaluableSteps ?? []).length > 0);
+        return initPercentages(activitiesWithEval.map(a => ({ id: a.id, weight: a.grade_weight ?? 1.0 })));
+    });
     const [stepWeights, setStepWeights] = useState<Record<string, number>>(() => {
         const map: Record<string, number> = {};
         activities.forEach(a => {
@@ -1907,6 +1911,16 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
         });
         return map;
     });
+    const [savedStepWeights, setSavedStepWeights] = useState<Record<string, number>>(() => {
+        const map: Record<string, number> = {};
+        activities.forEach(a => {
+            const steps = (a.evaluableSteps ?? []);
+            if (steps.length === 0) return;
+            Object.assign(map, initPercentages(steps.map(s => ({ id: s.id, weight: s.grade_weight }))));
+        });
+        return map;
+    });
+    const [isSavingWeights, startSavingWeights] = useTransition();
 
     // Only sync new activities/steps added after mount — never re-normalize existing values
     useEffect(() => {
@@ -1924,6 +1938,18 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
             newOnes.forEach(a => { cleaned[a.id] = perNew; });
             return cleaned;
         });
+        setSavedWeights(prev => {
+            const activitiesWithEval = activities.filter(a => (a.evaluableSteps ?? []).length > 0);
+            const existingIds = new Set(Object.keys(prev));
+            const newOnes = activitiesWithEval.filter(a => !existingIds.has(a.id));
+            const currentIds = new Set(activitiesWithEval.map(a => a.id));
+            const cleaned: Record<string, number> = {};
+            for (const [id, v] of Object.entries(prev)) { if (currentIds.has(id)) cleaned[id] = v; }
+            if (newOnes.length === 0) return cleaned;
+            const perNew = Math.round(100 / (Object.keys(cleaned).length + newOnes.length));
+            newOnes.forEach(a => { cleaned[a.id] = perNew; });
+            return cleaned;
+        });
         setStepWeights(prev => {
             const updated = { ...prev };
             const allCurrentStepIds = new Set<string>();
@@ -1937,6 +1963,21 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                 }
             });
             // Remove deleted steps
+            for (const id of Object.keys(updated)) { if (!allCurrentStepIds.has(id)) delete updated[id]; }
+            return updated;
+        });
+        setSavedStepWeights(prev => {
+            const updated = { ...prev };
+            const allCurrentStepIds = new Set<string>();
+            activities.forEach(a => {
+                const steps = (a.evaluableSteps ?? []);
+                steps.forEach(s => allCurrentStepIds.add(s.id));
+                const newSteps = steps.filter(s => !(s.id in updated));
+                if (newSteps.length > 0) {
+                    const perNew = Math.round(100 / steps.length);
+                    newSteps.forEach(s => { updated[s.id] = perNew; });
+                }
+            });
             for (const id of Object.keys(updated)) { if (!allCurrentStepIds.has(id)) delete updated[id]; }
             return updated;
         });
@@ -1997,6 +2038,75 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
         return weightSum === 0 ? null : Math.round((weightedSum / weightSum) * 10) / 10;
     };
 
+    const activityWeightSum = activitiesWithSteps.reduce((sum, activity) => sum + (weights[activity.id] ?? 0), 0);
+    const hasInvalidActivityTotals = Math.abs(activityWeightSum - 100) >= 0.5;
+    const hasInvalidStepTotals = activitiesWithSteps.some((activity) => (
+        Math.abs(activity.evaluableSteps.reduce((sum, step) => sum + (stepWeights[step.id] ?? 0), 0) - 100) >= 0.5
+    ));
+    const hasPendingActivityChanges = Object.entries(weights).some(([id, value]) => value !== savedWeights[id]);
+    const hasPendingStepChanges = Object.entries(stepWeights).some(([id, value]) => value !== savedStepWeights[id]);
+    const hasPendingChanges = hasPendingActivityChanges || hasPendingStepChanges;
+    const canSaveWeights = hasPendingChanges && !hasInvalidActivityTotals && !hasInvalidStepTotals && !isSavingWeights;
+
+    function handleSaveWeights() {
+        if (!canSaveWeights) return;
+
+        startSavingWeights(async () => {
+            const changedActivities = Object.entries(weights)
+                .filter(([id, value]) => value !== savedWeights[id])
+                .map(([id, value]) => ({ id, value }));
+            const changedSteps = Object.entries(stepWeights)
+                .filter(([id, value]) => value !== savedStepWeights[id])
+                .map(([id, value]) => ({ id, value }));
+
+            const activityResults = await Promise.all(changedActivities.map(async ({ id, value }) => ({
+                id,
+                value,
+                result: await updateActivityWeight(id, value),
+            })));
+            const stepResults = await Promise.all(changedSteps.map(async ({ id, value }) => ({
+                id,
+                value,
+                result: await updateStepWeight(id, value),
+            })));
+
+            const succeededActivities = activityResults.filter(({ result }) => result?.success);
+            const failedActivities = activityResults.filter(({ result }) => result?.error);
+            const succeededSteps = stepResults.filter(({ result }) => result?.success);
+            const failedSteps = stepResults.filter(({ result }) => result?.error);
+
+            if (succeededActivities.length > 0) {
+                setSavedWeights((prev) => {
+                    const next = { ...prev };
+                    succeededActivities.forEach(({ id, value }) => {
+                        next[id] = value;
+                    });
+                    return next;
+                });
+            }
+
+            if (succeededSteps.length > 0) {
+                setSavedStepWeights((prev) => {
+                    const next = { ...prev };
+                    succeededSteps.forEach(({ id, value }) => {
+                        next[id] = value;
+                    });
+                    return next;
+                });
+            }
+
+            const savedCount = succeededActivities.length + succeededSteps.length;
+            const failedCount = failedActivities.length + failedSteps.length;
+
+            if (failedCount > 0) {
+                toast.error(`Se guardaron ${savedCount} cambios y fallaron ${failedCount}.`);
+                return;
+            }
+
+            toast.success("Pesos guardados.");
+        });
+    }
+
     return (
         <div className="flex flex-col h-full gap-4">
             {/* Header — compact */}
@@ -2011,24 +2121,35 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                         <span className="text-[9px] text-text-muted/50 font-bold uppercase tracking-wider">Vista consolidada</span>
                     </div>
                 </div>
-                <Button
-                    variant="outline" size="sm"
-                    className="h-8 text-[10px] font-black uppercase border-border-strong hover:bg-white/5 px-4 rounded-xl gap-2"
-                    onClick={() => exportGradesAsCSV({
-                        unitName: unitId,
-                        students,
-                        activitiesWithSteps,
-                        computeStepGrade,
-                        computeActivityGrade: (studentId, actId) => {
-                            const act = activitiesWithSteps.find(a => a.id === actId);
-                            return act ? computeRetoGrade(studentId, act) : null;
-                        },
-                        computeTotal,
-                    })}
-                >
-                    <Download className="size-3" />
-                    Exportar
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline" size="sm"
+                        className="h-8 text-[10px] font-black uppercase border-border-strong hover:bg-white/5 px-4 rounded-xl gap-2"
+                        onClick={handleSaveWeights}
+                        disabled={!canSaveWeights}
+                    >
+                        <Save className="size-3" />
+                        {isSavingWeights ? "Guardando..." : "Guardar"}
+                    </Button>
+                    <Button
+                        variant="outline" size="sm"
+                        className="h-8 text-[10px] font-black uppercase border-border-strong hover:bg-white/5 px-4 rounded-xl gap-2"
+                        onClick={() => exportGradesAsCSV({
+                            unitName: unitId,
+                            students,
+                            activitiesWithSteps,
+                            computeStepGrade,
+                            computeActivityGrade: (studentId, actId) => {
+                                const act = activitiesWithSteps.find(a => a.id === actId);
+                                return act ? computeRetoGrade(studentId, act) : null;
+                            },
+                            computeTotal,
+                        })}
+                    >
+                        <Download className="size-3" />
+                        Exportar
+                    </Button>
+                </div>
             </div>
 
             {/* Matrix Table */}
@@ -2053,11 +2174,9 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                                         <div className="flex flex-col items-center gap-2">
                                             <span className="truncate max-w-[180px] text-foreground/80 uppercase tracking-tight text-[11px]" title={activity.title}>{activity.title}</span>
                                             <PercentageInput
-                                                entityId={activity.id}
                                                 value={weights[activity.id] ?? 0}
-                                                groupSum={retoSum}
+                                                groupSum={activityWeightSum}
                                                 onChange={(v) => setWeights(prev => ({ ...prev, [activity.id]: v }))}
-                                                onSave={(v) => updateActivityWeight(activity.id, v).catch(() => toast.error("No se pudo guardar el %"))}
                                             />
                                         </div>
                                     </th>
@@ -2089,11 +2208,9 @@ function StudentGradesSection({ unitId, students, activities, stepSubmissions }:
                                             <div className="flex flex-col items-center gap-1.5">
                                                 <span className="truncate max-w-[100px] text-[10px] text-text-muted/50 font-black uppercase tracking-widest">{step.title}</span>
                                                 <PercentageInput
-                                                    entityId={step.id}
                                                     value={stepWeights[step.id] ?? 0}
                                                     groupSum={stepSum}
                                                     onChange={(v) => setStepWeights(prev => ({ ...prev, [step.id]: v }))}
-                                                    onSave={(v) => updateStepWeight(step.id, v).catch(() => toast.error("No se pudo guardar el %"))}
                                                     variant="step"
                                                 />
                                             </div>
@@ -2194,8 +2311,8 @@ function getEvaluationTreeStepIcon(type?: ActivityStepType, isChild = false) {
 
 // --- SHARED UI HELPERS (Unchanged logic, updated styles) ---
 
-function PercentageInput({ entityId, value, groupSum, onChange, onSave, variant = "activity" }: {
-    entityId: string; value: number; groupSum: number; onChange: (v: number) => void; onSave: (v: number) => void; variant?: "activity" | "step";
+function PercentageInput({ value, groupSum, onChange, variant = "activity" }: {
+    value: number; groupSum: number; onChange: (v: number) => void; variant?: "activity" | "step";
 }) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(String(Math.round(value)));
@@ -2208,7 +2325,6 @@ function PercentageInput({ entityId, value, groupSum, onChange, onSave, variant 
         const parsed = parseInt(draft, 10);
         if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
             onChange(parsed);
-            onSave(parsed);
         } else {
             setDraft(String(Math.round(value)));
         }

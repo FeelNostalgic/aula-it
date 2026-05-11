@@ -1267,7 +1267,7 @@ describe("updateStepWeight", () => {
       .build();
     vi_createClient.mockResolvedValue(client as any);
 
-    const { client: adminClient } = new SupabaseMockBuilder()
+    const { client: adminClient, spies } = new SupabaseMockBuilder()
       .mockQuery("units", { data: { id: "unit-1", module: { id: "module-1", teacher_id: "user-teacher-01" } }, error: null })
       .mockQuery("module_collaborators", { data: { role: "editor" }, error: null })
       .mockQuery("activity_steps", { data: { activity_id: "activity-1" }, error: null })
@@ -1278,6 +1278,11 @@ describe("updateStepWeight", () => {
     const result = await updateStepWeight("step-1", 25);
 
     expect(result).toEqual({ success: true });
+    const activityStepsCallIndex = spies.from.mock.calls.reduce((lastIndex, call, index) => (
+      call[0] === "activity_steps" ? index : lastIndex
+    ), -1);
+    const activityStepsTable = spies.from.mock.results[activityStepsCallIndex]?.value;
+    expect(activityStepsTable?.update).toHaveBeenCalledWith({ grade_weight: 25 });
     expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });
@@ -1310,7 +1315,7 @@ describe("updateActivityWeight", () => {
       .build();
     vi_createClient.mockResolvedValue(client as any);
 
-    const { client: adminClient } = new SupabaseMockBuilder()
+    const { client: adminClient, spies } = new SupabaseMockBuilder()
       .mockQuery("activities", { data: { id: "activity-1", unit_id: "unit-1" }, error: null })
       .mockQuery("units", { data: { id: "unit-1", module: { id: "module-1", teacher_id: "user-teacher-01" } }, error: null })
       .mockQuery("module_collaborators", { data: { role: "editor" }, error: null })
@@ -1321,6 +1326,11 @@ describe("updateActivityWeight", () => {
     const result = await updateActivityWeight("activity-1", 10);
 
     expect(result).toEqual({ success: true });
+    const activitiesCallIndex = spies.from.mock.calls.reduce((lastIndex, call, index) => (
+      call[0] === "activities" ? index : lastIndex
+    ), -1);
+    const activitiesTable = spies.from.mock.results[activitiesCallIndex]?.value;
+    expect(activitiesTable?.update).toHaveBeenCalledWith({ grade_weight: 10 });
     expect(vi_revalidatePath).toHaveBeenCalledWith("/dashboard/units/[id]", "layout");
   });
 });

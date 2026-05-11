@@ -3499,7 +3499,7 @@ export async function updateStepWeight(stepId: string, weight: number) {
 
     const { error } = await auth.admin
         .from("activity_steps")
-        .update({ weight })
+        .update({ grade_weight: weight })
         .eq("id", stepId);
 
     if (error) return { error: "Error al actualizar el peso del paso." };
@@ -3514,7 +3514,7 @@ export async function updateActivityWeight(activityId: string, weight: number) {
 
     const { error } = await permission.admin
         .from("activities")
-        .update({ weight })
+        .update({ grade_weight: weight })
         .eq("id", activityId);
 
     if (error) return { error: "Error al actualizar el peso de la actividad." };
