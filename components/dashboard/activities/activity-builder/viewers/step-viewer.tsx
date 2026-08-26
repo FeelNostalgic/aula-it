@@ -16,9 +16,6 @@ import { useState, useEffect, useTransition, useMemo } from "react";
 import { getQuizAttempts, submitQuizAttempt } from "@/app/activities/[id]/actions";
 import { getBankQuestionsForStep } from "@/app/activities/[id]/edit/actions";
 import { generateMarkdownPdf } from "@/app/actions/generate-pdf";
-import { animationComponentMap } from "@/components/animations/animation-component-map";
-import { animationRegistry } from "@/lib/animations/registry";
-import { AnimationPlayer } from "@/components/animations/animation-player";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -244,33 +241,19 @@ function DeliverableViewerBasic({ content }: { content: DeliverableContent }) {
 }
 
 function AnimationViewer({ content }: { content: AnimationContent }) {
-    // Local animation takes priority over iframe
-    if (content?.animationSlug) {
-        const meta = animationRegistry.find(a => a.slug === content.animationSlug);
-        const AnimationComponent = animationComponentMap[content.animationSlug as keyof typeof animationComponentMap];
-        if (meta && AnimationComponent) {
-            return (
-                <div className="w-full h-full flex flex-col">
-                    <AnimationPlayer steps={meta.steps} title={meta.title}>
-                        <AnimationComponent />
-                    </AnimationPlayer>
-                </div>
-            );
-        }
-    }
+    const rawUrl = content?.componentUrl || (content?.animationSlug ? `${process.env.NEXT_PUBLIC_ANIMATIONS_URL || "http://localhost:3001"}/embed/${content.animationSlug}` : "");
 
-    // Fallback: external iframe
     return (
-        <div className="max-w-4xl mx-auto space-y-8">
+        <div className="max-w-5xl mx-auto w-full space-y-4">
             <div className="aspect-video w-full rounded-2xl overflow-hidden border border-border shadow-2xl bg-surface-dark flex items-center justify-center relative group">
-                {content?.componentUrl ? (
+                {rawUrl ? (
                     <iframe
-                        src={content.componentUrl}
+                        src={rawUrl}
                         width="100%"
                         height="100%"
                         allowFullScreen
-                        className="border-none"
-                        title="Interactiva"
+                        className="border-none w-full h-full"
+                        title="Animación Interactiva"
                     />
                 ) : (
                     <div className="text-center p-12">

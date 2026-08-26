@@ -5,10 +5,7 @@ import { ActivityStepWithClientState, AnimationContent } from "@/types/activity"
 import { Input } from "@/components/ui/input";
 import { updateStepConfiguration, updateStepContent } from "@/app/activities/[id]/edit/actions";
 import { toast } from "sonner";
-import { PlaySquare, Zap } from "lucide-react";
-import { animationComponentMap } from "@/components/animations/animation-component-map";
-import { animationRegistry } from "@/lib/animations/registry";
-import { AnimationPlayer } from "@/components/animations/animation-player";
+import { PlaySquare, Zap, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfigSectionsToolbar, StepConfigSection, useConfigSectionState } from "./step-config-section";
@@ -75,24 +72,11 @@ export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
         onUpdate({ ...step, content, client_dirty: false });
     };
 
-    const handleSlugSelect = (slug: string) => {
-        save({ ...content, animationSlug: slug || undefined, componentUrl: "" });
-    };
-
     const handleUrlChange = (url: string) => {
         save({ ...content, componentUrl: url, animationSlug: undefined });
     };
 
-    // Preview
-    const selectedMeta = content.animationSlug
-        ? animationRegistry.find(a => a.slug === content.animationSlug)
-        : null;
-    const PreviewComponent = content.animationSlug
-        ? animationComponentMap[content.animationSlug as keyof typeof animationComponentMap]
-        : null;
-
-    const activeMode: "local" | "url" | "none" =
-        content.animationSlug ? "local" : content.componentUrl ? "url" : "none";
+    const effectiveUrl = content.componentUrl || (content.animationSlug ? `${process.env.NEXT_PUBLIC_ANIMATIONS_URL || "http://localhost:3001"}/embed/${content.animationSlug}` : "");
 
     const tabTriggerClass = "h-10 px-4 text-xs font-medium rounded-none border-b-2 border-transparent data-[state=active]:border-accent-blue data-[state=active]:text-foreground text-text-muted bg-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none";
 
@@ -116,86 +100,63 @@ export function AnimationEditor({ step, onUpdate }: AnimationEditorProps) {
                     {/* Selector panel */}
                     <div className="w-[340px] shrink-0 border-r border-border/50 flex flex-col h-full bg-surface-dark/20">
                         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                            {/* Animación local */}
-                            <div className={cn(
-                                "rounded-xl border p-4 space-y-3 transition-colors",
-                                activeMode === "local" ? "border-primary/50 bg-primary/5" : "border-border/50 bg-surface/20"
-                            )}>
+                            {/* URL de la animación interactiva */}
+                            <div className="rounded-xl border border-primary/40 bg-primary/5 p-4 space-y-3">
                                 <div className="flex items-center gap-2">
-                                    <PlaySquare className="size-4 text-primary" />
-                                    <span className="text-sm font-semibold text-foreground">Animación local</span>
-                                    {activeMode === "local" && (
-                                        <span className="ml-auto text-[10px] font-mono uppercase text-primary bg-primary/10 px-1.5 py-0.5 rounded">Activo</span>
+                                    <Zap className="size-4 text-primary" />
+                                    <span className="text-sm font-semibold text-foreground">URL Interactiva / Embed</span>
+                                    {effectiveUrl && (
+                                        <span className="ml-auto text-[10px] font-mono uppercase text-primary bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20">Activo</span>
                                     )}
                                 </div>
-                                <p className="text-xs text-text-muted">Animaciones educativas interactivas integradas en la plataforma.</p>
-                                <select
-                                    value={content.animationSlug || ""}
-                                    onChange={(e) => handleSlugSelect(e.target.value)}
-                                    className="w-full h-9 rounded-md border border-border/50 bg-surface text-sm px-3 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                                >
-                                    <option value="">— Selecciona una animación —</option>
-                                    {animationRegistry.map((anim) => (
-                                        <option key={anim.slug} value={anim.slug}>[{anim.topic}] {anim.title}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                                <div className="flex-1 h-px bg-border/50" />
-                                <span className="text-xs text-text-muted uppercase tracking-wider">o</span>
-                                <div className="flex-1 h-px bg-border/50" />
-                            </div>
-
-                            {/* URL externa */}
-                            <div className={cn(
-                                "rounded-xl border p-4 space-y-3 transition-colors",
-                                activeMode === "url" ? "border-border bg-surface/40" : "border-border/30 bg-surface/10"
-                            )}>
-                                <div className="flex items-center gap-2">
-                                    <Zap className="size-4 text-text-muted" />
-                                    <span className="text-sm font-semibold text-foreground">URL externa (iFrame)</span>
-                                    {activeMode === "url" && (
-                                        <span className="ml-auto text-[10px] font-mono uppercase text-text-muted bg-surface px-1.5 py-0.5 rounded border border-border/50">Activo</span>
-                                    )}
-                                </div>
-                                <p className="text-xs text-text-muted">Enlaza un simulador externo, Codepen, GNS3, etc.</p>
+                                <p className="text-xs text-text-muted">
+                                    Enlace a la animación interactiva (ej. motor de animaciones, Codepen, simulador).
+                                </p>
                                 <Input
                                     value={content.componentUrl || ""}
                                     onChange={(e) => handleUrlChange(e.target.value)}
-                                    placeholder="https://codepen.io/..."
-                                    className="bg-surface border-border/50 font-mono text-sm h-9"
+                                    placeholder="http://localhost:3001/embed/arp"
+                                    className="bg-surface border-border/50 font-mono text-xs h-9"
                                 />
+                                {content.animationSlug && !content.componentUrl && (
+                                    <div className="text-[11px] text-muted-foreground bg-surface/50 p-2 rounded border border-border/40">
+                                        Slug heredado: <span className="font-mono text-primary font-semibold">{content.animationSlug}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
 
                     {/* Preview panel */}
                     <div className="flex-1 flex flex-col h-full bg-background relative overflow-hidden">
-                        <div className="h-10 shrink-0 flex items-center px-4 border-b border-border/30 bg-surface/50">
+                        <div className="h-10 shrink-0 flex items-center justify-between px-4 border-b border-border/30 bg-surface/50">
                             <span className="text-xs font-mono tracking-widest text-text-muted uppercase">Vista previa</span>
+                            {effectiveUrl && (
+                                <a
+                                    href={effectiveUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                    <ExternalLink className="size-3" />
+                                    Abrir en pestaña nueva
+                                </a>
+                            )}
                         </div>
-                        <div className="flex-1 overflow-y-auto p-4">
-                            {selectedMeta && PreviewComponent ? (
-                                <div style={{ height: "calc(100vh - 120px)", minHeight: 560 }}>
-                                    <AnimationPlayer steps={selectedMeta.steps} title={selectedMeta.title}>
-                                        <PreviewComponent />
-                                    </AnimationPlayer>
-                                </div>
-                            ) : content.componentUrl?.startsWith("http") ? (
+                        <div className="flex-1 overflow-y-auto p-4 flex items-center justify-center">
+                            {effectiveUrl ? (
                                 <iframe
-                                    src={content.componentUrl}
-                                    className="w-full h-full border-none rounded-lg"
+                                    src={effectiveUrl}
+                                    className="w-full h-full border-none rounded-xl bg-surface-dark shadow-lg"
                                     title="Animation Preview"
+                                    allow="fullscreen"
                                     sandbox="allow-scripts allow-same-origin"
                                 />
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-center">
                                     <PlaySquare className="size-12 text-text-muted/30 mb-4" />
                                     <p className="text-text-muted text-sm max-w-xs">
-                                        {content.componentUrl
-                                            ? "Componente local detectado. Se renderizará en tiempo de ejecución."
-                                            : "Selecciona una animación o introduce una URL para previsualizar."}
+                                        Introduce una URL de animación para previsualizar el contenido interactivo.
                                     </p>
                                 </div>
                             )}
